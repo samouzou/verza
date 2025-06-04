@@ -1,20 +1,19 @@
-# **App Name**: Verza Canvas
+# **App Name**: Verza
 
 ## Core Features:
 
-- Project Import: Import Firebase Studio Project: Import the Verza project created by Firebase Studio, ensuring seamless integration with the app prototyping workspace.
-- AI Prompting: AI-Driven Prompting: Utilize AI to generate prompts that assist in the app prototyping process, considering the context of the imported Verza project. This includes offering code snippets, suggesting UI improvements, and helping to resolve compatibility issues.
-- Custom Views: Specialized Views: Create specialized views tailored for the imported Verza project. These views may include interactive component previews, data flow diagrams, and UI element relationship visualizations.
-- Collaboration: Real-time Collaboration: Enable multiple users to collaborate on the Verza project simultaneously, allowing for collective ideation and faster prototyping cycles.
-- Compatibility Tool: Compatibility Checks Tool: Employ an AI tool to identify and resolve compatibility issues between the imported Verza project and the prototyping workspace.
+- User Authentication: Implement real user authentication with Google OAuth 2.0, including user onboarding.
+- Persistent Storage: Store user data and uploaded contracts in a database (replacing mock data).
+- Contract Management: Allow users to upload and manage their contracts.
+- Earnings Dashboard: Display a monthly earnings graph, flag at-risk payments, and show upcoming income, filtered by brand, date, and project.
+- Creator Wallet: Display a UI for a creator wallet.
 
 ## Style Guidelines:
 
-- Primary color: Deep blue (#3F51B5) for a professional and reliable feel.
-- Background color: Light gray (#ECEFF1) for a clean and modern workspace environment.
-- Accent color: Vibrant purple (#7E57C2) to highlight interactive elements and calls to action.
-- Body and headline font: 'Inter' sans-serif, providing a modern, neutral and objective appearance appropriate to a professional workspace.
-- Code font: 'Source Code Pro' for clear display of code snippets and project configuration details.
-- Use a set of crisp, consistent icons related to app development, collaboration, and AI features, providing visual cues for navigation.
-- Implement a clear, sectioned layout to display the Verza project components, AI prompts, and specialized views, promoting an efficient workflow.
-- Apply subtle animations, such as fade-ins or transitions, when loading the imported Verza project or displaying AI-driven prompts, enhancing user engagement.
+- Primary color: Use a clean, Verza blue (#3F8CFF) for the primary branding.
+- Secondary color: Verza midnight (#0B0F1C) for backgrounds and card separation to maintain a clean look.
+- Accent: Electric Coral (#FF6B6B) for interactive elements, such as buttons and active filters.
+- Clean and modern font for all text elements.
+- Use a consistent set of outline icons from a library like Remix Icon for a professional look.
+- Employ a card-based layout for contract summaries and financial data.
+- Use subtle animations for loading states and transitions between dashboard sections.

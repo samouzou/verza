@@ -1,10 +1,14 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
+import { GeistSans } from 'geist/font/sans';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/hooks/use-auth'; 
+import { AuthGuard } from '@/components/auth-gaurd';
+import { ThemeProvider } from "next-themes";
 
 export const metadata: Metadata = {
-  title: 'Verza Canvas',
-  description: 'AI-driven prototyping workspace for Verza projects.',
+  title: 'Verza', // Updated title
+  description: 'Smart contract management for creators.',
 };
 
 export default function RootLayout({
@@ -13,16 +17,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased">
-        {children}
-        <Toaster />
+    <html lang="en" suppressHydrationWarning>
+      <body 
+        className={`${GeistSans.variable} antialiased font-sans`}
+        suppressHydrationWarning
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider> 
+            <AuthGuard>
+              {children}
+            </AuthGuard>
+            <Toaster />
+          </AuthProvider> 
+        </ThemeProvider>
       </body>
     </html>
   );
