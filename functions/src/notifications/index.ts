@@ -4,7 +4,6 @@ import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 
-
 // Initialize SendGrid
 const sendgridKey = process.env.SENDGRID_API_KEY;
 if (sendgridKey) {
