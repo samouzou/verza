@@ -2,11 +2,35 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '@/ai/flows/negotiation-suggestions-flow';
 
+export interface EditableInvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  // total will be calculated: quantity * unitPrice
+}
+
+export interface EditableInvoiceDetails {
+  creatorName?: string;
+  creatorAddress?: string;
+  creatorEmail?: string;
+  clientName?: string;
+  clientAddress?: string;
+  clientEmail?: string;
+  invoiceNumber: string;
+  invoiceDate: string; // YYYY-MM-DD
+  dueDate: string;     // YYYY-MM-DD
+  projectName?: string;
+  deliverables: EditableInvoiceLineItem[];
+  // totalAmount will be calculated from deliverables
+  paymentInstructions?: string;
+  // payInvoiceLink is generated, not edited by user directly here.
+}
+
 export interface Contract {
   id: string; // Document ID from Firestore
   userId: string; // Firebase Auth User ID
   brand: string;
-  amount: number;
+  amount: number; // This will represent the total amount of the invoice, derived from editableInvoiceDetails if present
   dueDate: string; // YYYY-MM-DD
   status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced';
   contractType: 'sponsorship' | 'consulting' | 'affiliate' | 'retainer' | 'other';
@@ -16,13 +40,13 @@ export interface Contract {
   clientName?: string;
   clientEmail?: string;
   clientAddress?: string;
-  paymentInstructions?: string;
+  paymentInstructions?: string; // Base payment instructions from contract
 
   extractedTerms?: {
     paymentMethod?: string;
     usageRights?: string;
     terminationClauses?: string;
-    deliverables?: string[];
+    deliverables?: string[]; // AI extracted deliverables list
     lateFeePenalty?: string;
   };
   summary?: string;
@@ -38,6 +62,8 @@ export interface Contract {
   invoiceHistory?: Array<{ timestamp: Timestamp; action: string; details?: string }>;
   lastReminderSentAt?: Timestamp | null;
   
+  editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
+
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
@@ -79,3 +105,4 @@ export interface UserProfileFirestoreData {
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
 }
+

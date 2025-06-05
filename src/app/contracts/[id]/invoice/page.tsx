@@ -1,15 +1,16 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea'; // Import Textarea
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, arrayUnion, serverTimestamp } from '@/lib/firebase';
@@ -17,14 +18,15 @@ import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract } from '@/types';
+import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
-import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
 
+const getDefaultLineItem = (): EditableInvoiceLineItem => ({ description: "", quantity: 1, unitPrice: 0 });
 
 export default function ManageInvoicePage() {
   const params = useParams();
@@ -36,48 +38,123 @@ export default function ManageInvoicePage() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   
-  // HTML content states
-  const [invoiceHtmlContent, setInvoiceHtmlContent] = useState<string>(""); // Canonical HTML
-  const [htmlEditBuffer, setHtmlEditBuffer] = useState<string>(""); // For textarea
-  const [isEditingHtml, setIsEditingHtml] = useState<boolean>(false);
+  // State for form-based editing
+  const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
+  const [editableCreatorName, setEditableCreatorName] = useState<string>("");
+  const [editableCreatorAddress, setEditableCreatorAddress] = useState<string>("");
+  const [editableCreatorEmail, setEditableCreatorEmail] = useState<string>("");
+  const [editableClientName, setEditableClientName] = useState<string>("");
+  const [editableClientAddress, setEditableClientAddress] = useState<string>("");
+  const [editableClientEmail, setEditableClientEmail] = useState<string>("");
+  const [editableInvoiceNumber, setEditableInvoiceNumber] = useState<string>("");
+  const [editableInvoiceDate, setEditableInvoiceDate] = useState<string>("");
+  const [editableDueDate, setEditableDueDate] = useState<string>("");
+  const [editableProjectName, setEditableProjectName] = useState<string>("");
+  const [editableDeliverables, setEditableDeliverables] = useState<EditableInvoiceLineItem[]>([getDefaultLineItem()]);
+  const [editablePaymentInstructions, setEditablePaymentInstructions] = useState<string>("");
+  const [calculatedTotalAmount, setCalculatedTotalAmount] = useState<number>(0);
 
-  const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [invoiceHtmlContent, setInvoiceHtmlContent] = useState<string>(""); // For preview & sending
   const [invoiceStatus, setInvoiceStatus] = useState<Contract['invoiceStatus']>('none');
-  const [isGeneratingAi, setIsGeneratingAi] = useState(false); // Renamed for clarity
+  
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
-
   const [payUrl, setPayUrl] = useState<string>("");
-
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
       setStripePromise(loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY));
     } else {
       console.error("Stripe publishable key (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) is missing.");
-      toast({ title: "Stripe Error", description: "Stripe publishable key is not configured. Payment functionality will be disabled.", variant: "destructive", duration: 9000 });
+      toast({ title: "Stripe Error", description: "Stripe publishable key is not configured.", variant: "destructive", duration: 9000 });
     }
   }, [toast]);
+  
+  const populateFormFromEditableDetails = useCallback((details: EditableInvoiceDetails) => {
+    setEditableCreatorName(details.creatorName || user?.displayName || "");
+    setEditableCreatorAddress(details.creatorAddress || user?.address || "");
+    setEditableCreatorEmail(details.creatorEmail || user?.email || "");
+    setEditableClientName(details.clientName || contract?.clientName || "");
+    setEditableClientAddress(details.clientAddress || contract?.clientAddress || "");
+    setEditableClientEmail(details.clientEmail || contract?.clientEmail || "");
+    setEditableInvoiceNumber(details.invoiceNumber);
+    setEditableInvoiceDate(details.invoiceDate);
+    setEditableDueDate(details.dueDate);
+    setEditableProjectName(details.projectName || contract?.projectName || "");
+    setEditableDeliverables(details.deliverables.length > 0 ? details.deliverables.map(d => ({...d})) : [getDefaultLineItem()]);
+    setEditablePaymentInstructions(details.paymentInstructions || contract?.paymentInstructions || "");
+  }, [user, contract]);
+
+  const generateAndSetHtmlFromForm = useCallback(async (currentEditableDetails?: EditableInvoiceDetails) => {
+    if (!contract || !user) return;
+
+    const detailsToUse = currentEditableDetails || getStructuredDataFromForm();
+    
+    const inputForAI: GenerateInvoiceHtmlInput = {
+      ...detailsToUse,
+      contractId: contract.id,
+      totalAmount: calculateTotal(detailsToUse.deliverables),
+      deliverables: detailsToUse.deliverables.map(d => ({
+        ...d,
+        total: d.quantity * d.unitPrice
+      })),
+      payInvoiceLink: payUrl || undefined,
+    };
+
+    try {
+      const result = await generateInvoiceHtml(inputForAI);
+      setInvoiceHtmlContent(result.invoiceHtml);
+    } catch (error) {
+      console.error("Error generating HTML from form data:", error);
+      toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
+    }
+  }, [contract, user, payUrl]); // Removed getStructuredDataFromForm from deps
 
   useEffect(() => {
-    if (id && user && !authLoading) {
+    if (id && user && !authLoading && contract === null) { // Ensure fetch only runs once
       setIsLoadingContract(true);
-      const fetchContract = async () => {
+      const fetchContractData = async () => {
         try {
           const contractDocRef = doc(db, 'contracts', id);
           const contractSnap = await getDoc(contractDocRef);
           if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
             const data = contractSnap.data() as Contract;
             setContract({ ...data, id: contractSnap.id });
-            setInvoiceHtmlContent(data.invoiceHtmlContent || ""); // Populate canonical HTML
-            setInvoiceNumber(data.invoiceNumber || `INV-${data.brand?.substring(0,3).toUpperCase() || 'AAA'}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${id.substring(0,4).toUpperCase()}`);
             setInvoiceStatus(data.invoiceStatus || 'none');
-             if (typeof window !== 'undefined') {
-              setPayUrl(`${window.location.origin}/pay/contract/${id}`);
+            setInvoiceHtmlContent(data.invoiceHtmlContent || "");
+            
+            const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+            setPayUrl(currentPayUrl);
+
+            if (data.editableInvoiceDetails) {
+              populateFormFromEditableDetails(data.editableInvoiceDetails);
+              // Regenerate HTML from stored editable details for initial preview consistency
+              await generateAndSetHtmlFromForm(data.editableInvoiceDetails);
+            } else {
+              // Initialize form with base contract/user data if no editable details exist
+              setEditableCreatorName(user.displayName || "");
+              setEditableCreatorAddress(user.address || "");
+              setEditableCreatorEmail(user.email || "");
+              setEditableClientName(data.clientName || "");
+              setEditableClientAddress(data.clientAddress || "");
+              setEditableClientEmail(data.clientEmail || "");
+              setEditableInvoiceNumber(data.invoiceNumber || `INV-${data.brand?.substring(0,3).toUpperCase() || 'AAA'}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${id.substring(0,4).toUpperCase()}`);
+              setEditableInvoiceDate(new Date().toISOString().split('T')[0]);
+              setEditableDueDate(data.dueDate);
+              setEditableProjectName(data.projectName || "");
+              setEditableDeliverables(data.amount > 0 ? [{ description: data.projectName || `Services for ${data.brand}`, quantity: 1, unitPrice: data.amount }] : [getDefaultLineItem()]);
+              setEditablePaymentInstructions(data.paymentInstructions || "");
+              if(data.invoiceHtmlContent){
+                // If HTML exists but no editable details, user sees HTML. If they edit, form initializes as above.
+              } else if (data.amount > 0) { // Auto-generate if no HTML and contract has amount
+                // Trigger AI generation if no HTML and no editable details
+                 await handleGenerateInvoiceWithAI(true, data); // Pass initial true
+              }
             }
           } else {
             toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
@@ -90,112 +167,146 @@ export default function ManageInvoicePage() {
           setIsLoadingContract(false);
         }
       };
-      fetchContract();
+      fetchContractData();
     } else if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [id, user, authLoading, router, toast]);
+  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm]); // Added contract to dep array
 
 
-  const handleGenerateInvoiceWithAI = async () => {
-    if (!contract || !user || !invoiceNumber) {
-        toast({ title: "Cannot Generate", description: "Contract details or invoice number missing.", variant: "destructive" });
+  const calculateTotal = (items: EditableInvoiceLineItem[]): number => {
+    return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  };
+
+  useEffect(() => {
+    setCalculatedTotalAmount(calculateTotal(editableDeliverables));
+  }, [editableDeliverables]);
+
+  const getStructuredDataFromForm = (): EditableInvoiceDetails => ({
+    creatorName: editableCreatorName,
+    creatorAddress: editableCreatorAddress,
+    creatorEmail: editableCreatorEmail,
+    clientName: editableClientName,
+    clientAddress: editableClientAddress,
+    clientEmail: editableClientEmail,
+    invoiceNumber: editableInvoiceNumber,
+    invoiceDate: editableInvoiceDate,
+    dueDate: editableDueDate,
+    projectName: editableProjectName,
+    deliverables: editableDeliverables.map(d => ({...d})), // Deep copy
+    paymentInstructions: editablePaymentInstructions,
+  });
+
+  const handleGenerateInvoiceWithAI = async (isInitialLoad = false, initialContractData?: Contract) => {
+    const currentContract = initialContractData || contract;
+    if (!currentContract || !user || (!isInitialLoad && !editableInvoiceNumber) ) {
+        if (!isInitialLoad) toast({ title: "Cannot Generate", description: "Contract details or invoice number missing.", variant: "destructive" });
         return;
     }
     setIsGeneratingAi(true);
     try {
-      const deliverablesForAI = contract.extractedTerms?.deliverables?.map((desc) => ({
+      const baseDeliverables = currentContract.extractedTerms?.deliverables?.map((desc) => ({
         description: desc,
         quantity: 1,
-        unitPrice: contract.extractedTerms?.deliverables && contract.extractedTerms.deliverables.length > 0 ? contract.amount / contract.extractedTerms.deliverables.length : contract.amount,
-        total: contract.extractedTerms?.deliverables && contract.extractedTerms.deliverables.length > 0 ? contract.amount / contract.extractedTerms.deliverables.length : contract.amount,
-      })) || [{ description: contract.projectName || `Services for ${contract.brand}`, quantity: 1, unitPrice: contract.amount, total: contract.amount }];
+        unitPrice: currentContract.extractedTerms?.deliverables && currentContract.extractedTerms.deliverables.length > 0 ? currentContract.amount / currentContract.extractedTerms.deliverables.length : currentContract.amount,
+      })) || (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
 
-      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
-
-      const input: GenerateInvoiceHtmlInput = {
-        creatorName: user.displayName || undefined,
-        creatorAddress: user.address || undefined,
-        creatorEmail: user.email || undefined,
-        clientName: contract.clientName || undefined,
-        clientAddress: contract.clientAddress || undefined,
-        clientEmail: contract.clientEmail || undefined,
-        invoiceNumber: invoiceNumber,
+      const aiInputDetails: EditableInvoiceDetails = {
+        creatorName: user.displayName || "",
+        creatorAddress: user.address || "",
+        creatorEmail: user.email || "",
+        clientName: currentContract.clientName || "",
+        clientAddress: currentContract.clientAddress || "",
+        clientEmail: currentContract.clientEmail || "",
+        invoiceNumber: editableInvoiceNumber || `INV-${currentContract.brand?.substring(0,3).toUpperCase() || 'AAA'}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${id.substring(0,4).toUpperCase()}`,
         invoiceDate: new Date().toISOString().split('T')[0],
-        dueDate: contract.dueDate,
-        contractId: contract.id,
-        projectName: contract.projectName || undefined,
-        deliverables: deliverablesForAI,
-        totalAmount: contract.amount,
-        paymentInstructions: contract.paymentInstructions || undefined,
-        payInvoiceLink: currentPayUrl || undefined,
+        dueDate: currentContract.dueDate,
+        projectName: currentContract.projectName || "",
+        deliverables: baseDeliverables,
+        paymentInstructions: currentContract.paymentInstructions || "",
       };
-      const result = await generateInvoiceHtml(input);
-      setInvoiceHtmlContent(result.invoiceHtml); // Update canonical HTML
-      setIsEditingHtml(false); // Switch to preview mode
-      setHtmlEditBuffer(""); // Clear edit buffer
-      toast({ title: "Invoice Generated by AI", description: "The invoice HTML has been updated." });
+      
+      populateFormFromEditableDetails(aiInputDetails); // Populate form with what AI will use
+
+      const genHtmlInput: GenerateInvoiceHtmlInput = {
+        ...aiInputDetails,
+        contractId: currentContract.id,
+        totalAmount: calculateTotal(aiInputDetails.deliverables),
+        deliverables: aiInputDetails.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice })),
+        payInvoiceLink: payUrl || undefined,
+      };
+
+      const result = await generateInvoiceHtml(genHtmlInput);
+      setInvoiceHtmlContent(result.invoiceHtml);
+      setIsEditingDetails(false); 
+      if (!isInitialLoad) toast({ title: "Invoice Generated by AI", description: "Invoice details and HTML preview updated." });
     } catch (error) {
-      console.error("Error generating invoice:", error);
-      toast({ title: "AI Generation Failed", description: "Could not generate invoice with AI.", variant: "destructive" });
+      console.error("Error generating invoice with AI:", error);
+      if (!isInitialLoad) toast({ title: "AI Generation Failed", description: "Could not generate invoice with AI.", variant: "destructive" });
     } finally {
       setIsGeneratingAi(false);
     }
   };
 
-  const toggleEditMode = () => {
-    if (!isEditingHtml) {
-      // Entering edit mode
-      setHtmlEditBuffer(invoiceHtmlContent);
-      setIsEditingHtml(true);
-    } else {
-      // Exiting edit mode (Cancel/Preview)
-      setIsEditingHtml(false);
-      // Optionally revert buffer or keep it: setHtmlEditBuffer("");
+  const toggleEditMode = async () => {
+    if (isEditingDetails) { // Leaving edit mode, update preview
+      await generateAndSetHtmlFromForm();
+    } else { // Entering edit mode
+      // Form should already be populated from useEffect or AI generation
+      if (!invoiceHtmlContent && (!contract?.editableInvoiceDetails && !contract?.invoiceHtmlContent)) {
+        // If no content at all, prime with AI
+        await handleGenerateInvoiceWithAI();
+      }
     }
+    setIsEditingDetails(!isEditingDetails);
   };
-
+  
   const handleSaveInvoice = async () => {
-    const finalHtmlToSave = isEditingHtml ? htmlEditBuffer : invoiceHtmlContent;
-
-    if (!contract || !finalHtmlToSave || !invoiceNumber) {
-      toast({ title: "Cannot Save", description: "Invoice HTML or number missing.", variant: "destructive" });
+    if (!contract || !editableInvoiceNumber) {
+      toast({ title: "Cannot Save", description: "Invoice number or core contract data missing.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
     try {
+      const currentFormData = getStructuredDataFromForm();
+      const finalTotalAmount = calculateTotal(currentFormData.deliverables);
+
+      // Regenerate HTML with final form data before saving
+      const inputForAI: GenerateInvoiceHtmlInput = {
+        ...currentFormData,
+        contractId: contract.id,
+        totalAmount: finalTotalAmount,
+        deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
+        payInvoiceLink: payUrl || undefined,
+      };
+      const htmlResult = await generateInvoiceHtml(inputForAI);
+      const finalHtmlToSave = htmlResult.invoiceHtml;
+      setInvoiceHtmlContent(finalHtmlToSave); // Update preview
+
       const contractDocRef = doc(db, 'contracts', contract.id);
       const newStatus = invoiceStatus === 'none' ? 'draft' : invoiceStatus;
-
-      let historyAction = `Invoice Saved (Status: ${newStatus})`;
-      let historyDetails = `Invoice number: ${invoiceNumber}.`;
-      if (isEditingHtml && htmlEditBuffer !== (contract.invoiceHtmlContent || invoiceHtmlContent)) {
-        historyAction = "Invoice Content Updated";
-        historyDetails = `HTML content manually modified. Status: ${newStatus}. Invoice #: ${invoiceNumber}`;
-      }
-
-
+      
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: historyAction,
-        details: historyDetails,
+        action: "Invoice Details Updated",
+        details: `Invoice details saved. Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
       };
 
       await updateDoc(contractDocRef, {
         invoiceHtmlContent: finalHtmlToSave,
-        invoiceNumber: invoiceNumber,
+        invoiceNumber: editableInvoiceNumber,
         invoiceStatus: newStatus,
+        editableInvoiceDetails: currentFormData, // Save the structured data
+        amount: finalTotalAmount, // Update the main contract amount
         invoiceHistory: arrayUnion(historyEntry),
         updatedAt: serverTimestamp(),
       });
       
-      setContract(prev => prev ? {...prev, invoiceHtmlContent: finalHtmlToSave, invoiceNumber: invoiceNumber, invoiceStatus: newStatus } : null);
-      setInvoiceHtmlContent(finalHtmlToSave); // Update canonical state
+      setContract(prev => prev ? {...prev, invoiceHtmlContent: finalHtmlToSave, invoiceNumber: editableInvoiceNumber, invoiceStatus: newStatus, editableInvoiceDetails: currentFormData, amount: finalTotalAmount } : null);
       setInvoiceStatus(newStatus);
-      setIsEditingHtml(false); // Exit edit mode
+      setIsEditingDetails(false); 
 
-      toast({ title: "Invoice Saved", description: "Invoice details have been saved." });
-      console.log('SIMULATE_LOG: Invoice saved for contract ID:', contract.id, 'Invoice Number:', invoiceNumber);
+      toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
     } catch (error) {
       console.error("Error saving invoice:", error);
       toast({ title: "Save Failed", description: "Could not save invoice details.", variant: "destructive" });
@@ -222,7 +333,6 @@ export default function ManageInvoicePage() {
       setContract(prev => prev ? {...prev, invoiceStatus: newStatus} : null);
       setInvoiceStatus(newStatus);
       toast({ title: "Status Updated", description: `Invoice status changed to ${newStatus}.` });
-      console.log('SIMULATE_LOG: Invoice status changed to', newStatus, 'for contract ID:', contract.id);
     } catch (error) {
       console.error("Error updating status:", error);
       toast({ title: "Update Failed", description: "Could not update invoice status.", variant: "destructive" });
@@ -236,66 +346,55 @@ export default function ManageInvoicePage() {
       toast({ title: "Cannot Send", description: "No invoice content or user session available.", variant: "destructive" });
       return;
     }
-    if (!contract.clientEmail) {
-      toast({ title: "Missing Client Email", description: "Client email is required to send an invoice. Please add it to the contract.", variant: "destructive" });
+    if (!editableClientEmail && !contract.clientEmail) {
+      toast({ title: "Missing Client Email", description: "Client email is required to send an invoice. Please add it to the invoice details or contract.", variant: "destructive" });
+      return;
+    }
+     if (isEditingDetails) {
+      toast({ title: "Unsaved Changes", description: "Please save or preview your changes before sending.", variant: "default" });
       return;
     }
 
     setIsSending(true);
     try {
       const idToken = await getUserIdToken();
-      if (!idToken) {
-        toast({ title: "Authentication Error", description: "Could not get user token. Please try again.", variant: "destructive" });
-        setIsSending(false);
-        return;
-      }
+      if (!idToken) throw new Error("Could not get user token.");
 
-      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+      const emailTo = editableClientEmail || contract.clientEmail;
+      const finalClientName = editableClientName || contract.clientName || contract.brand;
+      const finalProjectName = editableProjectName || contract.projectName || 'services rendered';
+      const finalInvoiceNumber = editableInvoiceNumber || contract.invoiceNumber;
+      const finalDueDate = editableDueDate || contract.dueDate;
+      const finalCreatorName = editableCreatorName || user.displayName || 'Your Service Provider';
 
       const emailBody = {
-        to: contract.clientEmail,
-        subject: `Invoice ${invoiceNumber || contract.invoiceNumber} from ${user.displayName || 'Your Service Provider'}`,
-        text: `Hello ${contract.clientName || contract.brand},\n\nPlease find attached your invoice ${invoiceNumber || contract.invoiceNumber} for ${contract.projectName || 'services rendered'}.\n\nTotal Amount Due: $${contract.amount}\nDue Date: ${new Date(contract.dueDate).toLocaleDateString()}\n\nClick here to pay: ${currentPayUrl}\n\nThank you,\n${user.displayName || 'Your Service Provider'}`,
-        html: invoiceHtmlContent, // Send the canonical HTML
+        to: emailTo,
+        subject: `Invoice ${finalInvoiceNumber} from ${finalCreatorName}`,
+        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${calculatedTotalAmount.toFixed(2)}\nDue Date: ${new Date(finalDueDate).toLocaleDateString()}\n\nClick here to pay: ${payUrl}\n\nThank you,\n${finalCreatorName}`,
+        html: invoiceHtmlContent,
         contractId: contract.id,
       };
 
       const response = await fetch(SEND_CONTRACT_NOTIFICATION_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify(emailBody),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Server returned an error, but failed to parse its response." }));
-        const detailedErrorMessage = `Server error: ${errorData.message || `Failed to send email. Status: ${response.status}`}`;
-        toast({ title: "Send Invoice Failed", description: detailedErrorMessage, variant: "destructive", duration: 7000 });
-        throw new Error(detailedErrorMessage);
+        const errorData = await response.json().catch(() => ({ message: "Server error" }));
+        throw new Error(`Server error: ${errorData.message || response.status}`);
       }
 
       const contractDocRef = doc(db, 'contracts', contract.id);
-      const historyEntry = {
-        timestamp: Timestamp.now(),
-        action: 'Invoice Sent to Client',
-        details: `To: ${contract.clientEmail}`,
-      };
-      await updateDoc(contractDocRef, {
-        invoiceStatus: 'sent',
-        invoiceHistory: arrayUnion(historyEntry),
-        updatedAt: serverTimestamp(),
-      });
+      const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${emailTo}`};
+      await updateDoc(contractDocRef, { invoiceStatus: 'sent', invoiceHistory: arrayUnion(historyEntry), updatedAt: serverTimestamp()});
       setContract(prev => prev ? {...prev, invoiceStatus: 'sent' } : null);
       setInvoiceStatus('sent');
-      toast({ title: "Invoice Sent", description: `Invoice ${invoiceNumber} sent to ${contract.clientEmail}.` });
+      toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailTo}.` });
 
     } catch (error: any) {
       console.error("Error sending invoice:", error);
-      if (!String(error.message).startsWith("Server error:")) {
-         toast({ title: "Send Invoice Failed", description: error.message || "Could not send invoice email.", variant: "destructive" });
-      }
+      toast({ title: "Send Invoice Failed", description: error.message || "Could not send invoice email.", variant: "destructive" });
     } finally {
       setIsSending(false);
     }
@@ -308,51 +407,32 @@ export default function ManageInvoicePage() {
     }
     if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
       toast({ title: "Stripe Error", description: "Stripe publishable key is not configured.", variant: "destructive" });
-      console.error("Stripe publishable key (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) is missing.");
       return;
     }
 
-    setIsFetchingClientSecret(true);
-    setClientSecret(null);
-
+    setIsFetchingClientSecret(true); setClientSecret(null);
     try {
       const idToken = await getUserIdToken();
-      if (!idToken) {
-        toast({ title: "Authentication Error", description: "Could not get user token for payment. Please try again.", variant: "destructive" });
-        setIsFetchingClientSecret(false);
-        return;
-      }
+      if (!idToken) throw new Error("Could not get user token for payment.");
 
       const response = await fetch(CREATE_PAYMENT_INTENT_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify({
-          amount: contract.amount, 
-          currency: 'usd',
-          contractId: contract.id,
-          clientEmail: contract.clientEmail || undefined,
+          amount: contract.amount, currency: 'usd', contractId: contract.id,
+          clientEmail: editableClientEmail || contract.clientEmail || undefined,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to create payment intent. Status: ${response.status}`);
+        throw new Error(errorData.message || `Payment intent failed. Status: ${response.status}`);
       }
-
       const { clientSecret: receivedClientSecret } = await response.json();
-
-      if (!receivedClientSecret) {
-        throw new Error("Client secret not received from payment intent function.");
-      }
-
+      if (!receivedClientSecret) throw new Error("Client secret not received.");
       setClientSecret(receivedClientSecret);
-      toast({ title: "Payment Form Ready", description: "Please enter your card details below." });
-
+      toast({ title: "Payment Form Ready", description: "Enter card details below." });
     } catch (error: any) {
-      console.error("Payment intent creation error:", error);
+      console.error("Payment intent error:", error);
       toast({ title: "Payment Setup Failed", description: error.message || "Could not initiate payment.", variant: "destructive" });
       setClientSecret(null);
     } finally {
@@ -360,179 +440,168 @@ export default function ManageInvoicePage() {
     }
   };
 
-  if (isLoadingContract || authLoading) {
-    return (
-      <div className="space-y-4 p-4">
-        <PageHeader title="Manage Invoice" description="Loading contract details..." />
-        <Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card>
-      </div>
-    );
-  }
+  const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
+    const newDeliverables = [...editableDeliverables];
+    if (field === 'quantity' || field === 'unitPrice') {
+        newDeliverables[index] = { ...newDeliverables[index], [field]: Number(value) < 0 ? 0 : Number(value) };
+    } else {
+        newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
+    }
+    setEditableDeliverables(newDeliverables);
+  };
 
+  const addDeliverable = () => setEditableDeliverables([...editableDeliverables, getDefaultLineItem()]);
+  const removeDeliverable = (index: number) => {
+    if (editableDeliverables.length > 1) {
+      setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
+    } else {
+      toast({title: "Cannot Remove", description: "You must have at least one line item.", variant: "default"});
+    }
+  };
+
+
+  if (isLoadingContract || authLoading) {
+    return <div className="space-y-4 p-4"><PageHeader title="Manage Invoice" description="Loading..." /><Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
+  }
   if (!contract) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-4">
-        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2>
-        <Button asChild variant="outline" onClick={() => router.push('/contracts')}>
-         <Link href="/contracts"> <ArrowLeft className="mr-2 h-4 w-4" /> Back to Contracts </Link>
-        </Button>
-      </div>
-    );
+    return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4" />Back</Link></Button></div>;
   }
 
   const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && contract.amount > 0 && !clientSecret;
-  const canSendInvoice = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
-
-  const appearance = {
-    theme: 'stripe' as const,
-    variables: {
-      colorPrimary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(),
-    },
-  };
+  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
+  const appearance = { theme: 'stripe' as const, variables: { colorPrimary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() }};
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
-
 
   return (
     <>
       <PageHeader
-        title={`Invoice for ${contract.brand} - ${contract.projectName || contract.id}`}
-        description={contract.invoiceNumber ? `Invoice #: ${contract.invoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate and manage the invoice for this contract."}
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" asChild>
-              <Link href={`/contracts/${id}`}> <ArrowLeft className="mr-2 h-4 w-4" /> Back to Contract </Link>
-            </Button>
-          </div>
-        }
+        title={`Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`}
+        description={editableInvoiceNumber ? `Invoice #: ${editableInvoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
+        actions={<Button variant="outline" asChild><Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Contract</Link></Button>}
       />
 
       <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Invoice Management</CardTitle>
-            <CardDescription>
-              Update invoice details, status, HTML content, and process payments.
-            </CardDescription>
+            <CardDescription>Update invoice details, status, content, and process payments.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
               <div>
-                <label htmlFor="invoiceNumberInput" className="block text-sm font-medium text-muted-foreground mb-1">Invoice Number</label>
-                <Input
-                  id="invoiceNumberInput"
-                  type="text"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder="Enter Invoice Number (e.g. INV-001)"
-                  className="max-w-sm"
-                  disabled={isEditingHtml || isSaving || isSending || !!clientSecret}
-                />
+                <Label htmlFor="invoiceNumberInput">Invoice Number</Label>
+                <Input id="invoiceNumberInput" value={editableInvoiceNumber} onChange={(e) => setEditableInvoiceNumber(e.target.value)} placeholder="e.g. INV-001" className="max-w-sm mt-1" disabled={isSaving || isSending || !!clientSecret || !isEditingDetails} />
               </div>
               <div>
-                <label htmlFor="invoiceStatusSelect" className="block text-sm font-medium text-muted-foreground mb-1">Invoice Status</label>
-                 <Select
-                    value={invoiceStatus || 'none'}
-                    onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])}
-                    disabled={isSaving || isLoadingContract || isSending || !!clientSecret || isEditingHtml}
-                  >
-                  <SelectTrigger className="max-w-sm" id="invoiceStatusSelect">
-                    <SelectValue placeholder="Set Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="viewed">Viewed</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                  </SelectContent>
+                <Label htmlFor="invoiceStatusSelect">Invoice Status</Label>
+                 <Select value={invoiceStatus || 'none'} onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])} disabled={isSaving || isLoadingContract || isSending || !!clientSecret || isEditingDetails}>
+                  <SelectTrigger className="max-w-sm mt-1" id="invoiceStatusSelect"><SelectValue placeholder="Set Status" /></SelectTrigger>
+                  <SelectContent><SelectItem value="none">None</SelectItem><SelectItem value="draft">Draft</SelectItem><SelectItem value="sent">Sent</SelectItem><SelectItem value="viewed">Viewed</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button onClick={handleGenerateInvoiceWithAI} disabled={isGeneratingAi || isSaving || isFetchingClientSecret || isSending || !invoiceNumber || !!clientSecret || isEditingHtml}>
+              <Button onClick={() => handleGenerateInvoiceWithAI()} disabled={isGeneratingAi || isSaving || isFetchingClientSecret || isSending || !editableInvoiceNumber || !!clientSecret || isEditingDetails}>
                 {isGeneratingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                {invoiceHtmlContent ? "Re-generate with AI" : "Generate with AI"}
+                {invoiceHtmlContent && contract?.editableInvoiceDetails ? "Re-generate with AI" : "Generate with AI"}
               </Button>
-              <Button onClick={toggleEditMode} variant="outline" disabled={isSaving || isGeneratingAi || isSending || !invoiceHtmlContent || !!clientSecret}>
-                {isEditingHtml ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
-                {isEditingHtml ? "Preview HTML" : "Edit HTML"}
+              <Button onClick={toggleEditMode} variant="outline" disabled={isSaving || isGeneratingAi || isSending || !!clientSecret || (!invoiceHtmlContent && !contract?.editableInvoiceDetails)}>
+                {isEditingDetails ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
+                {isEditingDetails ? "Preview HTML" : "Edit Invoice Details"}
               </Button>
-              <Button onClick={handleSaveInvoice} disabled={isSaving || (!invoiceHtmlContent && !htmlEditBuffer) || !invoiceNumber || isFetchingClientSecret || isSending || !!clientSecret}>
+              <Button onClick={handleSaveInvoice} disabled={isSaving || isGeneratingAi || !editableInvoiceNumber || isFetchingClientSecret || isSending || !!clientSecret || !isEditingDetails}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save Invoice
+                Save Details & HTML
               </Button>
-              {canSendInvoice && (
-                <Button onClick={handleSendInvoice} disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || !contract.clientEmail || isEditingHtml}>
+              {canSend && (
+                <Button onClick={handleSendInvoice} disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || (!editableClientEmail && !contract.clientEmail) || isEditingDetails}>
                   {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   Send to Client
                 </Button>
               )}
                {canPay && (
-                <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingHtml} variant="default">
+                <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingDetails} variant="default">
                   {isFetchingClientSecret ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
                   Pay Invoice (${contract.amount.toLocaleString()})
                 </Button>
               )}
             </div>
-            {!contract.clientEmail && canSendInvoice && (
-                <p className="text-xs text-destructive">Client email is missing. Please add it to the contract to enable sending.</p>
-            )}
-             {!contract.clientEmail && (invoiceStatus === 'draft' || invoiceStatus === 'none') && !canSendInvoice && (
-                <p className="text-xs text-orange-600 dark:text-orange-400">Tip: Add a client email to the contract to enable sending the invoice.</p>
+            {(!editableClientEmail && !contract.clientEmail) && canSend && (
+                <p className="text-xs text-destructive">Client email is missing. Please add it to edit mode to enable sending.</p>
             )}
           </CardContent>
         </Card>
 
         {clientSecret && stripePromise && elementsOptions && (
           <Card>
-            <CardHeader>
-              <CardTitle>Enter Payment Details</CardTitle>
-              <CardDescription>Securely enter your card information below.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Elements stripe={stripePromise} options={elementsOptions}>
-                <StripePaymentForm clientSecret={clientSecret} contractId={contract.id} />
-              </Elements>
+            <CardHeader><CardTitle>Enter Payment Details</CardTitle><CardDescription>Securely enter your card information below.</CardDescription></CardHeader>
+            <CardContent><Elements stripe={stripePromise} options={elementsOptions}><StripePaymentForm clientSecret={clientSecret} contractId={contract.id} /></Elements></CardContent>
+          </Card>
+        )}
+
+        {isEditingDetails && !clientSecret && (
+          <Card>
+            <CardHeader><CardTitle>Edit Invoice Details</CardTitle><CardDescription>Modify the fields below. The HTML preview will update when you click "Preview HTML".</CardDescription></CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div><Label htmlFor="edit-invNum">Invoice Number</Label><Input id="edit-invNum" value={editableInvoiceNumber} onChange={(e) => setEditableInvoiceNumber(e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-invDate">Invoice Date</Label><Input id="edit-invDate" type="date" value={editableInvoiceDate} onChange={(e) => setEditableInvoiceDate(e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-dueDate">Due Date</Label><Input id="edit-dueDate" type="date" value={editableDueDate} onChange={(e) => setEditableDueDate(e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-projName">Project Name (Optional)</Label><Input id="edit-projName" value={editableProjectName} onChange={(e) => setEditableProjectName(e.target.value)} className="mt-1"/></div>
+              </div>
+              
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-md font-semibold mb-2">Creator Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    <div><Label htmlFor="edit-creatorName">Your Name/Company</Label><Input id="edit-creatorName" value={editableCreatorName} onChange={(e) => setEditableCreatorName(e.target.value)} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-creatorEmail">Your Email</Label><Input id="edit-creatorEmail" type="email" value={editableCreatorEmail} onChange={(e) => setEditableCreatorEmail(e.target.value)} className="mt-1"/></div>
+                    <div className="md:col-span-2"><Label htmlFor="edit-creatorAddr">Your Address</Label><Textarea id="edit-creatorAddr" value={editableCreatorAddress} onChange={(e) => setEditableCreatorAddress(e.target.value)} rows={2} className="mt-1"/></div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-md font-semibold mb-2">Client Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    <div><Label htmlFor="edit-clientName">Client Name</Label><Input id="edit-clientName" value={editableClientName} onChange={(e) => setEditableClientName(e.target.value)} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-clientEmail">Client Email</Label><Input id="edit-clientEmail" type="email" value={editableClientEmail} onChange={(e) => setEditableClientEmail(e.target.value)} className="mt-1"/></div>
+                    <div className="md:col-span-2"><Label htmlFor="edit-clientAddr">Client Address</Label><Textarea id="edit-clientAddr" value={editableClientAddress} onChange={(e) => setEditableClientAddress(e.target.value)} rows={2} className="mt-1"/></div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-md font-semibold mb-2">Invoice Line Items</h4>
+                {editableDeliverables.map((item, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
+                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1"/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="0" onChange={(e) => handleDeliverableChange(index, 'quantity', parseFloat(e.target.value))} className="mt-1"/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', parseFloat(e.target.value))} className="mt-1"/></div>
+                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
+                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full"><Trash2 className="h-4 w-4"/></Button></div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addDeliverable} size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Add Line Item</Button>
+                <div className="text-right font-semibold text-lg mt-4">Total Amount: ${calculatedTotalAmount.toFixed(2)}</div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <Label htmlFor="edit-paymentInstr">Payment Instructions</Label>
+                <Textarea id="edit-paymentInstr" value={editablePaymentInstructions} onChange={(e) => setEditablePaymentInstructions(e.target.value)} rows={3} className="mt-1"/>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {!clientSecret && ( // Only show preview/editor if not in payment flow
-          isEditingHtml ? (
+        {!clientSecret && !isEditingDetails && (
+          invoiceHtmlContent ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Edit Invoice HTML</CardTitle>
-                <CardDescription>Modify the HTML content of your invoice directly. Be careful with HTML structure.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={htmlEditBuffer}
-                  onChange={(e) => setHtmlEditBuffer(e.target.value)}
-                  rows={20}
-                  className="font-mono text-xs"
-                  placeholder="Enter or edit invoice HTML here..."
-                />
-              </CardContent>
-            </Card>
-          ) : invoiceHtmlContent ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoice Preview</CardTitle>
-                <CardDescription>This is the current HTML content of your invoice. You can copy it or use browser print-to-PDF.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="prose dark:prose-invert max-w-none p-4 border rounded-md bg-background overflow-auto max-h-[60vh]" dangerouslySetInnerHTML={{ __html: invoiceHtmlContent }} />
-              </CardContent>
+              <CardHeader><CardTitle>Invoice HTML Preview</CardTitle><CardDescription>Current HTML. Copy or use browser print-to-PDF.</CardDescription></CardHeader>
+              <CardContent><div className="prose dark:prose-invert max-w-none p-4 border rounded-md bg-background overflow-auto max-h-[60vh]" dangerouslySetInnerHTML={{ __html: invoiceHtmlContent }} /></CardContent>
             </Card>
           ) : (
             <Card>
-              <CardHeader><CardTitle>No Invoice Generated Yet</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Enter an invoice number and use the "Generate with AI" button to create an invoice for this contract.</p>
-              </CardContent>
+              <CardHeader><CardTitle>No Invoice Content</CardTitle></CardHeader>
+              <CardContent><p className="text-muted-foreground">Generate invoice with AI or switch to 'Edit Invoice Details' to manually create one.</p></CardContent>
             </Card>
           )
         )}
