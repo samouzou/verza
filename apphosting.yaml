@@ -1,7 +1,61 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 2
+  memoryMiB: 4096
+
+# Environment variables and secrets.
+env:
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: VERZA_FIREBASE_STORAGE_BUCKET
+    availability:
+      - BUILD
+      - RUNTIME
+      
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: VERZA_FIREBASE_API_KEY # This is the NAME of the secret in Secret Manager
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Stripe key
+  - variable: STRIPE_SECRET_KEY
+    secret: VERZA_STRIPE_SECRET_KEY
+  
+  - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
+    secret: VERZA_SUBSCRIPTION_WEBHOOK_SECRET
+
+  - variable: STRIPE_PRICE_ID
+    secret: VERZA_STRIPE_PRICE_ID
+
+  - variable: APP_URL
+    secret: VERZA_APP_URL
+
+
+
+  # Gemini
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+
+  # Firebase
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: VERZA_FIREBASE_AUTH_DOMAIN
+
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: VERZA_FIREBASE_PROJECT_ID
+
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: VERZA_FIREBASE_MESSAGING_SENDER_ID
+
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: VERZA_FIREBASE_APP_ID
+
+  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    secret: VERZA_STRIPE_PUBLISHABLE_KEY
