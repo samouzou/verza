@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import { loadStripe } from '@stripe/stripe-js';
 
 // Define the new URL for the Cloud Function
-const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createstripesubscriptioncheckoutsession-yzlih5wcva-uc.a.run.app";
+const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createstripesubscriptioncheckoutsession-cpmccwbluq-uc.a.run.app";
 
 export function SubscriptionCard() {
   const { user, refreshAuthUser } = useAuth(); // Added refreshAuthUser

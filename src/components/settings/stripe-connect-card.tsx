@@ -10,8 +10,8 @@ import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTria
 import { Badge } from "@/components/ui/badge";
 
 // URLs for your Firebase Cloud Functions (onRequest type)
-const CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL = "https://createstripeconnectedaccount-yzlih5wcva-uc.a.run.app";
-const CREATE_STRIPE_ACCOUNT_LINK_FUNCTION_URL = "https://createstripeaccountlink-yzlih5wcva-uc.a.run.app";
+const CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL = "https://createstripeconnectedaccount-cpmccwbluq-uc.a.run.app";
+const CREATE_STRIPE_ACCOUNT_LINK_FUNCTION_URL = "https://createstripeaccountlink-cpmccwbluq-uc.a.run.app";
 
 
 export function StripeConnectCard() {

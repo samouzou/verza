@@ -18,7 +18,7 @@ import { Loader2, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 // This function on the backend should be able to handle requests for specific contract IDs
 // *without* requiring frontend user authentication if the payment is from a public link,
 // but by validating the contract itself and fetching its amount.
-const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-yzlih5wcva-uc.a.run.app";
+const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 
 export default function ClientPaymentPage() {
   const params = useParams();

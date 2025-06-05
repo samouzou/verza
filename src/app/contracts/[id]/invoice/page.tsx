@@ -21,8 +21,8 @@ import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/g
 import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send } from 'lucide-react';
 import Link from 'next/link';
 
-const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-yzlih5wcva-uc.a.run.app";
-const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-yzlih5wcva-uc.a.run.app";
+const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
+const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
 
 
 export default function ManageInvoicePage() {
