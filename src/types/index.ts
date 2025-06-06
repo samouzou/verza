@@ -114,22 +114,52 @@ export type ExtractedReceiptData = AIReceiptOutput; // Use the Zod inferred type
 export interface Receipt {
   id: string; // Document ID from Firestore
   userId: string;
+  
+  // Manually entered data (primary source)
+  manualVendorName: string;
+  manualAmount: number;
+  manualDate: string; // YYYY-MM-DD
+  manualNotes?: string;
+  category?: string; // User-set category
+
+  linkedContractId?: string | null; // Link to a contract
+
+  // Image proof
   receiptImageUrl: string;
   receiptFileName: string;
+  
+  // AI OCR data (for reference or suggestion)
+  ocrData?: ExtractedReceiptData | null; 
+  
+  status: 'pending_submission' | 'submitted' | 'reimbursed' | 'archived' | 'error_processing';
+  
   uploadedAt: Timestamp;
-  ocrData?: ExtractedReceiptData | null; // Data directly from AI
-  userEditedData?: { // User overrides/confirmations
-    vendorName?: string;
-    receiptDate?: string; // YYYY-MM-DD
-    totalAmount?: number;
-    currency?: string;
-    lineItems?: Array<{ description?: string; quantity?: number; unitPrice?: number; totalPrice?: number; }>;
-    category?: string; // User-set category
-  } | null;
-  status: 'processing' | 'needs_review' | 'categorized' | 'archived' | 'error';
-  category?: string; // Final confirmed category
-  notes?: string;
-  contractId?: string | null; // Optional link to a contract
   createdAt: Timestamp;
   updatedAt?: Timestamp;
+}
+
+// Banking & Tax Feature Types
+export interface BankTransaction {
+  id: string; // Transaction ID from bank or generated
+  userId: string;
+  accountId: string; // Link to a bank account if multiple are connected
+  date: string; // ISO Date string
+  description: string;
+  amount: number; // Positive for income, negative for expenses
+  currency: string;
+  category?: string; // User-defined or from bank/Finicity
+  isTaxDeductible?: boolean;
+  isBrandSpend?: boolean; // For reimbursement
+  linkedReceiptId?: string | null; // Link to a Receipt document
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface TaxEstimation {
+  estimatedTaxableIncome: number;
+  estimatedTaxOwed: number;
+  suggestedSetAsidePercentage: number;
+  suggestedSetAsideAmount: number;
+  notes?: string[]; // e.g., reminders about specific deductions or credits
+  calculationDate: string; // ISO Date string
 }

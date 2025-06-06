@@ -1,82 +1,57 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // Rules for the 'users' collection
-    // Users can read and update their own profile information.
-    // Users can create their own user document (e.g., on first sign-up).
-    // Deleting user documents directly by clients is generally disallowed.
     match /users/{userId} {
       allow read, update: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
-      // For user document writes (like subscription status by backend),
-      // the Admin SDK used by Cloud Functions bypasses these client-side rules.
-      // If you need client to write specific fields here, you'd add more granular 'update' rules.
-      allow delete: if false;
+      allow delete: if false; 
     }
 
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      // PUBLIC READ: Allow anyone to read contract details.
-      // This is necessary for the public payment page (/pay/contract/[id])
-      // to fetch and display contract information (e.g., amount, brand name)
-      // before the client makes a payment.
-      // WARNING: This makes ALL fields of ALL contracts publicly readable if the contractId is known.
-      // For enhanced security in a production app with sensitive contract data,
-      // consider using a Cloud Function as an intermediary to serve only essential,
-      // non-sensitive details to the public payment page.
-      allow read: if true;
-
-      // Authenticated users can create contracts if they are the owner.
+      allow read: if true; 
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      
-      // Authenticated users can update or delete only their own contracts.
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    // Rules for the 'receipts' collection
-    match /receipts/{receiptId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-    }
-    
-    // Subscription status checks (Note: The /users/{userId} rule above already covers most user doc access)
-    // This specific rule for /users/{userId} only allowing read and disallowing client write is fine.
-    // match /users/{userId} { // This was a duplicate, the one above is more comprehensive for client actions.
-    //   allow read: if request.auth != null && request.auth.uid == userId;
-    //   allow write: if false; // Only allow writes through Cloud Functions
-    // }
-    
-    // Rules for 'paymentIntents' collection (created by backend)
-    // Typically, these should only be writable by your backend (Admin SDK)
-    // and perhaps readable by the authenticated user who initiated it or owns the contract.
+    // Rules for 'paymentIntents' collection
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||  // Payer
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient
+                    request.auth.uid == resource.data.userId ||
+                    request.auth.uid == resource.data.creatorId
                   );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false; 
     }
 
-    // Rules for 'payments' collection (created by backend webhook)
-    // Similar to paymentIntents, mostly backend-managed.
+    // Rules for 'payments' collection
     match /payments/{paymentId} {
        allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || // Payer mentioned in metadata
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient if you add this field
+                    request.auth.uid == resource.data.userId || 
+                    request.auth.uid == resource.data.creatorId 
                   );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false; 
     }
 
-    // Rules for 'emailLogs' collection (created by backend)
-    // Typically, these should only be writable by your backend.
-    // Read access might be for admins or specific users if needed.
+    // Rules for 'emailLogs' collection
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid; // If logs contain userId
-      // Or, if only admins/backend should read:
-      // allow read: if false; 
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false; 
+    }
+
+    // Rules for the 'receipts' collection
+    match /receipts/{receiptId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Rules for 'userTransactions' collection (placeholder for banking feature)
+    match /userTransactions/{transactionId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }
