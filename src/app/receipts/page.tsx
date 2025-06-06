@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type ChangeEvent, useEffect } from 'react';
+import { useState, type ChangeEvent, useEffect, useCallback } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, UploadCloud, AlertTriangle, Save, FileText, CalendarDays, Tags, DollarSign, Trash2 } from 'lucide-react';
+import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
-import { db, storage, addDoc, collection, serverTimestamp, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy } from '@/lib/firebase';
+import { db, storage, addDoc, collection, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy } from '@/lib/firebase';
 import type { Receipt, Contract } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-
 export default function ReceiptsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -40,8 +39,8 @@ export default function ReceiptsPage() {
   
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState<string>('');
-  const [receiptDate, setReceiptDate] = useState('');
+  const [amount, setAmount] = useState<string>(''); // Keep as string for input, parse on save
+  const [receiptDate, setReceiptDate] = useState(''); // YYYY-MM-DD string
   const [vendorName, setVendorName] = useState('');
   const [selectedContractId, setSelectedContractId] = useState<string>('');
 
@@ -51,44 +50,7 @@ export default function ReceiptsPage() {
   const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-
-  useEffect(() => {
-    if (user) {
-      const contractsCol = collection(db, 'contracts');
-      const q = query(contractsCol, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        setUserContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-      }, (error) => {
-        console.error("Error fetching contracts:", error);
-        toast({title: "Error", description: "Could not load contracts.", variant: "destructive"});
-      });
-      return () => unsubscribe();
-    }
-  }, [user, toast]);
-
-  useEffect(() => {
-    if (user) {
-      setIsLoadingReceipts(true);
-      const receiptsCol = collection(db, 'receipts');
-      const qReceipts = query(receiptsCol, where('userId', '==', user.uid), orderBy('uploadedAt', 'desc'));
-      const unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-        setUserReceipts(snapshot.docs.map(docSnap => {
-          const data = docSnap.data();
-          const uploadedAtTimestamp = data.uploadedAt instanceof Timestamp ? data.uploadedAt : Timestamp.fromDate(new Date());
-          return { id: docSnap.id, ...data, uploadedAt: uploadedAtTimestamp } as Receipt;
-        }));
-        setIsLoadingReceipts(false);
-      }, (error) => {
-        console.error("Error fetching receipts:", error);
-        toast({title: "Error", description: "Could not load receipts.", variant: "destructive"});
-        setIsLoadingReceipts(false);
-      });
-      return () => unsubscribeReceipts();
-    }
-  }, [user, toast]);
-
-
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setSelectedFile(null);
     setImagePreview(null);
     setDescription('');
@@ -99,14 +61,69 @@ export default function ReceiptsPage() {
     setSelectedContractId('');
     const fileInput = document.getElementById('receiptFile') as HTMLInputElement;
     if (fileInput) fileInput.value = "";
-  };
+  }, []);
+
+  const fetchContractsAndReceipts = useCallback((currentUserId: string) => {
+    const contractsCol = collection(db, 'contracts');
+    const qContracts = query(contractsCol, where('userId', '==', currentUserId), orderBy('createdAt', 'desc'));
+    const unsubscribeContracts = onSnapshot(qContracts, (snapshot) => {
+      setUserContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
+    }, (error) => {
+      console.error("Error fetching contracts:", error);
+      toast({title: "Error", description: "Could not load contracts.", variant: "destructive"});
+    });
+
+    setIsLoadingReceipts(true);
+    const receiptsCol = collection(db, 'receipts');
+    const qReceipts = query(receiptsCol, where('userId', '==', currentUserId), orderBy('uploadedAt', 'desc'));
+    const unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
+      setUserReceipts(snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let uploadedAtTs = data.uploadedAt;
+        if (!(uploadedAtTs instanceof Timestamp) && uploadedAtTs?.seconds) {
+          uploadedAtTs = new Timestamp(uploadedAtTs.seconds, uploadedAtTs.nanoseconds || 0);
+        } else if (!(uploadedAtTs instanceof Timestamp)) {
+          uploadedAtTs = Timestamp.now();
+        }
+        return { id: docSnap.id, ...data, uploadedAt: uploadedAtTs } as Receipt;
+      }));
+      setIsLoadingReceipts(false);
+    }, (error) => {
+      console.error("Error fetching receipts:", error);
+      toast({title: "Error", description: "Could not load receipts.", variant: "destructive"});
+      setIsLoadingReceipts(false);
+    });
+
+    return () => {
+      unsubscribeContracts();
+      unsubscribeReceipts();
+    };
+  }, [toast]);
+
+  useEffect(() => {
+    let unsubscribeFunctions: (() => void) | null = null;
+    if (user?.uid && !authLoading) {
+      unsubscribeFunctions = fetchContractsAndReceipts(user.uid);
+    } else if (!authLoading && !user) {
+        setUserContracts([]);
+        setUserReceipts([]);
+        setIsLoadingReceipts(false);
+    }
+    return () => {
+      if (unsubscribeFunctions) {
+        unsubscribeFunctions();
+      }
+    };
+  }, [user, authLoading, fetchContractsAndReceipts]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "File Too Large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
-        resetForm();
+        if (event.target) event.target.value = ""; // Reset file input
+        setSelectedFile(null);
+        setImagePreview(null);
         return;
       }
       setSelectedFile(file);
@@ -143,42 +160,41 @@ export default function ReceiptsPage() {
       const uploadResult = await uploadBytes(imageRef, selectedFile);
       const imageUrl = await getDownloadURL(uploadResult.ref);
 
-      const baseReceiptData = {
+      const baseReceiptData: Omit<Receipt, 'id' | 'createdAt' | 'updatedAt' | 'category' | 'amount' | 'receiptDate' | 'vendorName'> = {
         userId: user.uid,
         description: description.trim(),
         linkedContractId: selectedContractId, 
         receiptImageUrl: imageUrl,
         receiptFileName: selectedFile.name,
-        status: 'uploaded' as Receipt['status'], 
+        status: 'uploaded',
         uploadedAt: Timestamp.now(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      };
+      
+      const receiptDataToSave: Partial<Receipt> & { createdAt: Timestamp, updatedAt: Timestamp } = {
+        ...baseReceiptData,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       };
 
-      const optionalFields: Partial<Receipt> = {};
       if (category.trim()) {
-        optionalFields.category = category.trim();
+        receiptDataToSave.category = category.trim();
       }
-      if (amount) {
-        const parsedAmount = parseFloat(amount);
-        if (!isNaN(parsedAmount)) {
-           optionalFields.amount = parsedAmount;
-        } else {
-            toast({title: "Invalid Amount", description: "Amount was not a valid number and was not saved.", variant: "default"});
-        }
+      const parsedAmount = parseFloat(amount);
+      if (amount.trim() && !isNaN(parsedAmount) && parsedAmount >= 0) {
+         receiptDataToSave.amount = parsedAmount;
+      } else if (amount.trim()) {
+          toast({title: "Invalid Amount", description: "Amount was not a valid positive number and was not saved.", variant: "default"});
       }
       if (receiptDate) {
-        optionalFields.receiptDate = receiptDate;
+        receiptDataToSave.receiptDate = receiptDate;
       }
       if (vendorName.trim()) {
-        optionalFields.vendorName = vendorName.trim();
+        receiptDataToSave.vendorName = vendorName.trim();
       }
       
-      const finalReceiptData = { ...baseReceiptData, ...optionalFields };
-      
-      await addDoc(collection(db, 'receipts'), finalReceiptData);
+      await addDoc(collection(db, 'receipts'), receiptDataToSave);
 
-      toast({ title: "Receipt Saved!", description: `Receipt "${finalReceiptData.description}" saved.` });
+      toast({ title: "Receipt Saved!", description: `Receipt "${receiptDataToSave.description}" saved.` });
       resetForm();
 
     } catch (error: any) {
@@ -194,13 +210,27 @@ export default function ReceiptsPage() {
     setIsDeleting(true);
     try {
       const urlString = receiptToDelete.receiptImageUrl;
-      if (urlString.startsWith('https://firebasestorage.googleapis.com/')) {
-          const url = new URL(urlString);
-          const filePathInStorage = decodeURIComponent(url.pathname.substring(url.pathname.indexOf('/o/') + 3).split('?')[0]);
-          const imageFileRef = storageFileRef(storage, filePathInStorage);
-          await deleteObject(imageFileRef).catch(err => console.warn("Failed to delete image from storage or already deleted:", err.message));
-      } else {
-          console.warn("Receipt image URL does not look like a standard Firebase Storage download URL, skipping storage deletion for:", urlString);
+      if (urlString && urlString.startsWith('https://firebasestorage.googleapis.com/')) {
+        let filePathInStorage = '';
+        try {
+          const pathSegments = new URL(urlString).pathname.split('/o/');
+          if (pathSegments.length > 1) {
+            filePathInStorage = decodeURIComponent(pathSegments[1].split('?')[0]);
+          }
+        } catch(e) {
+          console.warn("Could not parse URL to get storage path for deletion:", urlString, e);
+        }
+        
+        if (filePathInStorage) {
+          try {
+            const imageFileRef = storageFileRef(storage, filePathInStorage);
+            await deleteObject(imageFileRef);
+          } catch (storageError: any) {
+            if (storageError.code !== 'storage/object-not-found') {
+                 toast({title: "Storage Warning", description: "Could not delete image file. It might have been removed or path was invalid.", variant: "default"});
+            }
+          }
+        }
       }
       
       await deleteDoc(firestoreDoc(db, 'receipts', receiptToDelete.id));
@@ -214,7 +244,6 @@ export default function ReceiptsPage() {
       setIsDeleting(false);
     }
   };
-
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -265,15 +294,19 @@ export default function ReceiptsPage() {
 
             <div>
               <Label htmlFor="linkedContractId">Link to Contract/Brand*</Label>
-              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isSaving}>
+              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isSaving || userContracts.length === 0}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select a contract..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="" disabled>Select a contract...</SelectItem>
-                  {userContracts.map(contract => (
-                    <SelectItem key={contract.id} value={contract.id}>{contract.brand} - {contract.projectName || contract.id.substring(0,6)}</SelectItem>
-                  ))}
+                  {userContracts.length === 0 ? (
+                    <SelectItem value="" disabled>No contracts available</SelectItem>
+                  ) : (
+                    userContracts.map(contract => (
+                      <SelectItem key={contract.id} value={contract.id}>{contract.brand} - {contract.projectName || contract.id.substring(0,6)}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
+              {userContracts.length === 0 && <p className="text-xs text-muted-foreground mt-1">No contracts found. Please add a contract first.</p>}
             </div>
 
             <div>
@@ -282,7 +315,7 @@ export default function ReceiptsPage() {
             </div>
             <div>
               <Label htmlFor="amount">Amount (Optional)</Label>
-              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isSaving} />
+              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isSaving} min="0" step="0.01"/>
             </div>
              <div>
               <Label htmlFor="receiptDate">Receipt Date (Optional)</Label>
@@ -293,7 +326,7 @@ export default function ReceiptsPage() {
               <Input id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="e.g., Starbucks" className="mt-1" disabled={isSaving} />
             </div>
             
-            <Button onClick={handleSaveReceipt} disabled={isSaving || !selectedFile || !description || !selectedContractId} className="w-full">
+            <Button onClick={handleSaveReceipt} disabled={isSaving || !selectedFile || !description.trim() || !selectedContractId} className="w-full">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Receipt
             </Button>
           </CardContent>
@@ -314,16 +347,20 @@ export default function ReceiptsPage() {
                 <div className="space-y-4">
                   {userReceipts.map(receipt => {
                     const linkedContract = userContracts.find(c => c.id === receipt.linkedContractId);
+                    const isPdf = receipt.receiptFileName?.toLowerCase().endsWith('.pdf');
+                    const displayImageUrl = isPdf 
+                                            ? `https://placehold.co/100x100.png?text=PDF` 
+                                            : receipt.receiptImageUrl;
                     return (
                       <Card key={receipt.id} className="flex flex-col sm:flex-row items-start gap-4 p-4">
                         <a href={receipt.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="block w-full sm:w-24 h-24 sm:h-auto flex-shrink-0 rounded-md overflow-hidden border bg-muted group">
                            <Image
-                            src={receipt.receiptFileName?.toLowerCase().endsWith('.pdf') ? 'https://placehold.co/200x200.png?text=PDF' : receipt.receiptImageUrl}
+                            src={displayImageUrl}
                             alt={receipt.description || "Receipt image"}
                             width={100}
                             height={100}
                             className="object-cover w-full h-full group-hover:opacity-80 transition-opacity"
-                            data-ai-hint="receipt proof"
+                            data-ai-hint={isPdf ? "PDF document" : "receipt proof"}
                           />
                         </a>
                         <div className="flex-grow">
@@ -371,3 +408,4 @@ export default function ReceiptsPage() {
     </>
   );
 }
+    
