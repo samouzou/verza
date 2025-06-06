@@ -97,20 +97,31 @@ export default function ReceiptsPage() {
       const imageUrl = await getDownloadURL(uploadResult.ref);
 
       // 2. Prepare data for Firestore
-      const receiptData: Omit<Receipt, 'id' | 'createdAt' | 'updatedAt'> = {
+      const receiptDataToSave: Partial<Omit<Receipt, 'id' | 'createdAt' | 'updatedAt'>> & { 
+        userId: string, 
+        receiptImageUrl: string, 
+        receiptFileName: string, 
+        uploadedAt: Timestamp, 
+        ocrData: ExtractReceiptDetailsOutput, 
+        status: string 
+      } = {
         userId: user.uid,
         receiptImageUrl: imageUrl,
         receiptFileName: file.name,
-        uploadedAt: Timestamp.now(), // Use client-side timestamp for upload time
+        uploadedAt: Timestamp.now(),
         ocrData: extractedData,
         status: 'needs_review',
-        category: extractedData.categorySuggestion || undefined, // Use AI suggestion or undefined
         // userEditedData will be null initially
       };
 
+      if (extractedData.categorySuggestion && extractedData.categorySuggestion.trim() !== "") {
+        receiptDataToSave.category = extractedData.categorySuggestion;
+      }
+      // If no categorySuggestion, the 'category' field will be omitted from receiptDataToSave
+
       // 3. Add document to Firestore
       const docRef = await addDoc(collection(db, 'receipts'), {
-        ...receiptData,
+        ...receiptDataToSave,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -270,6 +281,3 @@ export default function ReceiptsPage() {
     </>
   );
 }
-
-
-    
