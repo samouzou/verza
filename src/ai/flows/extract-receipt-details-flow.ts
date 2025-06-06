@@ -34,7 +34,7 @@ const ExtractReceiptDetailsOutputSchema = z.object({
   currency: z.string().optional().describe('The currency of the total amount (e.g., USD, EUR). Default to USD if not specified.'),
   lineItems: z.array(ReceiptLineItemSchema).optional().describe('A list of items purchased. If individual items are not clear, this can be omitted or contain a summary item.'),
   categorySuggestion: z.string().optional().describe('A suggested expense category (e.g., Meals, Travel, Software, Office Supplies).'),
-  rawText: z.string().optional().describe('The raw text extracted from the receipt, if available from the model.')
+  rawText: z.string().optional().describe('A clean, de-duplicated, single block of text representing the content of the receipt. Avoid repetition and aim for a coherent transcription of all visible text elements.')
 });
 export type ExtractReceiptDetailsOutput = z.infer<typeof ExtractReceiptDetailsOutputSchema>;
 
@@ -61,7 +61,7 @@ const prompt = ai.definePrompt({
     - totalPrice: (Optional) Total price for that line item (quantity * unitPrice).
     If line items are not clear, this array can be empty, or you can create a single summary line item.
   - categorySuggestion: Based on the vendor and items, suggest an expense category (e.g., "Meals & Entertainment", "Travel", "Software & Subscriptions", "Office Supplies", "Equipment", "Services").
-  - rawText: (Optional) If possible, include the full raw text extracted from the receipt.
+  - rawText: (Optional) Provide a single, coherent block of text that represents the content transcribed from the receipt. Please make your best effort to de-duplicate information and avoid excessive repetition if the OCR process captures the same text multiple times. The goal is a clean, readable transcription of what's visible on the receipt.
 
   Receipt Image:
   {{media url=imageDataUri}}
@@ -96,3 +96,4 @@ const extractReceiptDetailsFlow = ai.defineFlow(
     return result;
   }
 );
+
