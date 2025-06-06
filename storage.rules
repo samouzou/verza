@@ -1,0 +1,27 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow public read for specific, controlled paths if needed later.
+    // e.g., match /public/{allPaths=**} { allow read; }
+
+    // Receipts: Authenticated users can read/write their own receipts.
+    match /receipts/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Avatars: Allow public read for avatars, but only authenticated users can write their own.
+    match /avatars/{userId}/{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Contracts: Authenticated users can read/write their own contracts.
+    // If contract files need to be publicly accessible (e.g., via a link),
+    // you might adjust the read rule, but write should remain restricted.
+    match /contracts/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
