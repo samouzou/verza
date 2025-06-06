@@ -21,20 +21,20 @@ const ExtractReceiptDetailsInputSchema = z.object({
 export type ExtractReceiptDetailsInput = z.infer<typeof ExtractReceiptDetailsInputSchema>;
 
 const ReceiptLineItemSchema = z.object({
-    description: z.string().optional().describe('Description of the item or service.'),
-    quantity: z.number().optional().describe('Quantity of the item.'),
-    unitPrice: z.number().optional().describe('Price per unit of the item.'),
-    totalPrice: z.number().optional().describe('Total price for this line item.'),
+    description: z.string().optional().describe('Description of the item or service. This should be a specific product or service, not general receipt text.'),
+    quantity: z.number().optional().describe('Quantity of the item. Should be a number.'),
+    unitPrice: z.number().optional().describe('Price per unit of the item. Should be a number.'),
+    totalPrice: z.number().optional().describe('Total price for this line item (quantity * unitPrice if available, or the listed line item total). Should be a number.'),
 });
 
 const ExtractReceiptDetailsOutputSchema = z.object({
-  vendorName: z.string().optional().describe('The name of the vendor or merchant.'),
-  receiptDate: z.string().optional().describe('The date on the receipt (YYYY-MM-DD if possible, otherwise as is).'),
-  totalAmount: z.number().optional().describe('The total amount paid on the receipt.'),
+  vendorName: z.string().optional().describe('The name of the vendor or merchant ONLY. This should be a concise name like "Gott\'s Roadside" or "Starbucks". Do NOT include addresses, line items, or other details in this field.'),
+  receiptDate: z.string().optional().describe('The date on the receipt (YYYY-MM-DD if possible, otherwise as is). Extract ONLY the date.'),
+  totalAmount: z.number().optional().describe('The final total amount paid on the receipt. This should be a single numerical value representing the grand total.'),
   currency: z.string().optional().describe('The currency of the total amount (e.g., USD, EUR). Default to USD if not specified.'),
-  lineItems: z.array(ReceiptLineItemSchema).optional().describe('A list of items purchased. If individual items are not clear, this can be omitted or contain a summary item.'),
-  categorySuggestion: z.string().optional().describe('A suggested expense category (e.g., Meals, Travel, Software, Office Supplies).'),
-  rawText: z.string().optional().describe('A clean, de-duplicated, single block of text representing the content of the receipt. Avoid repetition and aim for a coherent transcription of all visible text elements.')
+  lineItems: z.array(ReceiptLineItemSchema).optional().describe('A list of items purchased. Each item should be a distinct product or service with its own description and price if available. Do not put general receipt text here.'),
+  categorySuggestion: z.string().optional().describe('A suggested expense category (e.g., Meals, Travel, Software, Office Supplies). This should be a single category string.'),
+  rawText: z.string().optional().describe('A clean, de-duplicated, single block of text representing the content of the receipt. Avoid repetition and aim for a coherent transcription of all visible text elements. This field is for the full text, whereas other fields should contain specific, parsed information.')
 });
 export type ExtractReceiptDetailsOutput = z.infer<typeof ExtractReceiptDetailsOutputSchema>;
 
@@ -47,23 +47,29 @@ const prompt = ai.definePrompt({
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: ExtractReceiptDetailsOutputSchema },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.
-  Analyze the provided receipt image and extract the following information.
-  If a field is not clearly visible or applicable, omit it or provide a sensible default (e.g., currency to USD).
+  Your task is to analyze the provided receipt image and meticulously extract information into the **correct, separate fields** as defined in the output schema. Pay close attention to the descriptions for each field.
 
-  - vendorName: The name of the store, restaurant, or service provider.
-  - receiptDate: The date the transaction occurred. Try to format as YYYY-MM-DD. If not possible, provide the date as seen.
-  - totalAmount: The final amount paid, including taxes and tips if specified. This should be a number.
+  **Crucial Instructions:**
+  1.  **Field Separation:** Ensure that information is placed in the correct field. For example, the 'vendorName' field should ONLY contain the vendor's name (e.g., "Target", "Gott's Roadside"), NOT addresses, item descriptions, or other data.
+  2.  **Line Items:** Identify individual products or services listed on the receipt. Each distinct item should be an object in the 'lineItems' array, with its own 'description', and 'totalPrice' if available.
+  3.  **Total Amount:** The 'totalAmount' field must be the single, final amount paid.
+  4.  **Raw Text:** The 'rawText' field is where you should place a transcription of the receipt. Other fields should contain specific, parsed values.
+
+  Extracted Information Fields:
+  - vendorName: The name of the store, restaurant, or service provider. **Only the name.**
+  - receiptDate: The date the transaction occurred. Try to format as YYYY-MM-DD. If not possible, provide the date as seen. **Only the date.**
+  - totalAmount: The final amount paid, including taxes and tips if specified. This should be a number. **Only the grand total.**
   - currency: The currency symbol or code (e.g., USD, EUR, $, £). Default to "USD" if not explicitly found.
   - lineItems: An array of items purchased. For each item, include:
-    - description: Name or description of the item.
+    - description: Name or description of the specific item/service.
     - quantity: (Optional) How many units were purchased.
     - unitPrice: (Optional) Price for one unit.
-    - totalPrice: (Optional) Total price for that line item (quantity * unitPrice).
-    If line items are not clear, this array can be empty, or you can create a single summary line item.
-  - categorySuggestion: Based on the vendor and items, suggest an expense category (e.g., "Meals & Entertainment", "Travel", "Software & Subscriptions", "Office Supplies", "Equipment", "Services").
+    - totalPrice: (Optional) Total price for that line item.
+    If line items are not clear, this array can be empty, or you can create a single summary line item if appropriate.
+  - categorySuggestion: Based on the vendor and items, suggest an expense category (e.g., "Meals & Entertainment", "Travel", "Software & Subscriptions", "Office Supplies", "Equipment", "Services"). **A single category string.**
   - rawText: (Optional) Provide a single, coherent block of text that represents the content transcribed from the receipt. Please make your best effort to de-duplicate information and avoid excessive repetition if the OCR process captures the same text multiple times. The goal is a clean, readable transcription of what's visible on the receipt.
 
-  Receipt Image:
+  Analyze this receipt image carefully:
   {{media url=imageDataUri}}
   `,
    // Specify Gemini Flash for potential image input, or a model that supports multimodal
