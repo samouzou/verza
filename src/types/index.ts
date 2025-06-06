@@ -1,8 +1,6 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '@/ai/flows/negotiation-suggestions-flow';
-import type { ExtractReceiptDetailsOutput as AIReceiptOutput } from '@/ai/flows/extract-receipt-details-flow'; // Import AI receipt type
-
 
 export interface EditableInvoiceLineItem {
   description: string;
@@ -108,30 +106,25 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
 }
 
-// Receipt Feature Types
-export type ExtractedReceiptData = AIReceiptOutput; // Use the Zod inferred type from the AI flow
-
+// Simplified Receipt Feature Types
 export interface Receipt {
   id: string; // Document ID from Firestore
   userId: string;
   
-  // Manually entered data (primary source)
-  manualVendorName: string;
-  manualAmount: number;
-  manualDate: string; // YYYY-MM-DD
-  manualNotes?: string;
-  category?: string; // User-set category
+  // User-provided information
+  description?: string; // User's description for the receipt
+  category?: string;    // User-set category
+  amount?: number;      // Optional: user can enter amount if they want for their records
+  receiptDate?: string; // Optional: user can enter date YYYY-MM-DD for their records
+  vendorName?: string;  // Optional: user can enter vendor for their records
 
-  linkedContractId?: string | null; // Link to a contract
+  linkedContractId: string | null; // Link to a contract (brand/client)
 
   // Image proof
   receiptImageUrl: string;
   receiptFileName: string;
   
-  // AI OCR data (for reference or suggestion)
-  ocrData?: ExtractedReceiptData | null; 
-  
-  status: 'pending_submission' | 'submitted' | 'reimbursed' | 'archived' | 'error_processing';
+  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived'; // Simplified status
   
   uploadedAt: Timestamp;
   createdAt: Timestamp;
