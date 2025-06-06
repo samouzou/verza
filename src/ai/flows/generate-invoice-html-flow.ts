@@ -96,13 +96,14 @@ const prompt = ai.definePrompt({
   {{#if receipts.length}}
   Supporting Documents/Receipts:
   {{#each receipts}}
-  - {{{this.description}}} ({{#if this.url}}<a href="{{{this.url}}}" target="_blank">View/Download</a>{{else}}Link not available{{/if}})
+  - {{{this.description}}} ({{#if this.url}}<a href="{{{this.url}}}" target="_blank" rel="noopener noreferrer" sendgrid-disable-tracking="true">View/Download</a>{{else}}Link not available{{/if}})
   {{/each}}
   {{/if}}
 
   Please structure this as a clean HTML page. Include a prominent "Pay Now" button if a 'Payment Link' is provided above.
   Style the "Pay Now" button to be noticeable, for example, with a background color and padding.
   If supporting documents/receipts are provided, list them clearly with their descriptions and clickable links.
+  For receipt links, add the attribute 'sendgrid-disable-tracking="true"' to the <a> tag.
 
   Example structure:
   <!DOCTYPE html>
@@ -136,7 +137,7 @@ const prompt = ai.definePrompt({
       <!-- Totals Section -->
       {{#if payInvoiceLink}}
       <div class="pay-now-section" style="text-align: center; margin-top: 30px;">
-        <a href="{{{payInvoiceLink}}}" class="pay-now-button">Pay Now</a>
+        <a href="{{{payInvoiceLink}}}" class="pay-now-button" sendgrid-disable-tracking="true">Pay Now</a>
       </div>
       {{/if}}
       <!-- Payment Instructions Section -->
@@ -145,7 +146,7 @@ const prompt = ai.definePrompt({
         <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">Supporting Documents</h3>
         <ul>
           {{#each receipts}}
-          <li>{{{this.description}}} - <a href="{{{this.url}}}" target="_blank" rel="noopener noreferrer">View/Download</a></li>
+          <li>{{{this.description}}} - <a href="{{{this.url}}}" target="_blank" rel="noopener noreferrer" sendgrid-disable-tracking="true">View/Download</a></li>
           {{/each}}
         </ul>
       </div>
