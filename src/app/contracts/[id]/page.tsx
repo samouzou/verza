@@ -390,34 +390,6 @@ export default function ContractDetailPage() {
               </CardContent>
             </Card>
           )}
-          
-          {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-blue-500" />
-                  Invoice History
-                </CardTitle>
-                <CardDescription>A log of actions related to this invoice.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[150px] pr-3">
-                  <ul className="space-y-2">
-                    {contract.invoiceHistory.slice().sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((entry, index) => (
-                      <li key={index} className="text-sm">
-                        <span className="font-medium text-foreground">
-                          {format(entry.timestamp.toDate(), "PPpp")}
-                        </span>
-                        <span className="text-muted-foreground">: {entry.action}</span>
-                        {entry.details && <span className="text-xs text-muted-foreground/80 block pl-2">- {entry.details}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
-
         </div>
 
         <div className="lg:col-span-1 space-y-6">
@@ -445,6 +417,33 @@ export default function ContractDetailPage() {
                     {contract.contractText.substring(0,1000)}
                     {contract.contractText.length > 1000 && "..."}
                   </p>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+
+          {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-blue-500" />
+                  Invoice History
+                </CardTitle>
+                <CardDescription>A log of actions related to this invoice.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[150px] pr-3">
+                  <ul className="space-y-2">
+                    {contract.invoiceHistory.slice().sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((entry, index) => (
+                      <li key={index} className="text-sm">
+                        <span className="font-medium text-foreground">
+                          {format(entry.timestamp.toDate(), "PPpp")}
+                        </span>
+                        <span className="text-muted-foreground">: {entry.action}</span>
+                        {entry.details && <span className="text-xs text-muted-foreground/80 block pl-2">- {entry.details}</span>}
+                      </li>
+                    ))}
+                  </ul>
                 </ScrollArea>
               </CardContent>
             </Card>
