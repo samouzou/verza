@@ -39,7 +39,7 @@ export default function ReceiptsPage() {
   
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState<string>(''); // Keep as string for input, parse on save
+  const [amount, setAmount] = useState<string>('');
   const [receiptDate, setReceiptDate] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [selectedContractId, setSelectedContractId] = useState<string>('');
@@ -86,11 +86,11 @@ export default function ReceiptsPage() {
         setUserReceipts(snapshot.docs.map(docSnap => {
           const data = docSnap.data();
           let uploadedAtTs = data.uploadedAt;
-          // Ensure uploadedAt is a Firestore Timestamp
           if (uploadedAtTs && typeof uploadedAtTs.seconds === 'number' && typeof uploadedAtTs.nanoseconds === 'number' && !(uploadedAtTs instanceof Timestamp)) {
             uploadedAtTs = new Timestamp(uploadedAtTs.seconds, uploadedAtTs.nanoseconds);
           } else if (!uploadedAtTs || !(uploadedAtTs instanceof Timestamp)) {
-            uploadedAtTs = Timestamp.now(); // Fallback if missing or incorrect type
+            console.warn("Receipt uploadedAt was invalid, using current time:", docSnap.id, data.uploadedAt);
+            uploadedAtTs = Timestamp.now();
           }
           return { id: docSnap.id, ...data, uploadedAt: uploadedAtTs } as Receipt;
         }));
@@ -160,7 +160,7 @@ export default function ReceiptsPage() {
       const uploadResult = await uploadBytes(imageRef, selectedFile);
       const imageUrl = await getDownloadURL(uploadResult.ref);
 
-      const receiptDataToSave: { [key: string]: any } = {
+      const baseReceiptData: Partial<Receipt> = {
         userId: user.uid,
         description: description.trim(),
         linkedContractId: selectedContractId, 
@@ -173,24 +173,24 @@ export default function ReceiptsPage() {
       };
       
       if (category.trim()) {
-        receiptDataToSave.category = category.trim();
+        baseReceiptData.category = category.trim();
       }
       const parsedAmount = parseFloat(amount);
       if (amount.trim() && !isNaN(parsedAmount) && parsedAmount >= 0) {
-         receiptDataToSave.amount = parsedAmount;
+         baseReceiptData.amount = parsedAmount;
       } else if (amount.trim()) {
           toast({title: "Invalid Amount", description: "Amount was not a valid positive number and was not saved.", variant: "default"});
       }
       if (receiptDate) {
-        receiptDataToSave.receiptDate = receiptDate;
+        baseReceiptData.receiptDate = receiptDate;
       }
       if (vendorName.trim()) {
-        receiptDataToSave.vendorName = vendorName.trim();
+        baseReceiptData.vendorName = vendorName.trim();
       }
       
-      await addDoc(collection(db, 'receipts'), receiptDataToSave);
+      await addDoc(collection(db, 'receipts'), baseReceiptData);
 
-      toast({ title: "Receipt Saved!", description: `Receipt "${receiptDataToSave.description}" saved.` });
+      toast({ title: "Receipt Saved!", description: `Receipt "${baseReceiptData.description}" saved.` });
       resetForm();
 
     } catch (error: any) {
@@ -229,6 +229,8 @@ export default function ReceiptsPage() {
                  toast({title: "Storage Warning", description: "Could not delete image file. It might have been removed or path was invalid.", variant: "default"});
             }
           }
+        } else {
+            console.warn("Could not determine storage path for deletion from URL:", urlString);
         }
       }
       
@@ -297,7 +299,7 @@ export default function ReceiptsPage() {
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select a contract..." /></SelectTrigger>
                 <SelectContent>
                   {userContracts.length === 0 ? (
-                    <SelectItem value="" disabled>No contracts available</SelectItem>
+                    <SelectItem value="no-contracts-placeholder" disabled>No contracts available</SelectItem>
                   ) : (
                     userContracts.map(contract => (
                       <SelectItem key={contract.id} value={contract.id}>{contract.brand} - {contract.projectName || contract.id.substring(0,6)}</SelectItem>
@@ -407,5 +409,3 @@ export default function ReceiptsPage() {
     </>
   );
 }
-
-    
