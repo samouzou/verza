@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Generates HTML for an invoice based on contract details.
+ * @fileOverview Generates HTML for an invoice based on contract details, including links to receipts.
  *
  * - generateInvoiceHtml - A function that handles invoice HTML generation.
  * - GenerateInvoiceHtmlInput - The input type for the function.
@@ -11,6 +11,11 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { Contract } from '@/types'; // Assuming Contract type has relevant fields
+
+const ReceiptLinkSchema = z.object({
+  url: z.string().url().describe("The direct URL to the receipt image/document."),
+  description: z.string().optional().describe("A brief description of the receipt."),
+});
 
 const GenerateInvoiceHtmlInputSchema = z.object({
   // Creator's details
@@ -35,6 +40,7 @@ const GenerateInvoiceHtmlInputSchema = z.object({
   totalAmount: z.number().describe("The total amount due for this invoice."),
   paymentInstructions: z.string().optional().describe("Instructions for how the client should make the payment (e.g., bank details, PayPal)."),
   payInvoiceLink: z.string().optional().describe("The fully qualified URL that the 'Pay Now' button in the invoice should point to. If provided, include a prominent 'Pay Now' button."),
+  receipts: z.array(ReceiptLinkSchema).optional().describe("An optional list of receipts associated with this invoice, each with a URL and description."),
 });
 export type GenerateInvoiceHtmlInput = z.infer<typeof GenerateInvoiceHtmlInputSchema>;
 
@@ -87,8 +93,16 @@ const prompt = ai.definePrompt({
   Payment Instructions:
   {{{paymentInstructions}}}
 
+  {{#if receipts.length}}
+  Supporting Documents/Receipts:
+  {{#each receipts}}
+  - {{{this.description}}} ({{#if this.url}}<a href="{{{this.url}}}" target="_blank">View/Download</a>{{else}}Link not available{{/if}})
+  {{/each}}
+  {{/if}}
+
   Please structure this as a clean HTML page. Include a prominent "Pay Now" button if a 'Payment Link' is provided above.
   Style the "Pay Now" button to be noticeable, for example, with a background color and padding.
+  If supporting documents/receipts are provided, list them clearly with their descriptions and clickable links.
 
   Example structure:
   <!DOCTYPE html>
@@ -98,7 +112,7 @@ const prompt = ai.definePrompt({
     <style>
       body { font-family: sans-serif; margin: 20px; color: #333; }
       .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0, 0, 0, .15); font-size: 16px; line-height: 24px; }
-      .header, .client-details, .items-table, .totals, .payment-instructions, .pay-now-section { margin-bottom: 20px; }
+      .header, .client-details, .items-table, .totals, .payment-instructions, .receipts-section, .pay-now-section { margin-bottom: 20px; }
       .header table { width: 100%; }
       .header table td { padding: 5px; vertical-align: top; }
       .header .invoice-details { text-align: right; }
@@ -108,6 +122,10 @@ const prompt = ai.definePrompt({
       .text-right { text-align: right; }
       .bold { font-weight: bold; }
       .pay-now-button { display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-size: 16px; text-align: center;}
+      .receipts-section ul { list-style: none; padding-left: 0; }
+      .receipts-section li { margin-bottom: 5px; }
+      .receipts-section a { color: #007bff; text-decoration: none; }
+      .receipts-section a:hover { text-decoration: underline; }
     </style>
   </head>
   <body>
@@ -122,6 +140,16 @@ const prompt = ai.definePrompt({
       </div>
       {{/if}}
       <!-- Payment Instructions Section -->
+      {{#if receipts.length}}
+      <div class="receipts-section">
+        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">Supporting Documents</h3>
+        <ul>
+          {{#each receipts}}
+          <li>{{{this.description}}} - <a href="{{{this.url}}}" target="_blank" rel="noopener noreferrer">View/Download</a></li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/if}}
       <!-- Footer (Optional: Thank you note) -->
     </div>
   </body>
