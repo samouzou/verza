@@ -1,6 +1,8 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '@/ai/flows/negotiation-suggestions-flow';
+import type { ExtractReceiptDetailsOutput as AIReceiptOutput } from '@/ai/flows/extract-receipt-details-flow'; // Import AI receipt type
+
 
 export interface EditableInvoiceLineItem {
   description: string;
@@ -106,3 +108,28 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
 }
 
+// Receipt Feature Types
+export type ExtractedReceiptData = AIReceiptOutput; // Use the Zod inferred type from the AI flow
+
+export interface Receipt {
+  id: string; // Document ID from Firestore
+  userId: string;
+  receiptImageUrl: string;
+  receiptFileName: string;
+  uploadedAt: Timestamp;
+  ocrData?: ExtractedReceiptData | null; // Data directly from AI
+  userEditedData?: { // User overrides/confirmations
+    vendorName?: string;
+    receiptDate?: string; // YYYY-MM-DD
+    totalAmount?: number;
+    currency?: string;
+    lineItems?: Array<{ description?: string; quantity?: number; unitPrice?: number; totalPrice?: number; }>;
+    category?: string; // User-set category
+  } | null;
+  status: 'processing' | 'needs_review' | 'categorized' | 'archived' | 'error';
+  category?: string; // Final confirmed category
+  notes?: string;
+  contractId?: string | null; // Optional link to a contract
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
