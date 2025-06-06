@@ -40,7 +40,7 @@ export default function ReceiptsPage() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState<string>(''); // Keep as string for input, parse on save
-  const [receiptDate, setReceiptDate] = useState(''); // YYYY-MM-DD string
+  const [receiptDate, setReceiptDate] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [selectedContractId, setSelectedContractId] = useState<string>('');
 
@@ -60,68 +60,68 @@ export default function ReceiptsPage() {
     setVendorName('');
     setSelectedContractId('');
     const fileInput = document.getElementById('receiptFile') as HTMLInputElement;
-    if (fileInput) fileInput.value = "";
+    if (fileInput) {
+      fileInput.value = "";
+    }
   }, []);
 
-  const fetchContractsAndReceipts = useCallback((currentUserId: string) => {
-    const contractsCol = collection(db, 'contracts');
-    const qContracts = query(contractsCol, where('userId', '==', currentUserId), orderBy('createdAt', 'desc'));
-    const unsubscribeContracts = onSnapshot(qContracts, (snapshot) => {
-      setUserContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-    }, (error) => {
-      console.error("Error fetching contracts:", error);
-      toast({title: "Error", description: "Could not load contracts.", variant: "destructive"});
-    });
-
-    setIsLoadingReceipts(true);
-    const receiptsCol = collection(db, 'receipts');
-    const qReceipts = query(receiptsCol, where('userId', '==', currentUserId), orderBy('uploadedAt', 'desc'));
-    const unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-      setUserReceipts(snapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        let uploadedAtTs = data.uploadedAt;
-        if (!(uploadedAtTs instanceof Timestamp) && uploadedAtTs?.seconds) {
-          uploadedAtTs = new Timestamp(uploadedAtTs.seconds, uploadedAtTs.nanoseconds || 0);
-        } else if (!(uploadedAtTs instanceof Timestamp)) {
-          uploadedAtTs = Timestamp.now();
-        }
-        return { id: docSnap.id, ...data, uploadedAt: uploadedAtTs } as Receipt;
-      }));
-      setIsLoadingReceipts(false);
-    }, (error) => {
-      console.error("Error fetching receipts:", error);
-      toast({title: "Error", description: "Could not load receipts.", variant: "destructive"});
-      setIsLoadingReceipts(false);
-    });
-
-    return () => {
-      unsubscribeContracts();
-      unsubscribeReceipts();
-    };
-  }, [toast]);
-
   useEffect(() => {
-    let unsubscribeFunctions: (() => void) | null = null;
+    let unsubscribeContractsSnapshot: (() => void) | undefined = undefined;
+    let unsubscribeReceiptsSnapshot: (() => void) | undefined = undefined;
+
     if (user?.uid && !authLoading) {
-      unsubscribeFunctions = fetchContractsAndReceipts(user.uid);
+      const contractsCol = collection(db, 'contracts');
+      const qContracts = query(contractsCol, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+      unsubscribeContractsSnapshot = onSnapshot(qContracts, (snapshot) => {
+        setUserContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
+      }, (error) => {
+        console.error("Error fetching contracts:", error);
+        toast({title: "Error", description: "Could not load contracts.", variant: "destructive"});
+      });
+
+      setIsLoadingReceipts(true);
+      const receiptsCol = collection(db, 'receipts');
+      const qReceipts = query(receiptsCol, where('userId', '==', user.uid), orderBy('uploadedAt', 'desc'));
+      unsubscribeReceiptsSnapshot = onSnapshot(qReceipts, (snapshot) => {
+        setUserReceipts(snapshot.docs.map(docSnap => {
+          const data = docSnap.data();
+          let uploadedAtTs = data.uploadedAt;
+          // Ensure uploadedAt is a Firestore Timestamp
+          if (uploadedAtTs && typeof uploadedAtTs.seconds === 'number' && typeof uploadedAtTs.nanoseconds === 'number' && !(uploadedAtTs instanceof Timestamp)) {
+            uploadedAtTs = new Timestamp(uploadedAtTs.seconds, uploadedAtTs.nanoseconds);
+          } else if (!uploadedAtTs || !(uploadedAtTs instanceof Timestamp)) {
+            uploadedAtTs = Timestamp.now(); // Fallback if missing or incorrect type
+          }
+          return { id: docSnap.id, ...data, uploadedAt: uploadedAtTs } as Receipt;
+        }));
+        setIsLoadingReceipts(false);
+      }, (error) => {
+        console.error("Error fetching receipts:", error);
+        toast({title: "Error", description: "Could not load receipts.", variant: "destructive"});
+        setIsLoadingReceipts(false);
+      });
     } else if (!authLoading && !user) {
         setUserContracts([]);
         setUserReceipts([]);
         setIsLoadingReceipts(false);
     }
+
     return () => {
-      if (unsubscribeFunctions) {
-        unsubscribeFunctions();
+      if (unsubscribeContractsSnapshot) {
+        unsubscribeContractsSnapshot();
+      }
+      if (unsubscribeReceiptsSnapshot) {
+        unsubscribeReceiptsSnapshot();
       }
     };
-  }, [user, authLoading, fetchContractsAndReceipts]);
+  }, [user, authLoading, toast]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "File Too Large", description: "Please upload an image smaller than 5MB.", variant: "destructive" });
-        if (event.target) event.target.value = ""; // Reset file input
+        if (event.target) event.target.value = ""; 
         setSelectedFile(null);
         setImagePreview(null);
         return;
@@ -160,7 +160,7 @@ export default function ReceiptsPage() {
       const uploadResult = await uploadBytes(imageRef, selectedFile);
       const imageUrl = await getDownloadURL(uploadResult.ref);
 
-      const baseReceiptData: Omit<Receipt, 'id' | 'createdAt' | 'updatedAt' | 'category' | 'amount' | 'receiptDate' | 'vendorName'> = {
+      const receiptDataToSave: { [key: string]: any } = {
         userId: user.uid,
         description: description.trim(),
         linkedContractId: selectedContractId, 
@@ -168,14 +168,10 @@ export default function ReceiptsPage() {
         receiptFileName: selectedFile.name,
         status: 'uploaded',
         uploadedAt: Timestamp.now(),
-      };
-      
-      const receiptDataToSave: Partial<Receipt> & { createdAt: Timestamp, updatedAt: Timestamp } = {
-        ...baseReceiptData,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
-
+      
       if (category.trim()) {
         receiptDataToSave.category = category.trim();
       }
@@ -206,19 +202,22 @@ export default function ReceiptsPage() {
   };
 
   const handleDeleteReceipt = async () => {
-    if (!receiptToDelete || !user) return;
+    if (!receiptToDelete || !user) {
+      return;
+    }
     setIsDeleting(true);
     try {
       const urlString = receiptToDelete.receiptImageUrl;
       if (urlString && urlString.startsWith('https://firebasestorage.googleapis.com/')) {
         let filePathInStorage = '';
         try {
-          const pathSegments = new URL(urlString).pathname.split('/o/');
+          const decodedUrl = decodeURIComponent(urlString);
+          const pathSegments = new URL(decodedUrl).pathname.split('/o/');
           if (pathSegments.length > 1) {
-            filePathInStorage = decodeURIComponent(pathSegments[1].split('?')[0]);
+            filePathInStorage = pathSegments[1].split('?')[0];
           }
-        } catch(e) {
-          console.warn("Could not parse URL to get storage path for deletion:", urlString, e);
+        } catch(urlParseError) {
+          console.warn("Could not parse URL to get storage path for deletion:", urlString, urlParseError);
         }
         
         if (filePathInStorage) {
@@ -259,7 +258,7 @@ export default function ReceiptsPage() {
   }
 
   return (
-    <>
+     <>
       <PageHeader
         title="Receipt Management"
         description="Upload receipt images as proof of expenses and link them to contracts/brands for reimbursement."
@@ -348,9 +347,9 @@ export default function ReceiptsPage() {
                   {userReceipts.map(receipt => {
                     const linkedContract = userContracts.find(c => c.id === receipt.linkedContractId);
                     const isPdf = receipt.receiptFileName?.toLowerCase().endsWith('.pdf');
-                    const displayImageUrl = isPdf 
-                                            ? `https://placehold.co/100x100.png?text=PDF` 
-                                            : receipt.receiptImageUrl;
+                    const displayImageUrl = (isPdf && receipt.receiptImageUrl && !receipt.receiptImageUrl.startsWith('data:')) 
+                                            ? `https://placehold.co/100x100.png?text=PDF`
+                                            : (receipt.receiptImageUrl || `https://placehold.co/100x100.png?text=IMG`);
                     return (
                       <Card key={receipt.id} className="flex flex-col sm:flex-row items-start gap-4 p-4">
                         <a href={receipt.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="block w-full sm:w-24 h-24 sm:h-auto flex-shrink-0 rounded-md overflow-hidden border bg-muted group">
@@ -370,7 +369,7 @@ export default function ReceiptsPage() {
                             {typeof receipt.amount === 'number' && <p><DollarSign className="inline h-3 w-3 mr-1"/>Amount: ${receipt.amount.toFixed(2)}</p>}
                             {receipt.receiptDate && <p><CalendarDays className="inline h-3 w-3 mr-1"/>Date: {format(new Date(receipt.receiptDate), "PP")}</p>}
                             {receipt.category && <p><Tags className="inline h-3 w-3 mr-1"/>Category: <Badge variant="secondary" className="text-xs">{receipt.category}</Badge></p>}
-                            {linkedContract && <p><FileText className="inline h-3 w-3 mr-1"/>Linked to: {linkedContract.brand} - {linkedContract.projectName || linkedContract.id.substring(0,6)}</Badge></p>}
+                            {linkedContract && <p><FileText className="inline h-3 w-3 mr-1"/>Linked to: {linkedContract.brand} - {linkedContract.projectName || linkedContract.id.substring(0,6)}</p>}
                             <p>Status: <Badge variant={receipt.status === 'reimbursed' ? 'default' : 'outline'} className="capitalize text-xs">{receipt.status?.replace(/_/g, ' ') || 'Uploaded'}</Badge></p>
                              <p>Uploaded: {receipt.uploadedAt instanceof Timestamp ? format(receipt.uploadedAt.toDate(), "PPpp") : 'Invalid Date'}</p>
                           </div>
@@ -408,4 +407,5 @@ export default function ReceiptsPage() {
     </>
   );
 }
+
     
