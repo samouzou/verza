@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import { db, doc, getDoc, updateDoc, Timestamp, arrayUnion, serverTimestamp, collection, query, where, onSnapshot } from '@/lib/firebase';
+import { db, doc, getDoc, updateDoc, Timestamp, arrayUnion, serverTimestamp, collection, query, where, onSnapshot, getDocs } from '@/lib/firebase';
 import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
@@ -28,15 +28,9 @@ const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotificatio
 
 const getDefaultLineItem = (): EditableInvoiceLineItem => ({ description: "", quantity: 1, unitPrice: 0 });
 
-interface ContractReceipt {
-  url: string;
-  description?: string;
-}
-
-// Helper function to build default editable details
 const buildDefaultEditableDetails = (
   currentContract: Contract,
-  currentUser: UserProfile,
+  currentUser: UserProfile | null,
   currentId: string,
   currentEditableInvoiceNumber?: string
 ): EditableInvoiceDetails => {
@@ -47,9 +41,9 @@ const buildDefaultEditableDetails = (
   })) || (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
 
   return {
-    creatorName: currentUser.displayName || "",
-    creatorAddress: currentUser.address || "",
-    creatorEmail: currentUser.email || "",
+    creatorName: currentUser?.displayName || "",
+    creatorAddress: currentUser?.address || "",
+    creatorEmail: currentUser?.email || "",
     clientName: currentContract.clientName || "",
     clientAddress: currentContract.clientAddress || "",
     clientEmail: currentContract.clientEmail || "",
@@ -72,7 +66,7 @@ export default function ManageInvoicePage() {
 
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoadingContract, setIsLoadingContract] = useState(true);
-  const [contractReceipts, setContractReceipts] = useState<ContractReceipt[]>([]);
+  const [contractReceipts, setContractReceipts] = useState<Array<{url: string; description?: string;}>>([]);
   
   const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
   const [editableCreatorName, setEditableCreatorName] = useState<string>("");
@@ -118,24 +112,25 @@ export default function ManageInvoicePage() {
     setCalculatedTotalAmount(calculateTotal(editableDeliverables));
   }, [editableDeliverables, calculateTotal]);
 
-  const populateFormFromEditableDetails = useCallback((details: EditableInvoiceDetails, currentContractData?: Contract | null, currentUser?: UserProfile | null) => {
-    const resolvedUser = currentUser || user;
-    const resolvedContract = currentContractData || contract;
-
-    setEditableCreatorName(details.creatorName || resolvedUser?.displayName || "");
-    setEditableCreatorAddress(details.creatorAddress || resolvedUser?.address || "");
-    setEditableCreatorEmail(details.creatorEmail || resolvedUser?.email || "");
-    setEditableClientName(details.clientName || resolvedContract?.clientName || "");
-    setEditableClientAddress(details.clientAddress || resolvedContract?.clientAddress || "");
-    setEditableClientEmail(details.clientEmail || resolvedContract?.clientEmail || "");
+  const populateFormFromEditableDetails = useCallback((
+    details: EditableInvoiceDetails,
+    contractDataToUse: Contract,
+    userDataToUse: UserProfile | null
+  ) => {
+    setEditableCreatorName(details.creatorName || userDataToUse?.displayName || "");
+    setEditableCreatorAddress(details.creatorAddress || userDataToUse?.address || "");
+    setEditableCreatorEmail(details.creatorEmail || userDataToUse?.email || "");
+    setEditableClientName(details.clientName || contractDataToUse.clientName || "");
+    setEditableClientAddress(details.clientAddress || contractDataToUse.clientAddress || "");
+    setEditableClientEmail(details.clientEmail || contractDataToUse.clientEmail || "");
     setEditableInvoiceNumber(details.invoiceNumber);
     setEditableInvoiceDate(details.invoiceDate);
     setEditableDueDate(details.dueDate);
-    setEditableProjectName(details.projectName || resolvedContract?.projectName || "");
+    setEditableProjectName(details.projectName || contractDataToUse.projectName || "");
     setEditableDeliverables(details.deliverables && details.deliverables.length > 0 ? details.deliverables.map(d => ({...d})) : [getDefaultLineItem()]);
-    setEditablePaymentInstructions(details.paymentInstructions || resolvedContract?.paymentInstructions || "");
-  }, [user, contract]);
-  
+    setEditablePaymentInstructions(details.paymentInstructions || contractDataToUse.paymentInstructions || "");
+  }, []); // Setters are stable
+
   const getStructuredDataFromForm = useCallback((): EditableInvoiceDetails => ({
     creatorName: editableCreatorName,
     creatorAddress: editableCreatorAddress,
@@ -151,22 +146,23 @@ export default function ManageInvoicePage() {
     paymentInstructions: editablePaymentInstructions,
   }), [editableCreatorName, editableCreatorAddress, editableCreatorEmail, editableClientName, editableClientAddress, editableClientEmail, editableInvoiceNumber, editableInvoiceDate, editableDueDate, editableProjectName, editableDeliverables, editablePaymentInstructions]);
 
-  const generateAndSetHtmlFromForm = useCallback(async (currentEditableDetails?: EditableInvoiceDetails, currentReceipts?: ContractReceipt[]) => {
-    if (!contract || !user) return;
-
-    const detailsToUse = currentEditableDetails || getStructuredDataFromForm();
-    const receiptsToUse = currentReceipts || contractReceipts;
+  const generateAndSetHtmlFromForm = useCallback(async (
+    detailsToUse: EditableInvoiceDetails,
+    receiptsToUse: Array<{url: string; description?: string;}>,
+    contractIdToUse: string
+  ) => {
     const totalAmount = calculateTotal(detailsToUse.deliverables);
+    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}` : "";
     
     const inputForAI: GenerateInvoiceHtmlInput = {
       ...detailsToUse,
-      contractId: contract.id,
+      contractId: contractIdToUse,
       totalAmount: totalAmount,
       deliverables: detailsToUse.deliverables.map(d => ({
         ...d,
         total: d.quantity * d.unitPrice
       })),
-      payInvoiceLink: payUrl || undefined,
+      payInvoiceLink: currentPayUrl || undefined,
       receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
     };
 
@@ -180,38 +176,32 @@ export default function ManageInvoicePage() {
     } finally {
       setIsGeneratingAi(false);
     }
-  }, [contract, user, payUrl, contractReceipts, getStructuredDataFromForm, calculateTotal, toast]);
+  }, [calculateTotal, toast]); // Depends on calculateTotal, toast
 
-  const handleGenerateInvoiceWithAI = useCallback(async (isInitialLoad = false, initialContractData?: Contract, initialReceipts?: ContractReceipt[]) => {
-    const currentContract = initialContractData || contract;
-    const currentReceiptsData = initialReceipts || contractReceipts;
-
-    if (!currentContract || !user) {
-        if (!isInitialLoad) toast({ title: "Cannot Generate", description: "Contract details missing.", variant: "destructive" });
-        return;
+  const handleGenerateInvoiceWithAI = useCallback(async (
+    currentContractData: Contract,
+    currentReceiptsData: Array<{url: string; description?: string;}>,
+    currentUserData: UserProfile | null,
+    currentContractId: string,
+    currentEditableInvNum?: string, // Pass current editable invoice number
+    isInitialLoad = false
+  ) => {
+    if (!currentContractData || !currentUserData) {
+      if (!isInitialLoad) toast({ title: "Cannot Generate", description: "Contract or user details missing.", variant: "destructive" });
+      return;
     }
-    if (!isInitialLoad && !editableInvoiceNumber) {
-        toast({ title: "Cannot Generate", description: "Invoice number missing. Please enter one.", variant: "destructive" });
-        return;
+    if (!isInitialLoad && !currentEditableInvNum) {
+      toast({ title: "Cannot Generate", description: "Invoice number missing. Please enter one.", variant: "destructive" });
+      return;
     }
 
     setIsGeneratingAi(true);
     try {
-      const aiInputDetails = buildDefaultEditableDetails(currentContract, user, id, isInitialLoad ? undefined : editableInvoiceNumber);
-      populateFormFromEditableDetails(aiInputDetails, currentContract, user);
+      const aiInputDetails = buildDefaultEditableDetails(currentContractData, currentUserData, currentContractId, currentEditableInvNum);
+      populateFormFromEditableDetails(aiInputDetails, currentContractData, currentUserData);
       
-      const totalAmount = calculateTotal(aiInputDetails.deliverables);
-      const genHtmlInput: GenerateInvoiceHtmlInput = {
-        ...aiInputDetails,
-        contractId: currentContract.id,
-        totalAmount: totalAmount,
-        deliverables: aiInputDetails.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice })),
-        payInvoiceLink: payUrl || undefined,
-        receipts: currentReceiptsData.length > 0 ? currentReceiptsData.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
-      };
-
-      const result = await generateInvoiceHtml(genHtmlInput);
-      setInvoiceHtmlContent(result.invoiceHtml);
+      await generateAndSetHtmlFromForm(aiInputDetails, currentReceiptsData, currentContractId);
+      
       setIsEditingDetails(false); 
       if (!isInitialLoad) toast({ title: "Invoice Generated by AI", description: "Invoice details and HTML preview updated." });
     } catch (error) {
@@ -220,31 +210,32 @@ export default function ManageInvoicePage() {
     } finally {
       setIsGeneratingAi(false);
     }
-  }, [contract, contractReceipts, user, editableInvoiceNumber, id, payUrl, populateFormFromEditableDetails, calculateTotal, toast]);
+  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast]); // Depends on other stable callbacks and toast
 
   // Main data fetching useEffect
   useEffect(() => {
-    let unsubscribeContract: (() => void) | undefined;
-    let unsubscribeReceipts: (() => void) | undefined;
+    if (!id || !user?.uid || authLoading) {
+      if (!authLoading && !user?.uid) router.push('/login');
+      setIsLoadingContract(id ? true : false); // Only true if id exists
+      return;
+    }
+    setIsLoadingContract(true);
 
-    if (id && user && !authLoading) {
-      setIsLoadingContract(true);
+    const contractDocRef = doc(db, 'contracts', id);
+    const unsubscribeContract = onSnapshot(contractDocRef, async (contractSnap) => {
+      if (contractSnap.exists() && contractSnap.data()?.userId === user.uid) {
+        const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
+        setContract(contractData);
+        setInvoiceStatus(contractData.invoiceStatus || 'none');
+        
+        const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+        setPayUrl(currentPayUrlValue);
 
-      const contractDocRef = doc(db, 'contracts', id);
-      unsubscribeContract = onSnapshot(contractDocRef, async (contractSnap) => {
-        if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
-          const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-          setContract(contractData);
-          setInvoiceStatus(contractData.invoiceStatus || 'none');
-          
-          const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
-          setPayUrl(currentPayUrlValue);
-
-          const receiptsCol = collection(db, 'receipts');
-          const qReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
-          
-          if (unsubscribeReceipts) unsubscribeReceipts();
-          unsubscribeReceipts = onSnapshot(qReceipts, async (receiptSnapshot) => {
+        const receiptsCol = collection(db, 'receipts');
+        const qReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
+        
+        try {
+            const receiptSnapshot = await getDocs(qReceipts); // Fetch once per contract update
             const fetchedReceipts = receiptSnapshot.docs.map(docSnap => {
               const receiptData = docSnap.data() as ReceiptType;
               return {
@@ -252,22 +243,19 @@ export default function ManageInvoicePage() {
                 description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"
               };
             });
-            setContractReceipts(fetchedReceipts);
+            setContractReceipts(fetchedReceipts); // Update receipts state
 
-            // Now process initial invoice display logic
+            // --- Initial data processing logic ---
             if (contractData.invoiceHtmlContent) {
               setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-              if (contractData.editableInvoiceDetails) {
-                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
-              } else {
-                const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-                populateFormFromEditableDetails(defaultDetails, contractData, user);
-              }
+              const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
+              populateFormFromEditableDetails(detailsToPopulate, contractData, user);
               setIsLoadingContract(false);
             } else if (contractData.amount > 0) {
               // No saved HTML, but amount > 0, so generate new
-              await handleGenerateInvoiceWithAI(true, contractData, fetchedReceipts);
-              setIsLoadingContract(false); // handleGenerateInvoiceWithAI will manage its internal loading state
+              // This now calls the memoized version which itself calls other memoized functions
+              await handleGenerateInvoiceWithAI(contractData, fetchedReceipts, user, id, contractData.invoiceNumber, true);
+              setIsLoadingContract(false);
             } else {
               // No saved HTML and no amount, just set defaults
               const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
@@ -275,58 +263,54 @@ export default function ManageInvoicePage() {
               setInvoiceHtmlContent(""); // No content to show
               setIsLoadingContract(false);
             }
-          }, (error) => {
-            console.error("Error fetching receipts:", error);
+            // --- End of initial data processing ---
+
+        } catch (receiptError) {
+            console.error("Error fetching receipts:", receiptError);
             toast({ title: "Receipts Error", description: "Could not load associated receipts.", variant: "destructive" });
-            // Fallback if receipts fail to load
+            // Fallback if receipts fail to load, still process contract
             const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
             populateFormFromEditableDetails(defaultDetails, contractData, user);
             setInvoiceHtmlContent("");
             setIsLoadingContract(false);
-          });
-        } else {
-          toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
-          router.push('/contracts');
-          setIsLoadingContract(false);
         }
-      }, (error) => {
-        console.error("Error fetching contract:", error);
-        toast({ title: "Fetch Error", description: "Could not load contract details.", variant: "destructive" });
+
+      } else {
+        toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+        router.push('/contracts');
         setIsLoadingContract(false);
-      });
-    } else if (!authLoading && !user) {
-      router.push('/login');
+      }
+    }, (error) => {
+      console.error("Error fetching contract (onSnapshot):", error);
+      toast({ title: "Fetch Error", description: "Could not load contract details.", variant: "destructive" });
       setIsLoadingContract(false);
-    } else if (!id && !authLoading) {
-      setIsLoadingContract(false);
-    }
+    });
 
     return () => {
-      if (unsubscribeContract) unsubscribeContract();
-      if (unsubscribeReceipts) unsubscribeReceipts();
+      unsubscribeContract();
     };
-  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, handleGenerateInvoiceWithAI]);
-
+  }, [id, user?.uid, authLoading, router, toast, populateFormFromEditableDetails, handleGenerateInvoiceWithAI]); // User.uid is stable once user logs in. Other dependencies are stable.
 
   const toggleEditMode = useCallback(async () => {
     if (isEditingDetails) { 
-      // Exiting edit mode, re-generate HTML from current form state
-      await generateAndSetHtmlFromForm(undefined, contractReceipts);
-    } else { 
-      // Entering edit mode
-      if (!contract) return;
-      if (contract.editableInvoiceDetails) {
-        populateFormFromEditableDetails(contract.editableInvoiceDetails, contract, user);
-      } else if (!invoiceHtmlContent && contract.amount > 0) { // No saved HTML, and not yet generated
-        await handleGenerateInvoiceWithAI(false, contract, contractReceipts);
-      } else if (!contract.editableInvoiceDetails && contract.amount === 0 && !invoiceHtmlContent){ // No saved details, no amount, no html
-        const defaultDetails = buildDefaultEditableDetails(contract, user, id, contract.invoiceNumber);
-        populateFormFromEditableDetails(defaultDetails, contract, user);
+      if (contract && user) {
+        const currentFormData = getStructuredDataFromForm();
+        await generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id);
       }
-      // If HTML content exists, form should have been populated from saved editableInvoiceDetails or defaults already.
+    } else { 
+      if (contract && user) {
+        if (contract.editableInvoiceDetails) {
+          populateFormFromEditableDetails(contract.editableInvoiceDetails, contract, user);
+        } else if (!invoiceHtmlContent && contract.amount > 0) {
+          await handleGenerateInvoiceWithAI(contract, contractReceipts, user, contract.id, editableInvoiceNumber, false);
+        } else if (!contract.editableInvoiceDetails && contract.amount === 0 && !invoiceHtmlContent){
+          const defaultDetails = buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber);
+          populateFormFromEditableDetails(defaultDetails, contract, user);
+        }
+      }
     }
-    setIsEditingDetails(!isEditingDetails);
-  }, [isEditingDetails, contract, contractReceipts, invoiceHtmlContent, generateAndSetHtmlFromForm, handleGenerateInvoiceWithAI, populateFormFromEditableDetails, user, id]);
+    setIsEditingDetails(prev => !prev);
+  }, [isEditingDetails, contract, user, contractReceipts, editableInvoiceNumber, invoiceHtmlContent, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails, handleGenerateInvoiceWithAI]);
   
   const handleSaveInvoice = async () => {
     if (!contract || !editableInvoiceNumber) {
@@ -342,17 +326,19 @@ export default function ManageInvoicePage() {
       const currentFormData = getStructuredDataFromForm();
       const finalTotalAmount = calculateTotal(currentFormData.deliverables);
 
+      // Regenerate HTML with current form data before saving
+      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
       const inputForAI: GenerateInvoiceHtmlInput = {
         ...currentFormData,
         contractId: contract.id,
         totalAmount: finalTotalAmount,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
-        payInvoiceLink: payUrl || undefined,
+        payInvoiceLink: currentPayUrl || undefined,
         receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
       };
       const htmlResult = await generateInvoiceHtml(inputForAI);
       const finalHtmlToSave = htmlResult.invoiceHtml;
-      setInvoiceHtmlContent(finalHtmlToSave);
+      setInvoiceHtmlContent(finalHtmlToSave); // Update preview
 
       const contractDocRef = doc(db, 'contracts', contract.id);
       const newStatus = invoiceStatus === 'none' ? 'draft' : invoiceStatus;
@@ -373,7 +359,7 @@ export default function ManageInvoicePage() {
         updatedAt: serverTimestamp(),
       });
       
-      setInvoiceStatus(newStatus);
+      // No need to setInvoiceStatus here, onSnapshot will update it.
       setIsEditingDetails(false); 
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
@@ -400,7 +386,7 @@ export default function ManageInvoicePage() {
         invoiceHistory: arrayUnion(historyEntry),
         updatedAt: serverTimestamp(),
       });
-      setInvoiceStatus(newStatus); // Optimistic update, onSnapshot will confirm
+      // No need to setInvoiceStatus here, onSnapshot will update it.
       toast({ title: "Status Updated", description: `Invoice status changed to ${newStatus}.` });
     } catch (error) {
       console.error("Error updating status:", error);
@@ -435,12 +421,14 @@ export default function ManageInvoicePage() {
       const finalInvoiceNumber = editableInvoiceNumber || contract.invoiceNumber;
       const finalDueDate = editableDueDate || contract.dueDate;
       const finalCreatorName = editableCreatorName || user.displayName || 'Your Service Provider';
+      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
+
 
       const emailBody = {
         to: emailTo,
         subject: `Invoice ${finalInvoiceNumber} from ${finalCreatorName}`,
-        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${calculatedTotalAmount.toFixed(2)}\nDue Date: ${new Date(finalDueDate).toLocaleDateString()}\n\nClick here to pay: ${payUrl}\n\nThank you,\n${finalCreatorName}`,
-        html: invoiceHtmlContent,
+        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${calculatedTotalAmount.toFixed(2)}\nDue Date: ${new Date(finalDueDate).toLocaleDateString()}\n\nClick here to pay: ${currentPayUrl}\n\nThank you,\n${finalCreatorName}`,
+        html: invoiceHtmlContent, // Assumes invoiceHtmlContent already has the payUrl
         contractId: contract.id,
       };
 
@@ -457,7 +445,7 @@ export default function ManageInvoicePage() {
       const contractDocRef = doc(db, 'contracts', contract.id);
       const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${emailTo}`};
       await updateDoc(contractDocRef, { invoiceStatus: 'sent', invoiceHistory: arrayUnion(historyEntry), updatedAt: serverTimestamp()});
-      setInvoiceStatus('sent'); // Optimistic update
+      // No need to setInvoiceStatus here, onSnapshot will update it.
       toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailTo}.` });
 
     } catch (error: any) {
@@ -536,7 +524,7 @@ export default function ManageInvoicePage() {
 
   const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && contract.amount > 0 && !clientSecret;
   const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
-  const appearance = { theme: 'stripe' as const, variables: { colorPrimary: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() }};
+  const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; // Using Verza Blue directly
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
 
   return (
@@ -569,7 +557,7 @@ export default function ManageInvoicePage() {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button onClick={() => handleGenerateInvoiceWithAI(false, contract, contractReceipts)} disabled={isGeneratingAi || isSaving || isFetchingClientSecret || isSending || !editableInvoiceNumber || !!clientSecret || isEditingDetails}>
+              <Button onClick={() => contract && user && handleGenerateInvoiceWithAI(contract, contractReceipts, user, contract.id, editableInvoiceNumber, false)} disabled={isGeneratingAi || isSaving || isFetchingClientSecret || isSending || !editableInvoiceNumber || !!clientSecret || isEditingDetails}>
                 {isGeneratingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                 {invoiceHtmlContent && (contract?.editableInvoiceDetails || contract?.invoiceHtmlContent) ? "Re-generate with AI" : "Generate with AI"}
               </Button>
@@ -676,4 +664,6 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+    
+
     
