@@ -11,7 +11,7 @@ runConfig:
 env:
 
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: VERZA_FIREBASE_STORAGE_BUCKET
+    secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
       - BUILD
       - RUNTIME
