@@ -36,7 +36,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         // Send reminder email
         const msg = {
           to: contract.clientEmail,
-          from: process.env.SENDGRID_FROM_EMAIL || "serge@datatrixs.com",
+          from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
           subject: "Payment Reminder - Overdue Invoice",
           text: `This is a reminder that your payment of $${contract.amount} for ` +
             `contract ${contractId} is overdue. Please process your payment as soon as possible.`,

@@ -66,7 +66,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
 
     const msg = {
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || "serge@datatrixs.com",
+      from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
       subject,
       text,
       html,
@@ -138,7 +138,7 @@ export const sendPaymentReminder = onRequest(async (request, response) => {
 
     const msg = {
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || "serge@datatrixs.com",
+      from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
       subject: "Payment Reminder",
       text: `This is a reminder that your payment of $${amount} for ` +
         `contract ${contractId} is due on ${dueDate}.`,
