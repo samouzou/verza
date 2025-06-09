@@ -31,6 +31,7 @@ const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotificatio
 
 const getDefaultLineItem = (): EditableInvoiceLineItem => ({ description: "", quantity: 1, unitPrice: 0 });
 
+// Helper function defined outside the component
 const buildDefaultEditableDetails = (
   currentContract: Contract,
   currentUser: UserProfile | null,
@@ -62,6 +63,7 @@ const buildDefaultEditableDetails = (
 const calculateTotal = (items: EditableInvoiceLineItem[]): number => {
   return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
 };
+
 
 export default function ManageInvoicePage() {
   const params = useParams();
@@ -167,7 +169,13 @@ export default function ManageInvoicePage() {
     }
   }, [toast, setInvoiceHtmlContent]); 
 
-  const handleInitialAiGeneration = useCallback(async (initialContractData: Contract, initialReceiptsData: Array<{url: string; description?: string;}>, currentUserData: UserProfile | null, currentContractId: string, currentInvNum?: string) => {
+  const handleInitialAiGeneration = useCallback(async (
+    initialContractData: Contract,
+    initialReceiptsData: Array<{url: string; description?: string;}>,
+    currentUserData: UserProfile | null,
+    currentContractId: string,
+    currentInvNum?: string
+  ) => {
     if (!initialContractData || !currentUserData) return;
 
     setIsGeneratingAi(true);
@@ -196,7 +204,6 @@ export default function ManageInvoicePage() {
     
     setIsGeneratingAi(true);
     try {
-        // Fetch latest receipts to ensure they are included in regeneration
         const receiptsCol = collection(db, 'receipts');
         const qFreshReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', contract.id));
         const freshReceiptSnapshot = await getDocs(qFreshReceipts);
@@ -204,11 +211,10 @@ export default function ManageInvoicePage() {
             const receiptData = docSnap.data() as ReceiptType;
             return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
         });
-        setContractReceipts(freshReceipts); // Update local state for receipts
+        setContractReceipts(freshReceipts); 
         
-        // Regenerate using base contract data and fresh receipts
         await handleInitialAiGeneration(contract, freshReceipts, user, contract.id, editableInvoiceNumber);
-        setIsEditingDetails(false); // Switch back to preview mode after regeneration
+        setIsEditingDetails(false); 
     } catch (error) {
         console.error("Error during AI re-generation request:", error);
         toast({ title: "AI Re-generation Failed", description: "Could not re-generate invoice draft.", variant: "destructive" });
@@ -226,9 +232,9 @@ export default function ManageInvoicePage() {
 
     let isMounted = true;
     let unsubscribeReceipts: (() => void) | undefined = undefined;
+    setIsLoadingContract(true);
 
     const loadInitialData = async () => {
-      setIsLoadingContract(true);
       try {
         const contractDocRef = doc(db, 'contracts', id);
         const contractSnap = await getDoc(contractDocRef);
@@ -242,19 +248,21 @@ export default function ManageInvoicePage() {
           const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
           setPayUrl(currentPayUrlValue);
 
-          // Initial fetch for receipts
           const receiptsCol = collection(db, 'receipts');
-          const qInitialReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
-          const initialReceiptSnapshot = await getDocs(qInitialReceipts);
+          const qReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
+          
+          // Initial fetch for receipts to be used if AI generation is needed
+          const initialReceiptSnapshot = await getDocs(qReceipts);
           const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
             const receiptData = docSnap.data() as ReceiptType;
             return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
           });
           
           if (isMounted) {
-            setContractReceipts(initialFetchedReceipts);
+            setContractReceipts(initialFetchedReceipts); // Set receipts state first
           }
 
+          // Logic for setting initial HTML content or generating AI
           if (contractData.invoiceHtmlContent) {
             setInvoiceHtmlContent(contractData.invoiceHtmlContent);
             const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
@@ -263,7 +271,7 @@ export default function ManageInvoicePage() {
             populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
             await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
           } else if (contractData.amount > 0) {
-            // Only auto-generate if amount > 0 and no existing content/details
+            // AI generation if no content and amount exists
             await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
           } else {
             // No content, no details, no amount - just set defaults and empty HTML
@@ -272,8 +280,8 @@ export default function ManageInvoicePage() {
             setInvoiceHtmlContent("");
           }
           
-          // Setup real-time listener for receipts
-          unsubscribeReceipts = onSnapshot(qInitialReceipts, (snapshot) => {
+          // Setup real-time listener for receipts AFTER initial data processing
+          unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
             if (!isMounted) return;
             const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
               const receiptData = docSnap.data() as ReceiptType;
@@ -727,5 +735,7 @@ export default function ManageInvoicePage() {
     
 
 
+
+    
 
     
