@@ -145,7 +145,7 @@ export default function ManageInvoicePage() {
     invoiceDate: editableInvoiceDate,
     dueDate: editableDueDate,
     projectName: editableProjectName,
-    deliverables: editableDeliverables.map(d => ({...d})), // Deep copy
+    deliverables: editableDeliverables.map(d => ({...d})), 
     paymentInstructions: editablePaymentInstructions,
   }), [editableCreatorName, editableCreatorAddress, editableCreatorEmail, editableClientName, editableClientAddress, editableClientEmail, editableInvoiceNumber, editableInvoiceDate, editableDueDate, editableProjectName, editableDeliverables, editablePaymentInstructions]);
 
@@ -177,18 +177,21 @@ export default function ManageInvoicePage() {
       toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
       setInvoiceHtmlContent("<p>Error generating preview.</p>");
     }
-  }, [toast, setInvoiceHtmlContent]); 
+  }, [calculateTotal, toast, setInvoiceHtmlContent]); 
 
   const handleInitialAiGeneration = useCallback(async (
-    initialContractData: Contract,
-    initialReceiptsData: Array<{url: string; description?: string;}>,
-    currentUserData: UserProfile | null,
-    currentContractId: string,
-    currentInvNum?: string
+      isInitialLoad: boolean,
+      initialContractData: Contract,
+      initialReceiptsData: Array<{url: string; description?: string;}>,
+      currentUserData: UserProfile | null,
+      currentContractId: string,
+      currentInvNum?: string
   ) => {
     if (!initialContractData || !currentUserData) return;
 
     setIsGeneratingAi(true);
+    if (isInitialLoad) setIsLoadingContract(true); // Only set loading for true initial AI generation path
+    
     try {
       const aiInputDetails = buildDefaultEditableDetails(initialContractData, currentUserData, currentContractId, currentInvNum);
       populateFormFromEditableDetails(aiInputDetails, initialContractData, currentUserData);
@@ -199,9 +202,44 @@ export default function ManageInvoicePage() {
       toast({ title: "AI Generation Failed", description: "Could not generate initial invoice draft.", variant: "destructive" });
     } finally {
       setIsGeneratingAi(false);
+      if (isInitialLoad) setIsLoadingContract(false); // Ensure loading is stopped
     }
-  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast, setIsGeneratingAi]);
+  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast, setIsLoadingContract, calculateTotal]);
   
+  const handleAiRegenerationRequest = useCallback(async () => {
+    if (!contract || !user) {
+        toast({ title: "Cannot Generate", description: "Contract or user details missing.", variant: "destructive" });
+        return;
+    }
+    if (!editableInvoiceNumber) {
+        toast({ title: "Cannot Generate", description: "Invoice number missing. Please ensure it's set.", variant: "destructive" });
+        return;
+    }
+    
+    setIsGeneratingAi(true);
+    setIsLoadingContract(true); // Show loading while AI re-generates for explicit request
+    try {
+        const receiptsCol = collection(db, 'receipts');
+        const qFreshReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', contract.id));
+        const freshReceiptSnapshot = await getDocs(qFreshReceipts);
+        const freshReceipts = freshReceiptSnapshot.docs.map(docSnap => {
+            const receiptData = docSnap.data() as ReceiptType;
+            return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+        });
+        setContractReceipts(freshReceipts);
+
+        // Call the core AI generation logic, indicating it's not the very first page load
+        await handleInitialAiGeneration(false, contract, freshReceipts, user, contract.id, editableInvoiceNumber);
+        setIsEditingDetails(false); 
+    } catch (error) {
+        console.error("Error during AI re-generation request:", error);
+        toast({ title: "AI Re-generation Failed", description: "Could not re-generate invoice draft.", variant: "destructive" });
+    } finally {
+        setIsGeneratingAi(false);
+        setIsLoadingContract(false);
+    }
+  }, [contract, user, toast, handleInitialAiGeneration, editableInvoiceNumber, setContractReceipts]);
+
   // Main effect for initial data load
   useEffect(() => {
     if (!id || !user?.uid || authLoading) {
@@ -225,6 +263,7 @@ export default function ManageInvoicePage() {
           const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
           setPayUrl(currentPayUrlValue);
           
+          // Fetch initial receipts associated with the contract
           const receiptsCol = collection(db, 'receipts');
           const qInitialReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
           const initialReceiptSnapshot = await getDocs(qInitialReceipts);
@@ -234,15 +273,19 @@ export default function ManageInvoicePage() {
           });
           if (isMounted) setContractReceipts(initialFetchedReceipts);
 
+          // Logic to determine what to display/generate
           if (contractData.invoiceHtmlContent) {
             setInvoiceHtmlContent(contractData.invoiceHtmlContent);
             const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
             populateFormFromEditableDetails(detailsToPopulate, contractData, user);
           } else if (contractData.editableInvoiceDetails) {
+            // Has saved details, but no HTML (maybe older save or error during HTML save)
             populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
+            // Regenerate HTML from these details
             await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
           } else {
-            // No saved content, populate form with defaults for manual entry or optional AI generation via button.
+            // No saved content or details, populate form with defaults.
+            // The "Generate Initial Invoice with AI" button will be shown if amount > 0.
             const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
             populateFormFromEditableDetails(defaultDetails, contractData, user);
             setInvoiceHtmlContent(""); // Start with blank preview
@@ -277,6 +320,8 @@ export default function ManageInvoicePage() {
         return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
       });
       setContractReceipts(fetchedReceipts);
+      // Removed automatic HTML regeneration from here to prevent unprompted AI calls.
+      // The change in `contractReceipts` will be reflected next time HTML is generated by user action.
     }, (error) => {
       console.error("Error listening to receipts:", error);
       toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
@@ -284,41 +329,6 @@ export default function ManageInvoicePage() {
 
     return () => unsubscribeReceipts();
   }, [id, user?.uid, toast]);
-
-  // Effect to re-generate HTML preview when contractReceipts changes and not in edit mode
-   useEffect(() => {
-    if (!isEditingDetails && contract && user && !isLoadingContract && !isGeneratingAi && invoiceHtmlContent) {
-        // Only regenerate if there was already HTML content (meaning it's not the initial blank state)
-        const currentFormData = getStructuredDataFromForm(); 
-        if (Object.keys(currentFormData).length > 0 && currentFormData.invoiceNumber) { 
-            generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id);
-        }
-    }
-  }, [contractReceipts, isEditingDetails, contract, user, isLoadingContract, isGeneratingAi, invoiceHtmlContent, getStructuredDataFromForm, generateAndSetHtmlFromForm]);
-
-  const handleAiRegenerationRequest = useCallback(async () => { // Renamed from handleInitialAiGeneration to be explicit for button
-    if (!contract || !user) {
-        toast({ title: "Cannot Generate", description: "Contract or user details missing.", variant: "destructive" });
-        return;
-    }
-    if (!editableInvoiceNumber) {
-        toast({ title: "Cannot Generate", description: "Invoice number missing. Please ensure it's set.", variant: "destructive" });
-        return;
-    }
-    
-    // Fetch the latest receipts again before generating
-    const receiptsCol = collection(db, 'receipts');
-    const qFreshReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', contract.id));
-    const freshReceiptSnapshot = await getDocs(qFreshReceipts);
-    const freshReceipts = freshReceiptSnapshot.docs.map(docSnap => {
-        const receiptData = docSnap.data() as ReceiptType;
-        return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
-    });
-    setContractReceipts(freshReceipts);
-
-    await handleInitialAiGeneration(contract, freshReceipts, user, contract.id, editableInvoiceNumber);
-    setIsEditingDetails(false); 
-  }, [contract, user, toast, handleInitialAiGeneration, editableInvoiceNumber, setContractReceipts]);
 
 
   const toggleEditMode = useCallback(async () => {
@@ -352,6 +362,19 @@ export default function ManageInvoicePage() {
       const currentFormData = getStructuredDataFromForm();
       const finalTotalAmount = calculateTotal(currentFormData.deliverables);
 
+      // Fetch latest receipts just before saving to ensure accuracy
+      let currentReceiptsForSave = [...contractReceipts]; // Use current state as fallback
+      if (user && contract) {
+          const receiptsCol = collection(db, 'receipts');
+          const qFreshReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', contract.id));
+          const freshReceiptSnapshot = await getDocs(qFreshReceipts);
+          currentReceiptsForSave = freshReceiptSnapshot.docs.map(docSnap => {
+              const receiptData = docSnap.data() as ReceiptType;
+              return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+          });
+          setContractReceipts(currentReceiptsForSave); // Update state if needed
+      }
+      
       const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
       const inputForAI: GenerateInvoiceHtmlInput = {
         ...currentFormData,
@@ -359,7 +382,7 @@ export default function ManageInvoicePage() {
         totalAmount: finalTotalAmount,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrl || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
+        receipts: currentReceiptsForSave.length > 0 ? currentReceiptsForSave.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
       };
       const htmlResult = await generateInvoiceHtml(inputForAI);
       const finalHtmlToSave = htmlResult.invoiceHtml;
@@ -374,7 +397,7 @@ export default function ManageInvoicePage() {
         details: `Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
       };
 
-      await updateDoc(contractDocRef, {
+      const updatesToSave = {
         invoiceHtmlContent: finalHtmlToSave,
         invoiceNumber: editableInvoiceNumber,
         invoiceStatus: newStatus, 
@@ -382,12 +405,20 @@ export default function ManageInvoicePage() {
         amount: finalTotalAmount, 
         invoiceHistory: arrayUnion(historyEntry),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      await updateDoc(contractDocRef, updatesToSave);
       
       setInvoiceStatus(newStatus); 
       setIsEditingDetails(false); 
-      // Update the contract state locally to reflect saved changes so the AI button condition updates
-      setContract(prev => prev ? ({...prev, invoiceHtmlContent: finalHtmlToSave, editableInvoiceDetails: currentFormData, amount: finalTotalAmount, invoiceStatus: newStatus, invoiceNumber: editableInvoiceNumber }) : null);
+      setContract(prev => prev ? ({
+        ...prev, 
+        invoiceHtmlContent: finalHtmlToSave, 
+        editableInvoiceDetails: currentFormData, 
+        amount: finalTotalAmount, 
+        invoiceStatus: newStatus, 
+        invoiceNumber: editableInvoiceNumber 
+      }) : null);
 
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
@@ -452,6 +483,20 @@ export default function ManageInvoicePage() {
       
       const currentFormData = getStructuredDataFromForm();
       const totalAmountForEmail = calculateTotal(currentFormData.deliverables);
+
+      // Fetch latest receipts just before sending
+      let currentReceiptsForSend = [...contractReceipts]; 
+      if (user && contract) {
+          const receiptsCol = collection(db, 'receipts');
+          const qFreshReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', contract.id));
+          const freshReceiptSnapshot = await getDocs(qFreshReceipts);
+          currentReceiptsForSend = freshReceiptSnapshot.docs.map(docSnap => {
+              const receiptData = docSnap.data() as ReceiptType;
+              return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+          });
+          setContractReceipts(currentReceiptsForSend);
+      }
+
       const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
       const inputForAISend: GenerateInvoiceHtmlInput = {
         ...currentFormData,
@@ -459,7 +504,7 @@ export default function ManageInvoicePage() {
         totalAmount: totalAmountForEmail,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrlForEmail || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
+        receipts: currentReceiptsForSend.length > 0 ? currentReceiptsForSend.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
       };
       const htmlResultForSend = await generateInvoiceHtml(inputForAISend);
       const htmlToSend = htmlResultForSend.invoiceHtml;
@@ -494,8 +539,13 @@ export default function ManageInvoicePage() {
       });
       setInvoiceStatus('sent');
       setInvoiceHtmlContent(htmlToSend); 
-      // Update the contract state locally after sending
-      setContract(prev => prev ? ({...prev, invoiceStatus: 'sent', invoiceHtmlContent: htmlToSend, editableInvoiceDetails: currentFormData, amount: totalAmountForEmail }) : null);
+      setContract(prev => prev ? ({
+        ...prev, 
+        invoiceStatus: 'sent', 
+        invoiceHtmlContent: htmlToSend, 
+        editableInvoiceDetails: currentFormData, 
+        amount: totalAmountForEmail 
+      }) : null);
 
 
       toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${finalClientEmail}.` });
@@ -752,3 +802,4 @@ export default function ManageInvoicePage() {
     
 
     
+
