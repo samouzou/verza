@@ -1,3 +1,4 @@
+
 # Settings for Backend (on Cloud Run).
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
@@ -32,6 +33,11 @@ env:
   - variable: STRIPE_PRICE_ID
     secret: VERZA_STRIPE_PRICE_ID
 
+  - variable: STRIPE_YEARLY_PRICE_ID # New Yearly Price ID
+    secret: VERZA_STRIPE_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
   - variable: APP_URL
     secret: VERZA_APP_URL
 
@@ -59,3 +65,4 @@ env:
 
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     secret: VERZA_STRIPE_PUBLISHABLE_KEY
+

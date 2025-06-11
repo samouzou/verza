@@ -30,13 +30,14 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   emailVerified: boolean;
-  address?: string | null; // Added user address
+  address?: string | null; 
   createdAt?: Timestamp;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
+  subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
@@ -82,12 +83,13 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.displayName = displayName || email?.split('@')[0] || 'User';
     updates.avatarUrl = photoURL || null;
     updates.emailVerified = emailVerified;
-    updates.address = null; // Initialize address
+    updates.address = null; 
     updates.createdAt = createdAt;
 
     updates.stripeCustomerId = null;
     updates.stripeSubscriptionId = null;
     updates.subscriptionStatus = 'trialing';
+    updates.subscriptionInterval = null; // Initialize interval
     updates.trialEndsAt = trialEndsAtTimestamp;
     updates.subscriptionEndsAt = null;
     updates.trialExtensionUsed = false;
@@ -120,7 +122,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.emailVerified = firebaseUser.emailVerified;
       needsUpdate = true;
     }
-    if (existingData.address === undefined) { // Check for address
+    if (existingData.address === undefined) { 
       updates.address = null;
       needsUpdate = true;
     }
@@ -135,6 +137,9 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       needsUpdate = true; 
     }
     updates.subscriptionStatus = currentSubscriptionStatus; 
+
+    if (existingData.subscriptionInterval === undefined) { updates.subscriptionInterval = null; needsUpdate = true; } // Initialize interval
+
 
     if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing')) {
       const createdAt = existingData.createdAt || Timestamp.now();
@@ -192,11 +197,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
           avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
           emailVerified: currentFirebaseUser.emailVerified,
-          address: firestoreUserData.address || null, // Populate address
+          address: firestoreUserData.address || null, 
           createdAt: firestoreUserData.createdAt,
           stripeCustomerId: firestoreUserData.stripeCustomerId,
           stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
           subscriptionStatus: firestoreUserData.subscriptionStatus,
+          subscriptionInterval: firestoreUserData.subscriptionInterval, // Fetch interval
           trialEndsAt: firestoreUserData.trialEndsAt,
           subscriptionEndsAt: firestoreUserData.subscriptionEndsAt,
           trialExtensionUsed: firestoreUserData.trialExtensionUsed,
@@ -213,9 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           displayName: currentFirebaseUser.displayName,
           avatarUrl: currentFirebaseUser.photoURL,
           emailVerified: currentFirebaseUser.emailVerified,
-          address: null, // Default address
+          address: null, 
           createdAt: Timestamp.now(), 
           subscriptionStatus: 'none',
+          subscriptionInterval: null,
           stripeAccountStatus: 'none',
         });
       }
@@ -252,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async () => {
     try {
       setIsLoading(true);
-      const provider = new FirebaseAuthGoogleAuthProvider(); // Use renamed import
+      const provider = new FirebaseAuthGoogleAuthProvider(); 
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
@@ -419,3 +426,4 @@ export function useAuth() {
   }
   return context;
 }
+

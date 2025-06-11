@@ -97,6 +97,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
+  subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
@@ -156,3 +157,4 @@ export interface TaxEstimation {
   notes?: string[]; // e.g., reminders about specific deductions or credits
   calculationDate: string; // ISO Date string
 }
+
