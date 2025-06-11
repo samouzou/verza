@@ -106,6 +106,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       metadata: {
         firebaseUID: userId,
       },
+      allow_promotion_codes: true,
     });
 
     return {sessionId: session.id};
