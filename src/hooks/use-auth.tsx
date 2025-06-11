@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchAndSetUser = useCallback(async (currentFirebaseUser: FirebaseUser | null) => {
     if (currentFirebaseUser) {
       setFirebaseUserInstance(currentFirebaseUser);
-      await createUserDocument(currentFirebaseUser);
+      await createUserDocument(currentFirebaseUser); // This now also initializes subscriptionInterval if missing
 
       const userDocRef = doc(db, 'users', currentFirebaseUser.uid);
       const userDocSnap = await getDoc(userDocRef);
@@ -222,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           address: null, 
           createdAt: Timestamp.now(), 
           subscriptionStatus: 'none',
-          subscriptionInterval: null,
+          subscriptionInterval: null, // Initialize interval
           stripeAccountStatus: 'none',
         });
       }
@@ -426,4 +426,3 @@ export function useAuth() {
   }
   return context;
 }
-

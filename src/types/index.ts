@@ -157,4 +157,3 @@ export interface TaxEstimation {
   notes?: string[]; // e.g., reminders about specific deductions or credits
   calculationDate: string; // ISO Date string
 }
-
