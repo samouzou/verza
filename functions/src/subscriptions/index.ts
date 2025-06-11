@@ -1,3 +1,4 @@
+
 import {onCall, onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -34,6 +35,7 @@ try {
           id: "mock_subscription_id",
           status: "active",
           current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
+          items: { data: [{ price: { recurring: { interval: 'month' } } }] } // Mock interval
         }),
       },
     } as unknown as Stripe;
@@ -55,6 +57,10 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
+  const selectedInterval = request.data?.interval || 'month'; // 'month' or 'year'
+  logger.info(`Creating checkout session for user ${userId} with interval: ${selectedInterval}`);
+
+
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data();
 
@@ -77,10 +83,27 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       await userDoc.ref.update({stripeCustomerId});
     }
 
+    let priceId;
+    if (selectedInterval === 'year') {
+      priceId = process.env.STRIPE_YEARLY_PRICE_ID;
+      if (!priceId) {
+        logger.error("STRIPE_YEARLY_PRICE_ID is not set in environment variables.");
+        throw new Error("Yearly pricing option is not available at this moment.");
+      }
+    } else {
+      priceId = process.env.STRIPE_PRICE_ID; // Default to monthly
+      if (!priceId) {
+        logger.error("STRIPE_PRICE_ID (monthly) is not set in environment variables.");
+        throw new Error("Monthly pricing option is not available at this moment.");
+      }
+    }
+
+
     // Prepare subscription data
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
       metadata: {
         firebaseUID: userId,
+        selectedInterval: selectedInterval, // Store interval for webhook
       },
     };
 
@@ -89,22 +112,29 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       const trialEnd = admin.firestore.Timestamp.fromDate(
         new Date(userData.trialEndsAt.seconds * 1000)
       );
-      subscriptionData.trial_end = trialEnd.seconds;
+      // Only apply trial_end if it's in the future
+      if (trialEnd.toMillis() > Date.now()) {
+        subscriptionData.trial_end = trialEnd.seconds;
+      } else {
+        logger.info(`Trial period for user ${userId} has ended. Not applying trial_end to Stripe session.`);
+      }
     }
+
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
       line_items: [{
-        price: process.env.STRIPE_PRICE_ID,
+        price: priceId,
         quantity: 1,
       }],
       success_url: `${process.env.APP_URL}/dashboard?subscription_success=true`,
-      cancel_url: `${process.env.APP_URL}/subscribe`,
+      cancel_url: `${process.env.APP_URL}/settings`, // Changed cancel URL to settings page
       subscription_data: subscriptionData,
-      metadata: {
+      metadata: { // Top-level metadata for session itself
         firebaseUID: userId,
+        selectedInterval: selectedInterval,
       },
       allow_promotion_codes: true,
     });
@@ -133,7 +163,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: userData.stripeCustomerId,
-      return_url: `${process.env.APP_URL}/dashboard`,
+      return_url: `${process.env.APP_URL}/settings`, // Return to settings page
     });
 
     return {url: session.url};
@@ -189,11 +219,11 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   try {
     // Get Firebase UID from event metadata
     let firebaseUID: string | undefined;
-    const eventObject = event.data.object;
+    const eventObject = event.data.object as any; // Use any for easier metadata access
 
-    if ("metadata" in eventObject && eventObject.metadata?.firebaseUID) {
+    if (eventObject.metadata?.firebaseUID) {
       firebaseUID = eventObject.metadata.firebaseUID;
-    } else if ("customer" in eventObject && eventObject.customer) {
+    } else if (eventObject.customer) {
       const customer = await stripe.customers.retrieve(eventObject.customer as string);
       if (!customer.deleted && "metadata" in customer) {
         firebaseUID = customer.metadata.firebaseUID;
@@ -201,63 +231,50 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     }
 
     if (!firebaseUID) {
-      logger.error("No Firebase UID found in event metadata");
-      response.json({received: true});
+      logger.error("No Firebase UID found in event metadata for event:", event.id, event.type);
+      response.json({ received: true }); // Acknowledge event even if no UID
       return;
     }
 
     const userDocRef = db.collection("users").doc(firebaseUID);
+    logger.info(`Processing webhook event ${event.type} for user ${firebaseUID}`);
 
     // Handle different event types
     switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
+      const session = event.data.object as Stripe.Checkout.Session & { metadata?: { firebaseUID?: string, selectedInterval?: 'month' | 'year' }};
       if (session.mode === "subscription" && session.subscription) {
-        // First, get the full subscription details
         const subscriptionResponse = await stripe.subscriptions.retrieve(session.subscription as string);
         const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
           current_period_end: number;
-          trial_end?: number;
+          trial_end?: number | null;
         };
-
-        logger.info("Retrieved subscription details:", {
-          id: subscription.id,
-          current_period_end: subscription.current_period_end,
-          trial_end: subscription.trial_end,
-          status: subscription.status,
-        });
 
         let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
         if (typeof subscription.current_period_end === "number") {
           firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
-        } else {
-          logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - current_period_end is not a number:`,
-            subscription.current_period_end);
         }
 
         let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
         if (typeof subscription.trial_end === "number") {
           firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
-        } else if (subscription.trial_end !== undefined && subscription.trial_end !== null) {
-          logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - trial_end is not a number:`,
-            subscription.trial_end);
         }
+        
+        // Determine interval from session metadata or subscription item
+        const intervalFromMetadata = session.metadata?.selectedInterval;
+        const intervalFromSubscription = subscription.items.data[0]?.price?.recurring?.interval;
+        const finalInterval = intervalFromMetadata || intervalFromSubscription || 'month';
+
 
         await userDocRef.update({
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: session.customer,
           subscriptionStatus: subscription.status,
+          subscriptionInterval: finalInterval,
           subscriptionEndsAt: firestoreSubscriptionEndsAt,
           trialEndsAt: firestoreTrialEndsAt,
         });
-
-        logger.info("Updated user subscription in Firestore:", {
-          userId: firebaseUID,
-          subscriptionId: subscription.id,
-          status: subscription.status,
-          endsAt: firestoreSubscriptionEndsAt?.toDate(),
-          trialEndsAt: firestoreTrialEndsAt?.toDate(),
-        });
+        logger.info("Updated user subscription from checkout.session.completed:", {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: finalInterval});
       }
       break;
     }
@@ -266,59 +283,57 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     case "customer.subscription.updated": {
       const subscription = event.data.object as Stripe.Subscription & {
         current_period_end: number;
-        trial_end?: number;
+        trial_end?: number | null;
       };
 
       let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
       if (typeof subscription.current_period_end === "number") {
         firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
-      } else {
-        logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - current_period_end is not a number:`,
-          subscription.current_period_end);
       }
 
       let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
       if (typeof subscription.trial_end === "number") {
         firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
-      } else if (subscription.trial_end !== undefined && subscription.trial_end !== null) {
-        logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - trial_end is not a number:`,
-          subscription.trial_end);
       }
+      
+      const interval = subscription.items.data[0]?.price?.recurring?.interval || 'month';
 
       await userDocRef.update({
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
+        subscriptionInterval: interval,
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
         trialEndsAt: firestoreTrialEndsAt,
       });
+       logger.info(`Updated user subscription from ${event.type}:`, {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval});
       break;
     }
 
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription & {
         current_period_end: number;
-        ended_at?: number;
-        canceled_at?: number;
+        ended_at?: number | null;
+        canceled_at?: number | null;
       };
 
       let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
-      // Prefer ended_at or canceled_at if available
       const endTimestamp = subscription.ended_at || subscription.canceled_at || subscription.current_period_end;
 
       if (typeof endTimestamp === "number") {
         firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(endTimestamp * 1000);
-      } else {
-        logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - no valid end timestamp found:`, {
-          ended_at: subscription.ended_at,
-          canceled_at: subscription.canceled_at,
-          current_period_end: subscription.current_period_end,
-        });
       }
+      
+      // When a subscription is deleted, we might not know the interval anymore directly from this event.
+      // It's okay to leave the existing subscriptionInterval as is, or set to null.
+      // For simplicity, we'll leave it, as the subscription is ending anyway.
 
       await userDocRef.update({
-        subscriptionStatus: "canceled",
+        subscriptionStatus: "canceled", // Or use subscription.status if more accurate for your logic
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
+        // Optionally reset stripeSubscriptionId if you want to allow immediate resubscribe to a new plan:
+        // stripeSubscriptionId: null, 
       });
+      logger.info("Updated user subscription from customer.subscription.deleted:", {userId: firebaseUID, subId: subscription.id, status: "canceled"});
       break;
     }
 
@@ -333,15 +348,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
         if (typeof subscription.current_period_end === "number") {
           firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
-        } else {
-          logger.warn(`Subscription ${subscription.id} (event: ${event.type}) - current_period_end is not a number:`,
-            subscription.current_period_end);
         }
+        
+        const interval = subscription.items.data[0]?.price?.recurring?.interval || 'month';
 
         await userDocRef.update({
           subscriptionStatus: "active",
+          subscriptionInterval: interval,
           subscriptionEndsAt: firestoreSubscriptionEndsAt,
         });
+        logger.info("Updated user subscription from invoice.payment_succeeded:", {userId: firebaseUID, subId: subscription.id, status: "active", interval: interval});
       }
       break;
     }
@@ -350,11 +366,12 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       await userDocRef.update({
         subscriptionStatus: "past_due",
       });
+      logger.info("Updated user subscription from invoice.payment_failed:", {userId: firebaseUID, status: "past_due"});
       break;
     }
     }
 
-    response.json({received: true});
+    response.json({ received: true });
   } catch (error) {
     logger.error("Error processing webhook:", error);
     response.status(500).json({
@@ -363,3 +380,4 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     });
   }
 });
+
