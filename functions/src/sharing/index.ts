@@ -4,16 +4,6 @@ import {Timestamp} from "firebase/firestore";
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
 
-interface CreateShareableContractVersionData {
-  contractId: string;
-  notesForBrand?: string;
-}
-
-interface CreateShareableContractVersionResult {
-  sharedVersionId: string;
-  shareLink: string; // e.g., /share/contract/[sharedVersionId]
-}
-
 export const createShareableContractVersion = onCall({
   enforceAppCheck: false,
   cors: true,
