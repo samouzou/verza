@@ -1,8 +1,6 @@
-
 import {onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-// Import Timestamp directly from firebase-admin/firestore
-import {Timestamp} from "firebase-admin/firestore";
+import {Timestamp} from "firebase/firestore";
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
 
@@ -20,6 +18,7 @@ export const createShareableContractVersion = onCall<
   CreateShareableContractVersionData,
   Promise<CreateShareableContractVersionResult>
 >(async (request) => {
+  // Input validation
   if (!request.auth) {
     logger.error("Unauthenticated call to createShareableContractVersion");
     throw new Error("The function must be called while authenticated.");
@@ -28,16 +27,22 @@ export const createShareableContractVersion = onCall<
   const userId = request.auth.uid;
   const {contractId, notesForBrand} = request.data;
 
-  if (!contractId) {
-    logger.error("Missing contractId in createShareableContractVersion request");
-    throw new Error("Contract ID is required.");
+  // Enhanced input validation
+  if (!contractId || typeof contractId !== "string") {
+    logger.error("Invalid contractId in createShareableContractVersion request");
+    throw new Error("Valid contract ID is required.");
+  }
+
+  if (notesForBrand && typeof notesForBrand !== "string") {
+    logger.error("Invalid notesForBrand in createShareableContractVersion request");
+    throw new Error("Notes for brand must be a string if provided.");
   }
 
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
     const contractSnap = await contractDocRef.get();
 
-    if (!contractSnap.exists()) {
+    if (!contractSnap.exists) {
       logger.error(`Contract ${contractId} not found for user ${userId}.`);
       throw new Error("Contract not found.");
     }
@@ -75,28 +80,31 @@ export const createShareableContractVersion = onCall<
 
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
-      userId: userId, // Creator's UID
-      sharedAt: Timestamp.now(), // Use the directly imported Timestamp
+      userId: userId,
+      sharedAt: Timestamp.now(),
       contractData: relevantContractData,
       notesForBrand: notesForBrand || undefined,
       status: "active",
       brandHasViewed: false,
     };
 
-    const sharedVersionDocRef = await db
-      .collection("sharedContractVersions")
-      .add(sharedVersionData);
+    // Use a transaction to ensure data consistency
+    const result = await db.runTransaction(async (transaction) => {
+      const sharedVersionDocRef = db.collection("sharedContractVersions").doc();
+      transaction.set(sharedVersionDocRef, sharedVersionData);
+      return sharedVersionDocRef;
+    });
 
     const appUrl = process.env.APP_URL || "http://localhost:9002"; // Fallback for local dev
-    const shareLink = `${appUrl}/share/contract/${sharedVersionDocRef.id}`;
+    const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(
-      `Created shareable version ${sharedVersionDocRef.id} for ` +
+      `Created shareable version ${result.id} for ` +
       `contract ${contractId} by user ${userId}.`
     );
 
     return {
-      sharedVersionId: sharedVersionDocRef.id,
+      sharedVersionId: result.id,
       shareLink: shareLink,
     };
   } catch (error) {
@@ -104,7 +112,15 @@ export const createShareableContractVersion = onCall<
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
+    
+    // Enhanced error handling
     if (error instanceof Error) {
+      if (error.message.includes("permission-denied")) {
+        throw new Error("You do not have permission to perform this action.");
+      }
+      if (error.message.includes("not-found")) {
+        throw new Error("The requested resource was not found.");
+      }
       throw new Error(
         `Failed to create shareable contract version: ${error.message}`
       );
