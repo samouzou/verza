@@ -1,4 +1,4 @@
-import {onCall} from "firebase-functions/v2/https";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {Timestamp} from "firebase/firestore";
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
@@ -14,14 +14,14 @@ interface CreateShareableContractVersionResult {
   shareLink: string; // e.g., /share/contract/[sharedVersionId]
 }
 
-export const createShareableContractVersion = onCall<
-  CreateShareableContractVersionData,
-  Promise<CreateShareableContractVersionResult>
->(async (request) => {
+export const createShareableContractVersion = onCall({
+  enforceAppCheck: false,
+  cors: true,
+}, async (request) => {
   // Input validation
   if (!request.auth) {
     logger.error("Unauthenticated call to createShareableContractVersion");
-    throw new Error("The function must be called while authenticated.");
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
   const userId = request.auth.uid;
@@ -30,12 +30,12 @@ export const createShareableContractVersion = onCall<
   // Enhanced input validation
   if (!contractId || typeof contractId !== "string") {
     logger.error("Invalid contractId in createShareableContractVersion request");
-    throw new Error("Valid contract ID is required.");
+    throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
 
   if (notesForBrand && typeof notesForBrand !== "string") {
     logger.error("Invalid notesForBrand in createShareableContractVersion request");
-    throw new Error("Notes for brand must be a string if provided.");
+    throw new HttpsError("invalid-argument", "Notes for brand must be a string if provided.");
   }
 
   try {
@@ -44,7 +44,7 @@ export const createShareableContractVersion = onCall<
 
     if (!contractSnap.exists) {
       logger.error(`Contract ${contractId} not found for user ${userId}.`);
-      throw new Error("Contract not found.");
+      throw new HttpsError("not-found", "Contract not found.");
     }
 
     const contractData = contractSnap.data() as Contract;
@@ -54,7 +54,7 @@ export const createShareableContractVersion = onCall<
         `User ${userId} attempted to share contract ${contractId} ` +
         "they do not own."
       );
-      throw new Error("You do not have permission to share this contract.");
+      throw new HttpsError("permission-denied", "You do not have permission to share this contract.");
     }
 
     // Prepare the snapshot of contract data to be shared
@@ -112,19 +112,10 @@ export const createShareableContractVersion = onCall<
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
-
-    // Enhanced error handling
-    if (error instanceof Error) {
-      if (error.message.includes("permission-denied")) {
-        throw new Error("You do not have permission to perform this action.");
-      }
-      if (error.message.includes("not-found")) {
-        throw new Error("The requested resource was not found.");
-      }
-      throw new Error(
-        `Failed to create shareable contract version: ${error.message}`
-      );
+    
+    if (error instanceof HttpsError) {
+      throw error;
     }
-    throw new Error("An unknown error occurred while creating shareable link.");
+    throw new HttpsError("internal", "An unknown error occurred while creating shareable link.");
   }
 });
