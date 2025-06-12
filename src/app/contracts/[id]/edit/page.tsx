@@ -17,6 +17,7 @@ import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOr
 import type { Contract, ExtractedTerms, NegotiationSuggestionsOutput } from '@/types';
 import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 import { extractContractDetails, type ExtractContractDetailsOutput as AIExtractOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput as AISummaryOutput } from "@/ai/flows/summarize-contract-terms";
@@ -258,8 +259,8 @@ export default function EditContractPage() {
   return (
     <>
       <PageHeader
-        title={`Edit Contract: ${contract.brand}`}
-        description="Modify the details of your contract."
+        title={`Edit Contract: ${contract.brand || 'Loading...'}`}
+        description="Modify the details of your contract. Use the accordions to expand/collapse sections."
         actions={
           <Button variant="outline" asChild>
             <Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4" /> Cancel</Link>
@@ -267,102 +268,122 @@ export default function EditContractPage() {
         }
       />
       <form onSubmit={handleSaveChanges}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Contract Details</CardTitle>
-            <CardDescription>Update the core information for this agreement.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="brand">Brand Name</Label>
-                <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="projectName">Project Name (Optional)</Label>
-                <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="amount">Amount ($)</Label>
-                <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="contractType">Contract Type</Label>
-                <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
-                  <SelectTrigger className="w-full mt-1">
-                    <SelectValue placeholder="Select contract type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sponsorship">Sponsorship</SelectItem>
-                    <SelectItem value="consulting">Consulting</SelectItem>
-                    <SelectItem value="affiliate">Affiliate</SelectItem>
-                    <SelectItem value="retainer">Retainer</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Accordion type="multiple" defaultValue={["item-details", "item-client", "item-file"]} className="w-full space-y-4 mb-6">
+          <AccordionItem value="item-details">
+            <Card>
+              <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                <CardHeader className="p-0">
+                  <CardTitle>Contract Details</CardTitle>
+                  <CardDescription>Update the core information for this agreement.</CardDescription>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="brand">Brand Name</Label>
+                      <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="projectName">Project Name (Optional)</Label>
+                      <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">Amount ($)</Label>
+                      <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="contractType">Contract Type</Label>
+                      <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
+                        <SelectTrigger className="w-full mt-1">
+                          <SelectValue placeholder="Select contract type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sponsorship">Sponsorship</SelectItem>
+                          <SelectItem value="consulting">Consulting</SelectItem>
+                          <SelectItem value="affiliate">Affiliate</SelectItem>
+                          <SelectItem value="retainer">Retainer</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Client Information</CardTitle>
-            <CardDescription>Update client details relevant for invoicing.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="clientName">Client Name</Label>
-                <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="clientEmail">Client Email</Label>
-                <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="clientAddress">Client Address</Label>
-              <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} rows={3} className="mt-1" />
-            </div>
-             <div>
-              <Label htmlFor="paymentInstructions">Payment Instructions</Label>
-              <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} rows={3} className="mt-1" />
-            </div>
-          </CardContent>
-        </Card>
+          <AccordionItem value="item-client">
+            <Card>
+              <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                <CardHeader className="p-0">
+                  <CardTitle>Client Information</CardTitle>
+                  <CardDescription>Update client details relevant for invoicing.</CardDescription>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="clientName">Client Name</Label>
+                      <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="clientEmail">Client Email</Label>
+                      <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="clientAddress">Client Address</Label>
+                    <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} rows={3} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="paymentInstructions">Payment Instructions</Label>
+                    <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} rows={3} className="mt-1" />
+                  </div>
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Contract File</CardTitle>
-            <CardDescription>Replace the existing contract file if needed.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {currentFileName && !newSelectedFile && (
-              <div className="text-sm text-muted-foreground flex items-center">
-                <FileIcon className="mr-2 h-4 w-4" /> Current file: {currentFileName}
-              </div>
-            )}
-            {newSelectedFile && (
-              <div className="text-sm text-green-600 flex items-center">
-                <UploadCloud className="mr-2 h-4 w-4" /> New file selected: {newSelectedFile.name}
-              </div>
-            )}
-            <div>
-              <Label htmlFor="newContractFile">Upload New File (Optional - will replace existing)</Label>
-              <Input
-                id="newContractFile"
-                type="file"
-                className="mt-1"
-                onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          <AccordionItem value="item-file">
+            <Card>
+              <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                <CardHeader className="p-0">
+                  <CardTitle>Contract File</CardTitle>
+                  <CardDescription>Replace the existing contract file if needed.</CardDescription>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="space-y-4">
+                  {currentFileName && !newSelectedFile && (
+                    <div className="text-sm text-muted-foreground flex items-center">
+                      <FileIcon className="mr-2 h-4 w-4" /> Current file: {currentFileName}
+                    </div>
+                  )}
+                  {newSelectedFile && (
+                    <div className="text-sm text-green-600 flex items-center">
+                      <UploadCloud className="mr-2 h-4 w-4" /> New file selected: {newSelectedFile.name}
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="newContractFile">Upload New File (Optional - will replace existing)</Label>
+                    <Input
+                      id="newContractFile"
+                      type="file"
+                      className="mt-1"
+                      onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)}
+                    />
+                  </div>
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
+        </Accordion>
 
         <Card className="mt-6">
           <CardHeader>
@@ -376,7 +397,7 @@ export default function EditContractPage() {
                 id="editedContractText"
                 value={editedContractText}
                 onChange={(e) => handleContractTextChange(e.target.value)}
-                rows={10}
+                rows={15} 
                 className="mt-1 font-mono text-sm"
                 placeholder="Paste or edit contract text here..."
               />
