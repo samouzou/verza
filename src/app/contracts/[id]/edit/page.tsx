@@ -271,8 +271,8 @@ export default function EditContractPage() {
         <Accordion type="multiple" defaultValue={["item-details", "item-client", "item-file"]} className="w-full space-y-4 mb-6">
           <AccordionItem value="item-details">
             <Card>
-              <AccordionTrigger className="px-6 py-4 hover:no-underline">
-                <CardHeader className="p-0">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <CardHeader>
                   <CardTitle>Contract Details</CardTitle>
                   <CardDescription>Update the core information for this agreement.</CardDescription>
                 </CardHeader>
@@ -319,8 +319,8 @@ export default function EditContractPage() {
 
           <AccordionItem value="item-client">
             <Card>
-              <AccordionTrigger className="px-6 py-4 hover:no-underline">
-                <CardHeader className="p-0">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <CardHeader>
                   <CardTitle>Client Information</CardTitle>
                   <CardDescription>Update client details relevant for invoicing.</CardDescription>
                 </CardHeader>
@@ -352,8 +352,8 @@ export default function EditContractPage() {
 
           <AccordionItem value="item-file">
             <Card>
-              <AccordionTrigger className="px-6 py-4 hover:no-underline">
-                <CardHeader className="p-0">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <CardHeader>
                   <CardTitle>Contract File</CardTitle>
                   <CardDescription>Replace the existing contract file if needed.</CardDescription>
                 </CardHeader>
