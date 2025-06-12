@@ -2,7 +2,7 @@
 import {onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 // Import Timestamp directly from firebase-admin/firestore
-import { Timestamp } from 'firebase-admin/firestore';
+import {Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
 
