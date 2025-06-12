@@ -1,8 +1,9 @@
 
 import {onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import * as admin from "firebase-admin";
-import {db} from "../config/firebase";
+// Import Timestamp directly from firebase-admin/firestore
+import { Timestamp } from 'firebase-admin/firestore';
+import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
 
 interface CreateShareableContractVersionData {
@@ -36,7 +37,7 @@ export const createShareableContractVersion = onCall<
     const contractDocRef = db.collection("contracts").doc(contractId);
     const contractSnap = await contractDocRef.get();
 
-    if (!contractSnap.exists) {
+    if (!contractSnap.exists()) {
       logger.error(`Contract ${contractId} not found for user ${userId}.`);
       throw new Error("Contract not found.");
     }
@@ -75,7 +76,7 @@ export const createShareableContractVersion = onCall<
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
       userId: userId, // Creator's UID
-      sharedAt: admin.firestore.Timestamp.now(),
+      sharedAt: Timestamp.now(), // Use the directly imported Timestamp
       contractData: relevantContractData,
       notesForBrand: notesForBrand || undefined,
       status: "active",
