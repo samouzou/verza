@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -133,5 +134,98 @@ body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Print specific styles */
+@media print {
+  /* Hide common layout elements */
+  [data-sidebar="sidebar"], /* SidebarNav component */
+  .app-layout-header-global, /* Hypothetical class for a global app header, if you add one */
+  .app-layout-footer-global  /* Hypothetical class for a global app footer, if you add one */
+  {
+    display: none !important;
+  }
+
+  /* Hide elements explicitly marked with .hide-on-print */
+  .hide-on-print {
+    display: none !important;
+  }
+
+  /* Ensure main content area expands and has no print-specific padding that might conflict */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important; /* Ensure content isn't clipped by main's overflow */
+  }
+
+  /* Styles for the contract text card that IS printed */
+  .contract-text-card-for-print {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 1in !important; /* Standard print margins */
+    width: 100% !important;
+    page-break-inside: avoid; /* Try to keep the card content on one page if possible */
+    background-color: white !important; /* Ensure white background for printing */
+  }
+
+  /* Hide the card header, title, and description for the contract text card during printing */
+  .contract-text-card-for-print .card-header,
+  .contract-text-card-for-print .card-title,
+  .contract-text-card-for-print .card-description {
+    display: none !important;
+  }
+
+  .contract-text-card-for-print .card-content {
+    padding: 0 !important;
+  }
+
+  /* Styles for the scroll area containing the contract text */
+  .contract-text-scrollarea-for-print {
+    height: auto !important; /* Allow full height for printing */
+    max-height: none !important; /* Remove max-height for printing */
+    overflow: visible !important; /* Ensure all content is visible for printing */
+  }
+  .contract-text-scrollarea-for-print > div[data-radix-scroll-area-viewport] {
+    height: auto !important; /* Ensure viewport also allows full height */
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+
+  .contract-text-paragraph-for-print {
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    color: black !important;
+    background: white !important;
+    white-space: pre-wrap !important; /* Preserve formatting like line breaks and spaces */
+    text-align: left !important; /* Ensure text is left-aligned */
+  }
+
+  /* Reset body for printing */
+  body {
+    background-color: white !important;
+    color: black !important;
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact !important; /* Ensure colors print correctly if any are used for text */
+    print-color-adjust: exact !important;
+  }
+  
+  /* Ensure links are distinguishable if needed, and not overly styled */
+  a {
+    color: #0000EE !important; /* Standard blue for links */
+    text-decoration: underline !important;
+  }
+
+  /* Ensure no Tailwind dark mode styles interfere with print */
+  .dark {
+    --background: white !important;
+    --foreground: black !important;
+    /* Reset other dark mode colors to sensible print defaults if necessary */
   }
 }

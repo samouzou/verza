@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer } from 'lucide-react';
 import Link from 'next/link';
 import type { Contract } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -168,6 +168,10 @@ export default function ContractDetailPage() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
@@ -237,6 +241,7 @@ export default function ContractDetailPage() {
   return (
     <>
       <PageHeader
+        className="hide-on-print"
         title={(contract.brand || "Contract") + " - " + (contract.projectName || contract.fileName || "Details")}
         description={`Details for contract ID: ${contract.id}`}
         actions={
@@ -250,6 +255,9 @@ export default function ContractDetailPage() {
                <Link href={`/contracts/${contract.id}/invoice`}>
                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Manage Invoice
               </Link>
+            </Button>
+            <Button variant="outline" onClick={handlePrint}>
+              <Printer className="mr-2 h-4 w-4" /> Export to PDF
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/contracts/${contract.id}/edit`}>
@@ -286,7 +294,7 @@ export default function ContractDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-lg">
+          <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Key Information</span>
@@ -327,7 +335,7 @@ export default function ContractDetailPage() {
           </Card>
 
           { (contract.clientName || contract.clientEmail || contract.clientAddress || contract.paymentInstructions) && (
-             <Card className="shadow-lg">
+             <Card className="shadow-lg hide-on-print">
                 <CardHeader>
                     <CardTitle>Client & Payment Info</CardTitle>
                     <CardDescription>Details for invoicing purposes.</CardDescription>
@@ -342,7 +350,7 @@ export default function ContractDetailPage() {
           )}
 
           {contract.extractedTerms && Object.keys(contract.extractedTerms).length > 0 && (
-            <Card className="shadow-lg">
+            <Card className="shadow-lg hide-on-print">
               <CardHeader>
                 <CardTitle>Extracted Terms</CardTitle>
                 <CardDescription>Specific terms identified from the contract document by AI.</CardDescription>
@@ -366,7 +374,7 @@ export default function ContractDetailPage() {
           )}
 
           {hasNegotiationSuggestions && contract.negotiationSuggestions && (
-            <Card className="shadow-lg">
+            <Card className="shadow-lg hide-on-print">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5 text-yellow-500" />
@@ -393,7 +401,7 @@ export default function ContractDetailPage() {
         </div>
 
         <div className="lg:col-span-1 space-y-6">
-           <Card className="shadow-lg">
+           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle>AI Generated Summary</CardTitle>
             </CardHeader>
@@ -407,15 +415,14 @@ export default function ContractDetailPage() {
           </Card>
 
           {contract.contractText && (
-             <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle>Full Contract Text (Excerpt)</CardTitle>
+             <Card className="shadow-lg contract-text-card-for-print">
+              <CardHeader className="hide-on-print">
+                <CardTitle>Full Contract Text</CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[200px] pr-3">
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {contract.contractText.substring(0,1000)}
-                    {contract.contractText.length > 1000 && "..."}
+                <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
+                    {contract.contractText}
                   </p>
                 </ScrollArea>
               </CardContent>
@@ -423,7 +430,7 @@ export default function ContractDetailPage() {
           )}
 
           {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
-            <Card className="shadow-lg">
+            <Card className="shadow-lg hide-on-print">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <History className="h-5 w-5 text-blue-500" />
