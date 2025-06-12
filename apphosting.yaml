@@ -32,6 +32,8 @@ env:
 
   - variable: STRIPE_PRICE_ID
     secret: VERZA_STRIPE_PRICE_ID
+    availability:
+      - RUNTIME
 
   - variable: STRIPE_YEARLY_PRICE_ID # New Yearly Price ID
     secret: VERZA_STRIPE_YEARLY_PRICE_ID
