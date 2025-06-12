@@ -112,7 +112,7 @@ export const createShareableContractVersion = onCall<
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
-    
+
     // Enhanced error handling
     if (error instanceof Error) {
       if (error.message.includes("permission-denied")) {
