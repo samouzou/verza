@@ -271,11 +271,11 @@ export default function EditContractPage() {
         <Accordion type="multiple" defaultValue={["item-details", "item-client", "item-file"]} className="w-full space-y-4 mb-6">
           <AccordionItem value="item-details">
             <Card>
-              <AccordionTrigger className="hover:no-underline py-4">
-                <CardHeader>
+              <AccordionTrigger className="p-6 hover:no-underline">
+                <div className="flex flex-col space-y-1.5 text-left">
                   <CardTitle>Contract Details</CardTitle>
                   <CardDescription>Update the core information for this agreement.</CardDescription>
-                </CardHeader>
+                </div>
               </AccordionTrigger>
               <AccordionContent>
                 <CardContent className="space-y-6">
@@ -319,11 +319,11 @@ export default function EditContractPage() {
 
           <AccordionItem value="item-client">
             <Card>
-              <AccordionTrigger className="hover:no-underline py-4">
-                <CardHeader>
+              <AccordionTrigger className="p-6 hover:no-underline">
+                <div className="flex flex-col space-y-1.5 text-left">
                   <CardTitle>Client Information</CardTitle>
                   <CardDescription>Update client details relevant for invoicing.</CardDescription>
-                </CardHeader>
+                </div>
               </AccordionTrigger>
               <AccordionContent>
                 <CardContent className="space-y-6">
@@ -352,11 +352,11 @@ export default function EditContractPage() {
 
           <AccordionItem value="item-file">
             <Card>
-              <AccordionTrigger className="hover:no-underline py-4">
-                <CardHeader>
+              <AccordionTrigger className="p-6 hover:no-underline">
+                <div className="flex flex-col space-y-1.5 text-left">
                   <CardTitle>Contract File</CardTitle>
                   <CardDescription>Replace the existing contract file if needed.</CardDescription>
-                </CardHeader>
+                </div>
               </AccordionTrigger>
               <AccordionContent>
                 <CardContent className="space-y-4">
@@ -467,3 +467,5 @@ export default function EditContractPage() {
     </>
   );
 }
+
+    
