@@ -46,6 +46,10 @@ export {
 
 // Export sharing functions
 // export * from "./sharing"; // Commented out wildcard export
-import {createShareableContractVersion} from "./sharing"; // Explicit import
-export {createShareableContractVersion}; // Explicit export
+import {
+  createShareableContractVersion,
+} from "./sharing"; // Explicit import
+export {
+  createShareableContractVersion,
+}; // Explicit export
 
