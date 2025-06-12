@@ -1,3 +1,4 @@
+
 /**
  * Verza Contract Management Firebase Functions
  *
@@ -5,6 +6,7 @@
  * - Payment processing functions
  * - Email notification functions
  * - Scheduled tasks
+ * - Contract Sharing functions
  */
 
 import {
@@ -41,3 +43,6 @@ export {
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
 };
+
+// Export sharing functions
+export * from "./sharing";

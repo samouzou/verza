@@ -5,14 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2 } from 'lucide-react';
 import Link from 'next/link';
-import type { Contract } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc, serverTimestamp, arrayUnion } from '@/lib/firebase';
+import { db, doc, getDoc, Timestamp, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy } from '@/lib/firebase';
 import { storage } from '@/lib/firebase';
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; // Import the new dialog
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -53,10 +54,18 @@ export default function ContractDetailPage() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [sharedVersions, setSharedVersions] = useState<SharedContractVersionType[]>([]);
+  const [isLoadingSharedVersions, setIsLoadingSharedVersions] = useState(true);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
 
   useEffect(() => {
+    let unsubscribeSharedVersions: (() => void) | undefined;
+
     if (id && user && !authLoading) {
       setIsLoading(true);
+      setIsLoadingSharedVersions(true);
+
       const fetchContract = async () => {
         try {
           const contractDocRef = doc(db, 'contracts', id as string);
@@ -103,7 +112,6 @@ export default function ContractDetailPage() {
               }
             }
 
-
             setContract({
               id: contractSnap.id,
               ...data,
@@ -130,11 +138,34 @@ export default function ContractDetailPage() {
         }
       };
       fetchContract();
+
+      // Fetch shared versions
+      const sharedVersionsQuery = query(
+        collection(db, "sharedContractVersions"),
+        where("originalContractId", "==", id),
+        where("userId", "==", user.uid),
+        orderBy("sharedAt", "desc")
+      );
+      unsubscribeSharedVersions = onSnapshot(sharedVersionsQuery, (snapshot) => {
+        const versions = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as SharedContractVersionType));
+        setSharedVersions(versions);
+        setIsLoadingSharedVersions(false);
+      }, (error) => {
+        console.error("Error fetching shared versions: ", error);
+        toast({ title: "Sharing Error", description: "Could not load shared versions.", variant: "destructive" });
+        setIsLoadingSharedVersions(false);
+      });
+
+
     } else if (!authLoading && !user) {
       router.push('/login');
     } else if (!id) {
         setIsLoading(false);
+        setIsLoadingSharedVersions(false);
     }
+     return () => {
+      if (unsubscribeSharedVersions) unsubscribeSharedVersions();
+    };
   }, [id, user, authLoading, router, toast]);
 
   const handleDeleteContract = async () => {
@@ -455,9 +486,50 @@ export default function ContractDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card className="shadow-lg hide-on-print">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-green-500" />
+                Share & Feedback
+              </CardTitle>
+              <CardDescription>Share contract versions with brands for feedback.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ShareContractDialog 
+                contractId={contract.id} 
+                isOpen={isShareDialogOpen}
+                onOpenChange={setIsShareDialogOpen}
+              />
+              {isLoadingSharedVersions ? (
+                <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" />
+              ) : sharedVersions.length > 0 ? (
+                <ScrollArea className="h-[150px] pr-3 mt-4">
+                  <ul className="space-y-2">
+                    {sharedVersions.map(version => (
+                      <li key={version.id} className="text-sm p-2 border rounded-md">
+                        <Link href={`/share/contract/${version.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                          Shared Link ({version.id.substring(0, 6)}...)
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          Shared on: {format(version.sharedAt.toDate(), "PPp")}
+                        </p>
+                        {version.notesForBrand && <p className="text-xs text-muted-foreground mt-1 italic">Notes: {version.notesForBrand}</p>}
+                        <Badge variant={version.status === 'active' ? 'default' : 'outline'} className="mt-1 capitalize text-xs">
+                          {version.status}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2 text-center">No shared versions yet. Click "Share for Feedback" to create one.</p>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </>
   );
 }
-    

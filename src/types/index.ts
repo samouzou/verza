@@ -72,6 +72,33 @@ export interface Contract {
   updatedAt?: Timestamp;
 }
 
+// Interface for a snapshot of a contract version shared with a brand
+export interface SharedContractVersion {
+  id: string; // Document ID (the unique share token)
+  originalContractId: string; // ID of the parent contract
+  userId: string; // Creator's UID
+  sharedAt: Timestamp;
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' >; // Snapshot of relevant contract data at time of sharing
+  notesForBrand?: string; // Optional notes from creator to brand for this version
+  status: 'active' | 'revoked'; // Status of this share link
+  brandHasViewed?: boolean;
+  lastViewedByBrandAt?: Timestamp;
+}
+
+// Interface for comments made by a brand on a shared contract version
+export interface ContractComment {
+  id: string; // Comment ID
+  sharedVersionId: string; // Link to the SharedContractVersion
+  commenterName: string; // Name of the person commenting (brand representative)
+  commenterEmail?: string; // Optional email of commenter
+  commentText: string;
+  commentedAt: Timestamp;
+  resolved?: boolean;
+  resolvedAt?: Timestamp;
+  creatorViewed?: boolean;
+}
+
+
 export interface EarningsDataPoint {
   month: string; // e.g., "Jan", "Feb"
   year: number; // e.g., 2024
@@ -97,7 +124,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
+  subscriptionInterval?: 'month' | 'year' | null; 
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
@@ -112,20 +139,18 @@ export interface Receipt {
   id: string; // Document ID from Firestore
   userId: string;
   
-  // User-provided information
-  description?: string; // User's description for the receipt
-  category?: string;    // User-set category
-  amount?: number;      // Optional: user can enter amount if they want for their records
-  receiptDate?: string; // Optional: user can enter date YYYY-MM-DD for their records
-  vendorName?: string;  // Optional: user can enter vendor for their records
+  description?: string; 
+  category?: string;    
+  amount?: number;      
+  receiptDate?: string; 
+  vendorName?: string;  
 
-  linkedContractId: string | null; // Link to a contract (brand/client)
+  linkedContractId: string | null; 
 
-  // Image proof
   receiptImageUrl: string;
   receiptFileName: string;
   
-  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived'; // Simplified status
+  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived'; 
   
   uploadedAt: Timestamp;
   createdAt: Timestamp;
@@ -134,17 +159,17 @@ export interface Receipt {
 
 // Banking & Tax Feature Types
 export interface BankTransaction {
-  id: string; // Transaction ID from bank or generated
+  id: string; 
   userId: string;
-  accountId: string; // Link to a bank account if multiple are connected
-  date: string; // ISO Date string
+  accountId: string; 
+  date: string; 
   description: string;
-  amount: number; // Positive for income, negative for expenses
+  amount: number; 
   currency: string;
-  category?: string; // User-defined or from bank/Finicity
+  category?: string; 
   isTaxDeductible?: boolean;
-  isBrandSpend?: boolean; // For reimbursement
-  linkedReceiptId?: string | null; // Link to a Receipt document
+  isBrandSpend?: boolean; 
+  linkedReceiptId?: string | null; 
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -154,6 +179,7 @@ export interface TaxEstimation {
   estimatedTaxOwed: number;
   suggestedSetAsidePercentage: number;
   suggestedSetAsideAmount: number;
-  notes?: string[]; // e.g., reminders about specific deductions or credits
-  calculationDate: string; // ISO Date string
+  notes?: string[]; 
+  calculationDate: string; 
 }
+
