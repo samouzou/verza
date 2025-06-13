@@ -45,5 +45,9 @@ export {
 };
 
 // Explicitly import and export sharing functions
-import { createShareableContractVersion } from "./sharing";
-export { createShareableContractVersion };
+import {
+  createShareableContractVersion,
+} from "./sharing";
+export {
+  createShareableContractVersion, 
+};
