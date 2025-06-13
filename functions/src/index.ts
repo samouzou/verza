@@ -44,12 +44,6 @@ export {
   stripeSubscriptionWebhookHandler,
 };
 
-// Export sharing functions
-// export * from "./sharing"; // Commented out wildcard export
-import {
-  createShareableContractVersion,
-} from "./sharing"; // Explicit import
-export {
-  createShareableContractVersion,
-}; // Explicit export
-
+// Explicitly import and export sharing functions
+import { createShareableContractVersion } from "./sharing";
+export { createShareableContractVersion };

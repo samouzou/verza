@@ -1,12 +1,13 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import {Timestamp} from "firebase/firestore";
-import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
-import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
+import { Timestamp } from "firebase-admin/firestore"; // Corrected import
+import {db} from "../config/firebase";
+import type {Contract, SharedContractVersion} from "../../../src/types";
 
 export const createShareableContractVersion = onCall({
-  enforceAppCheck: false,
-  cors: true,
+  enforceAppCheck: false, // Consider enabling App Check in production
+  cors: true, // Ensure your frontend origin is allowed if more restrictive CORS is needed
 }, async (request) => {
   // Input validation
   if (!request.auth) {
@@ -51,17 +52,17 @@ export const createShareableContractVersion = onCall({
     // Exclude fields that are not relevant for the brand's view or are internal
     const {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      id,
+      id, // id of original contract, not needed in shared data itself
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      userId: contractUserId, // already have userId from auth
+      userId: contractUserId, // already have userId from auth for the sharedVersion doc
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      createdAt,
+      createdAt, // Timestamps of original contract, sharedVersion will have its own sharedAt
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       updatedAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      invoiceHistory,
+      invoiceHistory, // Internal history
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      lastReminderSentAt,
+      lastReminderSentAt, // Internal operational data
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       negotiationSuggestions, // Definitely don't share this
       ...relevantContractData
@@ -70,19 +71,20 @@ export const createShareableContractVersion = onCall({
 
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
-      userId: userId,
-      sharedAt: Timestamp.now(),
+      userId: userId, // Creator's UID
+      sharedAt: Timestamp.now(), // Correctly using Admin SDK Timestamp
       contractData: relevantContractData,
-      notesForBrand: notesForBrand || undefined,
-      status: "active",
-      brandHasViewed: false,
+      notesForBrand: notesForBrand || undefined, // Store as undefined if empty string
+      status: "active", // Default status
+      brandHasViewed: false, // Default
     };
 
-    // Use a transaction to ensure data consistency
+    // Use a transaction to ensure data consistency, though for a single write it might be overkill
+    // but good practice if more operations were involved.
     const result = await db.runTransaction(async (transaction) => {
-      const sharedVersionDocRef = db.collection("sharedContractVersions").doc();
+      const sharedVersionDocRef = db.collection("sharedContractVersions").doc(); // Auto-generate ID
       transaction.set(sharedVersionDocRef, sharedVersionData);
-      return sharedVersionDocRef;
+      return sharedVersionDocRef; // Return the reference
     });
 
     const appUrl = process.env.APP_URL || "http://localhost:9002"; // Fallback for local dev
@@ -90,7 +92,7 @@ export const createShareableContractVersion = onCall({
 
     logger.info(
       `Created shareable version ${result.id} for ` +
-      `contract ${contractId} by user ${userId}.`
+      `contract ${contractId} by user ${userId}. Link: ${shareLink}`
     );
 
     return {
@@ -104,8 +106,9 @@ export const createShareableContractVersion = onCall({
     );
     
     if (error instanceof HttpsError) {
-      throw error;
+      throw error; // Re-throw HttpsError directly
     }
+    // For other errors, wrap in a generic internal HttpsError
     throw new HttpsError("internal", "An unknown error occurred while creating shareable link.");
   }
 });
