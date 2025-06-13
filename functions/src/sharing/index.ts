@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
-import type {Contract, SharedContractVersion} from "@/types"; // Updated import path
+import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
 import type {Timestamp} from "firebase/firestore"; // This is the client-side Timestamp type expected by SharedContractVersion
 
 export const createShareableContractVersion = onCall({
@@ -92,7 +92,7 @@ export const createShareableContractVersion = onCall({
 
     logger.info(
       `Created shareable version ${result.id} for ` +
-      `contract ${contractId} by user ${userId}. Link: ${shareLink}`
+      `contract ${contractId} by user ${userId}.`
     );
 
     return {
