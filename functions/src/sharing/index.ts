@@ -1,7 +1,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
+import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
 import type {Timestamp} from "firebase/firestore"; // This is the client-side Timestamp type expected by SharedContractVersion
