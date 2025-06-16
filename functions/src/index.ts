@@ -17,20 +17,14 @@ import {
   handleStripeAccountWebhook,
 } from "./payments";
 
-// Export payment-related functions
-export {
-  createStripeConnectedAccount,
-  createStripeAccountLink,
-  createPaymentIntent,
-  handlePaymentSuccess,
-  handleStripeAccountWebhook,
-};
+import {
+  sendContractNotification, 
+  sendPaymentReminder,
+} from "./notifications";
 
-// Export notification functions
-export * from "./notifications";
-
-// Export scheduler functions
-export * from "./scheduler";
+import {
+  sendOverdueInvoiceReminders,
+} from "./scheduler";
 
 import {
   createStripeSubscriptionCheckoutSession,
@@ -38,11 +32,27 @@ import {
   stripeSubscriptionWebhookHandler,
 } from "./subscriptions";
 
+import {
+  createShareableContractVersion,
+} from "./sharing";
+
+// Export all functions explicitly
 export {
+  // Payments
+  createStripeConnectedAccount,
+  createStripeAccountLink,
+  createPaymentIntent,
+  handlePaymentSuccess,
+  handleStripeAccountWebhook,
+  // Notifications
+  sendContractNotification,
+  sendPaymentReminder,
+  // Scheduler
+  sendOverdueInvoiceReminders,
+  // Subscriptions
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
+  // Sharing
+  createShareableContractVersion,
 };
-
-// Export sharing functions
-export * from "./sharing";

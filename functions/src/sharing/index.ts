@@ -9,6 +9,7 @@ import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For cas
 export const createShareableContractVersion = onCall({
   enforceAppCheck: false, // As per user's existing setup
   cors: true, // As per user's existing setup
+
 }, async (request) => {
   // Input validation
   if (!request.auth) {
@@ -86,6 +87,7 @@ export const createShareableContractVersion = onCall({
     });
 
     const appUrl = process.env.APP_URL || "http://localhost:9002";
+
     const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(
