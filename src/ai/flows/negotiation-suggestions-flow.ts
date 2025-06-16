@@ -8,7 +8,8 @@
  * - NegotiationSuggestionsOutput - The return type for the getNegotiationSuggestions function.
  */
 
-import {ai} from '@/ai/genkit';
+// Suggested code may be subject to a license. Learn more: ~LicenseLog:4202067470.
+import {ai} from '../genkit';
 import {z} from 'genkit';
 
 const NegotiationSuggestionsInputSchema = z.object({
@@ -57,7 +58,7 @@ const negotiationSuggestionsFlow = ai.defineFlow(
     inputSchema: NegotiationSuggestionsInputSchema,
     outputSchema: NegotiationSuggestionsOutputSchema,
   },
-  async (input) => {
+  async (input: NegotiationSuggestionsInput) => {
     const {output} = await prompt(input);
     return output!;
   }

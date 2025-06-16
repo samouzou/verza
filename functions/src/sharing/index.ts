@@ -1,14 +1,15 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
-import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
-import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
-import type {Timestamp} from "firebase/firestore"; // This is the client-side Timestamp type expected by SharedContractVersion
+import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use Admin SDK Timestamp
+import {db} from "../config/firebase";
+import type {Contract, SharedContractVersion} from "../../../src/types"; // Path for types
+import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
-  enforceAppCheck: false,
-  cors: true,
+  enforceAppCheck: false, // As per user's existing setup
+  cors: true, // As per user's existing setup
+
 }, async (request) => {
   // Input validation
   if (!request.auth) {
@@ -50,12 +51,11 @@ export const createShareableContractVersion = onCall({
     }
 
     // Prepare the snapshot of contract data to be shared
-    // Exclude fields that are not relevant for the brand's view or are internal
     const {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       id,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      userId: contractUserId, // already have userId from auth
+      userId: contractUserId,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       createdAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -65,7 +65,7 @@ export const createShareableContractVersion = onCall({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       lastReminderSentAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      negotiationSuggestions, // Definitely don't share this
+      negotiationSuggestions,
       ...relevantContractData
     } = contractData;
 
@@ -73,21 +73,21 @@ export const createShareableContractVersion = onCall({
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
       userId: userId,
-      sharedAt: AdminTimestamp.now() as unknown as Timestamp, // Cast Admin Timestamp to client Timestamp type
+      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, // Use Admin Timestamp and cast
       contractData: relevantContractData,
-      notesForBrand: notesForBrand || undefined,
+      notesForBrand: notesForBrand || null,
       status: "active",
       brandHasViewed: false,
     };
 
-    // Use a transaction to ensure data consistency
     const result = await db.runTransaction(async (transaction) => {
       const sharedVersionDocRef = db.collection("sharedContractVersions").doc();
       transaction.set(sharedVersionDocRef, sharedVersionData);
       return sharedVersionDocRef;
     });
 
-    const appUrl = process.env.APP_URL || "http://localhost:9002"; // Fallback for local dev
+    const appUrl = process.env.APP_URL || "http://localhost:9002";
+
     const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(

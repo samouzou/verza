@@ -218,18 +218,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
   try {
     // Get Firebase UID from event metadata
-    let firebaseUID: string | undefined;
-    const eventObject = event.data.object as any; // Use any for easier metadata access
-
-    if (eventObject.metadata?.firebaseUID) {
-      firebaseUID = eventObject.metadata.firebaseUID;
-    } else if (eventObject.customer) {
-      const customer = await stripe.customers.retrieve(eventObject.customer as string);
+    let firebaseUID: string | string | undefined;
+    // Use type narrowing to access metadata or customer property safely
+    if ("metadata" in event.data.object && event.data.object.metadata?.firebaseUID) {
+      firebaseUID = event.data.object.metadata.firebaseUID;
+    } else if ("customer" in event.data.object && typeof event.data.object.customer === "string") {
+      const customer = await stripe.customers.retrieve(event.data.object.customer);
       if (!customer.deleted && "metadata" in customer) {
         firebaseUID = customer.metadata.firebaseUID;
       }
     }
-
     if (!firebaseUID) {
       logger.error("No Firebase UID found in event metadata for event:", event.id, event.type);
       response.json({received: true}); // Acknowledge event even if no UID
