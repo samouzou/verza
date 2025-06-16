@@ -13,10 +13,11 @@ import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, Arrow
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link'; // Ensure Link is imported
+import { Input } from '@/components/ui/input'; // Ensure Input is imported
+import { Label } from '@/components/ui/label'; // Ensure Label is imported
+import { Textarea } from '@/components/ui/textarea'; // Ensure Textarea is imported
+import { Separator } from "@/components/ui/separator"; // Added missing import
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | undefined | null): string => {
@@ -412,3 +413,4 @@ export default function ShareContractPage() {
   );
 }
 
+    
