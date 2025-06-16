@@ -74,7 +74,7 @@ export const createShareableContractVersion = onCall({
       userId: userId,
       sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, // Use Admin Timestamp and cast
       contractData: relevantContractData,
-      notesForBrand: notesForBrand || undefined,
+      notesForBrand: notesForBrand || null,
       status: "active",
       brandHasViewed: false,
     };
