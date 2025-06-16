@@ -1,35 +1,33 @@
 
-import {onCall} from "firebase-functions/v2/https";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import * as admin from "firebase-admin";
+import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use Admin SDK Timestamp
 import {db} from "../config/firebase";
-import type {Contract, SharedContractVersion} from "../../../src/types"; // Adjust path if necessary
+import type {Contract, SharedContractVersion} from "../../../src/types"; // Path for types
+import type { Timestamp as ClientTimestamp } from "firebase/firestore"; // For casting target
 
-interface CreateShareableContractVersionData {
-  contractId: string;
-  notesForBrand?: string;
-}
-
-interface CreateShareableContractVersionResult {
-  sharedVersionId: string;
-  shareLink: string; // e.g., /share/contract/[sharedVersionId]
-}
-
-export const createShareableContractVersion = onCall<
-  CreateShareableContractVersionData,
-  Promise<CreateShareableContractVersionResult>
->(async (request) => {
+export const createShareableContractVersion = onCall({
+  enforceAppCheck: false, // As per user's existing setup
+  cors: true,            // As per user's existing setup
+}, async (request) => {
+  // Input validation
   if (!request.auth) {
     logger.error("Unauthenticated call to createShareableContractVersion");
-    throw new Error("The function must be called while authenticated.");
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
   const userId = request.auth.uid;
   const {contractId, notesForBrand} = request.data;
 
-  if (!contractId) {
-    logger.error("Missing contractId in createShareableContractVersion request");
-    throw new Error("Contract ID is required.");
+  // Enhanced input validation
+  if (!contractId || typeof contractId !== "string") {
+    logger.error("Invalid contractId in createShareableContractVersion request");
+    throw new HttpsError("invalid-argument", "Valid contract ID is required.");
+  }
+
+  if (notesForBrand && typeof notesForBrand !== "string") {
+    logger.error("Invalid notesForBrand in createShareableContractVersion request");
+    throw new HttpsError("invalid-argument", "Notes for brand must be a string if provided.");
   }
 
   try {
@@ -38,7 +36,7 @@ export const createShareableContractVersion = onCall<
 
     if (!contractSnap.exists) {
       logger.error(`Contract ${contractId} not found for user ${userId}.`);
-      throw new Error("Contract not found.");
+      throw new HttpsError("not-found", "Contract not found.");
     }
 
     const contractData = contractSnap.data() as Contract;
@@ -48,16 +46,15 @@ export const createShareableContractVersion = onCall<
         `User ${userId} attempted to share contract ${contractId} ` +
         "they do not own."
       );
-      throw new Error("You do not have permission to share this contract.");
+      throw new HttpsError("permission-denied", "You do not have permission to share this contract.");
     }
 
     // Prepare the snapshot of contract data to be shared
-    // Exclude fields that are not relevant for the brand's view or are internal
     const {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       id,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      userId: contractUserId, // already have userId from auth
+      userId: contractUserId,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       createdAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -67,35 +64,37 @@ export const createShareableContractVersion = onCall<
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       lastReminderSentAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      negotiationSuggestions, // Definitely don't share this
+      negotiationSuggestions,
       ...relevantContractData
     } = contractData;
 
 
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
-      userId: userId, // Creator's UID
-      sharedAt: admin.firestore.Timestamp.now(),
+      userId: userId,
+      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, // Use Admin Timestamp and cast
       contractData: relevantContractData,
       notesForBrand: notesForBrand || undefined,
       status: "active",
       brandHasViewed: false,
     };
 
-    const sharedVersionDocRef = await db
-      .collection("sharedContractVersions")
-      .add(sharedVersionData);
+    const result = await db.runTransaction(async (transaction) => {
+      const sharedVersionDocRef = db.collection("sharedContractVersions").doc();
+      transaction.set(sharedVersionDocRef, sharedVersionData);
+      return sharedVersionDocRef;
+    });
 
-    const appUrl = process.env.APP_URL || "http://localhost:9002"; // Fallback for local dev
-    const shareLink = `${appUrl}/share/contract/${sharedVersionDocRef.id}`;
+    const appUrl = process.env.APP_URL || "http://localhost:9002";
+    const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(
-      `Created shareable version ${sharedVersionDocRef.id} for ` +
+      `Created shareable version ${result.id} for ` +
       `contract ${contractId} by user ${userId}.`
     );
 
     return {
-      sharedVersionId: sharedVersionDocRef.id,
+      sharedVersionId: result.id,
       shareLink: shareLink,
     };
   } catch (error) {
@@ -103,11 +102,10 @@ export const createShareableContractVersion = onCall<
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to create shareable contract version: ${error.message}`
-      );
+    
+    if (error instanceof HttpsError) {
+      throw error;
     }
-    throw new Error("An unknown error occurred while creating shareable link.");
+    throw new HttpsError("internal", "An unknown error occurred while creating shareable link.");
   }
 });

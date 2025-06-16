@@ -203,7 +203,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         // Check if the authenticated user is the creator
         isAuthenticatedCreator = userId === contractData.userId;
       }
-    } catch (error) {
+    } catch {
       // If auth fails, treat as unauthenticated public payment
       logger.info("No valid auth token, treating as public payment");
     }
@@ -331,8 +331,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         try {
           const userRecord = await admin.auth().getUser(userId);
           emailForUserConfirmation = userRecord.email || "";
-        } catch (e) {
-          logger.error("Could not fetch creator email for confirmation", e);
+        } catch {
+          logger.error("Could not fetch creator email for confirmation");
         }
       } else if (customer) {
         const customerData = await stripe.customers.retrieve(customer as string);

@@ -1,57 +1,54 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false; 
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      allow read: if true; 
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-    }
-    
-    // Rules for 'paymentIntents' collection
-    match /paymentIntents/{intentId} {
-      allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||
-                    request.auth.uid == resource.data.creatorId
-                  );
-      allow create, update, delete: if false; 
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
     }
 
-    // Rules for 'payments' collection
-    match /payments/{paymentId} {
-       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || 
-                    request.auth.uid == resource.data.creatorId 
-                  );
-      allow create, update, delete: if false; 
+    match /sharedContractVersions/{sharedVersionId} {
+      // Allow a user to read their own shared versions
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Allow a user to create a shared version if:
+      // 1. They are authenticated.
+      // 2. The userId in the new document matches their own UID.
+      // 3. The originalContractId in the new document points to a contract they own.
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid &&
+                       get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
+
+      // For now, disallow client-side updates/deletes. These should be handled by specific functions if needed.
+      allow update, delete: if false;
     }
 
-    // Rules for 'emailLogs' collection
-    match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create, update, delete: if false; 
-    }
-
-    // Rules for the 'receipts' collection
     match /receipts/{receiptId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
     }
 
-    // Rules for 'userTransactions' collection (placeholder for banking feature)
-    match /userTransactions/{transactionId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    match /emailLogs/{logId} {
+      // Be cautious with allowing write access for logs from client.
+      // Typically, logs are written by backend functions.
+      // For now, let's assume read access for the user if relevant, and restrict write.
+      allow read: if request.auth != null; // Example: if logs contain userId field: request.auth.uid == resource.data.userId
+      allow write: if false; // Logs should ideally be written by backend.
+    }
+
+    match /paymentIntents/{intentId} {
+      // Similar to emailLogs, these are often backend-managed.
+      // Adjust rules based on whether clients need to read/write these directly.
+      allow read: if request.auth != null;
+      allow write: if false; // Assuming backend creates payment intents
+    }
+
+    match /payments/{paymentId} {
+      // Payments records after successful payment.
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId; // If payment doc has userId
+      allow write: if false; // Backend/webhook should write these.
     }
   }
 }
