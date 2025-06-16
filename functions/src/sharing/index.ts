@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use Admin SDK Timestamp
 import {db} from "../config/firebase";
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Path for types
-import type { Timestamp as ClientTimestamp } from "firebase/firestore"; // For casting target
+import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
   enforceAppCheck: false, // As per user's existing setup
