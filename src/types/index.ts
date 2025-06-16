@@ -80,7 +80,7 @@ export interface SharedContractVersion {
   userId: string; // Creator's UID
   sharedAt: Timestamp;
   contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' >; // Snapshot of relevant contract data at time of sharing
-  notesForBrand?: string | null; // Optional notes from creator to brand for this version
+  notesForBrand: string | null; // Explicitly string or null
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
   lastViewedByBrandAt?: Timestamp;

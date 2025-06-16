@@ -2,13 +2,13 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
-import {db} from "../config/firebase"; // This initializes admin if needed via its import of admin
-import type {Contract, SharedContractVersion} from "@/types"; // Use path alias
+import {db} from "../config/firebase";
+import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
-  enforceAppCheck: false, // As per user's existing setup
-  cors: true, // As per user's existing setup
+  enforceAppCheck: false,
+  cors: true,
 }, async (request) => {
   // Input validation
   if (!request.auth) {
@@ -17,9 +17,8 @@ export const createShareableContractVersion = onCall({
   }
 
   const userId = request.auth.uid;
+  // Explicitly get rawNotesForBrand, which could be undefined if not sent
   const {contractId, notesForBrand: rawNotesForBrand} = request.data;
-  const notesForBrand = typeof rawNotesForBrand === 'string' ? rawNotesForBrand.trim() : "";
-
 
   // Enhanced input validation
   if (!contractId || typeof contractId !== "string") {
@@ -27,7 +26,15 @@ export const createShareableContractVersion = onCall({
     throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
 
-  // notesForBrand is optional, so no validation needed if it's empty or not a string after trim
+  // Process notesForBrand robustly:
+  let processedNotesForBrand: string | null = null;
+  if (typeof rawNotesForBrand === 'string') {
+    const trimmedNotes = rawNotesForBrand.trim();
+    if (trimmedNotes.length > 0) {
+      processedNotesForBrand = trimmedNotes;
+    }
+  }
+  // If rawNotesForBrand was undefined, or an empty/whitespace string, processedNotesForBrand remains null.
 
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
@@ -49,12 +56,11 @@ export const createShareableContractVersion = onCall({
     }
 
     // Prepare the snapshot of contract data to be shared
-    // Exclude fields that are not relevant for the brand's view or are internal
     const {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       id,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      userId: contractUserId, // already have userId from auth
+      userId: contractUserId, 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       createdAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -64,7 +70,7 @@ export const createShareableContractVersion = onCall({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       lastReminderSentAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      negotiationSuggestions, // Definitely don't share this
+      negotiationSuggestions,
       ...relevantContractData
     } = contractData;
 
@@ -72,21 +78,20 @@ export const createShareableContractVersion = onCall({
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
       userId: userId,
-      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, // Cast to client Timestamp
+      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, 
       contractData: relevantContractData,
-      notesForBrand: notesForBrand || null, // Store null if notesForBrand is empty or not provided
+      notesForBrand: processedNotesForBrand, // Use the explicitly processed value
       status: "active",
       brandHasViewed: false,
     };
 
-    // Use a transaction to ensure data consistency
     const result = await db.runTransaction(async (transaction) => {
       const sharedVersionDocRef = db.collection("sharedContractVersions").doc();
       transaction.set(sharedVersionDocRef, sharedVersionData);
       return sharedVersionDocRef;
     });
 
-    const appUrl = process.env.APP_URL || "http://localhost:9002"; // Fallback for local dev
+    const appUrl = process.env.APP_URL || "http://localhost:9002";
     const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(
