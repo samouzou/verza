@@ -1,14 +1,14 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use Admin SDK Timestamp
+import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use Admin SDK Timestamp
 import {db} from "../config/firebase";
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Path for types
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
   enforceAppCheck: false, // As per user's existing setup
-  cors: true,            // As per user's existing setup
+  cors: true, // As per user's existing setup
 }, async (request) => {
   // Input validation
   if (!request.auth) {
