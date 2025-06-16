@@ -13,7 +13,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const publicPaths = ['/login', '/pay/contract']; // Add the base path for client payment
+  const publicPaths = ['/login', '/pay/contract', '/share/contract']; // Added /share/contract
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !publicPaths.some(path => pathname.startsWith(path))) {
