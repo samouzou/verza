@@ -13,65 +13,81 @@ service cloud.firestore {
 
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      // PUBLIC READ: Allow anyone to read contract details.
-      // This is necessary for the public payment page (/pay/contract/[id])
-      allow read: if true; 
-
-      // Authenticated users can create contracts if they are the owner.
+      allow read: if true; // Public read for payment page, consider restricting in prod
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      
-      // Authenticated users can update or delete only their own contracts.
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    match /sharedContractVersions/{sharedVersionId} {
-      // PUBLIC READ for active links: Allow anyone to read if the status is 'active'.
-      // Authenticated creator can always read their own versions regardless of status.
+    match /sharedContractVersions/{versionId} {
+      // Public can read if status is 'active'
+      // Creator can always read their own shared versions
       allow read: if (resource.data.status == 'active') || 
                        (request.auth != null && request.auth.uid == resource.data.userId);
-
-      // Allow a user to create a shared version if:
-      // 1. They are authenticated.
-      // 2. The userId in the new document matches their own UID.
-      // 3. The originalContractId in the new document points to a contract they own.
+      
+      // Creator can create if authenticated and owns the original contract
       allow create: if request.auth != null &&
                        request.resource.data.userId == request.auth.uid &&
                        get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
 
-      // Only the creator can update (e.g., to revoke) or delete.
-      // Note: The brandHasViewed update from the client will FAIL with this rule.
-      // This needs a backend function to update brandHasViewed securely.
+      // Only creator can update (e.g., revoke status) or delete
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
     
+    // Rules for the 'contractComments' collection
+    match /contractComments/{commentId} {
+      // ANYONE can create a comment if:
+      // 1. The sharedVersionId exists and its status is 'active'.
+      // 2. The creatorId in the new comment matches the userId of the shared version's owner.
+      // 3. Basic comment fields (commenterName, commentText) are present and valid.
+      // 4. The commentedAt timestamp matches the server request time.
+      allow create: if request.resource.data.sharedVersionId != null &&
+                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
+                       request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
+                       request.resource.data.commenterName is string &&
+                       request.resource.data.commenterName.size() > 0 && request.resource.data.commenterName.size() < 100 &&
+                       request.resource.data.commentText is string &&
+                       request.resource.data.commentText.size() > 0 && request.resource.data.commentText.size() < 2000 &&
+                       request.resource.data.commentedAt == request.time &&
+                       (request.resource.data.commenterEmail == null || (request.resource.data.commenterEmail is string && request.resource.data.commenterEmail.size() < 100));
+
+      // ANYONE can read comments for an active shared version.
+      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active';
+
+      // Only the creator who owns the related sharedVersion can update/delete comments.
+      allow update, delete: if request.auth != null &&
+                               request.auth.uid == resource.data.creatorId;
+    }
+
     // Rules for the 'receipts' collection
     match /receipts/{receiptId} {
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
     
-    // Rules for 'paymentIntents' collection
+    // Subscription status checks (redundant with /users/{userId} above but kept for clarity if used elsewhere)
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Only allow writes through Cloud Functions
+    }
+    
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
                     request.auth.uid == resource.data.userId ||
                     request.auth.uid == resource.data.creatorId 
                   );
-      allow create, update, delete: if false; 
+      allow create, update, delete: if false;
     }
 
-    // Rules for 'payments' collection
     match /payments/{paymentId} {
        allow read: if request.auth != null && (
                     request.auth.uid == resource.data.userId || 
-                    (exists(/databases/$(database)/documents/contracts/$(resource.data.contractId)) && 
-                     get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.userId == request.auth.uid) // Creator can read
+                    request.auth.uid == resource.data.creatorId
                   );
-      allow create, update, delete: if false; 
+      allow create, update, delete: if false;
     }
 
-    // Rules for 'emailLogs' collection
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid; 
       allow create, update, delete: if false; 
     }
   }

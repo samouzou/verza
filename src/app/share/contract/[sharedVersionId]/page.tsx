@@ -1,28 +1,29 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { db, doc, getDoc, updateDoc, Timestamp } from '@/lib/firebase'; // Ensure Timestamp is imported
-import type { SharedContractVersion as SharedContractVersionType, Contract } from '@/types'; // Use the specific type
-import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, ArrowLeft, MessageSquare, Lightbulb } from 'lucide-react';
+import { db, doc, getDoc, updateDoc, Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from '@/lib/firebase';
+import type { SharedContractVersion as SharedContractVersionType, Contract, ContractComment } from '@/types';
+import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, ArrowLeft, MessageSquare, Lightbulb, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link'; // Import Link
+import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | undefined | null): string => {
   if (!dateInput) return 'N/A';
   try {
     const date = dateInput instanceof Timestamp ? dateInput.toDate() : new Date(dateInput);
-    // Check if the date is valid after parsing, especially for string inputs
     if (isNaN(date.getTime())) {
-      // For YYYY-MM-DD strings that might not parse correctly as UTC by default
       if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const parts = dateInput.split('-');
         const utcDate = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
@@ -48,15 +49,26 @@ export default function ShareContractPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [comments, setComments] = useState<ContractComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [newCommenterName, setNewCommenterName] = useState("");
+  const [newCommenterEmail, setNewCommenterEmail] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
   useEffect(() => {
     if (!sharedVersionId) {
       setError("No shared version ID provided.");
       setIsLoading(false);
+      setIsLoadingComments(false);
       return;
     }
 
-    const fetchSharedVersion = async () => {
+    let unsubscribeComments: (() => void) | undefined;
+
+    const fetchSharedVersionAndComments = async () => {
       setIsLoading(true);
+      setIsLoadingComments(true);
       setError(null);
       try {
         const versionDocRef = doc(db, 'sharedContractVersions', sharedVersionId);
@@ -67,31 +79,85 @@ export default function ShareContractPage() {
           if (data.status === 'revoked') {
             setError("This share link has been revoked by the creator.");
             setSharedVersion(null);
-          } else {
-            setSharedVersion({ ...data, id: versionSnap.id });
-            // Mark as viewed if not already
-            if (!data.brandHasViewed) {
-              await updateDoc(versionDocRef, {
-                brandHasViewed: true,
-                lastViewedByBrandAt: Timestamp.now(),
-              });
-            }
+            setIsLoading(false);
+            setIsLoadingComments(false);
+            return;
           }
+          setSharedVersion({ ...data, id: versionSnap.id });
+          if (!data.brandHasViewed) {
+            // This update might fail due to Firestore rules if user is not authenticated (which is expected for public viewers).
+            // The page will still load. Consider a Cloud Function for robust 'viewed' tracking.
+            updateDoc(versionDocRef, {
+              brandHasViewed: true,
+              lastViewedByBrandAt: Timestamp.now(),
+            }).catch(updateError => console.warn("Could not update brandHasViewed status:", updateError.message));
+          }
+
+          // Fetch comments
+          const commentsQuery = query(
+            collection(db, "contractComments"),
+            where("sharedVersionId", "==", sharedVersionId),
+            orderBy("commentedAt", "asc")
+          );
+          unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
+            const fetchedComments = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment));
+            setComments(fetchedComments);
+            setIsLoadingComments(false);
+          }, (commentError) => {
+            console.error("Error fetching comments: ", commentError);
+            toast({ title: "Comments Error", description: "Could not load comments.", variant: "destructive" });
+            setIsLoadingComments(false);
+          });
+
         } else {
           setError("Share link not found or is invalid.");
           setSharedVersion(null);
+          setIsLoadingComments(false);
         }
       } catch (e: any) {
         console.error("Error fetching shared contract version:", e);
         setError(e.message || "Could not load the shared contract details. Please try again later.");
         setSharedVersion(null);
+        setIsLoadingComments(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSharedVersion();
+    fetchSharedVersionAndComments();
+    return () => {
+      if (unsubscribeComments) unsubscribeComments();
+    };
   }, [sharedVersionId, toast]);
+
+  const handleAddComment = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newCommentText.trim() || !newCommenterName.trim() || !sharedVersion) {
+      toast({ title: "Missing Information", description: "Please enter your name and comment.", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingComment(true);
+    try {
+      await addDoc(collection(db, "contractComments"), {
+        sharedVersionId: sharedVersion.id,
+        creatorId: sharedVersion.userId, // Important for security rules
+        commenterName: newCommenterName.trim(),
+        commenterEmail: newCommenterEmail.trim() || null,
+        commentText: newCommentText.trim(),
+        commentedAt: serverTimestamp(),
+      });
+      setNewCommentText("");
+      setNewCommenterName("");
+      setNewCommenterEmail("");
+      toast({ title: "Comment Added", description: "Your feedback has been submitted." });
+    } catch (commentError: any) {
+      console.error("Error adding comment:", commentError);
+      toast({ title: "Error Submitting Comment", description: commentError.message || "Could not save your comment.", variant: "destructive" });
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -116,7 +182,6 @@ export default function ShareContractPage() {
   }
 
   if (!sharedVersion) {
-    // This case should ideally be covered by the error state, but as a fallback:
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4 text-center">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
@@ -266,14 +331,77 @@ export default function ShareContractPage() {
           </Card>
         )}
 
-        {/* Placeholder for Comments Section */}
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg text-slate-700">Feedback & Comments</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">Commenting functionality coming soon. Use this space to discuss terms with the creator.</p>
-            {/* Future: Add comment input form and list of comments here */}
+            <form onSubmit={handleAddComment} className="space-y-4 mb-6">
+              <div>
+                <Label htmlFor="commenterName">Your Name</Label>
+                <Input 
+                  id="commenterName" 
+                  value={newCommenterName} 
+                  onChange={(e) => setNewCommenterName(e.target.value)} 
+                  placeholder="e.g., Jane Doe (Brand Manager)" 
+                  required 
+                  className="mt-1"
+                  disabled={isSubmittingComment}
+                />
+              </div>
+              <div>
+                <Label htmlFor="commenterEmail">Your Email (Optional)</Label>
+                <Input 
+                  id="commenterEmail" 
+                  type="email"
+                  value={newCommenterEmail} 
+                  onChange={(e) => setNewCommenterEmail(e.target.value)} 
+                  placeholder="jane.doe@brand.com" 
+                  className="mt-1"
+                  disabled={isSubmittingComment}
+                />
+              </div>
+              <div>
+                <Label htmlFor="commentText">Your Comment/Feedback</Label>
+                <Textarea 
+                  id="commentText" 
+                  value={newCommentText} 
+                  onChange={(e) => setNewCommentText(e.target.value)} 
+                  placeholder="Enter your feedback here..." 
+                  required 
+                  rows={4}
+                  className="mt-1"
+                  disabled={isSubmittingComment}
+                />
+              </div>
+              <Button type="submit" disabled={isSubmittingComment || !newCommentText.trim() || !newCommenterName.trim()}>
+                {isSubmittingComment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Submit Feedback
+              </Button>
+            </form>
+
+            <Separator className="my-6"/>
+
+            {isLoadingComments && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
+            {!isLoadingComments && comments.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to provide feedback!</p>
+            )}
+            {!isLoadingComments && comments.length > 0 && (
+              <ScrollArea className="h-auto max-h-[400px] pr-3">
+                <div className="space-y-4">
+                  {comments.map(comment => (
+                    <div key={comment.id} className="p-3 border rounded-md bg-slate-100/70">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-semibold text-slate-700">{comment.commenterName}</p>
+                        <p className="text-xs text-slate-500">{formatDateDisplay(comment.commentedAt)}</p>
+                      </div>
+                      {comment.commenterEmail && <p className="text-xs text-slate-500 mb-1">{comment.commenterEmail}</p>}
+                      <p className="text-sm text-slate-600 whitespace-pre-wrap">{comment.commentText}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
           </CardContent>
         </Card>
       </main>

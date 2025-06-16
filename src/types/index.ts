@@ -80,7 +80,7 @@ export interface SharedContractVersion {
   userId: string; // Creator's UID
   sharedAt: Timestamp;
   contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' >; // Snapshot of relevant contract data at time of sharing
-  notesForBrand: string | null; // Explicitly string or null
+  notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
   lastViewedByBrandAt?: Timestamp;
@@ -88,15 +88,16 @@ export interface SharedContractVersion {
 
 // Interface for comments made by a brand on a shared contract version
 export interface ContractComment {
-  id: string; // Comment ID
+  id: string; // Comment ID, will be Firestore document ID
   sharedVersionId: string; // Link to the SharedContractVersion
-  commenterName: string; // Name of the person commenting (brand representative)
-  commenterEmail?: string; // Optional email of commenter
+  creatorId: string; // UID of the creator who owns the shared version (for rules/queries)
+  commenterName: string;
+  commenterEmail?: string; // Optional
   commentText: string;
   commentedAt: Timestamp;
-  resolved?: boolean;
-  resolvedAt?: Timestamp;
-  creatorViewed?: boolean;
+  // resolved?: boolean;
+  // resolvedAt?: Timestamp;
+  // creatorViewed?: boolean;
 }
 
 
@@ -183,3 +184,4 @@ export interface TaxEstimation {
   notes?: string[]; 
   calculationDate: string; 
 }
+
