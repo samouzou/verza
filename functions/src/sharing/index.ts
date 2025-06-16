@@ -1,7 +1,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { Timestamp as AdminTimestamp } from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
+import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase";
 import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
@@ -28,7 +28,7 @@ export const createShareableContractVersion = onCall({
 
   // Process notesForBrand robustly:
   let processedNotesForBrand: string | null = null;
-  if (typeof rawNotesForBrand === 'string') {
+  if (typeof rawNotesForBrand === "string") {
     const trimmedNotes = rawNotesForBrand.trim();
     if (trimmedNotes.length > 0) {
       processedNotesForBrand = trimmedNotes;
@@ -60,7 +60,7 @@ export const createShareableContractVersion = onCall({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       id,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      userId: contractUserId, 
+      userId: contractUserId,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       createdAt,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -78,7 +78,7 @@ export const createShareableContractVersion = onCall({
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
       userId: userId,
-      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp, 
+      sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp,
       contractData: relevantContractData,
       notesForBrand: processedNotesForBrand, // Use the explicitly processed value
       status: "active",
@@ -108,7 +108,7 @@ export const createShareableContractVersion = onCall({
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
-    
+
     if (error instanceof HttpsError) {
       throw error;
     }
