@@ -13,36 +13,31 @@ service cloud.firestore {
 
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      allow read: if true; // Public read for payment page, consider restricting in prod
+      allow read: if true; // Public read for payment page
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
     match /sharedContractVersions/{versionId} {
-      // Public can read if status is 'active'
-      // Creator can always read their own shared versions
+      // Allow public read if status is 'active', OR creator can always read.
       allow read: if (resource.data.status == 'active') || 
                        (request.auth != null && request.auth.uid == resource.data.userId);
-      
-      // Creator can create if authenticated and owns the original contract
+
       allow create: if request.auth != null &&
                        request.resource.data.userId == request.auth.uid &&
                        get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
-
-      // Only creator can update (e.g., revoke status) or delete
+      
+      // Allow creator to update (e.g., revoke status) or delete their own shared versions
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
-    
-    // Rules for the 'contractComments' collection
+
     match /contractComments/{commentId} {
-      // ANYONE can create a comment if:
-      // 1. The sharedVersionId exists and its status is 'active'.
-      // 2. The creatorId in the new comment matches the userId of the shared version's owner.
-      // 3. Basic comment fields (commenterName, commentText) are present and valid.
-      // 4. The commentedAt timestamp matches the server request time.
-      allow create: if request.resource.data.sharedVersionId != null &&
+      allow create: if 
+                       request.resource.data.sharedVersionId != null &&
                        get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
                        request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
+                       // Ensure originalContractId matches the one on the sharedVersion
+                       request.resource.data.originalContractId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.originalContractId &&
                        request.resource.data.commenterName is string &&
                        request.resource.data.commenterName.size() > 0 && request.resource.data.commenterName.size() < 100 &&
                        request.resource.data.commentText is string &&
@@ -50,24 +45,15 @@ service cloud.firestore {
                        request.resource.data.commentedAt == request.time &&
                        (request.resource.data.commenterEmail == null || (request.resource.data.commenterEmail is string && request.resource.data.commenterEmail.size() < 100));
 
-      // ANYONE can read comments for an active shared version.
-      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active';
+      allow read: if (request.auth != null && request.auth.uid == resource.data.creatorId) || // Creator can read all their comments
+                     (get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active'); // Public can read comments for active shared versions
 
-      // Only the creator who owns the related sharedVersion can update/delete comments.
-      allow update, delete: if request.auth != null &&
-                               request.auth.uid == resource.data.creatorId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
     }
-
-    // Rules for the 'receipts' collection
+    
     match /receipts/{receiptId} {
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-    }
-    
-    // Subscription status checks (redundant with /users/{userId} above but kept for clarity if used elsewhere)
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // Only allow writes through Cloud Functions
     }
     
     match /paymentIntents/{intentId} {
@@ -87,8 +73,8 @@ service cloud.firestore {
     }
 
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid; 
-      allow create, update, delete: if false; 
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
     }
   }
 }

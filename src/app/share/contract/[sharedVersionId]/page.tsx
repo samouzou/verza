@@ -13,11 +13,11 @@ import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, Arrow
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link'; // Ensure Link is imported
-import { Input } from '@/components/ui/input'; // Ensure Input is imported
-import { Label } from '@/components/ui/label'; // Ensure Label is imported
-import { Textarea } from '@/components/ui/textarea'; // Ensure Textarea is imported
-import { Separator } from "@/components/ui/separator"; // Added missing import
+import Link from 'next/link'; 
+import { Input } from '@/components/ui/input'; 
+import { Label } from '@/components/ui/label'; 
+import { Textarea } from '@/components/ui/textarea'; 
+import { Separator } from "@/components/ui/separator";
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | undefined | null): string => {
@@ -86,15 +86,12 @@ export default function ShareContractPage() {
           }
           setSharedVersion({ ...data, id: versionSnap.id });
           if (!data.brandHasViewed) {
-            // This update might fail due to Firestore rules if user is not authenticated (which is expected for public viewers).
-            // The page will still load. Consider a Cloud Function for robust 'viewed' tracking.
             updateDoc(versionDocRef, {
               brandHasViewed: true,
               lastViewedByBrandAt: Timestamp.now(),
             }).catch(updateError => console.warn("Could not update brandHasViewed status:", updateError.message));
           }
 
-          // Fetch comments
           const commentsQuery = query(
             collection(db, "contractComments"),
             where("sharedVersionId", "==", sharedVersionId),
@@ -141,7 +138,8 @@ export default function ShareContractPage() {
     try {
       await addDoc(collection(db, "contractComments"), {
         sharedVersionId: sharedVersion.id,
-        creatorId: sharedVersion.userId, // Important for security rules
+        originalContractId: sharedVersion.originalContractId, // Add originalContractId
+        creatorId: sharedVersion.userId,
         commenterName: newCommenterName.trim(),
         commenterEmail: newCommenterEmail.trim() || null,
         commentText: newCommentText.trim(),
@@ -412,5 +410,3 @@ export default function ShareContractPage() {
     </div>
   );
 }
-
-    

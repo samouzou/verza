@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2 } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
-import type { Contract, SharedContractVersion as SharedContractVersionType } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; // Import the new dialog
+import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; 
+import { Separator } from '@/components/ui/separator'; // Added import
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -57,14 +58,18 @@ export default function ContractDetailPage() {
   const [sharedVersions, setSharedVersions] = useState<SharedContractVersionType[]>([]);
   const [isLoadingSharedVersions, setIsLoadingSharedVersions] = useState(true);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [contractComments, setContractComments] = useState<ContractComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
 
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
+    let unsubscribeComments: (() => void) | undefined;
 
     if (id && user && !authLoading) {
       setIsLoading(true);
       setIsLoadingSharedVersions(true);
+      setIsLoadingComments(true);
 
       const fetchContract = async () => {
         try {
@@ -139,7 +144,6 @@ export default function ContractDetailPage() {
       };
       fetchContract();
 
-      // Fetch shared versions
       const sharedVersionsQuery = query(
         collection(db, "sharedContractVersions"),
         where("originalContractId", "==", id),
@@ -156,15 +160,33 @@ export default function ContractDetailPage() {
         setIsLoadingSharedVersions(false);
       });
 
+      // Fetch comments for this original contract
+      const commentsQuery = query(
+        collection(db, "contractComments"),
+        where("originalContractId", "==", id),
+        where("creatorId", "==", user.uid), // Ensure creator only sees their comments
+        orderBy("commentedAt", "desc")
+      );
+      unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
+        const fetchedComments = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment));
+        setContractComments(fetchedComments);
+        setIsLoadingComments(false);
+      }, (error) => {
+        console.error("Error fetching contract comments:", error);
+        toast({ title: "Comment Fetch Error", description: "Could not load comments for this contract.", variant: "destructive" });
+        setIsLoadingComments(false);
+      });
 
     } else if (!authLoading && !user) {
       router.push('/login');
     } else if (!id) {
         setIsLoading(false);
         setIsLoadingSharedVersions(false);
+        setIsLoadingComments(false);
     }
      return () => {
       if (unsubscribeSharedVersions) unsubscribeSharedVersions();
+      if (unsubscribeComments) unsubscribeComments();
     };
   }, [id, user, authLoading, router, toast]);
 
@@ -201,6 +223,18 @@ export default function ContractDetailPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+  
+  // Helper to format date or return N/A for comments
+  const formatCommentDateDisplay = (dateInput: Timestamp | undefined | null): string => {
+    if (!dateInput) return 'N/A';
+    try {
+      const date = dateInput.toDate();
+      return format(date, "PPp"); // Using PPp for date and time
+    } catch (e) {
+      console.warn("Error formatting comment date:", dateInput, e);
+      return 'Invalid Date';
+    }
   };
 
   if (authLoading || isLoading) {
@@ -524,6 +558,47 @@ export default function ContractDetailPage() {
                 </ScrollArea>
               ) : (
                 <p className="text-sm text-muted-foreground mt-2 text-center">No shared versions yet. Click "Share for Feedback" to create one.</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Comments Section */}
+          <Card className="shadow-lg hide-on-print">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-purple-500" />
+                Contract Comments
+              </CardTitle>
+              <CardDescription>Feedback received on shared versions of this contract.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingComments ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : contractComments.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No comments yet on any shared versions of this contract.</p>
+              ) : (
+                <ScrollArea className="h-auto max-h-[300px] pr-3">
+                  <div className="space-y-4">
+                    {contractComments.map(comment => {
+                      const sharedVersion = sharedVersions.find(sv => sv.id === comment.sharedVersionId);
+                      return (
+                        <div key={comment.id} className="p-3 border rounded-md bg-muted/50">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-semibold text-foreground">{comment.commenterName}</p>
+                            <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
+                          </div>
+                          {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1">{comment.commenterEmail}</p>}
+                          <p className="text-sm text-foreground/90 whitespace-pre-wrap">{comment.commentText}</p>
+                          {sharedVersion && (
+                             <p className="text-xs text-muted-foreground mt-1">
+                               On shared version: <Link href={`/share/contract/${sharedVersion.id}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{sharedVersion.id.substring(0,6)}...</Link>
+                             </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               )}
             </CardContent>
           </Card>

@@ -90,6 +90,7 @@ export interface SharedContractVersion {
 export interface ContractComment {
   id: string; // Comment ID, will be Firestore document ID
   sharedVersionId: string; // Link to the SharedContractVersion
+  originalContractId: string; // ID of the parent contract
   creatorId: string; // UID of the creator who owns the shared version (for rules/queries)
   commenterName: string;
   commenterEmail?: string; // Optional
