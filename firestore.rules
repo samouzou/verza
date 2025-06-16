@@ -3,37 +3,76 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection: Allow users to read/write their own document
+
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
     }
 
-    // Contracts collection: Allow users to read/write their own contracts
+    // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // PUBLIC READ: Allow anyone to read contract details.
+      // This is necessary for the public payment page (/pay/contract/[id])
+      allow read: if true; 
+
+      // Authenticated users can create contracts if they are the owner.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Authenticated users can update or delete only their own contracts.
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
+    
+    match /sharedContractVersions/{sharedVersionId} {
+      // PUBLIC READ for active links: Allow anyone to read if the status is 'active'.
+      // Authenticated creator can always read their own versions regardless of status.
+      allow read: if (resource.data.status == 'active') || 
+                       (request.auth != null && request.auth.uid == resource.data.userId);
 
-    // Receipts collection: Allow users to read/write their own receipts
-    match /receipts/{receiptId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
+      // Allow a user to create a shared version if:
+      // 1. They are authenticated.
+      // 2. The userId in the new document matches their own UID.
+      // 3. The originalContractId in the new document points to a contract they own.
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid &&
+                       get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
 
-    // SharedContractVersions collection
-    match /sharedContractVersions/{versionId} {
-      // Allow ANYONE to read if the version is 'active'
-      allow read: if resource.data.status == 'active';
-
-      // Allow the CREATOR (owner) to update (e.g., to revoke status) or delete their own shared versions.
-      // The 'create' operation is handled by the Cloud Function, which checks ownership of the original contract.
+      // Only the creator can update (e.g., to revoke) or delete.
+      // Note: The brandHasViewed update from the client will FAIL with this rule.
+      // This needs a backend function to update brandHasViewed securely.
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      // Note: Direct client creation of sharedContractVersions is not intended.
-      // The 'createShareableContractVersion' Cloud Function handles creation.
+    }
+    
+    // Rules for the 'receipts' collection
+    match /receipts/{receiptId} {
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Rules for 'paymentIntents' collection
+    match /paymentIntents/{intentId} {
+      allow read: if request.auth != null && (
+                    request.auth.uid == resource.data.userId ||
+                    request.auth.uid == resource.data.creatorId 
+                  );
+      allow create, update, delete: if false; 
     }
 
-    // Default deny for any other collections or paths not explicitly matched.
-    // Ensure you add rules for any other collections you create.
-    match /{document=**} {
-      allow read, write: if false;
+    // Rules for 'payments' collection
+    match /payments/{paymentId} {
+       allow read: if request.auth != null && (
+                    request.auth.uid == resource.data.userId || 
+                    (exists(/databases/$(database)/documents/contracts/$(resource.data.contractId)) && 
+                     get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.userId == request.auth.uid) // Creator can read
+                  );
+      allow create, update, delete: if false; 
+    }
+
+    // Rules for 'emailLogs' collection
+    match /emailLogs/{logId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false; 
     }
   }
 }
