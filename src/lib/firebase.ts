@@ -30,7 +30,8 @@ import {
   updateDoc,
   writeBatch,
   onSnapshot,
-  arrayUnion // Added arrayUnion
+  arrayUnion,
+  arrayRemove // Added arrayRemove
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
@@ -104,5 +105,7 @@ export {
   uploadBytes,
   getDownloadURL,
   deleteObject,
-  arrayUnion // Export arrayUnion
+  arrayUnion,
+  arrayRemove // Export arrayRemove
 };
+

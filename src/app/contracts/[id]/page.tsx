@@ -5,14 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIcon, CornerDownRight, User } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIcon, CornerDownRight, User, Trash } from 'lucide-react';
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc } from '@/lib/firebase';
+import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
 import { storage } from '@/lib/firebase';
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,7 +34,6 @@ import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -93,13 +92,17 @@ export default function ContractDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingContract, setIsDeletingContract] = useState(false);
+  const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
   const [sharedVersions, setSharedVersions] = useState<SharedContractVersionType[]>([]);
   const [isLoadingSharedVersions, setIsLoadingSharedVersions] = useState(true);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [contractComments, setContractComments] = useState<ContractComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
+
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'comment'; id: string } | { type: 'reply'; commentId: string; replyId: string } | null>(null);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
 
 
   useEffect(() => {
@@ -231,7 +234,7 @@ export default function ContractDetailPage() {
 
   const handleDeleteContract = async () => {
     if (!contract) return;
-    setIsDeleting(true);
+    setIsDeletingContract(true);
     try {
       if (contract.fileUrl) {
         try {
@@ -247,7 +250,7 @@ export default function ContractDetailPage() {
       }
 
       const contractDocRef = doc(db, 'contracts', contract.id);
-      await deleteDoc(contractDocRef);
+      await deleteFirestoreDoc(contractDocRef);
 
       toast({ title: "Contract Deleted", description: `${contract.brand} contract has been successfully deleted.` });
       router.push('/contracts');
@@ -255,8 +258,8 @@ export default function ContractDetailPage() {
       console.error("Error deleting contract:", error);
       toast({ title: "Deletion Failed", description: "Could not delete the contract. Please try again.", variant: "destructive" });
     } finally {
-      setIsDeleting(false);
-      setIsDeleteDialogOpen(false);
+      setIsDeletingContract(false);
+      setIsContractDeleteDialogOpen(false);
     }
   };
 
@@ -298,6 +301,49 @@ export default function ContractDetailPage() {
     } catch (error: any) {
       console.error("Error adding reply:", error);
       toast({ title: "Reply Failed", description: error.message || "Could not post reply.", variant: "destructive" });
+    }
+  };
+
+  const openDeleteConfirmationDialog = (type: 'comment' | 'reply', id: string, commentId?: string) => {
+    if (type === 'comment') {
+      setDeleteTarget({ type: 'comment', id });
+    } else if (type === 'reply' && commentId) {
+      setDeleteTarget({ type: 'reply', commentId, replyId: id });
+    }
+    setIsDeleteConfirmationOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || !user) return;
+    setIsDeletingCommentOrReply(true);
+    try {
+      if (deleteTarget.type === 'comment') {
+        const commentDocRef = doc(db, "contractComments", deleteTarget.id);
+        await deleteFirestoreDoc(commentDocRef);
+        toast({ title: "Comment Deleted", description: "The brand's comment has been removed." });
+      } else if (deleteTarget.type === 'reply') {
+        const commentDocRef = doc(db, "contractComments", deleteTarget.commentId);
+        const commentSnap = await getDoc(commentDocRef);
+        if (commentSnap.exists()) {
+            const commentData = commentSnap.data() as ContractComment;
+            const replyToRemove = commentData.replies?.find(r => r.replyId === deleteTarget.replyId);
+            if (replyToRemove) {
+                await updateDoc(commentDocRef, {
+                    replies: arrayRemove(replyToRemove)
+                });
+                toast({ title: "Reply Deleted", description: "Your reply has been removed." });
+            } else {
+                 toast({ title: "Reply Not Found", description: "Could not find the reply to delete.", variant: "destructive" });
+            }
+        }
+      }
+      setDeleteTarget(null);
+      setIsDeleteConfirmationOpen(false);
+    } catch (error: any) {
+      console.error("Error deleting comment/reply:", error);
+      toast({ title: "Deletion Failed", description: error.message || "Could not complete deletion.", variant: "destructive" });
+    } finally {
+      setIsDeletingCommentOrReply(false);
     }
   };
 
@@ -344,12 +390,6 @@ export default function ContractDetailPage() {
     ? contract.createdAt.toDate().toLocaleDateString()
     : 'N/A';
   
-  const hasNegotiationSuggestions = contract.negotiationSuggestions && 
-                                   (contract.negotiationSuggestions.paymentTerms ||
-                                    contract.negotiationSuggestions.exclusivity ||
-                                    contract.negotiationSuggestions.ipRights ||
-                                    (contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0));
-
   let effectiveDisplayStatus: Contract['status'] = contract.status || 'pending';
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
@@ -394,10 +434,10 @@ export default function ContractDetailPage() {
                 <Edit3 className="mr-2 h-4 w-4" /> Edit
               </Link>
             </Button>
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialog open={isContractDeleteDialogOpen} onOpenChange={setIsContractDeleteDialogOpen}>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                <Button variant="destructive" disabled={isDeletingContract}>
+                  {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
                   Delete
                 </Button>
               </AlertDialogTrigger>
@@ -410,9 +450,9 @@ export default function ContractDetailPage() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteContract} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  <AlertDialogCancel disabled={isDeletingContract}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteContract} disabled={isDeletingContract} className="bg-destructive hover:bg-destructive/90">
+                    {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Yes, delete contract
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -503,7 +543,7 @@ export default function ContractDetailPage() {
             </Card>
           )}
           
-          <Card className="shadow-lg hide-on-print">
+          <Card className="shadow-lg hide-on-print flex flex-col max-h-[500px]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-purple-500" />
@@ -511,14 +551,14 @@ export default function ContractDetailPage() {
               </CardTitle>
               <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 min-h-0">
               {isLoadingComments ? (
-                <div className="flex items-center justify-center py-10">
+                <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : contractComments.length === 0 ? (
-                <div className="flex items-center justify-center py-10">
-                  <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
+                 <div className="flex items-center justify-center h-full py-10">
+                    <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
                 </div>
               ) : (
                 <ScrollArea className="h-[400px] pr-3">
@@ -526,10 +566,21 @@ export default function ContractDetailPage() {
                     {contractComments.map(comment => (
                       <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-semibold text-foreground flex items-center">
-                            <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                            {comment.commenterName}
-                          </p>
+                           <div className="flex items-center">
+                            <p className="text-sm font-semibold text-foreground flex items-center">
+                                <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                                {comment.commenterName}
+                            </p>
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10"
+                                onClick={() => openDeleteConfirmationDialog('comment', comment.id)}
+                                disabled={isDeletingCommentOrReply}
+                            >
+                                <Trash2 className="h-3 w-3" />
+                            </Button>
+                           </div>
                           <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
                         </div>
                         {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1 ml-5">{comment.commenterEmail}</p>}
@@ -544,7 +595,20 @@ export default function ContractDetailPage() {
                                     <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80"/>
                                     {reply.creatorName} (Creator)
                                   </p>
-                                  <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(reply.repliedAt)}</p>
+                                   <div className="flex items-center">
+                                      <p className="text-xs text-muted-foreground mr-1">{formatCommentDateDisplay(reply.repliedAt)}</p>
+                                       {reply.creatorId === user?.uid && (
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-5 w-5 text-destructive hover:bg-destructive/10"
+                                            onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)}
+                                            disabled={isDeletingCommentOrReply}
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    )}
+                                   </div>
                                 </div>
                                 <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
                               </div>
@@ -563,7 +627,7 @@ export default function ContractDetailPage() {
         </div> {/* End Left Column */}
 
         <div className="lg:col-span-1 space-y-6"> {/* Right Column */}
-          <Card className="shadow-lg hide-on-print">
+           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-green-500" />
@@ -636,35 +700,35 @@ export default function ContractDetailPage() {
               {(contract.summary) && (
                 <AccordionItem value="ai-summary" className="border-b">
                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                    <CardHeader className="p-0 flex-1 text-left">
-                      <CardTitle className="text-lg">AI Generated Summary</CardTitle>
-                    </CardHeader>
+                     <div className="flex flex-col space-y-1.5 text-left">
+                        <CardTitle className="text-lg">AI Generated Summary</CardTitle>
+                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-4">
+                    <div className="px-6 pb-4">
                        <ScrollArea className="h-auto max-h-[200px] pr-3">
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {contract.summary}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               )}
 
-              {hasNegotiationSuggestions && contract.negotiationSuggestions && (
+              {contract.negotiationSuggestions && (
                  <AccordionItem value="ai-negotiation-suggestions" className="border-b">
                    <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                      <CardHeader className="p-0 flex-1 text-left">
+                      <div className="flex flex-col space-y-1.5 text-left">
                         <CardTitle className="flex items-center text-lg gap-2">
                           <Lightbulb className="h-5 w-5 text-yellow-500" />
                           AI Negotiation Suggestions
                         </CardTitle>
                         <CardDescription>Advice for negotiating better terms.</CardDescription>
-                      </CardHeader>
+                      </div>
                    </AccordionTrigger>
                    <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-4 space-y-4 text-sm">
+                    <div className="px-6 pb-4 space-y-4 text-sm">
                       {contract.negotiationSuggestions.paymentTerms && (
                         <div>
                           <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
@@ -691,7 +755,10 @@ export default function ContractDetailPage() {
                           </ul>
                         </div>
                       )}
-                    </CardContent>
+                      {(!contract.negotiationSuggestions.paymentTerms && !contract.negotiationSuggestions.exclusivity && !contract.negotiationSuggestions.ipRights && (!contract.negotiationSuggestions.generalSuggestions || contract.negotiationSuggestions.generalSuggestions.length === 0)) && (
+                         <p className="text-muted-foreground">No specific negotiation points provided by AI.</p>
+                      )}
+                    </div>
                    </AccordionContent>
                  </AccordionItem>
               )}
@@ -699,18 +766,18 @@ export default function ContractDetailPage() {
               {contract.contractText && (
                 <AccordionItem value="full-contract-text" className="border-b-0">
                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                    <CardHeader className="p-0 flex-1 text-left">
+                     <div className="flex flex-col space-y-1.5 text-left">
                         <CardTitle className="flex items-center text-lg">Full Contract Text</CardTitle>
-                    </CardHeader>
+                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-4">
+                    <div className="px-6 pb-4">
                       <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
                           {contract.contractText}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               )}
@@ -719,9 +786,24 @@ export default function ContractDetailPage() {
           
         </div> {/* End Right Column */}
       </div>
+
+      <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === 'comment' ? "This will permanently delete the brand's comment." : "This will permanently delete your reply."} This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)} disabled={isDeletingCommentOrReply}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeletingCommentOrReply} className="bg-destructive hover:bg-destructive/90">
+              {isDeletingCommentOrReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
-
-    
-
