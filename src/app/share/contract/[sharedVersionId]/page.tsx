@@ -396,52 +396,52 @@ export default function ShareContractPage() {
 
                 <Separator className="my-6"/>
 
-                <ScrollArea className="h-[400px] pr-3"> {/* Fixed height for comments ScrollArea */}
-                  {isLoadingComments && (
+                <div className="mt-4"> {/* Added a wrapper div */}
+                  {isLoadingComments ? (
                     <div className="flex justify-center items-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
-                  )}
-                  {!isLoadingComments && comments.length === 0 && (
+                  ) : comments.length === 0 ? (
                     <div className="flex items-center justify-center py-10">
                       <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
                     </div>
-                  )}
-                  {!isLoadingComments && comments.length > 0 && (
-                    <div className="space-y-4">
-                      {comments.map(comment => (
-                        <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
-                          <div className="flex items-start justify-between mb-1">
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
-                              <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
-                              {comment.commenterName}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateDisplay(comment.commentedAt)}</p>
-                          </div>
-                          {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
-                          <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                          
-                          {comment.replies && comment.replies.length > 0 && (
-                            <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
-                              {comment.replies.map(reply => (
-                                <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5 dark:bg-primary/10">
-                                  <div className="flex items-center justify-between mb-0.5">
-                                    <p className="font-semibold text-primary text-xs flex items-center dark:text-primary/90">
-                                      <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80 dark:text-primary/70"/>
-                                      {reply.creatorName} (Creator)
-                                    </p>
-                                    <p className="text-xs text-muted-foreground dark:text-slate-400">{formatDateDisplay(reply.repliedAt)}</p>
-                                  </div>
-                                  <p className="text-foreground/80 dark:text-slate-300 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                                </div>
-                              ))}
+                  ) : (
+                    <ScrollArea className="h-[400px] pr-3"> {/* Fixed height here */}
+                      <div className="space-y-4">
+                        {comments.map(comment => (
+                          <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
+                                <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
+                                {comment.commenterName}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateDisplay(comment.commentedAt)}</p>
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                            {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
+                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                            
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
+                                {comment.replies.map(reply => (
+                                  <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5 dark:bg-primary/10">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <p className="font-semibold text-primary text-xs flex items-center dark:text-primary/90">
+                                        <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80 dark:text-primary/70"/>
+                                        {reply.creatorName} (Creator)
+                                      </p>
+                                      <p className="text-xs text-muted-foreground dark:text-slate-400">{formatDateDisplay(reply.repliedAt)}</p>
+                                    </div>
+                                    <p className="text-foreground/80 dark:text-slate-300 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   )}
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -455,5 +455,3 @@ export default function ShareContractPage() {
 }
 
     
-
-
