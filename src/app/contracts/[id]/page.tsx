@@ -467,7 +467,7 @@ export default function ContractDetailPage() {
           { (contract.clientName || contract.clientEmail || contract.clientAddress || contract.paymentInstructions) && (
              <Card className="shadow-lg hide-on-print">
                 <CardHeader>
-                    <CardTitle>Client & Payment Info</CardTitle>
+                    <CardTitle>Client &amp; Payment Info</CardTitle>
                     <CardDescription>Details for invoicing purposes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
@@ -567,7 +567,7 @@ export default function ContractDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-green-500" />
-                Share & Feedback
+                Share &amp; Feedback
               </CardTitle>
               <CardDescription>Share contract versions with brands for feedback.</CardDescription>
             </CardHeader>
@@ -636,18 +636,18 @@ export default function ContractDetailPage() {
               {(contract.summary) && (
                 <AccordionItem value="ai-summary" className="border-b">
                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                    <div className="flex flex-col space-y-1.5 text-left">
+                    <CardHeader className="p-0 flex-1 text-left">
                       <CardTitle className="text-lg">AI Generated Summary</CardTitle>
-                    </div>
+                    </CardHeader>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4">
+                    <CardContent className="px-6 pb-4">
                        <ScrollArea className="h-auto max-h-[200px] pr-3">
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {contract.summary}
                         </p>
                       </ScrollArea>
-                    </div>
+                    </CardContent>
                   </AccordionContent>
                 </AccordionItem>
               )}
@@ -655,16 +655,16 @@ export default function ContractDetailPage() {
               {hasNegotiationSuggestions && contract.negotiationSuggestions && (
                  <AccordionItem value="ai-negotiation-suggestions" className="border-b">
                    <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                      <div className="flex flex-col space-y-1.5 text-left">
+                      <CardHeader className="p-0 flex-1 text-left">
                         <CardTitle className="flex items-center text-lg gap-2">
                           <Lightbulb className="h-5 w-5 text-yellow-500" />
                           AI Negotiation Suggestions
                         </CardTitle>
                         <CardDescription>Advice for negotiating better terms.</CardDescription>
-                      </div>
+                      </CardHeader>
                    </AccordionTrigger>
                    <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4 space-y-4 text-sm">
+                    <CardContent className="px-6 pb-4 space-y-4 text-sm">
                       {contract.negotiationSuggestions.paymentTerms && (
                         <div>
                           <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
@@ -691,7 +691,7 @@ export default function ContractDetailPage() {
                           </ul>
                         </div>
                       )}
-                    </div>
+                    </CardContent>
                    </AccordionContent>
                  </AccordionItem>
               )}
@@ -699,18 +699,18 @@ export default function ContractDetailPage() {
               {contract.contractText && (
                 <AccordionItem value="full-contract-text" className="border-b-0">
                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                     <div className="flex flex-col space-y-1.5 text-left">
+                    <CardHeader className="p-0 flex-1 text-left">
                         <CardTitle className="flex items-center text-lg">Full Contract Text</CardTitle>
-                     </div>
+                    </CardHeader>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4">
+                    <CardContent className="px-6 pb-4">
                       <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
                           {contract.contractText}
                         </p>
                       </ScrollArea>
-                    </div>
+                    </CardContent>
                   </AccordionContent>
                 </AccordionItem>
               )}
@@ -724,3 +724,4 @@ export default function ContractDetailPage() {
 }
 
     
+
