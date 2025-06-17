@@ -503,7 +503,7 @@ export default function ContractDetailPage() {
             </Card>
           )}
           
-          <Card className="shadow-lg hide-on-print flex flex-col max-h-[500px]">
+          <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-purple-500" />
@@ -511,17 +511,17 @@ export default function ContractDetailPage() {
               </CardTitle>
               <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 min-h-0">
+            <CardContent>
               {isLoadingComments ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : contractComments.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center py-10">
                   <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
                 </div>
               ) : (
-                <ScrollArea className="h-full pr-3">
+                <ScrollArea className="h-[400px] pr-3">
                   <div className="space-y-4">
                     {contractComments.map(comment => (
                       <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
