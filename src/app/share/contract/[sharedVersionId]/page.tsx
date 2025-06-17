@@ -396,7 +396,7 @@ export default function ShareContractPage() {
 
                 <Separator className="my-6"/>
 
-                <ScrollArea className="h-[400px] pr-3">
+                <ScrollArea className="h-[400px] pr-3"> {/* Fixed height for comments ScrollArea */}
                   {isLoadingComments && (
                     <div className="flex justify-center items-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -455,4 +455,5 @@ export default function ShareContractPage() {
 }
 
     
+
 
