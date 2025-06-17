@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
@@ -501,7 +502,7 @@ export default function ContractDetailPage() {
               </CardContent>
             </Card>
           )}
-
+          
           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -554,63 +555,10 @@ export default function ContractDetailPage() {
               )}
             </CardContent>
           </Card>
+
         </div> {/* End Left Column */}
 
         <div className="lg:col-span-1 space-y-6"> {/* Right Column */}
-           <Card className="shadow-lg hide-on-print">
-            <CardHeader>
-              <CardTitle>AI Generated Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[200px] pr-3">
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {contract.summary || 'No AI summary available for this contract.'}
-                </p>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {contract.negotiationSuggestions && (
-            <Card className="shadow-lg hide-on-print">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-yellow-500" />
-                  AI Negotiation Suggestions
-                </CardTitle>
-                <CardDescription>Advice for negotiating better terms.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                {contract.negotiationSuggestions.paymentTerms && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.paymentTerms}</p>
-                  </div>
-                )}
-                {contract.negotiationSuggestions.exclusivity && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-1">Exclusivity:</h4>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.exclusivity}</p>
-                  </div>
-                )}
-                {contract.negotiationSuggestions.ipRights && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-1">Intellectual Property Rights:</h4>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.ipRights}</p>
-                  </div>
-                )}
-                {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-1">General Suggestions:</h4>
-                    <ul className="list-disc list-inside ml-4 text-muted-foreground space-y-1">
-                      {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i} className="whitespace-pre-wrap">{item}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {!hasNegotiationSuggestions && <p className="text-muted-foreground">No negotiation suggestions available for this contract.</p>}
-              </CardContent>
-            </Card>
-          )}
-
           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -678,24 +626,100 @@ export default function ContractDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          <Accordion type="multiple" defaultValue={["ai-summary", "ai-negotiation-suggestions"]} className="w-full space-y-0">
+            {contract.summary && (
+              <AccordionItem value="ai-summary" className="border-none">
+                <Card className="shadow-lg hide-on-print rounded-b-none">
+                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                     <CardHeader className="flex-1 text-left">
+                        <CardTitle>AI Generated Summary</CardTitle>
+                     </CardHeader>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-0">
+                    <CardContent>
+                      <ScrollArea className="h-[200px] pr-3">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {contract.summary}
+                        </p>
+                      </ScrollArea>
+                    </CardContent>
+                  </AccordionContent>
+                </Card>
+              </AccordionItem>
+            )}
+
+            {contract.negotiationSuggestions && (
+              <AccordionItem value="ai-negotiation-suggestions" className="border-none">
+                 <Card className={`shadow-lg hide-on-print ${!contract.summary ? '' : 'rounded-t-none'}`}>
+                   <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                      <CardHeader className="flex-1 text-left">
+                        <CardTitle className="flex items-center gap-2">
+                          <Lightbulb className="h-5 w-5 text-yellow-500" />
+                          AI Negotiation Suggestions
+                        </CardTitle>
+                        <CardDescription>Advice for negotiating better terms.</CardDescription>
+                      </CardHeader>
+                   </AccordionTrigger>
+                   <AccordionContent className="pt-0">
+                    <CardContent className="space-y-4 text-sm">
+                      {contract.negotiationSuggestions.paymentTerms && (
+                        <div>
+                          <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
+                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.paymentTerms}</p>
+                        </div>
+                      )}
+                      {contract.negotiationSuggestions.exclusivity && (
+                        <div>
+                          <h4 className="font-semibold text-foreground mb-1">Exclusivity:</h4>
+                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.exclusivity}</p>
+                        </div>
+                      )}
+                      {contract.negotiationSuggestions.ipRights && (
+                        <div>
+                          <h4 className="font-semibold text-foreground mb-1">Intellectual Property Rights:</h4>
+                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.ipRights}</p>
+                        </div>
+                      )}
+                      {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold text-foreground mb-1">General Suggestions:</h4>
+                          <ul className="list-disc list-inside ml-4 text-muted-foreground space-y-1">
+                            {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i} className="whitespace-pre-wrap">{item}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {!hasNegotiationSuggestions && <p className="text-muted-foreground">No negotiation suggestions available for this contract.</p>}
+                    </CardContent>
+                   </AccordionContent>
+                 </Card>
+              </AccordionItem>
+            )}
+            
+            {contract.contractText && (
+              <AccordionItem value="full-contract-text" className="border-none">
+                <Card className={`shadow-lg contract-text-card-for-print ${(!contract.summary && !contract.negotiationSuggestions) ? '' : 'rounded-t-none'}`}>
+                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                    <CardHeader className="hide-on-print flex-1 text-left">
+                      <CardTitle>Full Contract Text</CardTitle>
+                    </CardHeader>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-0">
+                    <CardContent>
+                      <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
+                          {contract.contractText}
+                        </p>
+                      </ScrollArea>
+                    </CardContent>
+                  </AccordionContent>
+                </Card>
+              </AccordionItem>
+            )}
+          </Accordion>
           
-          {contract.contractText && (
-             <Card className="shadow-lg contract-text-card-for-print">
-              <CardHeader className="hide-on-print">
-                <CardTitle>Full Contract Text</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
-                    {contract.contractText}
-                  </p>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
         </div> {/* End Right Column */}
       </div>
     </>
   );
 }
-
