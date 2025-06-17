@@ -213,7 +213,7 @@ export default function ShareContractPage() {
                                     (contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0));
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-verza-midnight-l py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
       <header className="max-w-6xl mx-auto mb-8">
         <div className="flex items-center gap-3 mb-2">
           <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
@@ -337,7 +337,7 @@ export default function ShareContractPage() {
                   <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Full Contract Text (Snapshot)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[300px] border rounded-md p-3 bg-slate-100 dark:bg-slate-800">
+                  <ScrollArea className="h-[300px] border rounded-md p-3 bg-slate-50 dark:bg-slate-800">
                     <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
                   </ScrollArea>
                 </CardContent>
@@ -400,13 +400,15 @@ export default function ShareContractPage() {
 
                 {isLoadingComments && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
                 {!isLoadingComments && comments.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4 dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
+                  <div className="flex items-center justify-center py-10">
+                    <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
+                  </div>
                 )}
                 {!isLoadingComments && comments.length > 0 && (
                   <ScrollArea className="h-auto max-h-[400px] pr-3">
                     <div className="space-y-4">
                       {comments.map(comment => (
-                        <div key={comment.id} className="p-3 border rounded-md bg-slate-100/70 dark:bg-slate-800/70">
+                        <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
                           <div className="flex items-start justify-between mb-1">
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
                               <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
@@ -450,3 +452,6 @@ export default function ShareContractPage() {
     </div>
   );
 }
+
+
+    
