@@ -156,7 +156,7 @@ export default function ShareContractPage() {
         commenterEmail: newCommenterEmail.trim() || null,
         commentText: newCommentText.trim(),
         commentedAt: serverTimestamp(),
-        replies: [], // Initialize with empty replies array
+        replies: [], 
       });
       setNewCommentText("");
       toast({ title: "Comment Added", description: "Your feedback has been submitted." });
@@ -398,7 +398,11 @@ export default function ShareContractPage() {
 
                 <Separator className="my-6"/>
 
-                {isLoadingComments && <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
+                {isLoadingComments && (
+                  <div className="flex justify-center items-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                )}
                 {!isLoadingComments && comments.length === 0 && (
                   <div className="flex items-center justify-center py-10">
                     <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
@@ -419,7 +423,6 @@ export default function ShareContractPage() {
                           {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
                           <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
                           
-                          {/* Display Replies */}
                           {comment.replies && comment.replies.length > 0 && (
                             <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
                               {comment.replies.map(reply => (
@@ -452,6 +455,3 @@ export default function ShareContractPage() {
     </div>
   );
 }
-
-
-    
