@@ -626,43 +626,42 @@ export default function ContractDetailPage() {
               </CardContent>
             </Card>
           )}
-
-          <Accordion type="multiple" defaultValue={["ai-summary", "ai-negotiation-suggestions"]} className="w-full space-y-0">
-            {contract.summary && (
-              <AccordionItem value="ai-summary" className="border-none">
-                <Card className="shadow-lg hide-on-print rounded-b-none">
-                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                     <CardHeader className="flex-1 text-left">
-                        <CardTitle>AI Generated Summary</CardTitle>
-                     </CardHeader>
+          
+          {/* Unified Accordion Card for AI content and Full Text */}
+          <Card className="shadow-lg hide-on-print contract-text-card-for-print">
+            <Accordion type="multiple" defaultValue={["ai-summary", "ai-negotiation-suggestions"]} className="w-full">
+              {contract.summary && (
+                <AccordionItem value="ai-summary">
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                    <div className="flex flex-col space-y-1.5 text-left">
+                      <h3 className="text-lg font-semibold leading-none tracking-tight">AI Generated Summary</h3>
+                    </div>
                   </AccordionTrigger>
-                  <AccordionContent className="pt-0">
-                    <CardContent>
-                      <ScrollArea className="h-[200px] pr-3">
+                  <AccordionContent>
+                    <div className="px-6 pb-4">
+                      <ScrollArea className="h-auto max-h-[200px] pr-3">
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {contract.summary}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
-                </Card>
-              </AccordionItem>
-            )}
+                </AccordionItem>
+              )}
 
-            {contract.negotiationSuggestions && (
-              <AccordionItem value="ai-negotiation-suggestions" className="border-none">
-                 <Card className={`shadow-lg hide-on-print ${!contract.summary ? '' : 'rounded-t-none'}`}>
-                   <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                      <CardHeader className="flex-1 text-left">
-                        <CardTitle className="flex items-center gap-2">
+              {hasNegotiationSuggestions && contract.negotiationSuggestions && (
+                <AccordionItem value="ai-negotiation-suggestions">
+                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                      <div className="flex flex-col space-y-1.5 text-left">
+                        <h3 className="text-lg font-semibold leading-none tracking-tight flex items-center gap-2">
                           <Lightbulb className="h-5 w-5 text-yellow-500" />
                           AI Negotiation Suggestions
-                        </CardTitle>
-                        <CardDescription>Advice for negotiating better terms.</CardDescription>
-                      </CardHeader>
+                        </h3>
+                        <p className="text-sm text-muted-foreground">Advice for negotiating better terms.</p>
+                      </div>
                    </AccordionTrigger>
-                   <AccordionContent className="pt-0">
-                    <CardContent className="space-y-4 text-sm">
+                   <AccordionContent>
+                    <div className="px-6 pb-4 space-y-4 text-sm">
                       {contract.negotiationSuggestions.paymentTerms && (
                         <div>
                           <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
@@ -689,37 +688,35 @@ export default function ContractDetailPage() {
                           </ul>
                         </div>
                       )}
-                      {!hasNegotiationSuggestions && <p className="text-muted-foreground">No negotiation suggestions available for this contract.</p>}
-                    </CardContent>
+                    </div>
                    </AccordionContent>
-                 </Card>
-              </AccordionItem>
-            )}
-            
-            {contract.contractText && (
-              <AccordionItem value="full-contract-text" className="border-none">
-                <Card className={`shadow-lg contract-text-card-for-print ${(!contract.summary && !contract.negotiationSuggestions) ? '' : 'rounded-t-none'}`}>
-                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                    <CardHeader className="hide-on-print flex-1 text-left">
-                      <CardTitle>Full Contract Text</CardTitle>
-                    </CardHeader>
+                 </AccordionItem>
+              )}
+              
+              {contract.contractText && (
+                <AccordionItem value="full-contract-text" className="border-b-0"> {/* Remove bottom border for the last item in the card */}
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                    <div className="flex flex-col space-y-1.5 text-left">
+                      <h3 className="text-lg font-semibold leading-none tracking-tight">Full Contract Text</h3>
+                    </div>
                   </AccordionTrigger>
-                  <AccordionContent className="pt-0">
-                    <CardContent>
+                  <AccordionContent>
+                    <div className="px-6 pb-4">
                       <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
                           {contract.contractText}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
-                </Card>
-              </AccordionItem>
-            )}
-          </Accordion>
+                </AccordionItem>
+              )}
+            </Accordion>
+          </Card>
           
         </div> {/* End Right Column */}
       </div>
     </>
   );
 }
+
