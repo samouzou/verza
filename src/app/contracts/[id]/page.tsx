@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; 
+import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -502,7 +502,6 @@ export default function ContractDetailPage() {
             </Card>
           )}
 
-          {/* Contract Comments Section - Moved to Left Column */}
           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -555,7 +554,6 @@ export default function ContractDetailPage() {
               )}
             </CardContent>
           </Card>
-
         </div> {/* End Left Column */}
 
         <div className="lg:col-span-1 space-y-6"> {/* Right Column */}
@@ -572,8 +570,7 @@ export default function ContractDetailPage() {
             </CardContent>
           </Card>
 
-          {/* AI Negotiation Suggestions - Moved to Right Column & Reformatted */}
-          {hasNegotiationSuggestions && contract.negotiationSuggestions && (
+          {contract.negotiationSuggestions && (
             <Card className="shadow-lg hide-on-print">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -701,3 +698,4 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
