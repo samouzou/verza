@@ -634,37 +634,37 @@ export default function ContractDetailPage() {
           <Card className="shadow-lg hide-on-print contract-text-card-for-print">
             <Accordion type="multiple" defaultValue={["ai-summary", "ai-negotiation-suggestions"]} className="w-full">
               {(contract.summary) && (
-                <AccordionItem value="ai-summary" className="border-none">
-                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                    <CardHeader className="flex-1 p-6 text-left">
-                      <CardTitle className="flex items-center text-lg">AI Generated Summary</CardTitle>
-                    </CardHeader>
+                <AccordionItem value="ai-summary" className="border-b">
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                    <div className="flex flex-col space-y-1.5 text-left">
+                      <CardTitle className="text-lg">AI Generated Summary</CardTitle>
+                    </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-6">
+                    <div className="px-6 pb-4">
                        <ScrollArea className="h-auto max-h-[200px] pr-3">
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {contract.summary}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               )}
 
               {hasNegotiationSuggestions && contract.negotiationSuggestions && (
-                 <AccordionItem value="ai-negotiation-suggestions" className="border-none">
-                   <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                      <CardHeader className="flex-1 p-6 text-left">
+                 <AccordionItem value="ai-negotiation-suggestions" className="border-b">
+                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                      <div className="flex flex-col space-y-1.5 text-left">
                         <CardTitle className="flex items-center text-lg gap-2">
                           <Lightbulb className="h-5 w-5 text-yellow-500" />
                           AI Negotiation Suggestions
                         </CardTitle>
                         <CardDescription>Advice for negotiating better terms.</CardDescription>
-                      </CardHeader>
+                      </div>
                    </AccordionTrigger>
                    <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-6 space-y-4 text-sm">
+                    <div className="px-6 pb-4 space-y-4 text-sm">
                       {contract.negotiationSuggestions.paymentTerms && (
                         <div>
                           <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
@@ -691,26 +691,26 @@ export default function ContractDetailPage() {
                           </ul>
                         </div>
                       )}
-                    </CardContent>
+                    </div>
                    </AccordionContent>
                  </AccordionItem>
               )}
               
               {contract.contractText && (
-                <AccordionItem value="full-contract-text" className="border-b-0 border-none">
-                  <AccordionTrigger className="p-0 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                     <CardHeader className="flex-1 p-6 text-left">
+                <AccordionItem value="full-contract-text" className="border-b-0">
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
+                     <div className="flex flex-col space-y-1.5 text-left">
                         <CardTitle className="flex items-center text-lg">Full Contract Text</CardTitle>
-                     </CardHeader>
+                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-0">
-                    <CardContent className="px-6 pb-6">
+                    <div className="px-6 pb-4">
                       <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
                         <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
                           {contract.contractText}
                         </p>
                       </ScrollArea>
-                    </CardContent>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               )}
