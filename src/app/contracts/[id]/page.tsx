@@ -33,7 +33,7 @@ import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; 
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input'; // Added for reply input if needed as separate component
+import { Input } from '@/components/ui/input';
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -282,7 +282,7 @@ export default function ContractDetailPage() {
     try {
       const commentDocRef = doc(db, "contractComments", commentId);
       const newReply: CommentReply = {
-        replyId: doc(collection(db, "tmp")).id, // Generate a unique ID for the reply
+        replyId: doc(collection(db, "tmp")).id, 
         creatorId: user.uid,
         creatorName: user.displayName || "Creator",
         replyText: replyText,
@@ -422,7 +422,7 @@ export default function ContractDetailPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6"> {/* Left Column */}
           <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -502,34 +502,63 @@ export default function ContractDetailPage() {
             </Card>
           )}
 
-          {hasNegotiationSuggestions && contract.negotiationSuggestions && (
-            <Card className="shadow-lg hide-on-print">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-yellow-500" />
-                  AI Negotiation Suggestions
-                </CardTitle>
-                <CardDescription>Advice for negotiating better terms.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {contract.negotiationSuggestions.paymentTerms && <p><strong className="text-foreground">Payment Terms:</strong> <span className="text-muted-foreground">{contract.negotiationSuggestions.paymentTerms}</span></p>}
-                {contract.negotiationSuggestions.exclusivity && <p><strong className="text-foreground">Exclusivity:</strong> <span className="text-muted-foreground">{contract.negotiationSuggestions.exclusivity}</span></p>}
-                {contract.negotiationSuggestions.ipRights && <p><strong className="text-foreground">IP Rights:</strong> <span className="text-muted-foreground">{contract.negotiationSuggestions.ipRights}</span></p>}
-                {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
-                  <div>
-                    <strong className="text-foreground">General Suggestions:</strong>
-                    <ul className="list-disc list-inside ml-4 text-muted-foreground">
-                      {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i}>{item}</li>)}
-                    </ul>
+          {/* Contract Comments Section - Moved to Left Column */}
+          <Card className="shadow-lg hide-on-print">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-purple-500" />
+                Contract Comments
+              </CardTitle>
+              <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingComments ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : contractComments.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No comments yet on any shared versions of this contract.</p>
+              ) : (
+                <ScrollArea className="h-auto max-h-[400px] pr-3">
+                  <div className="space-y-4">
+                    {contractComments.map(comment => (
+                      <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-semibold text-foreground flex items-center">
+                            <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                            {comment.commenterName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
+                        </div>
+                        {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1 ml-5">{comment.commenterEmail}</p>}
+                        <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                        
+                        {comment.replies && comment.replies.length > 0 && (
+                          <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">
+                            {comment.replies.map(reply => (
+                              <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <p className="font-semibold text-primary text-xs flex items-center">
+                                    <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80"/>
+                                    {reply.creatorName} (Creator)
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(reply.repliedAt)}</p>
+                                </div>
+                                <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
+                      </div>
+                    ))}
                   </div>
-                )}
-                {!hasNegotiationSuggestions && <p className="text-muted-foreground">No negotiation suggestions available for this contract.</p>}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
 
-        <div className="lg:col-span-1 space-y-6">
+        </div> {/* End Left Column */}
+
+        <div className="lg:col-span-1 space-y-6"> {/* Right Column */}
            <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle>AI Generated Summary</CardTitle>
@@ -543,44 +572,44 @@ export default function ContractDetailPage() {
             </CardContent>
           </Card>
 
-          {contract.contractText && (
-             <Card className="shadow-lg contract-text-card-for-print">
-              <CardHeader className="hide-on-print">
-                <CardTitle>Full Contract Text</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
-                    {contract.contractText}
-                  </p>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
-
-          {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
+          {/* AI Negotiation Suggestions - Moved to Right Column & Reformatted */}
+          {hasNegotiationSuggestions && contract.negotiationSuggestions && (
             <Card className="shadow-lg hide-on-print">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-blue-500" />
-                  Invoice History
+                  <Lightbulb className="h-5 w-5 text-yellow-500" />
+                  AI Negotiation Suggestions
                 </CardTitle>
-                <CardDescription>A log of actions related to this invoice.</CardDescription>
+                <CardDescription>Advice for negotiating better terms.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[150px] pr-3">
-                  <ul className="space-y-2">
-                    {contract.invoiceHistory.slice().sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((entry, index) => (
-                      <li key={index} className="text-sm">
-                        <span className="font-medium text-foreground">
-                          {format(entry.timestamp.toDate(), "PPpp")}
-                        </span>
-                        <span className="text-muted-foreground">: {entry.action}</span>
-                        {entry.details && <span className="text-xs text-muted-foreground/80 block pl-2">- {entry.details}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </ScrollArea>
+              <CardContent className="space-y-4 text-sm">
+                {contract.negotiationSuggestions.paymentTerms && (
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
+                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.paymentTerms}</p>
+                  </div>
+                )}
+                {contract.negotiationSuggestions.exclusivity && (
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-1">Exclusivity:</h4>
+                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.exclusivity}</p>
+                  </div>
+                )}
+                {contract.negotiationSuggestions.ipRights && (
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-1">Intellectual Property Rights:</h4>
+                    <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.ipRights}</p>
+                  </div>
+                )}
+                {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-1">General Suggestions:</h4>
+                    <ul className="list-disc list-inside ml-4 text-muted-foreground space-y-1">
+                      {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i} className="whitespace-pre-wrap">{item}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {!hasNegotiationSuggestions && <p className="text-muted-foreground">No negotiation suggestions available for this contract.</p>}
               </CardContent>
             </Card>
           )}
@@ -625,64 +654,49 @@ export default function ContractDetailPage() {
               )}
             </CardContent>
           </Card>
-          
-          {/* Comments Section */}
-          <Card className="shadow-lg hide-on-print">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-purple-500" />
-                Contract Comments
-              </CardTitle>
-              <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingComments ? (
-                <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-              ) : contractComments.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No comments yet on any shared versions of this contract.</p>
-              ) : (
-                <ScrollArea className="h-auto max-h-[400px] pr-3">
-                  <div className="space-y-4">
-                    {contractComments.map(comment => (
-                      <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-semibold text-foreground flex items-center">
-                            <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                            {comment.commenterName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
-                        </div>
-                        {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1 ml-5">{comment.commenterEmail}</p>}
-                        <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                        
-                        {/* Display Replies */}
-                        {comment.replies && comment.replies.length > 0 && (
-                          <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">
-                            {comment.replies.map(reply => (
-                              <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <p className="font-semibold text-primary text-xs flex items-center">
-                                    <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80"/>
-                                    {reply.creatorName} (Creator)
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(reply.repliedAt)}</p>
-                                </div>
-                                <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Reply Form for this comment */}
-                        <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
 
-        </div>
+          {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
+            <Card className="shadow-lg hide-on-print">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-blue-500" />
+                  Invoice History
+                </CardTitle>
+                <CardDescription>A log of actions related to this invoice.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[150px] pr-3">
+                  <ul className="space-y-2">
+                    {contract.invoiceHistory.slice().sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((entry, index) => (
+                      <li key={index} className="text-sm">
+                        <span className="font-medium text-foreground">
+                          {format(entry.timestamp.toDate(), "PPpp")}
+                        </span>
+                        <span className="text-muted-foreground">: {entry.action}</span>
+                        {entry.details && <span className="text-xs text-muted-foreground/80 block pl-2">- {entry.details}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+          
+          {contract.contractText && (
+             <Card className="shadow-lg contract-text-card-for-print">
+              <CardHeader className="hide-on-print">
+                <CardTitle>Full Contract Text</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
+                    {contract.contractText}
+                  </p>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+        </div> {/* End Right Column */}
       </div>
     </>
   );
