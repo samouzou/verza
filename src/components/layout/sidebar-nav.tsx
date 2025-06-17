@@ -15,9 +15,9 @@ import {
   Sparkles,
   CheckCircle,
   XCircle,
-  AlertTriangle as AlertTriangleIcon, // Renamed to avoid conflict
-  ReceiptText, // New Icon for Receipts
-  Landmark // Icon for Banking & Taxes
+  AlertTriangle as AlertTriangleIcon,
+  ReceiptText, 
+  Landmark
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +27,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar, // Import useSidebar
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -50,12 +51,12 @@ const navItems = [
   { href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { href: "/integrations", label: "Integrations", icon: Link2 },
   { href: "/wallet", label: "Creator Wallet", icon: Wallet },
-  // { href: "/settings", label: "Settings", icon: Settings }, // Removed from main nav items
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth(); // isLoading aliased to authLoading
+  const { isMobile, setOpenMobile } = useSidebar(); // Get mobile state and setter from useSidebar
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -63,7 +64,7 @@ export function SidebarNav() {
     router.push("/login");
   };
 
-  if (isLoading) {
+  if (authLoading) { // Use authLoading here
     return (
       <Sidebar collapsible="icon">
         <SidebarHeader className="p-4">
@@ -127,6 +128,11 @@ export function SidebarNav() {
             <SidebarMenuItem key={item.label}>
               <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
+                  onClick={() => {
+                    if (isMobile) {
+                      setOpenMobile(false);
+                    }
+                  }}
                   className={cn(
                     pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
