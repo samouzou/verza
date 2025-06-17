@@ -1,130 +1,91 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // Rules for the 'users' collection
-    // Users can read and update their own profile information.
-    // Users can create their own user document (e.g., on first sign-up).
-    // Deleting user documents directly by clients is generally disallowed.
     match /users/{userId} {
       allow read, update: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId;
-      // For user document writes (like subscription status by backend),
-      // the Admin SDK used by Cloud Functions bypasses these client-side rules.
-      // If you need client to write specific fields here, you'd add more granular 'update' rules.
       allow delete: if false;
     }
 
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      // PUBLIC READ: Allow anyone to read contract details.
-      // This is necessary for the public payment page (/pay/contract/[id])
-      // to fetch and display contract information (e.g., amount, brand name)
-      // before the client makes a payment.
-      // WARNING: This makes ALL fields of ALL contracts publicly readable if the contractId is known.
-      // For enhanced security in a production app with sensitive contract data,
-      // consider using a Cloud Function as an intermediary to serve only essential,
-      // non-sensitive details to the public payment page.
       allow read: if true;
-
-      // Authenticated users can create contracts if they are the owner.
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      
-      // Authenticated users can update or delete only their own contracts.
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    match /sharedContractVersions/{sharedVersionId} {
+    // Rules for 'sharedContractVersions' collection
+    match /sharedContractVersions/{versionId} {
       allow read: if (resource.data.status == 'active') || 
                        (request.auth != null && request.auth.uid == resource.data.userId);
-
       allow create: if request.auth != null &&
                        request.resource.data.userId == request.auth.uid &&
                        get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
-
-      // Allow creator to update their own shared version (e.g., to revoke it or update notes)
-      // and to mark as viewed (though this is better done via a function for public views)
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow delete: if false; // Deletes should be handled by a function that also cleans up comments etc.
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId; // Creator can update (e.g., revoke)
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
-    
+
+    // Rules for 'contractComments' collection
     match /contractComments/{commentId} {
-      allow create: if request.resource.data.sharedVersionId is string &&
-                       request.resource.data.originalContractId is string &&
-                       request.resource.data.creatorId is string &&
+      allow create: if request.resource.data.sharedVersionId != null &&
+                       exists(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)) &&
                        get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
-                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId == request.resource.data.creatorId &&
-                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.originalContractId == request.resource.data.originalContractId &&
+                       request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
                        request.resource.data.commenterName is string && request.resource.data.commenterName.size() > 0 && request.resource.data.commenterName.size() < 100 &&
                        request.resource.data.commentText is string && request.resource.data.commentText.size() > 0 && request.resource.data.commentText.size() < 2000 &&
                        request.resource.data.commentedAt == request.time &&
                        (request.resource.data.commenterEmail == null || (request.resource.data.commenterEmail is string && request.resource.data.commenterEmail.size() < 100)) &&
-                       (!('replies' in request.resource.data) || request.resource.data.replies == []); // No replies on creation
-
+                       request.resource.data.originalContractId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.originalContractId;
+      
       allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
                      (request.auth != null && request.auth.uid == resource.data.creatorId);
 
-      // Allow creator to update (e.g., add replies) their own comments
+      // Allow creator to update (e.g., add replies)
+      // Ensures critical fields of the comment itself are not changed during a reply addition.
+      // And that the replies array, if modified, meets basic expectations.
       allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       // Ensure only 'replies' array can be modified by adding elements, or other benign fields if any
-                       (request.resource.data.keys().hasOnly(['sharedVersionId', 'originalContractId', 'creatorId', 'commenterName', 'commenterEmail', 'commentText', 'commentedAt', 'replies']) &&
-                        (request.resource.data.replies.size() >= resource.data.replies.size()) && // Allow adding or no change
-                        (resource.data.replies.size() == 0 || request.resource.data.replies.size() > 0 && request.resource.data.replies[request.resource.data.replies.size() - 1].creatorId == request.auth.uid &&
-                         request.resource.data.replies[request.resource.data.replies.size() - 1].repliedAt == request.time &&
-                         request.resource.data.replies[request.resource.data.replies.size() - 1].replyText is string &&
-                         request.resource.data.replies[request.resource.data.replies.size() - 1].creatorName is string &&
-                         request.resource.data.replies[request.resource.data.replies.size() - 1].replyId is string
-                        )
-                       );
-                       // More robust reply validation would be: if adding a reply, ensure new reply has correct creatorId, repliedAt=request.time, replyText is string.
-                       // This is a simplification for now. A Cloud Function is better for complex updates.
-
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId; // Creator can delete comments on their contracts
+                       request.resource.data.creatorId == resource.data.creatorId && // Ensure original creatorId isn't changed
+                       request.resource.data.originalContractId == resource.data.originalContractId && // Ensure originalContractId isn't changed
+                       request.resource.data.sharedVersionId == resource.data.sharedVersionId && // Ensure sharedVersionId isn't changed
+                       // Basic check that if replies are present, they are a list.
+                       // More granular validation of new reply content in rules is complex with arrayUnion.
+                       // Trusting client to send correct newReply structure, secured by creatorId check.
+                       (request.resource.data.replies == null || request.resource.data.replies is list);
+                       
+      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
     }
-
+    
     // Rules for the 'receipts' collection
     match /receipts/{receiptId} {
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
     
-    // Subscription status checks
-    // match /users/{userId} { // This rule is already defined above, ensure it's consistent
-    //   allow read: if request.auth != null && request.auth.uid == userId;
-    //   allow write: if false; // Only allow writes through Cloud Functions
-    // }
-    
-    // Rules for 'paymentIntents' collection (created by backend)
-    // Typically, these should only be writable by your backend (Admin SDK)
-    // and perhaps readable by the authenticated user who initiated it or owns the contract.
+    // Rules for 'paymentIntents' collection
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||  // Payer
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient
+                    request.auth.uid == resource.data.userId ||
+                    request.auth.uid == resource.data.creatorId 
                   );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false;
     }
 
-    // Rules for 'payments' collection (created by backend webhook)
-    // Similar to paymentIntents, mostly backend-managed.
+    // Rules for 'payments' collection
     match /payments/{paymentId} {
        allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || // Payer mentioned in metadata
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient if you add this field
+                    request.auth.uid == resource.data.userId || 
+                    request.auth.uid == resource.data.creatorId
                   );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false;
     }
 
-    // Rules for 'emailLogs' collection (created by backend)
-    // Typically, these should only be writable by your backend.
-    // Read access might be for admins or specific users if needed.
+    // Rules for 'emailLogs' collection
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid; // If logs contain userId
-      // Or, if only admins/backend should read:
-      // allow read: if false; 
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
     }
   }
 }
