@@ -20,7 +20,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
 import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
-import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText } from 'lucide-react';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
@@ -682,6 +682,41 @@ export default function ManageInvoicePage() {
                     <div><Label htmlFor="edit-clientName">Client Name</Label><Input id="edit-clientName" value={editableClientName} onChange={(e) => setEditableClientName(e.target.value)} className="mt-1"/></div>
                     <div><Label htmlFor="edit-clientEmail">Client Email</Label><Input id="edit-clientEmail" type="email" value={editableClientEmail} onChange={(e) => setEditableClientEmail(e.target.value)} className="mt-1"/></div>
                     <div className="md:col-span-2"><Label htmlFor="edit-clientAddr">Client Address</Label><Textarea id="edit-clientAddr" value={editableClientAddress} onChange={(e) => setEditableClientAddress(e.target.value)} rows={2} className="mt-1"/></div>
+                </div>
+              </div>
+              
+              {/* Currently Linked Receipts Section */}
+              <div className="border-t pt-4 mt-4">
+                <div className="mb-6"> 
+                  <h4 className="text-md font-semibold mb-2 flex items-center">
+                    <ReceiptText className="mr-2 h-5 w-5 text-primary" />
+                    Currently Linked Receipts ({contractReceipts.length})
+                  </h4>
+                  {contractReceipts.length > 0 ? (
+                    <ul className="space-y-2 rounded-md border bg-muted/50 p-3 max-h-40 overflow-y-auto">
+                      {contractReceipts.map((receipt, index) => (
+                        <li key={index} className="flex items-center justify-between text-sm p-1 hover:bg-muted rounded">
+                          <div className="flex items-center">
+                            <FileText className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate" title={receipt.description || "Receipt"}>{receipt.description || "Receipt"}</span>
+                          </div>
+                          <a
+                            href={receipt.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline text-xs ml-2 flex-shrink-0"
+                          >
+                            View
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">No receipts currently linked to this contract.</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    These receipts will be included in the generated invoice. Manage receipts on the <Link href={`/receipts?contractId=${id}`} className="text-primary hover:underline">Receipts page</Link>.
+                  </p>
                 </div>
               </div>
 
