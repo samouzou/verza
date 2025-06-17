@@ -96,8 +96,6 @@ export default function ShareContractPage() {
           }
           setSharedVersion({ ...data, id: versionSnap.id });
           if (!data.brandHasViewed) {
-            // This update will likely fail due to Firestore rules (unauth user can't write)
-            // Consider a Cloud Function to handle this if critical, or remove client-side update.
             updateDoc(versionDocRef, {
               brandHasViewed: true,
               lastViewedByBrandAt: Timestamp.now(),
@@ -398,18 +396,18 @@ export default function ShareContractPage() {
 
                 <Separator className="my-6"/>
 
-                {isLoadingComments && (
-                  <div className="flex justify-center items-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                )}
-                {!isLoadingComments && comments.length === 0 && (
-                  <div className="flex items-center justify-center py-10">
-                    <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
-                  </div>
-                )}
-                {!isLoadingComments && comments.length > 0 && (
-                  <ScrollArea className="h-auto max-h-[400px] pr-3">
+                <ScrollArea className="h-auto max-h-[400px] pr-3">
+                  {isLoadingComments && (
+                    <div className="flex justify-center items-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  )}
+                  {!isLoadingComments && comments.length === 0 && (
+                    <div className="flex items-center justify-center py-10">
+                      <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
+                    </div>
+                  )}
+                  {!isLoadingComments && comments.length > 0 && (
                     <div className="space-y-4">
                       {comments.map(comment => (
                         <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
@@ -442,8 +440,8 @@ export default function ShareContractPage() {
                         </div>
                       ))}
                     </div>
-                  </ScrollArea>
-                )}
+                  )}
+                </ScrollArea>
               </CardContent>
             </Card>
           </div>
@@ -455,3 +453,5 @@ export default function ShareContractPage() {
     </div>
   );
 }
+
+    
