@@ -86,6 +86,14 @@ export interface SharedContractVersion {
   lastViewedByBrandAt?: Timestamp;
 }
 
+export interface CommentReply {
+  replyId: string; // Unique ID for the reply (client-generated or Firestore ID if subcollection)
+  creatorId: string; // UID of the creator replying
+  creatorName: string; // Display name of the creator
+  replyText: string;
+  repliedAt: Timestamp;
+}
+
 // Interface for comments made by a brand on a shared contract version
 export interface ContractComment {
   id: string; // Comment ID, will be Firestore document ID
@@ -96,6 +104,7 @@ export interface ContractComment {
   commenterEmail?: string; // Optional
   commentText: string;
   commentedAt: Timestamp;
+  replies?: CommentReply[]; // Array of replies
   // resolved?: boolean;
   // resolvedAt?: Timestamp;
   // creatorViewed?: boolean;
@@ -185,4 +194,3 @@ export interface TaxEstimation {
   notes?: string[]; 
   calculationDate: string; 
 }
-

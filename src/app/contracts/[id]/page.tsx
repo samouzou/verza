@@ -2,17 +2,17 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIcon, CornerDownRight, User } from 'lucide-react';
 import Link from 'next/link';
-import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy } from '@/lib/firebase';
+import { db, doc, getDoc, Timestamp, deleteDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc } from '@/lib/firebase';
 import { storage } from '@/lib/firebase';
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,7 +31,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog'; 
-import { Separator } from '@/components/ui/separator'; // Added import
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input'; // Added for reply input if needed as separate component
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -44,6 +46,43 @@ function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.
     </div>
   );
 }
+
+interface ReplyFormProps {
+  commentId: string;
+  onSubmitReply: (commentId: string, replyText: string) => Promise<void>;
+}
+
+function ReplyForm({ commentId, onSubmitReply }: ReplyFormProps) {
+  const [replyText, setReplyText] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim()) return;
+    setIsSubmittingReply(true);
+    await onSubmitReply(commentId, replyText.trim());
+    setReplyText("");
+    setIsSubmittingReply(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 ml-8 pl-4 border-l border-muted space-y-2">
+      <Textarea
+        value={replyText}
+        onChange={(e) => setReplyText(e.target.value)}
+        placeholder="Write your reply..."
+        rows={2}
+        className="text-sm"
+        disabled={isSubmittingReply}
+      />
+      <Button type="submit" size="sm" variant="outline" disabled={isSubmittingReply || !replyText.trim()}>
+        {isSubmittingReply ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <SendIcon className="mr-1 h-3 w-3" />}
+        Reply
+      </Button>
+    </form>
+  );
+}
+
 
 export default function ContractDetailPage() {
   const params = useParams();
@@ -160,11 +199,10 @@ export default function ContractDetailPage() {
         setIsLoadingSharedVersions(false);
       });
 
-      // Fetch comments for this original contract
       const commentsQuery = query(
         collection(db, "contractComments"),
         where("originalContractId", "==", id),
-        where("creatorId", "==", user.uid), // Ensure creator only sees their comments
+        where("creatorId", "==", user.uid), 
         orderBy("commentedAt", "desc")
       );
       unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
@@ -225,17 +263,43 @@ export default function ContractDetailPage() {
     window.print();
   };
   
-  // Helper to format date or return N/A for comments
   const formatCommentDateDisplay = (dateInput: Timestamp | undefined | null): string => {
     if (!dateInput) return 'N/A';
     try {
       const date = dateInput.toDate();
-      return format(date, "PPp"); // Using PPp for date and time
+      return format(date, "PPp"); 
     } catch (e) {
       console.warn("Error formatting comment date:", dateInput, e);
       return 'Invalid Date';
     }
   };
+
+  const handleAddReply = async (commentId: string, replyText: string) => {
+    if (!user || !contract) {
+      toast({ title: "Error", description: "User or contract data missing.", variant: "destructive" });
+      return;
+    }
+    try {
+      const commentDocRef = doc(db, "contractComments", commentId);
+      const newReply: CommentReply = {
+        replyId: doc(collection(db, "tmp")).id, // Generate a unique ID for the reply
+        creatorId: user.uid,
+        creatorName: user.displayName || "Creator",
+        replyText: replyText,
+        repliedAt: Timestamp.now(),
+      };
+
+      await updateDoc(commentDocRef, {
+        replies: arrayUnion(newReply)
+      });
+
+      toast({ title: "Reply Added", description: "Your reply has been posted." });
+    } catch (error: any) {
+      console.error("Error adding reply:", error);
+      toast({ title: "Reply Failed", description: error.message || "Could not post reply.", variant: "destructive" });
+    }
+  };
+
 
   if (authLoading || isLoading) {
     return (
@@ -569,7 +633,7 @@ export default function ContractDetailPage() {
                 <MessageCircle className="h-5 w-5 text-purple-500" />
                 Contract Comments
               </CardTitle>
-              <CardDescription>Feedback received on shared versions of this contract.</CardDescription>
+              <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingComments ? (
@@ -577,26 +641,41 @@ export default function ContractDetailPage() {
               ) : contractComments.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No comments yet on any shared versions of this contract.</p>
               ) : (
-                <ScrollArea className="h-auto max-h-[300px] pr-3">
+                <ScrollArea className="h-auto max-h-[400px] pr-3">
                   <div className="space-y-4">
-                    {contractComments.map(comment => {
-                      const sharedVersion = sharedVersions.find(sv => sv.id === comment.sharedVersionId);
-                      return (
-                        <div key={comment.id} className="p-3 border rounded-md bg-muted/50">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-sm font-semibold text-foreground">{comment.commenterName}</p>
-                            <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
-                          </div>
-                          {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1">{comment.commenterEmail}</p>}
-                          <p className="text-sm text-foreground/90 whitespace-pre-wrap">{comment.commentText}</p>
-                          {sharedVersion && (
-                             <p className="text-xs text-muted-foreground mt-1">
-                               On shared version: <Link href={`/share/contract/${sharedVersion.id}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{sharedVersion.id.substring(0,6)}...</Link>
-                             </p>
-                          )}
+                    {contractComments.map(comment => (
+                      <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-semibold text-foreground flex items-center">
+                            <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                            {comment.commenterName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
                         </div>
-                      );
-                    })}
+                        {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1 ml-5">{comment.commenterEmail}</p>}
+                        <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                        
+                        {/* Display Replies */}
+                        {comment.replies && comment.replies.length > 0 && (
+                          <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">
+                            {comment.replies.map(reply => (
+                              <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <p className="font-semibold text-primary text-xs flex items-center">
+                                    <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80"/>
+                                    {reply.creatorName} (Creator)
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(reply.repliedAt)}</p>
+                                </div>
+                                <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Reply Form for this comment */}
+                        <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
+                      </div>
+                    ))}
                   </div>
                 </ScrollArea>
               )}
