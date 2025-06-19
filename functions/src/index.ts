@@ -7,6 +7,7 @@
  * - Email notification functions
  * - Scheduled tasks
  * - Contract Sharing functions
+ * - E-Signature functions
  */
 
 import {
@@ -36,6 +37,12 @@ import {
   createShareableContractVersion,
 } from "./sharing";
 
+import {
+  initiateHelloSignRequest,
+  // helloSignWebhookHandler will be added later
+} from "./esignatures";
+
+
 // Export all functions explicitly
 export {
   // Payments
@@ -55,4 +62,7 @@ export {
   stripeSubscriptionWebhookHandler,
   // Sharing
   createShareableContractVersion,
+  // E-Signatures
+  initiateHelloSignRequest,
+  // helloSignWebhookHandler, // To be uncommented when implemented
 };
