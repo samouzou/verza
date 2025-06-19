@@ -19,7 +19,7 @@ import {
 } from "./payments";
 
 import {
-  sendContractNotification, 
+  sendContractNotification,
   sendPaymentReminder,
 } from "./notifications";
 

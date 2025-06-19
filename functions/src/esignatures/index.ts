@@ -54,7 +54,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const contractDocRef = db.collection("contracts").doc(contractId);
     const contractSnap = await contractDocRef.get();
 
-    if (!contractSnap.exists()) {
+    if (!contractSnap.exists) {
       throw new HttpsError("not-found", "Contract not found.");
     }
 
@@ -83,7 +83,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       testMode: true, // equivalent to test_mode: 1
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
-      message: `Hello ${contractData.clientName || "Client"}, please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
+      message: `Hello ${contractData.clientName || "Client"}, 
+        please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
       signers: [
         {
           emailAddress: finalSignerEmail,
@@ -97,8 +98,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         //   order: 1,
         // }
       ],
-      // ccEmailAddresses: [creatorEmail], // equivalent to cc_email_addresses
-      fileUrl: [contractData.fileUrl], // SDK expects array of strings for fileUrl
+      // ccEmailAddresses: [creatorEmail],
+      fileUrls: [contractData.fileUrl], // SDK expects array of strings for fileUrl
       metadata: {
         contract_id: contractId,
         user_id: userId,
@@ -109,10 +110,14 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     };
 
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
+      // Redact sensitive information for logging
       ...options,
-      signers: options.signers.map(s => ({name: s.name, emailAddress: "[REDACTED]"})),
+      signers: options.signers ? options.signers.map((s) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
+      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
+      fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
     }));
 
+    // Send the signature request
     const response = await signatureRequestApi.signatureRequestSend(options); // Updated method call
     const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
 
@@ -138,23 +143,23 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       message: `Signature request sent to ${finalSignerEmail} via Dropbox Sign.`,
       helloSignRequestId: signatureRequestId,
     };
-
   } catch (error: any) {
     logger.error(`Error initiating Dropbox Sign request for contract ${contractId}:`, error);
     if (error instanceof HttpsError) {
       throw error;
     }
-    
+
     // Dropbox Sign SDK errors often come in error.body or error.response
-    const errorMessage = error.body?.error?.errorMsg || error.response?.body?.error?.errorMsg || error.message || "An unknown error occurred.";
-    
+    const errorMessage = error.body?.error?.errorMsg || error.response?.body?.error?.errorMsg ||
+      error.message || "An unknown error occurred.";
+
     if (error.code === "ECONNREFUSED" || (error.response && error.response.statusCode === 401)) {
-       throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
+      throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
     }
     if (error.response && error.response.statusCode === 400) { // Bad Request
-        throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
+      throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
     }
-    
+
     throw new HttpsError("internal", errorMessage);
   }
 });
