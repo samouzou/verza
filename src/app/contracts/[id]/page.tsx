@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIcon, CornerDownRight, User, Trash } from 'lucide-react';
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +13,9 @@ import { ContractStatusBadge } from '@/components/contracts/contract-status-badg
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
-import { storage } from '@/lib/firebase';
+import { storage, functions as firebaseAppFunctions } from '@/lib/firebase'; // Import initialized functions
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
+import { getFunctions, httpsCallableFromURL } from 'firebase/functions'; // Keep these for callable
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -28,12 +29,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
+
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -76,7 +92,7 @@ function ReplyForm({ commentId, onSubmitReply }: ReplyFormProps) {
         disabled={isSubmittingReply}
       />
       <Button type="submit" size="sm" variant="outline" disabled={isSubmittingReply || !replyText.trim()}>
-        {isSubmittingReply ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <SendIcon className="mr-1 h-3 w-3" />}
+        {isSubmittingReply ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <SendIconComponent className="mr-1 h-3 w-3" />}
         Reply
       </Button>
     </form>
@@ -90,7 +106,7 @@ export default function ContractDetailPage() {
   const id = params.id as string;
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
@@ -104,88 +120,103 @@ export default function ContractDetailPage() {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
 
+  // E-Signature State
+  const [isSendingForSignature, setIsSendingForSignature] = useState(false);
+  const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
+  const [signerEmailOverride, setSignerEmailOverride] = useState("");
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
     let unsubscribeComments: (() => void) | undefined;
+    let unsubscribeContract: (() => void) | undefined;
+
 
     if (id && user && !authLoading) {
       setIsLoading(true);
       setIsLoadingSharedVersions(true);
       setIsLoadingComments(true);
 
-      const fetchContract = async () => {
-        try {
-          const contractDocRef = doc(db, 'contracts', id as string);
-          const contractSnap = await getDoc(contractDocRef);
-          if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
-            const data = contractSnap.data();
-            
-            let createdAt = data.createdAt;
-            if (createdAt && !(createdAt instanceof Timestamp)) {
-              if (typeof createdAt === 'string') {
-                createdAt = Timestamp.fromDate(new Date(createdAt));
-              } else if (createdAt.seconds && typeof createdAt.seconds === 'number' && createdAt.nanoseconds && typeof createdAt.nanoseconds === 'number') {
-                createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
-              } else {
-                console.warn("Unsupported createdAt format, using current date as fallback:", createdAt);
-                createdAt = Timestamp.now(); 
-              }
-            } else if (!createdAt) {
-                 createdAt = Timestamp.now();
+      const contractDocRef = doc(db, 'contracts', id as string);
+      unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
+        if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
+          const data = contractSnap.data();
+          
+          let createdAt = data.createdAt;
+          if (createdAt && !(createdAt instanceof Timestamp)) {
+            if (typeof createdAt === 'string') {
+              createdAt = Timestamp.fromDate(new Date(createdAt));
+            } else if (createdAt.seconds && typeof createdAt.seconds === 'number' && createdAt.nanoseconds && typeof createdAt.nanoseconds === 'number') {
+              createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
+            } else {
+              createdAt = Timestamp.now(); 
             }
-
-            let updatedAt = data.updatedAt;
-            if (updatedAt && !(updatedAt instanceof Timestamp)) {
-               if (typeof updatedAt === 'string') {
-                updatedAt = Timestamp.fromDate(new Date(updatedAt));
-              } else if (updatedAt.seconds && typeof updatedAt.seconds === 'number' && updatedAt.nanoseconds && typeof updatedAt.nanoseconds === 'number') {
-                updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
-              } else {
-                console.warn("Unsupported updatedAt format, using current date as fallback:", updatedAt);
-                updatedAt = Timestamp.now(); 
-              }
-            } else if (!updatedAt) {
-                updatedAt = Timestamp.now();
-            }
-            
-            let lastReminderSentAt = data.lastReminderSentAt;
-            if (lastReminderSentAt && !(lastReminderSentAt instanceof Timestamp)) {
-              if (typeof lastReminderSentAt === 'string') {
-                lastReminderSentAt = Timestamp.fromDate(new Date(lastReminderSentAt));
-              } else if (lastReminderSentAt.seconds && typeof lastReminderSentAt.seconds === 'number') {
-                lastReminderSentAt = new Timestamp(lastReminderSentAt.seconds, lastReminderSentAt.nanoseconds || 0);
-              } else {
-                lastReminderSentAt = null;
-              }
-            }
-
-            setContract({
-              id: contractSnap.id,
-              ...data,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
-              lastReminderSentAt: lastReminderSentAt || null,
-              invoiceStatus: data.invoiceStatus || 'none',
-              invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
-                ...entry,
-                timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
-              })) || [],
-            } as Contract);
-          } else {
-            setContract(null);
-            toast({ title: "Error", description: "Contract not found or you don't have permission to view it.", variant: "destructive" });
-            router.push('/contracts');
+          } else if (!createdAt) {
+               createdAt = Timestamp.now();
           }
-        } catch (error) {
-          console.error("Error fetching contract:", error);
+
+          let updatedAt = data.updatedAt;
+          if (updatedAt && !(updatedAt instanceof Timestamp)) {
+             if (typeof updatedAt === 'string') {
+              updatedAt = Timestamp.fromDate(new Date(updatedAt));
+            } else if (updatedAt.seconds && typeof updatedAt.seconds === 'number' && updatedAt.nanoseconds && typeof updatedAt.nanoseconds === 'number') {
+              updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
+            } else {
+              updatedAt = Timestamp.now(); 
+            }
+          } else if (!updatedAt) {
+              updatedAt = Timestamp.now();
+          }
+          
+          let lastReminderSentAt = data.lastReminderSentAt;
+          if (lastReminderSentAt && !(lastReminderSentAt instanceof Timestamp)) {
+            if (typeof lastReminderSentAt === 'string') {
+              lastReminderSentAt = Timestamp.fromDate(new Date(lastReminderSentAt));
+            } else if (lastReminderSentAt.seconds && typeof lastReminderSentAt.seconds === 'number') {
+              lastReminderSentAt = new Timestamp(lastReminderSentAt.seconds, lastReminderSentAt.nanoseconds || 0);
+            } else {
+              lastReminderSentAt = null;
+            }
+          }
+          
+          let lastSignatureEventAt = data.lastSignatureEventAt;
+           if (lastSignatureEventAt && !(lastSignatureEventAt instanceof Timestamp)) {
+            if (typeof lastSignatureEventAt === 'string') {
+              lastSignatureEventAt = Timestamp.fromDate(new Date(lastSignatureEventAt));
+            } else if (lastSignatureEventAt.seconds && typeof lastSignatureEventAt.seconds === 'number') {
+              lastSignatureEventAt = new Timestamp(lastSignatureEventAt.seconds, lastSignatureEventAt.nanoseconds || 0);
+            } else {
+              lastSignatureEventAt = null;
+            }
+          }
+
+
+          setContract({
+            id: contractSnap.id,
+            ...data,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            lastReminderSentAt: lastReminderSentAt || null,
+            invoiceStatus: data.invoiceStatus || 'none',
+            invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
+              ...entry,
+              timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
+            })) || [],
+            signatureStatus: data.signatureStatus || 'none',
+            lastSignatureEventAt: lastSignatureEventAt || null,
+          } as Contract);
+        } else {
+          setContract(null);
+          toast({ title: "Error", description: "Contract not found or you don't have permission to view it.", variant: "destructive" });
+          router.push('/contracts');
+        }
+        setIsLoading(false);
+      }, (error) => {
+          console.error("Error fetching contract with onSnapshot:", error);
           setContract(null);
           toast({ title: "Fetch Error", description: "Could not load contract details.", variant: "destructive" });
-        } finally {
           setIsLoading(false);
-        }
-      };
-      fetchContract();
+      });
+
 
       const sharedVersionsQuery = query(
         collection(db, "sharedContractVersions"),
@@ -227,10 +258,17 @@ export default function ContractDetailPage() {
         setIsLoadingComments(false);
     }
      return () => {
+      if (unsubscribeContract) unsubscribeContract();
       if (unsubscribeSharedVersions) unsubscribeSharedVersions();
       if (unsubscribeComments) unsubscribeComments();
     };
   }, [id, user, authLoading, router, toast]);
+
+  useEffect(() => {
+    if (isSignatureDialogOpen && contract) {
+      setSignerEmailOverride(contract.clientEmail || "");
+    }
+  }, [isSignatureDialogOpen, contract]);
 
   const handleDeleteContract = async () => {
     if (!contract) return;
@@ -346,6 +384,76 @@ export default function ContractDetailPage() {
       setIsDeletingCommentOrReply(false);
     }
   };
+  
+  const handleInitiateSignatureRequest = async () => {
+    if (!contract || !user) {
+      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
+      return;
+    }
+    if (!signerEmailOverride.trim()) {
+      toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
+      return;
+    }
+    if (!contract.fileUrl) {
+      toast({ title: "File Missing", description: "This contract does not have an uploaded file to send for signature.", variant: "destructive" });
+      return;
+    }
+
+    setIsSendingForSignature(true);
+    try {
+      const idToken = await getUserIdToken();
+      if (!idToken) {
+        throw new Error("Authentication token is not available.");
+      }
+      
+      const initiateRequestCallable = httpsCallableFromURL(
+        firebaseAppFunctions, 
+        INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL
+      );
+
+      const result = await initiateRequestCallable({
+        contractId: contract.id,
+        signerEmailOverride: signerEmailOverride.trim(),
+      });
+
+      const data = result.data as { success: boolean; message: string; helloSignRequestId?: string };
+
+      if (data.success) {
+        toast({ title: "E-Signature Request Sent", description: data.message });
+        // Firestore listener should update the contract state.
+        setIsSignatureDialogOpen(false); 
+      } else {
+        throw new Error(data.message || "Failed to send e-signature request.");
+      }
+    } catch (error: any) {
+      console.error("Error initiating Dropbox Sign request:", error);
+      toast({
+        title: "E-Signature Error",
+        description: error.message || "Could not initiate e-signature request.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingForSignature(false);
+    }
+  };
+
+  const getSignatureButtonText = () => {
+    if (!contract?.signatureStatus || contract.signatureStatus === 'none') return "Send for E-Signature";
+    if (contract.signatureStatus === 'sent') return "Signature Request Sent";
+    if (contract.signatureStatus === 'signed') return "Document Signed";
+    if (contract.signatureStatus === 'viewed_by_signer') return "Viewed by Signer";
+    if (contract.signatureStatus === 'declined') return "Signature Declined - Resend?";
+    if (contract.signatureStatus === 'canceled') return "Request Canceled - Resend?";
+    if (contract.signatureStatus === 'error') return "Error Sending - Retry?";
+    return "Manage E-Signature";
+  };
+  
+  const canSendSignatureRequest = !contract?.signatureStatus || 
+                                 contract.signatureStatus === 'none' || 
+                                 contract.signatureStatus === 'error' || 
+                                 contract.signatureStatus === 'declined' ||
+                                 contract.signatureStatus === 'canceled';
+
 
 
   if (authLoading || isLoading) {
@@ -363,6 +471,7 @@ export default function ContractDetailPage() {
           <div className="lg:col-span-1 space-y-6">
             <Skeleton className="h-40 w-full rounded-lg" />
             <Skeleton className="h-40 w-full rounded-lg" />
+             <Skeleton className="h-40 w-full rounded-lg" /> {/* Placeholder for e-signature card */}
           </div>
         </div>
       </div>
@@ -667,6 +776,90 @@ export default function ContractDetailPage() {
               )}
             </CardContent>
           </Card>
+          
+          <Card className="shadow-lg hide-on-print">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-blue-600">
+                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM12 12.59L9.41 10L8 11.41L12 15.41L16 11.41L14.59 10L12 12.59Z"></path>
+                    </svg>
+                    E-Signature (Dropbox Sign)
+                </CardTitle>
+                <CardDescription>Manage electronic signature for this contract.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div>
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <p className="text-sm font-medium capitalize">{contract.signatureStatus?.replace('_', ' ') || 'Not Sent'}</p>
+                </div>
+                {contract.helloSignRequestId && (
+                    <div>
+                        <Label className="text-xs text-muted-foreground">Request ID</Label>
+                        <p className="text-sm font-mono text-muted-foreground break-all">{contract.helloSignRequestId}</p>
+                    </div>
+                )}
+                 {contract.lastSignatureEventAt && (
+                    <div>
+                        <Label className="text-xs text-muted-foreground">Last Event</Label>
+                        <p className="text-sm">{format(contract.lastSignatureEventAt.toDate(), 'PPpp')}</p>
+                    </div>
+                )}
+                {contract.signatureStatus === 'signed' && contract.signedDocumentUrl && (
+                     <Button variant="outline" size="sm" asChild>
+                        <a href={contract.signedDocumentUrl} target="_blank" rel="noopener noreferrer">
+                            <CheckCircle className="mr-2 h-4 w-4 text-green-500"/> View Signed Document
+                        </a>
+                    </Button>
+                )}
+                {canSendSignatureRequest && contract.fileUrl && (
+                    <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="default" className="w-full">
+                                <Mail className="mr-2 h-4 w-4" /> {getSignatureButtonText()}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Send Signature Request</DialogTitle>
+                                <DialogDescription>
+                                    Enter the email address of the person who needs to sign this contract.
+                                    The contract file "{contract.fileName || 'Contract'}" will be sent.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-2">
+                                <div>
+                                    <Label htmlFor="signerEmail">Signer's Email Address</Label>
+                                    <Input 
+                                        id="signerEmail" 
+                                        type="email"
+                                        value={signerEmailOverride} 
+                                        onChange={(e) => setSignerEmailOverride(e.target.value)} 
+                                        placeholder="signer@example.com"
+                                        className="mt-1"
+                                        disabled={isSendingForSignature}
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button variant="outline" disabled={isSendingForSignature}>Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
+                                    {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIconComponent className="mr-2 h-4 w-4"/>}
+                                    Send Request
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                )}
+                 {!contract.fileUrl && canSendSignatureRequest && (
+                    <p className="text-sm text-destructive">
+                        <AlertTriangle className="inline h-4 w-4 mr-1"/>A contract file must be uploaded before sending for e-signature. Please edit the contract to upload a file.
+                    </p>
+                )}
+            </CardContent>
+          </Card>
+
 
           {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
             <Card className="shadow-lg hide-on-print">
@@ -807,3 +1000,4 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
