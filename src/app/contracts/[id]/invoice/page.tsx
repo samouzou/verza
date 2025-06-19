@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -572,6 +572,26 @@ export default function ManageInvoicePage() {
       toast({title: "Cannot Remove", description: "You must have at least one line item.", variant: "default"});
     }
   };
+  
+  // Effect to regenerate HTML preview if receipts change while in preview mode
+  useEffect(() => {
+    if (!isEditingDetails && contract && user && contractReceipts) {
+      const currentFormData = getStructuredDataFromForm();
+      generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id)
+        .catch(error => {
+          console.error("Auto-regeneration of preview failed on receipt change:", error);
+          // Optional: toast({ title: "Preview Update Failed", description: "Could not refresh preview with new receipts." });
+        });
+    }
+  }, [
+    contractReceipts, 
+    isEditingDetails, 
+    contract,         
+    user,             
+    getStructuredDataFromForm, 
+    generateAndSetHtmlFromForm 
+  ]);
+
 
   if (isLoadingContract || authLoading) {
     return <div className="space-y-4 p-4"><PageHeader title="Manage Invoice" description="Loading..." /><Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
@@ -774,3 +794,4 @@ export default function ManageInvoicePage() {
     
 
     
+
