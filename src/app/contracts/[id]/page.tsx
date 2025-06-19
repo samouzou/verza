@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -652,7 +652,7 @@ export default function ContractDetailPage() {
             </Card>
           )}
           
-          <Card className="shadow-lg hide-on-print flex flex-col max-h-[500px]">
+          <Card className="shadow-lg hide-on-print flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-purple-500" />
@@ -670,7 +670,7 @@ export default function ContractDetailPage() {
                     <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[400px] pr-3">
+                <ScrollArea className="h-[300px] pr-3"> {/* Explicit fixed height */}
                   <div className="space-y-4">
                     {contractComments.map(comment => (
                       <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
@@ -1000,4 +1000,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
