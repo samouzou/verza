@@ -3,18 +3,19 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
-import HelloSignSDK from "hellosign-sdk";
-import type {Contract} from "../../../src/types"; // Adjusted path if types are in root src
+import * as DropboxSign from "@dropbox/sign"; // Updated import
+import type {Contract} from "../../../src/types";
 
-const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
+const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY; // Still using this env var name for consistency with apphosting.yaml
 
-if (!HELLOSIGN_API_KEY) {
-  logger.warn("HELLOSIGN_API_KEY is not set. E-signature functionality will not work.");
+let signatureRequestApi: DropboxSign.SignatureRequestApi | null = null;
+
+if (HELLOSIGN_API_KEY) {
+  signatureRequestApi = new DropboxSign.SignatureRequestApi();
+  signatureRequestApi.username = HELLOSIGN_API_KEY; // Set API key
+} else {
+  logger.warn("HELLOSIGN_API_KEY (for Dropbox Sign) is not set. E-signature functionality will not work.");
 }
-
-const hellosign = HELLOSIGN_API_KEY ?
-  new HelloSignSDK({key: HELLOSIGN_API_KEY}) :
-  null;
 
 /**
  * Verifies the Firebase ID token from the Authorization header in callable functions
@@ -27,7 +28,6 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   try {
-    // Optional: Verify user exists in Firebase Auth if needed, but uid implies it
     await admin.auth().getUser(uid);
     return uid;
   } catch (error) {
@@ -38,8 +38,8 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
 
 
 export const initiateHelloSignRequest = onCall(async (request) => {
-  if (!hellosign) {
-    logger.error("HelloSign SDK not initialized. API key missing.");
+  if (!signatureRequestApi) { // Check if the API client is initialized
+    logger.error("Dropbox Sign API client not initialized. API key missing or invalid.");
     throw new HttpsError("failed-precondition", "E-signature service is not configured.");
   }
 
@@ -54,7 +54,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const contractDocRef = db.collection("contracts").doc(contractId);
     const contractSnap = await contractDocRef.get();
 
-    if (!contractSnap.exists) {
+    if (!contractSnap.exists()) {
       throw new HttpsError("not-found", "Contract not found.");
     }
 
@@ -79,81 +79,82 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Creator email not found. Cannot send signature request.");
     }
 
-    const options: HelloSignSDK.SignatureRequestSendRequest = {
-      test_mode: 1, // Set to 0 for live requests
+    const options: DropboxSign.SignatureRequestSendRequest = {
+      testMode: true, // equivalent to test_mode: 1
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
       message: `Hello ${contractData.clientName || "Client"}, please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
       signers: [
         {
-          email_address: finalSignerEmail,
+          emailAddress: finalSignerEmail,
           name: contractData.clientName || "Client Signer",
-          // order: 0, // Optional: if multiple signers
+          // order: 0, // Optional
         },
         // Optional: Add creator as a signer if needed
         // {
-        //   email_address: creatorEmail,
+        //   emailAddress: creatorEmail,
         //   name: userRecord.displayName || "Creator",
         //   order: 1,
         // }
       ],
-      // cc_email_addresses: [creatorEmail], // CC the creator
-      file_urls: [contractData.fileUrl],
+      // ccEmailAddresses: [creatorEmail], // equivalent to cc_email_addresses
+      fileUrl: [contractData.fileUrl], // SDK expects array of strings for fileUrl
       metadata: {
-        contract_id: contractId, // Note: HelloSign converts metadata keys to lowercase with underscores
+        contract_id: contractId,
         user_id: userId,
         verza_env: process.env.NODE_ENV || "development",
       },
-      // use_text_tags: 1, // If you use text tags in your document
-      // hide_text_tags: 1,
+      // useTextTags: true, // If you use text tags
+      // hideTextTags: true,
     };
 
-    logger.info("Sending HelloSign request with options:", JSON.stringify({
+    logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
       ...options,
-      // Redact sensitive parts for logging if necessary
-      signers: options.signers.map(s => ({name: s.name, email_address: "[REDACTED]"})),
+      signers: options.signers.map(s => ({name: s.name, emailAddress: "[REDACTED]"})),
     }));
 
-    const response = await hellosign.signatureRequest.send(options);
-    const signatureRequestId = response.signature_request?.signature_request_id;
+    const response = await signatureRequestApi.signatureRequestSend(options); // Updated method call
+    const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
 
     if (!signatureRequestId) {
-      logger.error("HelloSign response missing signature_request_id", response);
-      throw new HttpsError("internal", "Failed to get signature request ID from HelloSign.");
+      logger.error("Dropbox Sign response missing signature_request_id", response);
+      throw new HttpsError("internal", "Failed to get signature request ID from Dropbox Sign.");
     }
 
-    // Update Firestore contract
     await contractDocRef.update({
       helloSignRequestId: signatureRequestId,
       signatureStatus: "sent",
       lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
-      // Add to invoiceHistory or a new signatureHistory field
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        action: "E-Signature Request Sent",
-        details: `To: ${finalSignerEmail}. HelloSign ID: ${signatureRequestId}`,
+        action: "E-Signature Request Sent (Dropbox Sign)",
+        details: `To: ${finalSignerEmail}. Dropbox Sign ID: ${signatureRequestId}`,
       }),
     });
 
-    logger.info(`Signature request ${signatureRequestId} sent for contract ${contractId}.`);
+    logger.info(`Dropbox Sign request ${signatureRequestId} sent for contract ${contractId}.`);
     return {
       success: true,
-      message: `Signature request sent to ${finalSignerEmail}.`,
+      message: `Signature request sent to ${finalSignerEmail} via Dropbox Sign.`,
       helloSignRequestId: signatureRequestId,
     };
 
   } catch (error: any) {
-    logger.error(`Error initiating HelloSign request for contract ${contractId}:`, error);
+    logger.error(`Error initiating Dropbox Sign request for contract ${contractId}:`, error);
     if (error instanceof HttpsError) {
       throw error;
     }
-    // Check for HelloSign specific errors
-    if (error.type === "HSAuthenticationError") {
-        throw new HttpsError("unauthenticated", "HelloSign API key is invalid or missing.");
+    
+    // Dropbox Sign SDK errors often come in error.body or error.response
+    const errorMessage = error.body?.error?.errorMsg || error.response?.body?.error?.errorMsg || error.message || "An unknown error occurred.";
+    
+    if (error.code === "ECONNREFUSED" || (error.response && error.response.statusCode === 401)) {
+       throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
     }
-    if (error.type === "HSInvalidRequestError" && error.message) {
-         throw new HttpsError("invalid-argument", `HelloSign error: ${error.message}`);
+    if (error.response && error.response.statusCode === 400) { // Bad Request
+        throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
     }
-    throw new HttpsError("internal", error.message || "An unknown error occurred while initiating the signature request.");
+    
+    throw new HttpsError("internal", errorMessage);
   }
 });
