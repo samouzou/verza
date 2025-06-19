@@ -68,6 +68,12 @@ export interface Contract {
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
+
+  // E-Signature fields (HelloSign)
+  helloSignRequestId?: string | null;
+  signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
+  signedDocumentUrl?: string | null;
+  lastSignatureEventAt?: Timestamp | null;
   
   createdAt: Timestamp;
   updatedAt?: Timestamp;
@@ -79,7 +85,7 @@ export interface SharedContractVersion {
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
   sharedAt: Timestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' >; // Snapshot of relevant contract data at time of sharing
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt'>; // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;

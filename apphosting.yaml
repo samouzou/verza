@@ -43,8 +43,6 @@ env:
   - variable: APP_URL
     secret: VERZA_APP_URL
 
-
-
   # Gemini
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
@@ -53,18 +51,25 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     secret: VERZA_FIREBASE_AUTH_DOMAIN
 
-
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     secret: VERZA_FIREBASE_PROJECT_ID
 
-
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
     secret: VERZA_FIREBASE_MESSAGING_SENDER_ID
-
 
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     secret: VERZA_FIREBASE_APP_ID
 
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     secret: VERZA_STRIPE_PUBLISHABLE_KEY
+  
+  # HelloSign
+  - variable: HELLOSIGN_API_KEY
+    secret: VERZA_HELLOSIGN_API_KEY
+    availability:
+      - RUNTIME # Needed by Firebase Functions, which are part of the backend for App Hosting
 
+  - variable: HELLOSIGN_WEBHOOK_SECRET
+    secret: VERZA_HELLOSIGN_WEBHOOK_SECRET
+    availability:
+      - RUNTIME # Needed by Firebase Functions
