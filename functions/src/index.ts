@@ -39,7 +39,7 @@ import {
 
 import {
   initiateHelloSignRequest,
-  // helloSignWebhookHandler will be added later
+  helloSignWebhookHandler, // Added webhook handler
 } from "./esignatures";
 
 
@@ -64,5 +64,6 @@ export {
   createShareableContractVersion,
   // E-Signatures
   initiateHelloSignRequest,
-  // helloSignWebhookHandler, // To be uncommented when implemented
+  helloSignWebhookHandler, 
 };
+```

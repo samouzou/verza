@@ -69,7 +69,7 @@ export interface Contract {
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
 
-  // E-Signature fields (HelloSign)
+  // E-Signature fields (HelloSign/Dropbox Sign)
   helloSignRequestId?: string | null;
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
@@ -200,3 +200,4 @@ export interface TaxEstimation {
   notes?: string[]; 
   calculationDate: string; 
 }
+```
