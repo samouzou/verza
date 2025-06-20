@@ -86,7 +86,9 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       testMode: true, // equivalent to test_mode: 1
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
-      message: `Hello ${contractData.clientName || "Client"}, please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
+      message: `
+        Hello ${contractData.clientName || "Client"}, 
+        Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
       signers: [
         {
           emailAddress: finalSignerEmail,
@@ -176,6 +178,13 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     return;
   }
 
+  // Handle Dropbox Sign's test event
+  if (request.body.event && request.body.event.event_type === "test") {
+    logger.info("Received Dropbox Sign test event. Responding with 200 OK.");
+    response.status(200).send("Hello API Event Received");
+    return;
+  }
+  
   if (!HELLOSIGN_API_KEY) {
     logger.error("HELLOSIGN_API_KEY is not configured. Cannot verify webhook.");
     response.status(500).send("Webhook not configured.");
@@ -210,7 +219,10 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     const signatureRequestId = signatureRequestData?.signature_request_id;
     if (!signatureRequestId) {
       logger.error("Webhook payload missing signature_request_id.", signatureRequestData);
-      response.status(400).send("Missing signature_request_id."); // Still send 200 to HS, but log error.
+      // Still send 200 to HS as per their docs, but log error.
+      // "Your callback must return a 200 OK response with a body of "Hello API Event Received"
+      // We'll send 200 but log that we couldn't process fully.
+      response.status(200).send("Hello API Event Received");
       return;
     }
 
@@ -236,13 +248,18 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       historyAction = "Document Viewed by Signer (Dropbox Sign)";
       break;
     case "signature_request_signed":
+      // Check if this specific signature completed the request or if there are other signers.
+      // Dropbox Sign provides `is_complete` in the signature_request object.
       if (signatureRequestData?.is_complete) {
         newStatus = "signed";
         historyAction = "Document Signed (Dropbox Sign)";
-        if (signatureRequestData.files_url) {
+        if (signatureRequestData.files_url) { // Dropbox Sign provides a temporary download URL here
           signedDocumentUrl = signatureRequestData.files_url;
         }
       } else {
+        // This means one signer signed, but others are pending.
+        // You might want a more granular status like "partially_signed" if your workflow needs it.
+        // For now, we'll keep it simple and wait for "signature_request_all_signed".
         logger.info(`Signature received for ${signatureRequestId}, but not all signed yet.`);
       }
       break;
@@ -257,7 +274,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       newStatus = "declined";
       historyAction = "Signature Declined by Signer (Dropbox Sign)";
       break;
-    case "signature_request_canceled":
+    case "signature_request_canceled": // Creator canceled it
       newStatus = "canceled";
       historyAction = "Signature Request Canceled (Dropbox Sign)";
       break;
@@ -274,13 +291,12 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
 
     const updates: Partial<Contract> = {
       signatureStatus: newStatus,
-      // Ensure the timestamp is compatible with Firestore ClientTimestamp type for type safety
       lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as unknown as ClientTimestamp,
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.Timestamp.now(),
         action: historyAction,
         details: `Dropbox Sign Event: ${eventType}. Request ID: ${signatureRequestId}`,
-      }) as any,
+      }) as any, // Casting to any for arrayUnion with complex objects if type issues arise
     };
 
     if (signedDocumentUrl && signedDocumentUrl !== contractData.signedDocumentUrl) {
