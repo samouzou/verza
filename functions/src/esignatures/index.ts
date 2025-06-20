@@ -85,31 +85,43 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
 
     const options: DropboxSign.SignatureRequestSendRequest = {
-      testMode: true,
+      testMode: true, // Set to true for testing
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
       message: `
-        Hello ${contractData.clientName || "Client"},
-        Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
+        Hello,
+        Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.
+        
+        Thank you,
+        ${userRecord.displayName || "The Contract Sender"}
+      `,
       signers: [
-        {
+        { // Client Signer
           emailAddress: finalSignerEmail,
           name: contractData.clientName || "Client Signer",
+          // order: 0 // Optional: explicitly set signing order if needed
+        },
+        { // Creator Signer
+          emailAddress: creatorEmail,
+          name: userRecord.displayName || "Creator Signer",
+          // order: 1 // Optional: explicitly set signing order if needed
         },
       ],
       fileUrls: [contractData.fileUrl],
       metadata: {
         contract_id: contractId,
-        user_id: userId,
+        user_id: userId, // Creator's user ID
         verza_env: process.env.NODE_ENV || "development",
       },
     };
 
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
       ...options,
-      signers: options.signers ? options.signers.map((s: any) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
+      // Redact emails for logging
+      signers: options.signers ? options.signers.map((s: any) => ({ name: s.name, emailAddress: "[REDACTED]" })) : undefined,
       fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
     }));
+
 
     const response = await signatureRequestApi.signatureRequestSend(options);
     const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
@@ -121,19 +133,19 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     await contractDocRef.update({
       helloSignRequestId: signatureRequestId,
-      signatureStatus: "sent",
+      signatureStatus: "sent", // Initial status
       lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.Timestamp.now(),
         action: "E-Signature Request Sent (Dropbox Sign)",
-        details: `To: ${finalSignerEmail}. Dropbox Sign ID: ${signatureRequestId}`,
+        details: `To Client: ${finalSignerEmail}, To Creator: ${creatorEmail}. Dropbox Sign ID: ${signatureRequestId}`,
       }),
     });
 
     logger.info(`Dropbox Sign request ${signatureRequestId} sent for contract ${contractId}.`);
     return {
       success: true,
-      message: `Signature request sent to ${finalSignerEmail} via Dropbox Sign.`,
+      message: `Signature request sent to ${finalSignerEmail} and ${creatorEmail} via Dropbox Sign.`,
       helloSignRequestId: signatureRequestId,
     };
   } catch (error: any) {
@@ -162,47 +174,42 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
   }
 
   let actualEventPayload: any = null;
-  const contentType = request.headers["content-type"] || "";
+  const contentType = request.headers['content-type'] || '';
 
-  if (contentType.startsWith("application/json") && typeof request.body === "object" && !Buffer.isBuffer(request.body)) {
+  if (contentType.startsWith('application/json') && typeof request.body === 'object' && !Buffer.isBuffer(request.body)) {
     actualEventPayload = request.body;
     logger.info("Webhook payload used directly from request.body (application/json).");
-  } else if (contentType.startsWith("application/x-www-form-urlencoded") && typeof request.body === "object" && 
-  typeof request.body.json === "string") {
+  } else if (contentType.startsWith('application/x-www-form-urlencoded') && typeof request.body === 'object' && typeof request.body.json === 'string') {
     try {
       actualEventPayload = JSON.parse(request.body.json);
       logger.info("Webhook payload parsed from request.body.json (application/x-www-form-urlencoded).");
     } catch (e: any) {
       logger.error("Failed to parse request.body.json from form-urlencoded:", e.message, "Content:", request.body.json);
     }
-  } else if (contentType.startsWith("multipart/form-data") && Buffer.isBuffer(request.body)) {
+  } else if (contentType.startsWith('multipart/form-data') && Buffer.isBuffer(request.body)) {
     logger.info("Multipart/form-data detected. Attempting to extract 'json' field.");
-    const bodyString = request.body.toString("utf8");
-    const boundaryHeader = contentType.split("boundary=")[1];
+    const bodyString = request.body.toString('utf8');
+    const boundaryHeader = contentType.split('boundary=')[1];
 
     if (boundaryHeader) {
       const boundary = `--${boundaryHeader}`;
       const parts = bodyString.split(boundary);
 
       for (const part of parts) {
-        // Check for the 'json' field name in the Content-Disposition header
-        if (part.includes("Content-Disposition: form-data; name=\"json\"")) {
-          // Find the start of the JSON content (after the headers of this part)
-          // Headers are separated from the body by a double newline (\r\n\r\n or \n\n)
+        if (part.includes('Content-Disposition: form-data; name="json"')) {
           const headerEndMatch = part.match(/(\r\n\r\n|\n\n)/);
           if (headerEndMatch && headerEndMatch.index !== undefined) {
             const jsonContentStartIndex = headerEndMatch.index + headerEndMatch[0].length;
             let jsonStr = part.substring(jsonContentStartIndex).trim();
-            // Remove trailing CRLF if part isn't the last one and was split cleanly
-            if (jsonStr.endsWith("\r\n")) {
+            if (jsonStr.endsWith('\r\n')) {
               jsonStr = jsonStr.slice(0, -2);
-            } else if (jsonStr.endsWith("\n")) {
+            } else if (jsonStr.endsWith('\n')) {
               jsonStr = jsonStr.slice(0, -1);
             }
             try {
               actualEventPayload = JSON.parse(jsonStr);
               logger.info("Successfully parsed 'json' field from multipart/form-data. Length:", jsonStr.length);
-              break; // Found and parsed the json part
+              break; 
             } catch (e: any) {
               logger.error("Failed to parse JSON from extracted 'json' multipart field:", {
                 errorMessage: e.message,
@@ -219,39 +226,35 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     } else {
       logger.warn("Multipart/form-data but boundary not found in Content-Type header.");
     }
-  } else if (Buffer.isBuffer(request.body)) { // Fallback for other buffer types or if specific parsing failed
-    const bodyString = request.body.toString("utf8");
-    logger.info("Raw buffer body received (not handled by specific content type logic)," +
-      "attempting direct JSON parse. Length:", bodyString.length);
+  } else if (Buffer.isBuffer(request.body)) { 
+    const bodyString = request.body.toString('utf8');
+    logger.info("Raw buffer body received (not handled by specific content type logic), attempting direct JSON parse. Length:", bodyString.length);
     try {
       actualEventPayload = JSON.parse(bodyString);
       logger.info("Webhook payload parsed from raw Buffer body (direct JSON parse).");
     } catch (e) {
-      logger.warn("Request body is a Buffer (unknown type) and could not be parsed as JSON directly." +
-        "Body (partial):", bodyString.substring(0, 250));
+      logger.warn("Request body is a Buffer (unknown type) and could not be parsed as JSON directly. Body (partial):", bodyString.substring(0, 250));
     }
   }
 
-
   // Check if it's ANY kind of test event after successful parsing
-  if (actualEventPayload && typeof actualEventPayload === "object" && actualEventPayload.event &&
-    typeof actualEventPayload.event.event_type === "string" &&
+  if (actualEventPayload && typeof actualEventPayload === 'object' && actualEventPayload.event &&
+    typeof actualEventPayload.event.event_type === 'string' &&
       (actualEventPayload.event.event_type === "test" ||
         actualEventPayload.event.event_type.endsWith("_test"))
   ) {
-    logger.info(`Received Dropbox Sign test event: ${actualEventPayload.event.event_type}. 
-      Responding with 200 OK.`, actualEventPayload);
+    logger.info(`Received Dropbox Sign test event: ${actualEventPayload.event.event_type}. Responding with 200 OK.`, actualEventPayload);
     response.status(200).send("Hello API Event Received");
     return;
   }
 
-  if (!actualEventPayload || typeof actualEventPayload !== "object") {
+  if (!actualEventPayload || typeof actualEventPayload !== 'object') {
     logger.error("Webhook payload could not be successfully parsed into a usable object or was empty/unrecognized.", {
       originalBodyType: typeof request.body,
       isBuffer: Buffer.isBuffer(request.body),
-      contentType: request.headers["content-type"] || "N/A",
-      bodyPreview: Buffer.isBuffer(request.body) ? request.body.toString("utf8", 0, 250) : (typeof request.body === "string" ?
-        request.body.substring(0, 250) : "Non-string/buffer body"),
+      contentType: request.headers['content-type'] || 'N/A',
+      bodyPreview: Buffer.isBuffer(request.body) ? request.body.toString('utf8', 0, 250) : (typeof request.body === 'string' ?
+        request.body.substring(0, 250) : 'Non-string/buffer body'),
     });
     response.status(400).send("Invalid payload format or content.");
     return;
@@ -267,10 +270,9 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     const eventData = actualEventPayload.event;
     const signatureRequestData = actualEventPayload.signature_request;
 
-    if (!eventData || typeof eventData !== "object" || !eventData.event_time ||
+    if (!eventData || typeof eventData !== 'object' || !eventData.event_time ||
       !eventData.event_type || !eventData.event_hash) {
-      logger.error("Invalid webhook payload: Missing essential event data fields" +
-        "(event_time, event_type, event_hash) in parsed payload.", actualEventPayload);
+      logger.error("Invalid webhook payload: Missing essential event data fields (event_time, event_type, event_hash) in parsed payload.", actualEventPayload);
       response.status(400).send("Invalid payload: missing required event data fields.");
       return;
     }
@@ -327,10 +329,12 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
         historyAction = "Document Viewed by Signer (Dropbox Sign)";
         break;
       case "signature_request_signed":
+        // This event fires for each signature. We need is_complete to know if ALL signed.
+        // Dropbox Sign usually sends signature_request_all_signed when everyone is done.
         if (signatureRequestData?.is_complete) {
           newStatus = "signed";
           historyAction = "Document Fully Signed (Dropbox Sign)";
-          if (signatureRequestData.files_url) {
+          if (signatureRequestData.files_url) { // This URL is temporary, usually valid for 24 hours
             signedDocumentUrl = signatureRequestData.files_url;
           }
         } else {
@@ -381,9 +385,8 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       await contractDocRef.update(updates);
       logger.info(`Contract ${contractDocRef.id} updated successfully for event ${eventType}.`);
     } else if (eventType !== "account_callback_test" &&
-      !eventData.event_metadata?.reported_for_account_id) { // Updated this condition
-      logger.warn(`Received event type ${eventType} without a signatureRequestId
-        and it's not a known account event or specific test.`);
+      !eventData.event_metadata?.reported_for_account_id) { 
+      logger.warn(`Received event type ${eventType} without a signatureRequestId and it's not a known account event or specific test.`);
     }
 
 
@@ -396,3 +399,5 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
   }
 });
 
+
+    
