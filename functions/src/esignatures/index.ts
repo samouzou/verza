@@ -87,7 +87,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
       message: `
-        Hello ${contractData.clientName || "Client"}, 
+        Hello ${contractData.clientName || "Client"},
         Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.`,
       signers: [
         {
@@ -178,13 +178,42 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     return;
   }
 
-  // Handle Dropbox Sign's test event
-  if (request.body.event && request.body.event.event_type === "test") {
+  let actualEventPayload: any;
+
+  // Dropbox Sign often sends payload in a 'json' field for form-urlencoded or multipart.
+  // Firebase Gen2 onRequest will parse application/x-www-form-urlencoded into request.body.
+  if (request.body && typeof request.body.json === 'string') {
+    try {
+      actualEventPayload = JSON.parse(request.body.json);
+    } catch (e) {
+      logger.error("Failed to parse request.body.json:", e, "Content:", request.body.json);
+      response.status(400).send("Invalid JSON in 'json' parameter.");
+      return;
+    }
+  } else if (request.body && typeof request.body === 'object' && !Buffer.isBuffer(request.body)) {
+    // If Content-Type was application/json, Firebase parses it directly into request.body.
+    actualEventPayload = request.body;
+  } else if (Buffer.isBuffer(request.body)) {
+    // If it's a buffer, it might be multipart/form-data not handled by Firebase's parser,
+    // or some other content type. For Dropbox Sign, we still expect a 'json' field.
+    // This specific case might need a multipart parser if files were attached WITH the event,
+    // but typically event data is in the 'json' field.
+    logger.error("Request body is a Buffer and was not automatically parsed. This is unexpected for typical Dropbox Sign webhooks unless it's a direct file post without a 'json' field. Body (partial):", request.body.toString('utf8', 0, 200));
+    response.status(400).send("Raw buffer received. Expected parsed JSON or form data with a 'json' field.");
+    return;
+  } else {
+    logger.error("Webhook payload is in an unrecognized format or empty.", request.body);
+    response.status(400).send("Invalid or empty payload.");
+    return;
+  }
+
+  // Handle Dropbox Sign's test event using the parsed payload
+  if (actualEventPayload.event && actualEventPayload.event.event_type === "test") {
     logger.info("Received Dropbox Sign test event. Responding with 200 OK.");
     response.status(200).send("Hello API Event Received");
     return;
   }
-  
+
   if (!HELLOSIGN_API_KEY) {
     logger.error("HELLOSIGN_API_KEY is not configured. Cannot verify webhook.");
     response.status(500).send("Webhook not configured.");
@@ -192,12 +221,12 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
   }
 
   try {
-    const eventData = request.body.event;
-    const signatureRequestData = request.body.signature_request;
+    const eventData = actualEventPayload.event;
+    const signatureRequestData = actualEventPayload.signature_request;
 
     if (!eventData || !eventData.event_time || !eventData.event_type || !eventData.event_hash) {
-      logger.error("Invalid webhook payload: Missing event data.", request.body);
-      response.status(400).send("Invalid payload.");
+      logger.error("Invalid webhook payload: Missing essential event data fields in parsed payload.", actualEventPayload);
+      response.status(400).send("Invalid payload: missing event data fields.");
       return;
     }
 
@@ -209,7 +238,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       .digest("hex");
 
     if (computedHash !== receivedHash) {
-      logger.warn("Webhook event hash mismatch. Potential tampering or misconfiguration.", {receivedHash, computedHash});
+      logger.warn("Webhook event hash mismatch. Potential tampering or misconfiguration.", { receivedHash, computedHash });
       response.status(403).send("Invalid signature.");
       return;
     }
@@ -219,10 +248,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     const signatureRequestId = signatureRequestData?.signature_request_id;
     if (!signatureRequestId) {
       logger.error("Webhook payload missing signature_request_id.", signatureRequestData);
-      // Still send 200 to HS as per their docs, but log error.
-      // "Your callback must return a 200 OK response with a body of "Hello API Event Received"
-      // We'll send 200 but log that we couldn't process fully.
-      response.status(200).send("Hello API Event Received");
+      response.status(200).send("Hello API Event Received"); // Acknowledge, but log error.
       return;
     }
 
@@ -248,18 +274,13 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       historyAction = "Document Viewed by Signer (Dropbox Sign)";
       break;
     case "signature_request_signed":
-      // Check if this specific signature completed the request or if there are other signers.
-      // Dropbox Sign provides `is_complete` in the signature_request object.
       if (signatureRequestData?.is_complete) {
         newStatus = "signed";
         historyAction = "Document Signed (Dropbox Sign)";
-        if (signatureRequestData.files_url) { // Dropbox Sign provides a temporary download URL here
+        if (signatureRequestData.files_url) {
           signedDocumentUrl = signatureRequestData.files_url;
         }
       } else {
-        // This means one signer signed, but others are pending.
-        // You might want a more granular status like "partially_signed" if your workflow needs it.
-        // For now, we'll keep it simple and wait for "signature_request_all_signed".
         logger.info(`Signature received for ${signatureRequestId}, but not all signed yet.`);
       }
       break;
@@ -274,7 +295,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       newStatus = "declined";
       historyAction = "Signature Declined by Signer (Dropbox Sign)";
       break;
-    case "signature_request_canceled": // Creator canceled it
+    case "signature_request_canceled":
       newStatus = "canceled";
       historyAction = "Signature Request Canceled (Dropbox Sign)";
       break;
@@ -296,7 +317,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
         timestamp: admin.firestore.Timestamp.now(),
         action: historyAction,
         details: `Dropbox Sign Event: ${eventType}. Request ID: ${signatureRequestId}`,
-      }) as any, // Casting to any for arrayUnion with complex objects if type issues arise
+      }) as any,
     };
 
     if (signedDocumentUrl && signedDocumentUrl !== contractData.signedDocumentUrl) {
@@ -314,4 +335,4 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
+    

@@ -68,8 +68,3 @@ env:
     secret: VERZA_HELLOSIGN_API_KEY
     availability:
       - RUNTIME # Needed by Firebase Functions, which are part of the backend for App Hosting
-
-  - variable: HELLOSIGN_WEBHOOK_SECRET
-    secret: VERZA_HELLOSIGN_WEBHOOK_SECRET
-    availability:
-      - RUNTIME # Needed by Firebase Functions
