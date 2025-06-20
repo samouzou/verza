@@ -162,43 +162,92 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
   }
 
   let actualEventPayload: any = null;
+  const contentType = request.headers['content-type'] || '';
 
-  if (request.body && typeof request.body.json === "string") {
+  if (contentType.startsWith('application/json') && typeof request.body === 'object' && !Buffer.isBuffer(request.body)) {
+    actualEventPayload = request.body;
+    logger.info("Webhook payload used directly from request.body (application/json).");
+  } else if (contentType.startsWith('application/x-www-form-urlencoded') && typeof request.body === 'object' && typeof request.body.json === 'string') {
     try {
       actualEventPayload = JSON.parse(request.body.json);
-      logger.info("Webhook payload parsed from request.body.json (form-urlencoded).");
+      logger.info("Webhook payload parsed from request.body.json (application/x-www-form-urlencoded).");
     } catch (e: any) {
-      logger.error("Failed to parse request.body.json:", e.message, "Content:", request.body.json);
+      logger.error("Failed to parse request.body.json from form-urlencoded:", e.message, "Content:", request.body.json);
     }
-  } else if (request.body && typeof request.body === "object" && !Buffer.isBuffer(request.body)) {
-    actualEventPayload = request.body;
-    logger.info("Webhook payload used directly from request.body (likely application/json).");
-  } else if (Buffer.isBuffer(request.body)) {
-    const bodyString = request.body.toString("utf8");
+  } else if (contentType.startsWith('multipart/form-data') && Buffer.isBuffer(request.body)) {
+    logger.info("Multipart/form-data detected. Attempting to extract 'json' field.");
+    const bodyString = request.body.toString('utf8');
+    const boundaryHeader = contentType.split('boundary=')[1];
+
+    if (boundaryHeader) {
+      const boundary = `--${boundaryHeader}`;
+      const parts = bodyString.split(boundary);
+
+      for (const part of parts) {
+        // Check for the 'json' field name in the Content-Disposition header
+        if (part.includes('Content-Disposition: form-data; name="json"')) {
+          // Find the start of the JSON content (after the headers of this part)
+          // Headers are separated from the body by a double newline (\r\n\r\n or \n\n)
+          const headerEndMatch = part.match(/(\r\n\r\n|\n\n)/);
+          if (headerEndMatch && headerEndMatch.index !== undefined) {
+            const jsonContentStartIndex = headerEndMatch.index + headerEndMatch[0].length;
+            let jsonStr = part.substring(jsonContentStartIndex).trim();
+            // Remove trailing CRLF if part isn't the last one and was split cleanly
+            if (jsonStr.endsWith('\r\n')) {
+                jsonStr = jsonStr.slice(0, -2);
+            } else if (jsonStr.endsWith('\n')) {
+                 jsonStr = jsonStr.slice(0, -1);
+            }
+            try {
+              actualEventPayload = JSON.parse(jsonStr);
+              logger.info("Successfully parsed 'json' field from multipart/form-data. Length:", jsonStr.length);
+              break; // Found and parsed the json part
+            } catch (e: any) {
+              logger.error("Failed to parse JSON from extracted 'json' multipart field:", {
+                errorMessage: e.message,
+                extractedStringStart: jsonStr.substring(0, 200),
+                extractedStringEnd: jsonStr.substring(Math.max(0, jsonStr.length - 200)),
+              });
+            }
+          }
+        }
+      }
+      if (!actualEventPayload) {
+        logger.warn("Could not find or parse 'json' field in multipart/form-data body after splitting by boundary.");
+      }
+    } else {
+      logger.warn("Multipart/form-data but boundary not found in Content-Type header.");
+    }
+  } else if (Buffer.isBuffer(request.body)) { // Fallback for other buffer types or if specific parsing failed
+    const bodyString = request.body.toString('utf8');
+    logger.info("Raw buffer body received (not handled by specific content type logic), attempting direct JSON parse. Length:", bodyString.length);
     try {
       actualEventPayload = JSON.parse(bodyString);
-      logger.info("Webhook payload parsed from raw Buffer body (utf8 string to JSON).");
+      logger.info("Webhook payload parsed from raw Buffer body (direct JSON parse).");
     } catch (e) {
-      logger.warn("Request body is a Buffer and could not be parsed as JSON. This might be complex multipart data or binary. Body (partial):", bodyString.substring(0, 250));
+      logger.warn("Request body is a Buffer (unknown type) and could not be parsed as JSON directly. Body (partial):", bodyString.substring(0, 250));
     }
   }
 
+
   // Check if it's ANY kind of test event after successful parsing
-  if (actualEventPayload && typeof actualEventPayload === 'object' && actualEventPayload.event && typeof actualEventPayload.event.event_type === 'string' &&
-      (actualEventPayload.event.event_type === "test" || actualEventPayload.event.event_type.endsWith("_test"))
-     ) {
+  if (actualEventPayload && typeof actualEventPayload === 'object' && actualEventPayload.event &&
+    typeof actualEventPayload.event.event_type === 'string' &&
+      (actualEventPayload.event.event_type === "test" ||
+        actualEventPayload.event.event_type.endsWith("_test"))
+  ) {
     logger.info(`Received Dropbox Sign test event: ${actualEventPayload.event.event_type}. Responding with 200 OK.`, actualEventPayload);
     response.status(200).send("Hello API Event Received");
     return;
   }
 
-  if (!actualEventPayload || typeof actualEventPayload !== "object") {
+  if (!actualEventPayload || typeof actualEventPayload !== 'object') {
     logger.error("Webhook payload could not be successfully parsed into a usable object or was empty/unrecognized.", {
       originalBodyType: typeof request.body,
       isBuffer: Buffer.isBuffer(request.body),
-      contentType: request.headers["content-type"] || "N/A",
-      bodyPreview: Buffer.isBuffer(request.body) ? request.body.toString("utf8", 0, 250) : (typeof request.body === "string" ?
-        request.body.substring(0, 250) : "Non-string/buffer body"),
+      contentType: request.headers['content-type'] || 'N/A',
+      bodyPreview: Buffer.isBuffer(request.body) ? request.body.toString('utf8', 0, 250) : (typeof request.body === 'string' ?
+        request.body.substring(0, 250) : 'Non-string/buffer body'),
     });
     response.status(400).send("Invalid payload format or content.");
     return;
@@ -214,9 +263,10 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     const eventData = actualEventPayload.event;
     const signatureRequestData = actualEventPayload.signature_request;
 
-    if (!eventData || typeof eventData !== "object" || !eventData.event_time ||
+    if (!eventData || typeof eventData !== 'object' || !eventData.event_time ||
       !eventData.event_type || !eventData.event_hash) {
-      logger.error("Invalid webhook payload: Missing essential event data fields (event_time, event_type, event_hash) in parsed payload.", actualEventPayload);
+      logger.error("Invalid webhook payload: Missing essential event data fields" +
+        "(event_time, event_type, event_hash) in parsed payload.", actualEventPayload);
       response.status(400).send("Invalid payload: missing required event data fields.");
       return;
     }
@@ -326,7 +376,8 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
 
       await contractDocRef.update(updates);
       logger.info(`Contract ${contractDocRef.id} updated successfully for event ${eventType}.`);
-    } else if (eventType !== "account_callback_test" && !eventData.event_metadata?.reported_for_account_id) { // Updated this condition
+    } else if (eventType !== "account_callback_test" &&
+      !eventData.event_metadata?.reported_for_account_id) { // Updated this condition
       logger.warn(`Received event type ${eventType} without a signatureRequestId
         and it's not a known account event or specific test.`);
     }
@@ -340,7 +391,5 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
 
     
