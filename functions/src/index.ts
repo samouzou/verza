@@ -64,6 +64,5 @@ export {
   createShareableContractVersion,
   // E-Signatures
   initiateHelloSignRequest,
-  helloSignWebhookHandler, 
+  helloSignWebhookHandler,
 };
-```

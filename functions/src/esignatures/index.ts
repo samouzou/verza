@@ -6,6 +6,7 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign"; // Updated import
 import type {Contract} from "../../../src/types";
 import * as crypto from "crypto";
+import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY; // Still using this env var name for consistency with apphosting.yaml
@@ -114,7 +115,9 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       // Redact sensitive information for logging
       ...options,
       signers: options.signers ? options.signers.map((s) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
-      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
+      ccEmailAddresses: options.ccEmailAddresses ?
+        options.ccEmailAddresses.map(() => "[REDACTED]") :
+        undefined,
       fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
     }));
 
@@ -208,12 +211,6 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     if (!signatureRequestId) {
       logger.error("Webhook payload missing signature_request_id.", signatureRequestData);
       response.status(400).send("Missing signature_request_id."); // Still send 200 to HS, but log error.
-      // Dropbox Sign requires a 200 OK response for all valid webhooks.
-      // If we send 400 here, they might retry or disable the webhook.
-      // Better to acknowledge receipt and log the error on our side.
-      // For the actual "Hello API Event Received", we will send it after processing.
-      // For now, let's just acknowledge receipt and log.
-      // We'll send "Hello API Event Received" at the end of successful processing.
       return;
     }
 
@@ -223,7 +220,6 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
 
     if (contractSnapshot.empty) {
       logger.warn(`No contract found for helloSignRequestId: ${signatureRequestId}`);
-      // Respond 200 OK to Dropbox Sign to acknowledge receipt, even if we can't find the contract.
       response.status(200).send("Hello API Event Received");
       return;
     }
@@ -239,11 +235,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       newStatus = "viewed_by_signer";
       historyAction = "Document Viewed by Signer (Dropbox Sign)";
       break;
-    case "signature_request_signed": // A signer completed their part
-      // If it's the only signer, or if it's the final signature, it becomes 'signed'
-      // We'll rely on signature_request_all_signed for the final 'signed' status and files_url
-      // For now, just log or update if needed for multi-signer progress.
-      // If signature_request.is_complete is true, this could also mean all signed.
+    case "signature_request_signed":
       if (signatureRequestData?.is_complete) {
         newStatus = "signed";
         historyAction = "Document Signed (Dropbox Sign)";
@@ -251,10 +243,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
           signedDocumentUrl = signatureRequestData.files_url;
         }
       } else {
-          // For individual signatures in a multi-signer flow (if we support it later)
-          // We could introduce a 'partially_signed' status or similar
-          logger.info(`Signature received for ${signatureRequestId}, but not all signed yet.`);
-          // Keep current status or update to a specific "partially signed" status if desired
+        logger.info(`Signature received for ${signatureRequestId}, but not all signed yet.`);
       }
       break;
     case "signature_request_all_signed":
@@ -268,7 +257,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       newStatus = "declined";
       historyAction = "Signature Declined by Signer (Dropbox Sign)";
       break;
-    case "signature_request_canceled": // Canceled by sender via Dropbox Sign UI/API
+    case "signature_request_canceled":
       newStatus = "canceled";
       historyAction = "Signature Request Canceled (Dropbox Sign)";
       break;
@@ -279,19 +268,19 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
       break;
     default:
       logger.info(`Unhandled Dropbox Sign event type: ${eventType}`);
-      // Respond 200 OK to acknowledge receipt
       response.status(200).send("Hello API Event Received");
       return;
     }
 
     const updates: Partial<Contract> = {
       signatureStatus: newStatus,
-      lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)), // eventTime is Unix timestamp
+      // Ensure the timestamp is compatible with Firestore ClientTimestamp type for type safety
+      lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as unknown as ClientTimestamp,
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.Timestamp.now(),
         action: historyAction,
         details: `Dropbox Sign Event: ${eventType}. Request ID: ${signatureRequestId}`,
-      }) as any, // Cast due to FieldValue union type issue
+      }) as any,
     };
 
     if (signedDocumentUrl && signedDocumentUrl !== contractData.signedDocumentUrl) {
@@ -304,11 +293,9 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     response.status(200).send("Hello API Event Received");
   } catch (error) {
     logger.error("Error processing Dropbox Sign webhook:", error);
-    // Don't send error details back to Dropbox Sign, just a generic server error
-    // if it's not a verification issue already handled.
     if (!response.headersSent) {
       response.status(500).send("Error processing webhook.");
     }
   }
 });
-```
+
