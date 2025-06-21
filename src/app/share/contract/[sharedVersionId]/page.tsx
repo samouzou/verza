@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label'; 
 import { Textarea } from '@/components/ui/textarea'; 
 import { Separator } from "@/components/ui/separator";
+import { diffChars } from 'diff';
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | Date | undefined | null): string => {
@@ -295,7 +296,7 @@ export default function ShareContractPage() {
 
       <main className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Main Document */}
+          {/* Main Content (Document) */}
           <div className="lg:col-span-2 space-y-6">
             {sharedVersion.notesForBrand && (
               <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700 shadow-md">
@@ -381,24 +382,47 @@ export default function ShareContractPage() {
             </Card>
 
              <Card className="shadow-lg bg-card text-card-foreground">
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MessageSquare/> General Comments</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MessageSquare/> Feedback History</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleAddComment} className="space-y-4 mb-6">
                   <div>
-                    <Label htmlFor="commentText" className="dark:text-slate-300">Your Comment</Label>
-                    <Textarea id="commentText" value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} placeholder="General feedback..." required rows={4} className="mt-1" disabled={isSubmittingComment}/>
+                    <Label htmlFor="commentText" className="dark:text-slate-300">General Comment</Label>
+                    <Textarea id="commentText" value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} placeholder="Leave general feedback here..." required rows={3} className="mt-1" disabled={isSubmittingComment}/>
                   </div>
                   <Button type="submit" disabled={isSubmittingComment || !newCommentText.trim() || !newCommenterName.trim()} className="w-full">
                     {isSubmittingComment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Submit Comment
                   </Button>
                 </form>
                 <Separator className="my-4"/>
-                <h4 className="font-semibold text-md text-foreground mb-3">Feedback History</h4>
                 <ScrollArea className="h-[250px] pr-3">
                     {isLoadingProposals || isLoadingComments ? <div className="flex justify-center items-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                     : (redlineProposals.length === 0 && comments.length === 0) ? <p className="text-sm text-muted-foreground text-center py-4">No feedback yet.</p>
                     : <div className="space-y-4">
-                        {redlineProposals.map(p => <div key={p.id} className="p-3 border rounded-lg bg-muted/50 text-xs"><div className="flex justify-between items-center mb-1"><p className="font-semibold">{p.proposerName}</p><Badge variant="secondary">Proposal</Badge></div><p className="italic text-muted-foreground mb-2">"{p.comment || 'No comment.'}"</p><div><p className="text-red-500">Replaces: "{p.originalText}"</p><p className="text-green-500">With: "{p.proposedText}"</p></div></div>)}
+                        {redlineProposals.map(p => {
+                           const diff = diffChars(p.originalText, p.proposedText);
+                           return (
+                            <div key={p.id} className="p-3 border rounded-lg bg-muted/30 text-xs">
+                              <div className="flex justify-between items-center mb-1">
+                                <p className="font-semibold text-sm">{p.proposerName}</p>
+                                <Badge variant={p.status === 'proposed' ? 'secondary' : p.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${p.status === 'accepted' ? 'bg-green-500' : ''}`}>{p.status}</Badge>
+                              </div>
+                              {p.comment && <p className="italic text-muted-foreground mb-2">"{p.comment}"</p>}
+                              <div className="font-mono text-xs bg-muted p-2 rounded mt-2">
+                                <pre className="whitespace-pre-wrap">
+                                  {diff.map((part, index) => {
+                                      if (part.added) {
+                                        return <ins key={index} className="diff-ins">{part.value}</ins>;
+                                      }
+                                      if (part.removed) {
+                                        return <del key={index} className="diff-del">{part.value}</del>;
+                                      }
+                                      return <span key={index}>{part.value}</span>;
+                                  })}
+                                </pre>
+                              </div>
+                            </div>
+                           );
+                        })}
                         {comments.map(c => (
                           <div key={c.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
                             <div className="flex items-start justify-between mb-1">
