@@ -399,7 +399,26 @@ export default function ShareContractPage() {
                     : (redlineProposals.length === 0 && comments.length === 0) ? <p className="text-sm text-muted-foreground text-center py-4">No feedback yet.</p>
                     : <div className="space-y-4">
                         {redlineProposals.map(p => <div key={p.id} className="p-3 border rounded-lg bg-muted/50 text-xs"><div className="flex justify-between items-center mb-1"><p className="font-semibold">{p.proposerName}</p><Badge variant="secondary">Proposal</Badge></div><p className="italic text-muted-foreground mb-2">"{p.comment || 'No comment.'}"</p><div><p className="text-red-500">Replaces: "{p.originalText}"</p><p className="text-green-500">With: "{p.proposedText}"</p></div></div>)}
-                        {comments.map(c => <div key={c.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70"><div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold">{c.commenterName}</p></div><p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{c.commentText}</p></div>)}
+                        {comments.map(c => (
+                          <div key={c.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
+                            <div className="flex items-start justify-between mb-1">
+                               <p className="text-sm font-semibold">{c.commenterName}</p>
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{c.commentText}</p>
+                            {c.replies && c.replies.length > 0 && (
+                                <div className="mt-3 ml-5 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
+                                    {c.replies.map(reply => (
+                                        <div key={reply.replyId}>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName} (Creator)</p>
+                                            </div>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{reply.replyText}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                          </div>
+                        ))}
                     </div>}
                 </ScrollArea>
               </CardContent>
