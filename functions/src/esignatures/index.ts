@@ -7,6 +7,7 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -68,9 +69,56 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    if (!contractData.fileUrl) {
-      throw new HttpsError("failed-precondition", "Contract document (fileUrl) is missing. Cannot send for signature.");
+    let fileUrlForSignature: string;
+
+    // NEW LOGIC: Generate file from text if available
+    if (contractData.contractText) {
+      logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Contract: ${contractData.projectName || contractData.brand}</title>
+          <style>
+            body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
+            pre { white-space: pre-wrap; font-family: inherit; }
+          </style>
+        </head>
+        <body>
+          <pre>${contractData.contractText}</pre>
+        </body>
+        </html>
+      `;
+
+      const bucket = getStorage().bucket(); // Get default bucket
+      const fileName = `generated-contracts/${contractId}/${Date.now()}.html`;
+      const file = bucket.file(fileName);
+
+      await file.save(Buffer.from(htmlContent, 'utf8'), {
+        contentType: 'text/html',
+      });
+      
+      await file.makePublic();
+      
+      fileUrlForSignature = file.publicUrl();
+
+      // Optionally, update the contract with the URL of the generated file for tracking
+      await contractDocRef.update({
+        lastGeneratedSignatureFileUrl: fileUrlForSignature
+      });
+      
+    } else if (contractData.fileUrl) {
+      // FALLBACK LOGIC: Use existing fileUrl if no contractText
+      logger.info(`Using existing fileUrl for contract ${contractId}.`);
+      fileUrlForSignature = contractData.fileUrl;
+    } else {
+      // No text and no file, cannot proceed
+      throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
+
 
     const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
     if (!finalSignerEmail) {
@@ -107,7 +155,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           // order: 1 // Optional: explicitly set signing order if needed
         },
       ],
-      fileUrls: [contractData.fileUrl],
+      fileUrls: [fileUrlForSignature],
       metadata: {
         contract_id: contractId,
         user_id: userId, // Creator's user ID
@@ -404,4 +452,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
