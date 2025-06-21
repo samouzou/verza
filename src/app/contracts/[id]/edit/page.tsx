@@ -313,44 +313,6 @@ export default function EditContractPage() {
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Core Details</CardTitle>
-              <CardDescription>Essential information for this contract.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-               <div>
-                  <Label htmlFor="brand">Brand Name</Label>
-                  <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="projectName">Project Name (Optional)</Label>
-                  <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="amount">Amount ($)</Label>
-                  <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="dueDate">Due Date</Label>
-                  <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="contractType">Contract Type</Label>
-                  <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
-                    <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sponsorship">Sponsorship</SelectItem>
-                      <SelectItem value="consulting">Consulting</SelectItem>
-                      <SelectItem value="affiliate">Affiliate</SelectItem>
-                      <SelectItem value="retainer">Retainer</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
               <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400"/> AI Negotiation Assistant</CardTitle>
               <CardDescription>AI-generated summary and negotiation points.</CardDescription>
             </CardHeader>
@@ -400,6 +362,44 @@ export default function EditContractPage() {
               </ScrollArea>
             </CardContent>
           </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Core Details</CardTitle>
+              <CardDescription>Essential information for this contract.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+               <div>
+                  <Label htmlFor="brand">Brand Name</Label>
+                  <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="projectName">Project Name (Optional)</Label>
+                  <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="amount">Amount ($)</Label>
+                  <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="contractType">Contract Type</Label>
+                  <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
+                    <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sponsorship">Sponsorship</SelectItem>
+                      <SelectItem value="consulting">Consulting</SelectItem>
+                      <SelectItem value="affiliate">Affiliate</SelectItem>
+                      <SelectItem value="retainer">Retainer</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -437,5 +437,7 @@ export default function EditContractPage() {
     </form>
   );
 }
+
+    
 
     
