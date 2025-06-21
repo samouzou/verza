@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, FormEvent } from 'react';
+import { useEffect, useState, useCallback, FormEvent, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,6 +75,10 @@ export default function ShareContractPage() {
   const [newProposedText, setNewProposedText] = useState("");
   const [newProposalComment, setNewProposalComment] = useState("");
   // We can reuse commenterName and commenterEmail for proposals
+
+  // State for text selection
+  const [selectedText, setSelectedText] = useState("");
+  const redlineFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!sharedVersionId) {
@@ -220,6 +224,23 @@ export default function ShareContractPage() {
     }
   };
 
+  const handleTextSelection = () => {
+    const text = window.getSelection()?.toString().trim();
+    if (text) {
+      setSelectedText(text);
+    } else {
+      setSelectedText("");
+    }
+  };
+
+  const handleProposeEditForSelection = () => {
+    if (selectedText) {
+      setNewOriginalText(selectedText);
+      redlineFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setSelectedText("");
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -334,9 +355,22 @@ export default function ShareContractPage() {
                   <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Full Contract Text (Snapshot)</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[300px] border rounded-md p-3 bg-slate-50 dark:bg-slate-800">
-                    <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
-                  </ScrollArea>
+                  <div className="relative">
+                    <ScrollArea
+                      onMouseUp={handleTextSelection}
+                      className="h-[300px] border rounded-md p-3 bg-slate-50 dark:bg-slate-800"
+                    >
+                      <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
+                    </ScrollArea>
+                    {selectedText && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <Button onClick={handleProposeEditForSelection} size="sm" variant="default" className="shadow-lg">
+                          <FilePenLine className="mr-2 h-4 w-4" />
+                          Propose Edit
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -380,7 +414,7 @@ export default function ShareContractPage() {
                     <CardDescription>Propose a specific change to the contract text.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleAddProposal} className="space-y-4">
+                    <form ref={redlineFormRef} onSubmit={handleAddProposal} className="space-y-4">
                         <div>
                             <Label htmlFor="originalText">Original Text to Replace</Label>
                             <Textarea id="originalText" value={newOriginalText} onChange={(e) => setNewOriginalText(e.target.value)} required placeholder="Copy and paste the exact text from the contract here..." rows={4} className="mt-1 font-mono text-xs"/>
