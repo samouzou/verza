@@ -1,50 +1,30 @@
+
 rules_version = '2';
 
 service firebase.storage {
-  match /b/{bucket}/o { // This matches all files in your bucket
-
-    // Rules for user avatars
-    match /avatars/{userId}/{allPaths=**} {
-      // Allow public read for avatars (common for profile pictures)
+  match /b/{bucket}/o {
+    // Allow reads of all files by default.
+    // In a production app, you might lock this down further.
+    match /{allPaths=**} {
       allow read: if true;
-      // Allow authenticated users to write only to their own avatar path
-      // And add some constraints on size and type
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 2 * 1024 * 1024 // Max 2MB
-                   && request.resource.contentType.matches('image/.*'); // Only image types
     }
 
-    // Rules for contract files
-    match /contracts/{userId}/{fileName} {
-      // Allow an authenticated user to read their own contract files
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      // Allow an authenticated user to write (upload, update, delete) their own contract files
-      // with constraints on file size and type
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 10 * 1024 * 1024 // Max 10MB for contracts
-                   && (
-                     request.resource.contentType.matches('application/pdf') ||
-                     request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
-                     request.resource.contentType.matches('text/plain') ||
-                     request.resource.contentType.matches('image/jpeg') || 
-                     request.resource.contentType.matches('image/png')
-                   );
+    // Allow authenticated users to write to their own user-specific directories
+    match /users/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // Rules for receipt images
-    match /receipts/{userId}/{fileName} {
-      // Allow an authenticated user to read their own receipt images
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      // Allow an authenticated user to write (upload, update, delete) their own receipt images
-      // with constraints on file size and type
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 4 * 1024 * 1024 // Max 4MB for receipts
-                   && request.resource.contentType.matches('image/.*'); // Only image types (jpeg, png, gif, etc.)
+    
+    match /contracts/{userId}/{allPaths=**} {
+        allow write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // Add rules for other paths if needed, e.g.,
-    // match /otherFolder/{userId}/{allPaths=**} { ... }
+    
+    match /receipts/{userId}/{allPaths=**} {
+        allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /avatars/{userId}/{allPaths=**} {
+        allow write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
+    

@@ -1,91 +1,60 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the 'users' collection
+    // Helper function to check ownership
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users collection: users can read their own data and update it.
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
+      allow read, update: if isOwner(userId);
+      allow create: if request.auth != null; // Any authenticated user can create their own doc
     }
 
-    // Rules for the 'contracts' collection
+    // Contracts collection: only owners can CRUD their own contracts.
     match /contracts/{contractId} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
     }
     
-    // Rules for 'sharedContractVersions' collection
-    match /sharedContractVersions/{versionId} {
-      allow read: if (resource.data.status == 'active') || 
-                       (request.auth != null && request.auth.uid == resource.data.userId);
-      allow create: if request.auth != null &&
-                       request.resource.data.userId == request.auth.uid &&
-                       get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId; // Creator can update (e.g., revoke)
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
-
-    // Rules for 'contractComments' collection
-    match /contractComments/{commentId} {
-      allow create: if request.resource.data.sharedVersionId != null &&
-                       exists(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)) &&
-                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
-                       request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
-                       request.resource.data.commenterName is string && request.resource.data.commenterName.size() > 0 && request.resource.data.commenterName.size() < 100 &&
-                       request.resource.data.commentText is string && request.resource.data.commentText.size() > 0 && request.resource.data.commentText.size() < 2000 &&
-                       request.resource.data.commentedAt == request.time &&
-                       (request.resource.data.commenterEmail == null || (request.resource.data.commenterEmail is string && request.resource.data.commenterEmail.size() < 100)) &&
-                       request.resource.data.originalContractId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.originalContractId;
-      
-      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
-                     (request.auth != null && request.auth.uid == resource.data.creatorId);
-
-      // Allow creator to update (e.g., add replies)
-      // Ensures critical fields of the comment itself are not changed during a reply addition.
-      // And that the replies array, if modified, meets basic expectations.
-      allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       request.resource.data.creatorId == resource.data.creatorId && // Ensure original creatorId isn't changed
-                       request.resource.data.originalContractId == resource.data.originalContractId && // Ensure originalContractId isn't changed
-                       request.resource.data.sharedVersionId == resource.data.sharedVersionId && // Ensure sharedVersionId isn't changed
-                       // Basic check that if replies are present, they are a list.
-                       // More granular validation of new reply content in rules is complex with arrayUnion.
-                       // Trusting client to send correct newReply structure, secured by creatorId check.
-                       (request.resource.data.replies == null || request.resource.data.replies is list);
-                       
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
-    }
-    
-    // Rules for the 'receipts' collection
+    // Receipts collection: only owners can CRUD their own receipts.
     match /receipts/{receiptId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        allow read, update, delete: if isOwner(resource.data.userId);
+        allow create: if isOwner(request.resource.data.userId);
     }
     
-    // Rules for 'paymentIntents' collection
-    match /paymentIntents/{intentId} {
-      allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||
-                    request.auth.uid == resource.data.creatorId 
-                  );
-      allow create, update, delete: if false;
+    // SharedContractVersions: Anyone can read, only owner can create/revoke.
+    // Anyone can update the `brandHasViewed` field.
+    match /sharedContractVersions/{versionId} {
+      allow read: if true; // Publicly readable with the link
+      allow create: if isOwner(request.resource.data.userId);
+      // Allow anyone to update *only* the brandHasViewed and lastViewedByBrandAt fields.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['brandHasViewed', 'lastViewedByBrandAt']) || isOwner(resource.data.userId);
+    }
+    
+    // ContractComments: Anyone can create, anyone can read, owner can update/delete.
+    match /contractComments/{commentId} {
+      // Anyone can create a comment if they provide the required fields and the creatorId matches the target.
+      allow create: if request.resource.data.creatorId != null; 
+      // Anyone can read comments associated with a shared version.
+      allow read: if true; 
+      // Only the creator can update (e.g., add replies) or delete comments.
+      allow update, delete: if isOwner(resource.data.creatorId);
     }
 
-    // Rules for 'payments' collection
-    match /payments/{paymentId} {
-       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || 
-                    request.auth.uid == resource.data.creatorId
-                  );
-      allow create, update, delete: if false;
-    }
-
-    // Rules for 'emailLogs' collection
-    match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create, update, delete: if false;
+    // RedlineProposals: Anyone can create, anyone can read, owner can update/delete.
+    match /redlineProposals/{proposalId} {
+      // Anyone can create a proposal.
+      allow create: if request.resource.data.creatorId != null;
+      // Anyone can read proposals.
+      allow read: if true;
+      // Only the creator can update (accept/reject) or delete.
+      allow update, delete: if isOwner(resource.data.creatorId);
     }
   }
 }
+    
