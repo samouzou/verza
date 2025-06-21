@@ -2,10 +2,10 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -127,6 +128,8 @@ export default function ContractDetailPage() {
   const [isSendingForSignature, setIsSendingForSignature] = useState(false);
   const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
   const [signerEmailOverride, setSignerEmailOverride] = useState("");
+
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
@@ -527,7 +530,7 @@ export default function ContractDetailPage() {
 
   if (authLoading || isLoading) {
     return (
-      <>
+      <div className="flex-1 p-8 overflow-y-auto">
         <PageHeader title="Loading Contract..." description="Please wait while we fetch the details." />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-6">
@@ -538,13 +541,13 @@ export default function ContractDetailPage() {
                 <Skeleton className="h-64 w-full" />
             </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (!contract) {
     return (
-      <div className="flex flex-col items-center justify-center h-full pt-10">
+      <div className="flex-1 p-8 overflow-y-auto flex flex-col items-center justify-center h-full">
          <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2>
         <p className="text-muted-foreground mb-6">The contract you are looking for does not exist or could not be loaded.</p>
@@ -583,83 +586,38 @@ export default function ContractDetailPage() {
 
   return (
     <>
-      <PageHeader
-        className="hide-on-print"
-        title={(contract.brand || "Contract") + " - " + (contract.projectName || contract.fileName || "Details")}
-        description={`Details for contract ID: ${contract.id}`}
-        actions={
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" asChild>
-              <Link href="/contracts">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
-              </Link>
-            </Button>
-            <Button variant="secondary" asChild>
-               <Link href={`/contracts/${contract.id}/invoice`}>
-                <FileSpreadsheet className="mr-2 h-4 w-4" /> Manage Invoice
-              </Link>
-            </Button>
-            <Button variant="outline" onClick={handlePrint}>
-              <Printer className="mr-2 h-4 w-4" /> Export to PDF
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/contracts/${contract.id}/edit`}>
-                <Edit3 className="mr-2 h-4 w-4" /> Edit
-              </Link>
-            </Button>
-            <AlertDialog open={isContractDeleteDialogOpen} onOpenChange={setIsContractDeleteDialogOpen}>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isDeletingContract}>
-                  {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the contract
-                    for "{contract.brand} - {contract.fileName || contract.id}" and remove its associated file from storage (if any).
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isDeletingContract}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteContract} disabled={isDeletingContract} className="bg-destructive hover:bg-destructive/90">
-                    {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Yes, delete contract
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        }
-      />
+      <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
+        <PageHeader
+          className="hide-on-print"
+          title={(contract.brand || "Contract") + " - " + (contract.projectName || contract.fileName || "Details")}
+          description={`ID: ${contract.id}`}
+          actions={
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" asChild>
+                <Link href="/contracts">
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                </Link>
+              </Button>
+               <Button variant="outline" className="md:hidden" onClick={() => setIsSidebarVisible(!isSidebarVisible)}>
+                <Menu className="h-4 w-4" />
+                <span className="sr-only">Toggle Sidebar</span>
+              </Button>
+            </div>
+          }
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column (Main Document) */}
-        <div className="lg:col-span-2 space-y-6">
-            <Card className="shadow-lg">
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Main Content (Document) */}
+          <div className="flex-1 min-w-0">
+             <Card className="shadow-lg">
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Contract Document</CardTitle>
+                        <CardTitle>{contract.brand} - {contract.projectName || 'Contract'}</CardTitle>
                         <CardDescription>Key information and full text of the agreement.</CardDescription>
                     </div>
                     <ContractStatusBadge status={effectiveDisplayStatus} />
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 p-4 border rounded-lg bg-muted/30">
-                        <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
-                        <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
-                        <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
-                        <DetailItem icon={FileText} label="Contract Type" value={<span className="capitalize">{contract.contractType}</span>} />
-                        {contract.projectName && <DetailItem icon={Briefcase} label="Project Name" value={contract.projectName} />}
-                        {contract.fileUrl && (
-                            <DetailItem icon={FileText} label="Contract File" value={<a href={contract.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">View/Download File</a>}/>
-                        )}
-                        {contract.invoiceNumber && <DetailItem icon={FileSpreadsheet} label="Invoice Number" value={contract.invoiceNumber} />}
-                        {contract.invoiceStatus && contract.invoiceStatus !== 'none' && <DetailItem icon={Info} label="Invoice Status" value={<Badge variant="outline" className="capitalize">{contract.invoiceStatus.replace('_', ' ')}</Badge>} />}
-                    </div>
-
                      {contract.summary && (
                         <div>
                             <h3 className="font-semibold text-lg mb-2">AI Generated Summary</h3>
@@ -670,7 +628,7 @@ export default function ContractDetailPage() {
                      {contract.contractText && (
                         <div className="contract-text-card-for-print">
                             <h3 className="font-semibold text-lg mb-2 hide-on-print">Full Contract Text</h3>
-                             <ScrollArea className="h-[400px] pr-3 border rounded-md p-3 bg-muted/30 hide-on-print">
+                             <ScrollArea className="h-[500px] pr-3 border rounded-md p-3 bg-muted/30 hide-on-print">
                                 <p className="text-sm text-foreground whitespace-pre-wrap">{contract.contractText}</p>
                             </ScrollArea>
                             {/* This is for printing only */}
@@ -679,71 +637,149 @@ export default function ContractDetailPage() {
                             </div>
                         </div>
                      )}
+                     {!contract.contractText && (
+                        <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                          <p>No contract text available.</p>
+                          <p className="text-sm">Edit the contract to paste the text for AI analysis.</p>
+                        </div>
+                     )}
                 </CardContent>
             </Card>
-        </div>
+          </div>
 
-        {/* Right Column (Activity Feed & Actions) */}
-        <div className="lg:col-span-1 space-y-6">
-            <Card className="shadow-lg hide-on-print">
-                <CardHeader><CardTitle className="flex items-center gap-2"><Share2 className="h-5 w-5 text-green-500" />Share &amp; Feedback</CardTitle></CardHeader>
-                <CardContent>
-                    <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
-                </CardContent>
-            </Card>
-
-            <Card className="shadow-lg hide-on-print">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle>
-                    <CardDescription>Review brand-proposed changes.</CardDescription>
-                </CardHeader>
-                 <CardContent>
-                    {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                    : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
-                    : <ScrollArea className="h-[300px] pr-3"><div className="space-y-4">
-                        {redlineProposals.map(proposal => (
-                            <div key={proposal.id} className="p-3 border rounded-lg bg-muted/30 relative text-sm">
-                                <div className="flex justify-between items-start mb-2"><p className="font-semibold text-foreground">{proposal.proposerName}</p><Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge></div>
-                                {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
-                                <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
-                                <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
-                                {proposal.status === 'proposed' && (
-                                    <div className="flex gap-2 mt-3 justify-end">
-                                        <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button>
-                                        <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div></ScrollArea>}
-                </CardContent>
-            </Card>
-
-            <Card className="shadow-lg hide-on-print">
-                <CardHeader><CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-purple-500" />Contract Comments</CardTitle></CardHeader>
-                <CardContent>
-                    {isLoadingComments ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                    : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
-                    : <ScrollArea className="h-[300px] pr-3"><div className="space-y-4">
-                        {contractComments.map(comment => (
-                          <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
-                            <div className="flex items-center justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                            <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                            {comment.replies && comment.replies.length > 0 && (
-                              <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
-                                <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                  <div className="flex items-center justify-between mb-0.5"><p className="font-semibold text-primary text-xs flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5"/>{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                                  <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+          {/* Sidebar */}
+          <aside className={`w-full lg:w-96 lg:flex-shrink-0 lg:block ${isSidebarVisible ? 'block' : 'hidden'} lg:sticky lg:top-8 h-fit`}>
+            <div className="space-y-6">
+              <Card className="shadow-lg hide-on-print">
+                  <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Edit3 className="mr-2 h-4 w-4"/>Edit</Link></Button>
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
+                      <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
+                      <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
+                            {getSignatureButtonText()}
+                          </Button>
+                        </DialogTrigger>
+                         {canSendSignatureRequest && (
+                           <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Send for E-Signature</DialogTitle>
+                                <DialogDescription>
+                                  Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-2">
+                                <div>
+                                  <Label htmlFor="signer-email">Client's Email</Label>
+                                  <Input 
+                                    id="signer-email"
+                                    type="email"
+                                    value={signerEmailOverride}
+                                    onChange={(e) => setSignerEmailOverride(e.target.value)}
+                                    placeholder="client@example.com"
+                                    disabled={isSendingForSignature}
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
                                 </div>
-                              ))}</div>
-                            )}
-                            <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
-                          </div>
-                        ))}
-                    </div></ScrollArea>}
-                </CardContent>
-            </Card>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
+                                  {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIconComponent className="mr-2 h-4 w-4" />}
+                                  Send Request
+                                </Button>
+                              </DialogFooter>
+                           </DialogContent>
+                         )}
+                      </Dialog>
+                  </CardContent>
+              </Card>
 
+              <Card className="shadow-lg hide-on-print">
+                  <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle>
+                      <CardDescription>Review brand-proposed changes.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                      : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
+                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
+                          {redlineProposals.map(proposal => (
+                              <div key={proposal.id} className="p-3 border rounded-lg bg-muted/30 relative text-sm">
+                                  <div className="flex justify-between items-start mb-2"><p className="font-semibold text-foreground">{proposal.proposerName}</p><Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge></div>
+                                  {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
+                                  <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
+                                  <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
+                                  {proposal.status === 'proposed' && (
+                                      <div className="flex gap-2 mt-3 justify-end">
+                                          <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button>
+                                          <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button>
+                                      </div>
+                                  )}
+                              </div>
+                          ))}
+                      </div></ScrollArea>}
+                  </CardContent>
+              </Card>
+
+              <Card className="shadow-lg hide-on-print">
+                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MessageCircle className="h-5 w-5 text-purple-500" />Contract Comments</CardTitle></CardHeader>
+                  <CardContent>
+                      {isLoadingComments ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                      : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
+                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
+                          {contractComments.map(comment => (
+                            <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
+                              <div className="flex items-center justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                              <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                              {comment.replies && comment.replies.length > 0 && (
+                                <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
+                                  <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
+                                    <div className="flex items-center justify-between mb-0.5"><p className="font-semibold text-primary text-xs flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5"/>{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                                    <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                                  </div>
+                                ))}</div>
+                              )}
+                              <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
+                            </div>
+                          ))}
+                      </div></ScrollArea>}
+                  </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle className="text-lg">Danger Zone</CardTitle></CardHeader>
+                <CardContent>
+                    <AlertDialog open={isContractDeleteDialogOpen} onOpenChange={setIsContractDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isDeletingContract}>
+                        {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
+                        Delete Contract
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the contract
+                            for "{contract.brand} - {contract.fileName || contract.id}" and remove its associated file from storage (if any).
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingContract}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteContract} disabled={isDeletingContract} className="bg-destructive hover:bg-destructive/90">
+                            {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Yes, delete contract
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                    </AlertDialog>
+                </CardContent>
+              </Card>
+            </div>
+          </aside>
         </div>
       </div>
 
