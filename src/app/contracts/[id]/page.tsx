@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
-import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -116,6 +116,11 @@ export default function ContractDetailPage() {
   const [contractComments, setContractComments] = useState<ContractComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
 
+  // Redlining State
+  const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
+  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
+  const [isUpdatingProposal, setIsUpdatingProposal] = useState<string | null>(null);
+
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'comment'; id: string } | { type: 'reply'; commentId: string; replyId: string } | null>(null);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
@@ -128,6 +133,7 @@ export default function ContractDetailPage() {
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
     let unsubscribeComments: (() => void) | undefined;
+    let unsubscribeProposals: (() => void) | undefined;
     let unsubscribeContract: (() => void) | undefined;
 
 
@@ -135,6 +141,7 @@ export default function ContractDetailPage() {
       setIsLoading(true);
       setIsLoadingSharedVersions(true);
       setIsLoadingComments(true);
+      setIsLoadingProposals(true);
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
@@ -249,6 +256,23 @@ export default function ContractDetailPage() {
         toast({ title: "Comment Fetch Error", description: "Could not load comments for this contract.", variant: "destructive" });
         setIsLoadingComments(false);
       });
+      
+      const proposalsQuery = query(
+        collection(db, "redlineProposals"),
+        where("originalContractId", "==", id),
+        where("creatorId", "==", user.uid),
+        orderBy("proposedAt", "desc")
+      );
+      unsubscribeProposals = onSnapshot(proposalsQuery, (snapshot) => {
+        const proposals = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as RedlineProposal));
+        setRedlineProposals(proposals);
+        setIsLoadingProposals(false);
+      }, (error) => {
+        console.error("Error fetching redline proposals: ", error);
+        toast({ title: "Proposals Error", description: "Could not load redline proposals.", variant: "destructive" });
+        setIsLoadingProposals(false);
+      });
+
 
     } else if (!authLoading && !user) {
       router.push('/login');
@@ -256,11 +280,13 @@ export default function ContractDetailPage() {
         setIsLoading(false);
         setIsLoadingSharedVersions(false);
         setIsLoadingComments(false);
+        setIsLoadingProposals(false);
     }
      return () => {
       if (unsubscribeContract) unsubscribeContract();
       if (unsubscribeSharedVersions) unsubscribeSharedVersions();
       if (unsubscribeComments) unsubscribeComments();
+      if (unsubscribeProposals) unsubscribeProposals();
     };
   }, [id, user, authLoading, router, toast]);
 
@@ -420,7 +446,6 @@ export default function ContractDetailPage() {
 
       if (data.success) {
         toast({ title: "E-Signature Request Sent", description: data.message });
-        // Firestore listener should update the contract state.
         setIsSignatureDialogOpen(false); 
       } else {
         throw new Error(data.message || "Failed to send e-signature request.");
@@ -454,7 +479,53 @@ export default function ContractDetailPage() {
                                  contract.signatureStatus === 'declined' ||
                                  contract.signatureStatus === 'canceled';
 
+  const handleUpdateProposalStatus = async (proposal: RedlineProposal, newStatus: 'accepted' | 'rejected') => {
+    if (!contract || !user) return;
+    setIsUpdatingProposal(proposal.id);
 
+    try {
+        const proposalRef = doc(db, "redlineProposals", proposal.id);
+        const updates: Partial<RedlineProposal> = {
+            status: newStatus,
+            reviewedAt: Timestamp.now(),
+        };
+
+        if (newStatus === 'accepted') {
+            const contractRef = doc(db, "contracts", contract.id);
+            const currentText = contract.contractText || "";
+            
+            if (currentText.includes(proposal.originalText)) {
+                const newText = currentText.replace(proposal.originalText, proposal.proposedText);
+                await updateDoc(contractRef, { contractText: newText });
+
+                const historyEntry = {
+                    timestamp: Timestamp.now(),
+                    action: "Redline Proposal Accepted",
+                    details: `Change by ${proposal.proposerName}.`,
+                };
+                await updateDoc(contractRef, {
+                    invoiceHistory: arrayUnion(historyEntry),
+                    updatedAt: serverTimestamp(),
+                });
+
+                toast({ title: "Proposal Accepted", description: "The contract text has been updated." });
+            } else {
+                throw new Error("The original text to be replaced was not found in the current contract. The contract may have been updated since this proposal was made.");
+            }
+        }
+        
+        await updateDoc(proposalRef, updates);
+
+        if (newStatus === 'rejected') {
+            toast({ title: "Proposal Rejected", description: "The proposal has been marked as rejected." });
+        }
+    } catch (error: any) {
+        console.error("Error updating proposal status:", error);
+        toast({ title: "Update Failed", description: error.message || "Could not update proposal.", variant: "destructive" });
+    } finally {
+        setIsUpdatingProposal(null);
+    }
+  };
 
   if (authLoading || isLoading) {
     return (
@@ -471,7 +542,7 @@ export default function ContractDetailPage() {
           <div className="lg:col-span-1 space-y-6">
             <Skeleton className="h-40 w-full rounded-lg" />
             <Skeleton className="h-40 w-full rounded-lg" />
-             <Skeleton className="h-40 w-full rounded-lg" /> {/* Placeholder for e-signature card */}
+             <Skeleton className="h-40 w-full rounded-lg" />
           </div>
         </div>
       </div>
@@ -573,84 +644,96 @@ export default function ContractDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6"> {/* Left Column */}
-          <Card className="shadow-lg hide-on-print">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Key Information</span>
-                <ContractStatusBadge status={effectiveDisplayStatus} /> 
-              </CardTitle>
-              <CardDescription>Core details of the agreement with {contract.brand}.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-              <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
-              <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
-              <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
-              <DetailItem icon={FileText} label="Contract Type" value={<span className="capitalize">{contract.contractType}</span>} />
-              {contract.projectName && <DetailItem icon={Briefcase} label="Project Name" value={contract.projectName} />}
-              <DetailItem icon={Info} label="File Name" value={contract.fileName || "N/A"} />
-               <DetailItem icon={CalendarDays} label="Created At" value={formattedCreatedAt} />
-               {contract.fileUrl && (
-                <DetailItem 
-                  icon={FileText} 
-                  label="Contract File" 
-                  value={
-                    <a href={contract.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                      View/Download File
-                    </a>
-                  } 
-                />
-              )}
-              {contract.invoiceNumber && (
-                <DetailItem icon={FileSpreadsheet} label="Invoice Number" value={contract.invoiceNumber} />
-              )}
-              {contract.invoiceStatus && contract.invoiceStatus !== 'none' && (
-                 <DetailItem 
-                    icon={Info} 
-                    label="Invoice Status" 
-                    value={<Badge variant="outline" className="capitalize">{contract.invoiceStatus.replace('_', ' ')}</Badge>} 
-                 />
-              )}
-            </CardContent>
-          </Card>
-
-          { (contract.clientName || contract.clientEmail || contract.clientAddress || contract.paymentInstructions) && (
-             <Card className="shadow-lg hide-on-print">
-                <CardHeader>
-                    <CardTitle>Client &amp; Payment Info</CardTitle>
-                    <CardDescription>Details for invoicing purposes.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    {contract.clientName && <p><strong className="text-foreground">Client Name:</strong> <span className="text-muted-foreground">{contract.clientName}</span></p>}
-                    {contract.clientEmail && <p><strong className="text-foreground">Client Email:</strong> <span className="text-muted-foreground">{contract.clientEmail}</span></p>}
-                    {contract.clientAddress && <p><strong className="text-foreground">Client Address:</strong> <span className="text-muted-foreground whitespace-pre-wrap">{contract.clientAddress}</span></p>}
-                    {contract.paymentInstructions && <p><strong className="text-foreground">Payment Instructions:</strong> <span className="text-muted-foreground whitespace-pre-wrap">{contract.paymentInstructions}</span></p>}
-                </CardContent>
-             </Card>
-          )}
-
-          {contract.extractedTerms && Object.keys(contract.extractedTerms).length > 0 && (
-            <Card className="shadow-lg hide-on-print">
-              <CardHeader>
-                <CardTitle>Extracted Terms</CardTitle>
-                <CardDescription>Specific terms identified from the contract document by AI.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {contract.extractedTerms.deliverables && contract.extractedTerms.deliverables.length > 0 && (
-                  <div>
-                    <strong className="text-foreground">Deliverables:</strong>
-                    <ul className="list-disc list-inside ml-4 text-muted-foreground">
-                      {contract.extractedTerms.deliverables.map((item, i) => <li key={i}>{item}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {contract.extractedTerms.paymentMethod && <p><strong className="text-foreground">Payment Method:</strong> <span className="text-muted-foreground">{contract.extractedTerms.paymentMethod}</span></p>}
-                {contract.extractedTerms.usageRights && <p><strong className="text-foreground">Usage Rights:</strong> <span className="text-muted-foreground">{contract.extractedTerms.usageRights}</span></p>}
-                {contract.extractedTerms.terminationClauses && <p><strong className="text-foreground">Termination:</strong> <span className="text-muted-foreground">{contract.extractedTerms.terminationClauses}</span></p>}
-                {contract.extractedTerms.lateFeePenalty && <p><strong className="text-foreground">Late Fee/Penalty:</strong> <span className="text-muted-foreground">{contract.extractedTerms.lateFeePenalty}</span></p>}
-                 {Object.keys(contract.extractedTerms).length === 0 && <p className="text-muted-foreground">No specific terms were extracted by AI.</p>}
-              </CardContent>
-            </Card>
-          )}
+            <Accordion type="multiple" defaultValue={['item-info', 'item-redlining']} className="w-full space-y-6">
+                <AccordionItem value="item-info" className="border-b-0">
+                    <Card className="shadow-lg hide-on-print">
+                        <AccordionTrigger className="p-0 border-b-0 hover:no-underline">
+                            <CardHeader className="flex-1 text-left">
+                                <CardTitle className="flex items-center justify-between">
+                                    <span>Key Information</span>
+                                    <ContractStatusBadge status={effectiveDisplayStatus} /> 
+                                </CardTitle>
+                                <CardDescription>Core details of the agreement with {contract.brand}.</CardDescription>
+                            </CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-0">
+                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
+                                <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
+                                <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
+                                <DetailItem icon={FileText} label="Contract Type" value={<span className="capitalize">{contract.contractType}</span>} />
+                                {contract.projectName && <DetailItem icon={Briefcase} label="Project Name" value={contract.projectName} />}
+                                <DetailItem icon={Info} label="File Name" value={contract.fileName || "N/A"} />
+                                <DetailItem icon={CalendarDays} label="Created At" value={formattedCreatedAt} />
+                                {contract.fileUrl && (
+                                    <DetailItem icon={FileText} label="Contract File" value={<a href={contract.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">View/Download File</a>}/>
+                                )}
+                                {contract.invoiceNumber && <DetailItem icon={FileSpreadsheet} label="Invoice Number" value={contract.invoiceNumber} />}
+                                {contract.invoiceStatus && contract.invoiceStatus !== 'none' && <DetailItem icon={Info} label="Invoice Status" value={<Badge variant="outline" className="capitalize">{contract.invoiceStatus.replace('_', ' ')}</Badge>} />}
+                            </CardContent>
+                        </AccordionContent>
+                    </Card>
+                </AccordionItem>
+                <AccordionItem value="item-redlining" className="border-b-0">
+                    <Card className="shadow-lg hide-on-print">
+                        <AccordionTrigger className="p-0 border-b-0 hover:no-underline">
+                             <CardHeader className="flex-1 text-left">
+                                <CardTitle className="flex items-center gap-2">
+                                    <FilePenLine className="h-5 w-5 text-indigo-500" />
+                                    Redline Proposals ({redlineProposals.filter(p=> p.status === 'proposed').length} pending)
+                                </CardTitle>
+                                <CardDescription>Review and manage proposed changes from shared contract versions.</CardDescription>
+                            </CardHeader>
+                        </AccordionTrigger>
+                         <AccordionContent className="pt-0">
+                            <CardContent>
+                                {isLoadingProposals ? (
+                                    <div className="flex items-center justify-center h-24"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                                ) : redlineProposals.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground text-center py-4">No redline proposals have been submitted for this contract.</p>
+                                ) : (
+                                    <ScrollArea className="h-[400px] pr-3">
+                                        <div className="space-y-4">
+                                            {redlineProposals.map(proposal => (
+                                                <div key={proposal.id} className="p-4 border rounded-lg bg-muted/30 relative">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-foreground">Proposal from {proposal.proposerName}</p>
+                                                            <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(proposal.proposedAt)}</p>
+                                                        </div>
+                                                         <Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge>
+                                                    </div>
+                                                     {proposal.comment && <p className="text-sm italic text-muted-foreground mb-3 p-2 bg-muted/50 border-l-2 border-primary rounded-r-md">"{proposal.comment}"</p>}
+                                                    <div className="space-y-3 text-sm">
+                                                        <div>
+                                                            <Label className="text-xs font-semibold text-red-600 dark:text-red-400">ORIGINAL TEXT</Label>
+                                                            <p className="mt-1 p-2 bg-red-50 dark:bg-red-900/20 rounded-md whitespace-pre-wrap font-mono text-xs">{proposal.originalText}</p>
+                                                        </div>
+                                                         <div>
+                                                            <Label className="text-xs font-semibold text-green-600 dark:text-green-400">PROPOSED TEXT</Label>
+                                                            <p className="mt-1 p-2 bg-green-50 dark:bg-green-900/20 rounded-md whitespace-pre-wrap font-mono text-xs">{proposal.proposedText}</p>
+                                                        </div>
+                                                    </div>
+                                                    {proposal.status === 'proposed' && (
+                                                        <div className="flex gap-2 mt-4 justify-end">
+                                                            <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}>
+                                                                {isUpdatingProposal === proposal.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <X className="mr-2 h-4 w-4"/>} Reject
+                                                            </Button>
+                                                            <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}>
+                                                                {isUpdatingProposal === proposal.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} Accept
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                )}
+                            </CardContent>
+                        </AccordionContent>
+                    </Card>
+                </AccordionItem>
+            </Accordion>
           
           <Card className="shadow-lg hide-on-print flex flex-col">
             <CardHeader>
@@ -670,7 +753,7 @@ export default function ContractDetailPage() {
                     <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[300px] pr-3"> {/* Explicit fixed height */}
+                <ScrollArea className="h-[300px] pr-3">
                   <div className="space-y-4">
                     {contractComments.map(comment => (
                       <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
@@ -733,9 +816,9 @@ export default function ContractDetailPage() {
             </CardContent>
           </Card>
 
-        </div> {/* End Left Column */}
+        </div> 
 
-        <div className="lg:col-span-1 space-y-6"> {/* Right Column */}
+        <div className="lg:col-span-1 space-y-6"> 
            <Card className="shadow-lg hide-on-print">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -977,7 +1060,7 @@ export default function ContractDetailPage() {
             </Accordion>
           </Card>
           
-        </div> {/* End Right Column */}
+        </div> 
       </div>
 
       <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>

@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { db, doc, getDoc, updateDoc, Timestamp, collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from '@/lib/firebase';
-import type { SharedContractVersion as SharedContractVersionType, Contract, ContractComment, CommentReply } from '@/types';
-import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, ArrowLeft, MessageSquare, Lightbulb, Send, CornerDownRight, User } from 'lucide-react';
+import type { SharedContractVersion as SharedContractVersionType, Contract, ContractComment, CommentReply, RedlineProposal } from '@/types';
+import { Loader2, AlertTriangle, FileText, DollarSign, CalendarDays, Info, ArrowLeft, MessageSquare, Lightbulb, Send, CornerDownRight, User, FilePenLine } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,19 +67,31 @@ export default function ShareContractPage() {
   const [newCommenterEmail, setNewCommenterEmail] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
+  // Redlining State
+  const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
+  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
+  const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+  const [newOriginalText, setNewOriginalText] = useState("");
+  const [newProposedText, setNewProposedText] = useState("");
+  const [newProposalComment, setNewProposalComment] = useState("");
+  // We can reuse commenterName and commenterEmail for proposals
+
   useEffect(() => {
     if (!sharedVersionId) {
       setError("No shared version ID provided.");
       setIsLoading(false);
       setIsLoadingComments(false);
+      setIsLoadingProposals(false);
       return;
     }
 
     let unsubscribeComments: (() => void) | undefined;
+    let unsubscribeProposals: (() => void) | undefined;
 
-    const fetchSharedVersionAndComments = async () => {
+    const fetchSharedVersionAndRelatedData = async () => {
       setIsLoading(true);
       setIsLoadingComments(true);
+      setIsLoadingProposals(true);
       setError(null);
       try {
         const versionDocRef = doc(db, 'sharedContractVersions', sharedVersionId);
@@ -92,6 +104,7 @@ export default function ShareContractPage() {
             setSharedVersion(null);
             setIsLoading(false);
             setIsLoadingComments(false);
+            setIsLoadingProposals(false);
             return;
           }
           setSharedVersion({ ...data, id: versionSnap.id });
@@ -101,40 +114,48 @@ export default function ShareContractPage() {
               lastViewedByBrandAt: Timestamp.now(),
             }).catch(updateError => console.warn("Could not update brandHasViewed status (expected if rules restrict public write):", updateError.message));
           }
-
-          const commentsQuery = query(
-            collection(db, "contractComments"),
-            where("sharedVersionId", "==", sharedVersionId),
-            orderBy("commentedAt", "asc")
-          );
+          
+          // Fetch Comments
+          const commentsQuery = query(collection(db, "contractComments"), where("sharedVersionId", "==", sharedVersionId), orderBy("commentedAt", "asc"));
           unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
-            const fetchedComments = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment));
-            setComments(fetchedComments);
+            setComments(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment)));
             setIsLoadingComments(false);
           }, (commentError) => {
             console.error("Error fetching comments: ", commentError);
-            toast({ title: "Comments Error", description: "Could not load comments.", variant: "destructive" });
             setIsLoadingComments(false);
+          });
+          
+          // Fetch Redline Proposals
+          const proposalsQuery = query(collection(db, "redlineProposals"), where("sharedVersionId", "==", sharedVersionId), orderBy("proposedAt", "asc"));
+          unsubscribeProposals = onSnapshot(proposalsQuery, (snapshot) => {
+            setRedlineProposals(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as RedlineProposal)));
+            setIsLoadingProposals(false);
+          }, (proposalError) => {
+            console.error("Error fetching proposals: ", proposalError);
+            setIsLoadingProposals(false);
           });
 
         } else {
           setError("Share link not found or is invalid.");
           setSharedVersion(null);
           setIsLoadingComments(false);
+          setIsLoadingProposals(false);
         }
       } catch (e: any) {
         console.error("Error fetching shared contract version:", e);
         setError(e.message || "Could not load the shared contract details. Please try again later.");
         setSharedVersion(null);
         setIsLoadingComments(false);
+        setIsLoadingProposals(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSharedVersionAndComments();
+    fetchSharedVersionAndRelatedData();
     return () => {
       if (unsubscribeComments) unsubscribeComments();
+      if (unsubscribeProposals) unsubscribeProposals();
     };
   }, [sharedVersionId, toast]);
 
@@ -163,6 +184,39 @@ export default function ShareContractPage() {
       toast({ title: "Error Submitting Comment", description: commentError.message || "Could not save your comment.", variant: "destructive" });
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const handleAddProposal = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newOriginalText.trim() || !newProposedText.trim() || !newCommenterName.trim() || !sharedVersion) {
+      toast({ title: "Missing Information", description: "Please provide your name and the original & proposed text.", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingProposal(true);
+    try {
+      await addDoc(collection(db, "redlineProposals"), {
+        sharedVersionId: sharedVersion.id,
+        originalContractId: sharedVersion.originalContractId,
+        creatorId: sharedVersion.userId,
+        proposerName: newCommenterName.trim(),
+        proposerEmail: newCommenterEmail.trim() || null,
+        originalText: newOriginalText.trim(),
+        proposedText: newProposedText.trim(),
+        comment: newProposalComment.trim() || null,
+        status: 'proposed',
+        proposedAt: serverTimestamp(),
+        reviewedAt: null,
+      });
+      setNewOriginalText("");
+      setNewProposedText("");
+      setNewProposalComment("");
+      toast({ title: "Proposal Submitted", description: "Your suggested edit has been sent to the creator for review." });
+    } catch (proposalError: any) {
+      console.error("Error submitting proposal:", proposalError);
+      toast({ title: "Error Submitting Proposal", description: proposalError.message || "Could not save your proposal.", variant: "destructive" });
+    } finally {
+      setIsSubmittingProposal(false);
     }
   };
 
@@ -229,7 +283,6 @@ export default function ShareContractPage() {
 
       <main className="max-w-6xl mx-auto">
         <div className="lg:grid lg:grid-cols-3 lg:gap-8 space-y-6 lg:space-y-0">
-          {/* Left Column: Contract Details */}
           <div className="lg:col-span-2 space-y-6">
             {sharedVersion.notesForBrand && (
               <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700 shadow-md">
@@ -275,60 +328,6 @@ export default function ShareContractPage() {
               </CardContent>
             </Card>
 
-            {contract.summary && (
-              <Card className="shadow-lg bg-card text-card-foreground">
-                <CardHeader>
-                  <CardTitle className="text-lg text-slate-700 dark:text-slate-200">AI Generated Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-auto max-h-[200px] pr-3">
-                    <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{contract.summary}</p>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            )}
-            
-            {hasExtractedTerms && contract.extractedTerms && (
-              <Card className="shadow-lg bg-card text-card-foreground">
-                <CardHeader>
-                  <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Key Terms (AI Extracted)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {contract.extractedTerms.deliverables && contract.extractedTerms.deliverables.length > 0 && (
-                    <div><strong className="text-slate-600 dark:text-slate-300">Deliverables:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.extractedTerms.deliverables.join(', ')}</span></div>
-                  )}
-                  {contract.extractedTerms.paymentMethod && <div><strong className="text-slate-600 dark:text-slate-300">Payment Method:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.extractedTerms.paymentMethod}</span></div>}
-                  {contract.extractedTerms.usageRights && <div><strong className="text-slate-600 dark:text-slate-300">Usage Rights:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.extractedTerms.usageRights}</span></div>}
-                  {contract.extractedTerms.terminationClauses && <div><strong className="text-slate-600 dark:text-slate-300">Termination:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.extractedTerms.terminationClauses}</span></div>}
-                  {contract.extractedTerms.lateFeePenalty && <div><strong className="text-slate-600 dark:text-slate-300">Late Fee/Penalty:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.extractedTerms.lateFeePenalty}</span></div>}
-                </CardContent>
-              </Card>
-            )}
-
-            {hasNegotiationSuggestions && contract.negotiationSuggestions && (
-              <Card className="shadow-lg bg-indigo-50 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-700">
-                  <CardHeader>
-                    <CardTitle className="text-lg text-indigo-700 dark:text-indigo-300 flex items-center">
-                        <Lightbulb className="mr-2 h-5 w-5"/> Creator's Negotiation Points (AI Suggestions)
-                    </CardTitle>
-                    <CardDescription className="text-indigo-600 dark:text-indigo-400">These were AI-generated suggestions for the creator during contract review.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    {contract.negotiationSuggestions.paymentTerms && <p><strong className="text-indigo-700 dark:text-indigo-300">Payment Terms Advice:</strong> <span className="text-indigo-800 dark:text-indigo-200">{contract.negotiationSuggestions.paymentTerms}</span></p>}
-                    {contract.negotiationSuggestions.exclusivity && <p><strong className="text-indigo-700 dark:text-indigo-300">Exclusivity Advice:</strong> <span className="text-indigo-800 dark:text-indigo-200">{contract.negotiationSuggestions.exclusivity}</span></p>}
-                    {contract.negotiationSuggestions.ipRights && <p><strong className="text-indigo-700 dark:text-indigo-300">IP Rights Advice:</strong> <span className="text-indigo-800 dark:text-indigo-200">{contract.negotiationSuggestions.ipRights}</span></p>}
-                    {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
-                      <div>
-                        <strong className="text-indigo-700 dark:text-indigo-300">General Suggestions:</strong>
-                        <ul className="list-disc list-inside ml-4 text-indigo-800 dark:text-indigo-200">
-                          {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i}>{item}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-            )}
-
             {contract.contractText && (
               <Card className="shadow-lg bg-card text-card-foreground">
                 <CardHeader>
@@ -343,24 +342,22 @@ export default function ShareContractPage() {
             )}
           </div>
 
-          {/* Right Column: Feedback & Comments */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="shadow-lg sticky top-8 bg-card text-card-foreground">
               <CardHeader>
-                <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Feedback &amp; Comments</CardTitle>
+                <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Your Information</CardTitle>
+                <CardDescription>Enter your name and email to leave feedback.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleAddComment} className="space-y-4 mb-6">
+              <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="commenterName" className="dark:text-slate-300">Your Name</Label>
+                    <Label htmlFor="commenterName" className="dark:text-slate-300">Your Name*</Label>
                     <Input 
                       id="commenterName" 
                       value={newCommenterName} 
                       onChange={(e) => setNewCommenterName(e.target.value)} 
-                      placeholder="e.g., Jane Doe (Brand Manager)" 
+                      placeholder="e.g., Jane Doe" 
                       required 
                       className="mt-1"
-                      disabled={isSubmittingComment}
                     />
                   </div>
                   <div>
@@ -372,16 +369,50 @@ export default function ShareContractPage() {
                       onChange={(e) => setNewCommenterEmail(e.target.value)} 
                       placeholder="jane.doe@brand.com" 
                       className="mt-1"
-                      disabled={isSubmittingComment}
                     />
                   </div>
+              </CardContent>
+            </Card>
+
+             <Card className="shadow-lg bg-card text-card-foreground">
+                <CardHeader>
+                    <CardTitle className="text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2"><FilePenLine/>Suggest an Edit (Redline)</CardTitle>
+                    <CardDescription>Propose a specific change to the contract text.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleAddProposal} className="space-y-4">
+                        <div>
+                            <Label htmlFor="originalText">Original Text to Replace</Label>
+                            <Textarea id="originalText" value={newOriginalText} onChange={(e) => setNewOriginalText(e.target.value)} required placeholder="Copy and paste the exact text from the contract here..." rows={4} className="mt-1 font-mono text-xs"/>
+                        </div>
+                        <div>
+                            <Label htmlFor="proposedText">Your Proposed New Text</Label>
+                            <Textarea id="proposedText" value={newProposedText} onChange={(e) => setNewProposedText(e.target.value)} required placeholder="Enter your suggested replacement text here..." rows={4} className="mt-1 font-mono text-xs"/>
+                        </div>
+                        <div>
+                            <Label htmlFor="proposalComment">Reason for Change (Optional)</Label>
+                            <Textarea id="proposalComment" value={newProposalComment} onChange={(e) => setNewProposalComment(e.target.value)} placeholder="Explain why you are suggesting this change..." rows={2} className="mt-1"/>
+                        </div>
+                        <Button type="submit" disabled={isSubmittingProposal || !newOriginalText.trim() || !newProposedText.trim() || !newCommenterName.trim()} className="w-full">
+                            {isSubmittingProposal ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>} Submit Proposal
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
+            
+            <Card className="shadow-lg bg-card text-card-foreground">
+              <CardHeader>
+                <CardTitle className="text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2"><MessageSquare/> General Comments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAddComment} className="space-y-4 mb-6">
                   <div>
-                    <Label htmlFor="commentText" className="dark:text-slate-300">Your Comment/Feedback</Label>
+                    <Label htmlFor="commentText" className="dark:text-slate-300">Your Comment</Label>
                     <Textarea 
                       id="commentText" 
                       value={newCommentText} 
                       onChange={(e) => setNewCommentText(e.target.value)} 
-                      placeholder="Enter your feedback here..." 
+                      placeholder="Enter your general feedback here..." 
                       required 
                       rows={4}
                       className="mt-1"
@@ -390,58 +421,80 @@ export default function ShareContractPage() {
                   </div>
                   <Button type="submit" disabled={isSubmittingComment || !newCommentText.trim() || !newCommenterName.trim()} className="w-full">
                     {isSubmittingComment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Submit Feedback
+                    Submit Comment
                   </Button>
                 </form>
-
-                <Separator className="my-6"/>
-
-                {isLoadingComments ? (
-                  <div className="flex justify-center items-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : comments.length === 0 ? (
-                  <div className="flex items-center justify-center py-10">
-                    <p className="text-sm text-muted-foreground dark:text-slate-400">No comments yet. Be the first to provide feedback!</p>
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[400px] pr-3 mt-4"> {/* Explicit fixed height and top margin */}
-                    <div className="space-y-4">
-                      {comments.map(comment => (
-                        <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
-                          <div className="flex items-start justify-between mb-1">
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
-                              <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
-                              {comment.commenterName}
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateDisplay(comment.commentedAt)}</p>
-                          </div>
-                          {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
-                          <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                          
-                          {comment.replies && comment.replies.length > 0 && (
-                            <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
-                              {comment.replies.map(reply => (
-                                <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5 dark:bg-primary/10">
-                                  <div className="flex items-center justify-between mb-0.5">
-                                    <p className="font-semibold text-primary text-xs flex items-center dark:text-primary/90">
-                                      <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80 dark:text-primary/70"/>
-                                      {reply.creatorName} (Creator)
-                                    </p>
-                                    <p className="text-xs text-muted-foreground dark:text-slate-400">{formatDateDisplay(reply.repliedAt)}</p>
-                                  </div>
-                                  <p className="text-foreground/80 dark:text-slate-300 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
               </CardContent>
             </Card>
+            
+             {(redlineProposals.length > 0 || comments.length > 0) && (
+              <Card className="shadow-lg bg-card text-card-foreground">
+                <CardHeader><CardTitle className="text-lg">Feedback History</CardTitle></CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[400px] pr-3">
+                    {isLoadingProposals || isLoadingComments ? (
+                      <div className="flex justify-center items-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    ) : (
+                      <div className="space-y-6">
+                        {redlineProposals.length > 0 && (
+                          <div className="space-y-4">
+                            <h4 className="font-semibold text-md text-foreground">Proposed Edits</h4>
+                            {redlineProposals.map(proposal => (
+                              <div key={proposal.id} className="p-3 border rounded-lg bg-muted/50 text-xs">
+                                <div className="flex justify-between items-center mb-2">
+                                  <p className="font-semibold text-sm">{proposal.proposerName}</p>
+                                  <Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className="capitalize">{proposal.status}</Badge>
+                                </div>
+                                <p className="italic text-muted-foreground mb-2">"{proposal.comment || 'No comment provided.'}"</p>
+                                <div className="space-y-2">
+                                  <p><strong className="text-red-600 dark:text-red-400">Replaces:</strong> "{proposal.originalText}"</p>
+                                  <p><strong className="text-green-600 dark:text-green-400">With:</strong> "{proposal.proposedText}"</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {comments.length > 0 && (
+                          <div className="space-y-4">
+                             <h4 className="font-semibold text-md text-foreground">Comments</h4>
+                             {comments.map(comment => (
+                                <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
+                                      <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
+                                      {comment.commenterName}
+                                    </p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateDisplay(comment.commentedAt)}</p>
+                                  </div>
+                                  {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
+                                  <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                                  {comment.replies && comment.replies.length > 0 && (
+                                    <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
+                                      {comment.replies.map(reply => (
+                                        <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5 dark:bg-primary/10">
+                                          <div className="flex items-center justify-between mb-0.5">
+                                            <p className="font-semibold text-primary text-xs flex items-center dark:text-primary/90">
+                                              <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80 dark:text-primary/70"/>
+                                              {reply.creatorName} (Creator)
+                                            </p>
+                                            <p className="text-xs text-muted-foreground dark:text-slate-400">{formatDateDisplay(reply.repliedAt)}</p>
+                                          </div>
+                                          <p className="text-foreground/80 dark:text-slate-300 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                             ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            )}
+
           </div>
         </div>
       </main>
@@ -451,7 +504,3 @@ export default function ShareContractPage() {
     </div>
   );
 }
-
-    
-
-    

@@ -111,9 +111,21 @@ export interface ContractComment {
   commentText: string;
   commentedAt: Timestamp;
   replies?: CommentReply[]; // Array of replies
-  // resolved?: boolean;
-  // resolvedAt?: Timestamp;
-  // creatorViewed?: boolean;
+}
+
+export interface RedlineProposal {
+  id: string; // Firestore document ID
+  sharedVersionId: string;
+  originalContractId: string;
+  creatorId: string; // The user ID of the contract creator
+  proposerName: string;
+  proposerEmail?: string | null;
+  originalText: string; // The exact text snippet to be replaced
+  proposedText: string; // The suggested replacement text
+  comment?: string | null; // Justification or comment for the change
+  status: 'proposed' | 'accepted' | 'rejected';
+  proposedAt: Timestamp;
+  reviewedAt?: Timestamp | null;
 }
 
 
