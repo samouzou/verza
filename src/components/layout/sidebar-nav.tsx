@@ -8,7 +8,7 @@ import {
   FileText,
   Link2,
   Wallet,
-  Settings, 
+  Settings,
   LogOut,
   UserCircle,
   ChevronDown,
@@ -16,8 +16,9 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle as AlertTriangleIcon,
-  ReceiptText, 
-  Landmark
+  ReceiptText,
+  Landmark,
+  PanelLeft, // Added PanelLeft for the collapse icon
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,7 +28,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar, // Import useSidebar
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -42,21 +43,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { ThemeToggle } from "@/components/theme-toggle"; 
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contracts", label: "Contracts", icon: FileText },
-  { href: "/receipts", label: "Receipts", icon: ReceiptText }, 
-  { href: "/banking", label: "Banking & Taxes", icon: Landmark },
+  { href: "/receipts", label: "Receipts", icon: ReceiptText },
   { href: "/integrations", label: "Integrations", icon: Link2 },
   { href: "/wallet", label: "Creator Wallet", icon: Wallet },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const { user, logout, isLoading: authLoading } = useAuth(); // isLoading aliased to authLoading
-  const { isMobile, setOpenMobile } = useSidebar(); // Get mobile state and setter from useSidebar
+  const { user, logout, isLoading: authLoading } = useAuth();
+  const { isMobile, setOpenMobile, toggleSidebar } = useSidebar(); // Get toggleSidebar from hook
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -64,7 +64,7 @@ export function SidebarNav() {
     router.push("/login");
   };
 
-  if (authLoading) { // Use authLoading here
+  if (authLoading) {
     return (
       <Sidebar collapsible="icon">
         <SidebarHeader className="p-4">
@@ -86,12 +86,12 @@ export function SidebarNav() {
     );
   }
 
-  const activeUser = user; 
+  const activeUser = user;
   const userInitial = activeUser?.displayName ? activeUser.displayName.charAt(0).toUpperCase() : (activeUser?.email ? activeUser.email.charAt(0).toUpperCase() : 'U');
 
   const getSubscriptionBadge = () => {
     if (!activeUser || !activeUser.subscriptionStatus || activeUser.subscriptionStatus === 'none') {
-      return null; 
+      return null;
     }
     switch (activeUser.subscriptionStatus) {
       case 'active':
@@ -149,8 +149,8 @@ export function SidebarNav() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-2">
-         <div className="mb-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+      <SidebarFooter className="p-2 flex flex-col gap-2">
+         <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>
          {activeUser ? (
@@ -199,6 +199,16 @@ export function SidebarNav() {
              <span className="ml-3 group-data-[collapsible=icon]:hidden">Login</span>
           </Button>
          )}
+         <div className="hidden md:block mt-auto">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={toggleSidebar} tooltip={{children: "Collapse Sidebar", side:"right", align:"center"}}>
+                  <PanelLeft className="h-5 w-5" />
+                  <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </div>
       </SidebarFooter>
     </Sidebar>
   );
