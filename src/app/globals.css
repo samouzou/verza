@@ -140,14 +140,6 @@ body {
 /* Print specific styles */
 @media print {
   /* Hide common layout elements */
-  [data-sidebar="sidebar"], /* SidebarNav component */
-  .app-layout-header-global, /* Hypothetical class for a global app header, if you add one */
-  .app-layout-footer-global  /* Hypothetical class for a global app footer, if you add one */
-  {
-    display: none !important;
-  }
-
-  /* Hide elements explicitly marked with .hide-on-print */
   .hide-on-print {
     display: none !important;
   }

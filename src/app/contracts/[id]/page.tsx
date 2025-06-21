@@ -27,7 +27,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -39,7 +38,6 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
@@ -54,7 +52,7 @@ const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignreques
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
     <div className="flex items-start space-x-3">
-      <Icon className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+      <Icon className="h-5 w-5 text-muted-foreground mt-1 flex-shrink-0" />
       <div>
         <p className="text-sm text-muted-foreground">{label}</p>
         <p className={`font-medium ${valueClassName}`}>{value || 'N/A'}</p>
@@ -529,23 +527,18 @@ export default function ContractDetailPage() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="space-y-6">
+      <>
         <PageHeader title="Loading Contract..." description="Please wait while we fetch the details." />
-        <Skeleton className="h-12 w-3/4" />
-        <Skeleton className="h-8 w-1/2" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Skeleton className="h-48 w-full rounded-lg" />
-            <Skeleton className="h-32 w-full rounded-lg" />
-            <Skeleton className="h-40 w-full rounded-lg" />
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <Skeleton className="h-40 w-full rounded-lg" />
-            <Skeleton className="h-40 w-full rounded-lg" />
-             <Skeleton className="h-40 w-full rounded-lg" />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-6">
+                <Skeleton className="h-96 w-full" />
+            </div>
+            <div className="md:col-span-1 space-y-6">
+                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-64 w-full" />
+            </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -642,425 +635,116 @@ export default function ContractDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6"> {/* Left Column */}
-            <Accordion type="multiple" defaultValue={['item-info', 'item-redlining']} className="w-full space-y-6">
-                <AccordionItem value="item-info" className="border-b-0">
-                    <Card className="shadow-lg hide-on-print">
-                        <AccordionTrigger className="p-0 border-b-0 hover:no-underline">
-                            <CardHeader className="flex-1 text-left">
-                                <CardTitle className="flex items-center justify-between">
-                                    <span>Key Information</span>
-                                    <ContractStatusBadge status={effectiveDisplayStatus} /> 
-                                </CardTitle>
-                                <CardDescription>Core details of the agreement with {contract.brand}.</CardDescription>
-                            </CardHeader>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-0">
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                                <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
-                                <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
-                                <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
-                                <DetailItem icon={FileText} label="Contract Type" value={<span className="capitalize">{contract.contractType}</span>} />
-                                {contract.projectName && <DetailItem icon={Briefcase} label="Project Name" value={contract.projectName} />}
-                                <DetailItem icon={Info} label="File Name" value={contract.fileName || "N/A"} />
-                                <DetailItem icon={CalendarDays} label="Created At" value={formattedCreatedAt} />
-                                {contract.fileUrl && (
-                                    <DetailItem icon={FileText} label="Contract File" value={<a href={contract.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">View/Download File</a>}/>
-                                )}
-                                {contract.invoiceNumber && <DetailItem icon={FileSpreadsheet} label="Invoice Number" value={contract.invoiceNumber} />}
-                                {contract.invoiceStatus && contract.invoiceStatus !== 'none' && <DetailItem icon={Info} label="Invoice Status" value={<Badge variant="outline" className="capitalize">{contract.invoiceStatus.replace('_', ' ')}</Badge>} />}
-                            </CardContent>
-                        </AccordionContent>
-                    </Card>
-                </AccordionItem>
-                <AccordionItem value="item-redlining" className="border-b-0">
-                    <Card className="shadow-lg hide-on-print">
-                        <AccordionTrigger className="p-0 border-b-0 hover:no-underline">
-                             <CardHeader className="flex-1 text-left">
-                                <CardTitle className="flex items-center gap-2">
-                                    <FilePenLine className="h-5 w-5 text-indigo-500" />
-                                    Redline Proposals ({redlineProposals.filter(p=> p.status === 'proposed').length} pending)
-                                </CardTitle>
-                                <CardDescription>Review and manage proposed changes from shared contract versions.</CardDescription>
-                            </CardHeader>
-                        </AccordionTrigger>
-                         <AccordionContent className="pt-0">
-                            <CardContent>
-                                {isLoadingProposals ? (
-                                    <div className="flex items-center justify-center h-24"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                                ) : redlineProposals.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground text-center py-4">No redline proposals have been submitted for this contract.</p>
-                                ) : (
-                                    <ScrollArea className="h-[400px] pr-3">
-                                        <div className="space-y-4">
-                                            {redlineProposals.map(proposal => (
-                                                <div key={proposal.id} className="p-4 border rounded-lg bg-muted/30 relative">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-foreground">Proposal from {proposal.proposerName}</p>
-                                                            <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(proposal.proposedAt)}</p>
-                                                        </div>
-                                                         <Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge>
-                                                    </div>
-                                                     {proposal.comment && <p className="text-sm italic text-muted-foreground mb-3 p-2 bg-muted/50 border-l-2 border-primary rounded-r-md">"{proposal.comment}"</p>}
-                                                    <div className="space-y-3 text-sm">
-                                                        <div>
-                                                            <Label className="text-xs font-semibold text-red-600 dark:text-red-400">ORIGINAL TEXT</Label>
-                                                            <p className="mt-1 p-2 bg-red-50 dark:bg-red-900/20 rounded-md whitespace-pre-wrap font-mono text-xs">{proposal.originalText}</p>
-                                                        </div>
-                                                         <div>
-                                                            <Label className="text-xs font-semibold text-green-600 dark:text-green-400">PROPOSED TEXT</Label>
-                                                            <p className="mt-1 p-2 bg-green-50 dark:bg-green-900/20 rounded-md whitespace-pre-wrap font-mono text-xs">{proposal.proposedText}</p>
-                                                        </div>
-                                                    </div>
-                                                    {proposal.status === 'proposed' && (
-                                                        <div className="flex gap-2 mt-4 justify-end">
-                                                            <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}>
-                                                                {isUpdatingProposal === proposal.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <X className="mr-2 h-4 w-4"/>} Reject
-                                                            </Button>
-                                                            <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}>
-                                                                {isUpdatingProposal === proposal.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} Accept
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </ScrollArea>
-                                )}
-                            </CardContent>
-                        </AccordionContent>
-                    </Card>
-                </AccordionItem>
-            </Accordion>
-          
-          <Card className="shadow-lg hide-on-print flex flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-purple-500" />
-                Contract Comments
-              </CardTitle>
-              <CardDescription>Feedback received on shared versions of this contract. You can reply here.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0">
-              {isLoadingComments ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : contractComments.length === 0 ? (
-                 <div className="flex items-center justify-center h-full py-10">
-                    <p className="text-sm text-muted-foreground">No comments yet on any shared versions of this contract.</p>
-                </div>
-              ) : (
-                <ScrollArea className="h-[300px] pr-3">
-                  <div className="space-y-4">
-                    {contractComments.map(comment => (
-                      <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
-                        <div className="flex items-center justify-between mb-1">
-                           <div className="flex items-center">
-                            <p className="text-sm font-semibold text-foreground flex items-center">
-                                <User className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                                {comment.commenterName}
-                            </p>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10"
-                                onClick={() => openDeleteConfirmationDialog('comment', comment.id)}
-                                disabled={isDeletingCommentOrReply}
-                            >
-                                <Trash2 className="h-3 w-3" />
-                            </Button>
-                           </div>
-                          <p className="text-xs text-muted-foreground">{formatCommentDateDisplay(comment.commentedAt)}</p>
-                        </div>
-                        {comment.commenterEmail && <p className="text-xs text-muted-foreground mb-1 ml-5">{comment.commenterEmail}</p>}
-                        <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                        
-                        {comment.replies && comment.replies.length > 0 && (
-                          <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">
-                            {comment.replies.map(reply => (
-                              <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <p className="font-semibold text-primary text-xs flex items-center">
-                                    <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80"/>
-                                    {reply.creatorName} (Creator)
-                                  </p>
-                                   <div className="flex items-center">
-                                      <p className="text-xs text-muted-foreground mr-1">{formatCommentDateDisplay(reply.repliedAt)}</p>
-                                       {reply.creatorId === user?.uid && (
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            className="h-5 w-5 text-destructive hover:bg-destructive/10"
-                                            onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)}
-                                            disabled={isDeletingCommentOrReply}
-                                        >
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    )}
-                                   </div>
-                                </div>
-                                <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                              </div>
-                            ))}
-                          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column (Main Document) */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card className="shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Contract Document</CardTitle>
+                        <CardDescription>Key information and full text of the agreement.</CardDescription>
+                    </div>
+                    <ContractStatusBadge status={effectiveDisplayStatus} />
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 p-4 border rounded-lg bg-muted/30">
+                        <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
+                        <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
+                        <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
+                        <DetailItem icon={FileText} label="Contract Type" value={<span className="capitalize">{contract.contractType}</span>} />
+                        {contract.projectName && <DetailItem icon={Briefcase} label="Project Name" value={contract.projectName} />}
+                        {contract.fileUrl && (
+                            <DetailItem icon={FileText} label="Contract File" value={<a href={contract.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">View/Download File</a>}/>
                         )}
-                        <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-
-        </div> 
-
-        <div className="lg:col-span-1 space-y-6"> 
-           <Card className="shadow-lg hide-on-print">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-green-500" />
-                Share &amp; Feedback
-              </CardTitle>
-              <CardDescription>Share contract versions with brands for feedback.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ShareContractDialog 
-                contractId={contract.id} 
-                isOpen={isShareDialogOpen}
-                onOpenChange={setIsShareDialogOpen}
-              />
-              {isLoadingSharedVersions ? (
-                <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto my-4" />
-              ) : sharedVersions.length > 0 ? (
-                <ScrollArea className="h-[150px] pr-3 mt-4">
-                  <ul className="space-y-2">
-                    {sharedVersions.map(version => (
-                      <li key={version.id} className="text-sm p-2 border rounded-md">
-                        <Link href={`/share/contract/${version.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-                          Shared Link ({version.id.substring(0, 6)}...)
-                        </Link>
-                        <p className="text-xs text-muted-foreground">
-                          Shared on: {format(version.sharedAt.toDate(), "PPp")}
-                        </p>
-                        {version.notesForBrand && <p className="text-xs text-muted-foreground mt-1 italic">Notes: {version.notesForBrand}</p>}
-                        <Badge variant={version.status === 'active' ? 'default' : 'outline'} className="mt-1 capitalize text-xs">
-                          {version.status}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </ScrollArea>
-              ) : (
-                <p className="text-sm text-muted-foreground mt-2 text-center">No shared versions yet. Click "Share for Feedback" to create one.</p>
-              )}
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-lg hide-on-print">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-blue-600">
-                        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM12 12.59L9.41 10L8 11.41L12 15.41L16 11.41L14.59 10L12 12.59Z"></path>
-                    </svg>
-                    E-Signature (Dropbox Sign)
-                </CardTitle>
-                <CardDescription>Manage electronic signature for this contract.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                <div>
-                    <Label className="text-xs text-muted-foreground">Status</Label>
-                    <p className="text-sm font-medium capitalize">{contract.signatureStatus?.replace('_', ' ') || 'Not Sent'}</p>
-                </div>
-                {contract.helloSignRequestId && (
-                    <div>
-                        <Label className="text-xs text-muted-foreground">Request ID</Label>
-                        <p className="text-sm font-mono text-muted-foreground break-all">{contract.helloSignRequestId}</p>
+                        {contract.invoiceNumber && <DetailItem icon={FileSpreadsheet} label="Invoice Number" value={contract.invoiceNumber} />}
+                        {contract.invoiceStatus && contract.invoiceStatus !== 'none' && <DetailItem icon={Info} label="Invoice Status" value={<Badge variant="outline" className="capitalize">{contract.invoiceStatus.replace('_', ' ')}</Badge>} />}
                     </div>
-                )}
-                 {contract.lastSignatureEventAt && (
-                    <div>
-                        <Label className="text-xs text-muted-foreground">Last Event</Label>
-                        <p className="text-sm">{format(contract.lastSignatureEventAt.toDate(), 'PPpp')}</p>
-                    </div>
-                )}
-                {contract.signatureStatus === 'signed' && contract.signedDocumentUrl && (
-                     <Button variant="outline" size="sm" asChild>
-                        <a href={contract.signedDocumentUrl} target="_blank" rel="noopener noreferrer">
-                            <CheckCircle className="mr-2 h-4 w-4 text-green-500"/> View Signed Document
-                        </a>
-                    </Button>
-                )}
-                {canSendSignatureRequest && contract.fileUrl && (
-                    <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="default" className="w-full">
-                                <Mail className="mr-2 h-4 w-4" /> {getSignatureButtonText()}
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Send Signature Request</DialogTitle>
-                                <DialogDescription>
-                                    Enter the email address of the person who needs to sign this contract.
-                                    The contract file "{contract.fileName || 'Contract'}" will be sent.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-2">
-                                <div>
-                                    <Label htmlFor="signerEmail">Signer's Email Address</Label>
-                                    <Input 
-                                        id="signerEmail" 
-                                        type="email"
-                                        value={signerEmailOverride} 
-                                        onChange={(e) => setSignerEmailOverride(e.target.value)} 
-                                        placeholder="signer@example.com"
-                                        className="mt-1"
-                                        disabled={isSendingForSignature}
-                                    />
-                                </div>
+
+                     {contract.summary && (
+                        <div>
+                            <h3 className="font-semibold text-lg mb-2">AI Generated Summary</h3>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap p-3 border rounded-md bg-muted/30">{contract.summary}</p>
+                        </div>
+                     )}
+
+                     {contract.contractText && (
+                        <div className="contract-text-card-for-print">
+                            <h3 className="font-semibold text-lg mb-2 hide-on-print">Full Contract Text</h3>
+                             <ScrollArea className="h-[400px] pr-3 border rounded-md p-3 bg-muted/30 hide-on-print">
+                                <p className="text-sm text-foreground whitespace-pre-wrap">{contract.contractText}</p>
+                            </ScrollArea>
+                            {/* This is for printing only */}
+                            <div className="hidden print:block">
+                               <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.contractText}</p>
                             </div>
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button variant="outline" disabled={isSendingForSignature}>Cancel</Button>
-                                </DialogClose>
-                                <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
-                                    {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIconComponent className="mr-2 h-4 w-4"/>}
-                                    Send Request
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                )}
-                 {!contract.fileUrl && canSendSignatureRequest && (
-                    <p className="text-sm text-destructive">
-                        <AlertTriangle className="inline h-4 w-4 mr-1"/>A contract file must be uploaded before sending for e-signature. Please edit the contract to upload a file.
-                    </p>
-                )}
-            </CardContent>
-          </Card>
-
-
-          {contract.invoiceHistory && contract.invoiceHistory.length > 0 && (
-            <Card className="shadow-lg hide-on-print">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-blue-500" />
-                  Invoice History
-                </CardTitle>
-                <CardDescription>A log of actions related to this invoice.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[150px] pr-3">
-                  <ul className="space-y-2">
-                    {contract.invoiceHistory.slice().sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((entry, index) => (
-                      <li key={index} className="text-sm">
-                        <span className="font-medium text-foreground">
-                          {format(entry.timestamp.toDate(), "PPpp")}
-                        </span>
-                        <span className="text-muted-foreground">: {entry.action}</span>
-                        {entry.details && <span className="text-xs text-muted-foreground/80 block pl-2">- {entry.details}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </ScrollArea>
-              </CardContent>
+                        </div>
+                     )}
+                </CardContent>
             </Card>
-          )}
-          
-          <Card className="shadow-lg hide-on-print contract-text-card-for-print">
-            <Accordion type="multiple" defaultValue={["ai-summary", "ai-negotiation-suggestions"]} className="w-full">
-              {(contract.summary) && (
-                <AccordionItem value="ai-summary" className="border-b">
-                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                     <div className="flex flex-col space-y-1.5 text-left">
-                        <CardTitle className="text-lg">AI Generated Summary</CardTitle>
-                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4">
-                       <ScrollArea className="h-auto max-h-[200px] pr-3">
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {contract.summary}
-                        </p>
-                      </ScrollArea>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
+        </div>
 
-              {contract.negotiationSuggestions && (
-                 <AccordionItem value="ai-negotiation-suggestions" className="border-b">
-                   <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                      <div className="flex flex-col space-y-1.5 text-left">
-                        <CardTitle className="flex items-center text-lg gap-2">
-                          <Lightbulb className="h-5 w-5 text-yellow-500" />
-                          AI Negotiation Suggestions
-                        </CardTitle>
-                        <CardDescription>Advice for negotiating better terms.</CardDescription>
-                      </div>
-                   </AccordionTrigger>
-                   <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4 space-y-4 text-sm">
-                      {contract.negotiationSuggestions.paymentTerms && (
-                        <div>
-                          <h4 className="font-semibold text-foreground mb-1">Payment Terms:</h4>
-                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.paymentTerms}</p>
-                        </div>
-                      )}
-                      {contract.negotiationSuggestions.exclusivity && (
-                        <div>
-                          <h4 className="font-semibold text-foreground mb-1">Exclusivity:</h4>
-                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.exclusivity}</p>
-                        </div>
-                      )}
-                      {contract.negotiationSuggestions.ipRights && (
-                        <div>
-                          <h4 className="font-semibold text-foreground mb-1">Intellectual Property Rights:</h4>
-                          <p className="text-muted-foreground whitespace-pre-wrap">{contract.negotiationSuggestions.ipRights}</p>
-                        </div>
-                      )}
-                      {contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0 && (
-                        <div>
-                          <h4 className="font-semibold text-foreground mb-1">General Suggestions:</h4>
-                          <ul className="list-disc list-inside ml-4 text-muted-foreground space-y-1">
-                            {contract.negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i} className="whitespace-pre-wrap">{item}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                      {(!contract.negotiationSuggestions.paymentTerms && !contract.negotiationSuggestions.exclusivity && !contract.negotiationSuggestions.ipRights && (!contract.negotiationSuggestions.generalSuggestions || contract.negotiationSuggestions.generalSuggestions.length === 0)) && (
-                         <p className="text-muted-foreground">No specific negotiation points provided by AI.</p>
-                      )}
-                    </div>
-                   </AccordionContent>
-                 </AccordionItem>
-              )}
-              
-              {contract.contractText && (
-                <AccordionItem value="full-contract-text" className="border-b-0">
-                  <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:text-primary">
-                     <div className="flex flex-col space-y-1.5 text-left">
-                        <CardTitle className="flex items-center text-lg">Full Contract Text</CardTitle>
-                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0">
-                    <div className="px-6 pb-4">
-                      <ScrollArea className="h-[200px] pr-3 contract-text-scrollarea-for-print">
-                        <p className="text-xs text-muted-foreground whitespace-pre-wrap contract-text-paragraph-for-print">
-                          {contract.contractText}
-                        </p>
-                      </ScrollArea>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
-            </Accordion>
-          </Card>
-          
-        </div> 
+        {/* Right Column (Activity Feed & Actions) */}
+        <div className="lg:col-span-1 space-y-6">
+            <Card className="shadow-lg hide-on-print">
+                <CardHeader><CardTitle className="flex items-center gap-2"><Share2 className="h-5 w-5 text-green-500" />Share &amp; Feedback</CardTitle></CardHeader>
+                <CardContent>
+                    <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg hide-on-print">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle>
+                    <CardDescription>Review brand-proposed changes.</CardDescription>
+                </CardHeader>
+                 <CardContent>
+                    {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
+                    : <ScrollArea className="h-[300px] pr-3"><div className="space-y-4">
+                        {redlineProposals.map(proposal => (
+                            <div key={proposal.id} className="p-3 border rounded-lg bg-muted/30 relative text-sm">
+                                <div className="flex justify-between items-start mb-2"><p className="font-semibold text-foreground">{proposal.proposerName}</p><Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge></div>
+                                {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
+                                <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
+                                <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
+                                {proposal.status === 'proposed' && (
+                                    <div className="flex gap-2 mt-3 justify-end">
+                                        <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button>
+                                        <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div></ScrollArea>}
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg hide-on-print">
+                <CardHeader><CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-purple-500" />Contract Comments</CardTitle></CardHeader>
+                <CardContent>
+                    {isLoadingComments ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
+                    : <ScrollArea className="h-[300px] pr-3"><div className="space-y-4">
+                        {contractComments.map(comment => (
+                          <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
+                            <div className="flex items-center justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                            <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
+                                <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
+                                  <div className="flex items-center justify-between mb-0.5"><p className="font-semibold text-primary text-xs flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5"/>{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                                  <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
+                                </div>
+                              ))}</div>
+                            )}
+                            <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
+                          </div>
+                        ))}
+                    </div></ScrollArea>}
+                </CardContent>
+            </Card>
+
+        </div>
       </div>
 
       <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>

@@ -278,16 +278,10 @@ export default function ShareContractPage() {
   }
 
   const contract = sharedVersion.contractData;
-  const hasExtractedTerms = contract.extractedTerms && Object.values(contract.extractedTerms).some(term => term !== undefined && term !== null && (Array.isArray(term) ? term.length > 0 : true));
-  const hasNegotiationSuggestions = contract.negotiationSuggestions && 
-                                   (contract.negotiationSuggestions.paymentTerms ||
-                                    contract.negotiationSuggestions.exclusivity ||
-                                    contract.negotiationSuggestions.ipRights ||
-                                    (contract.negotiationSuggestions.generalSuggestions && contract.negotiationSuggestions.generalSuggestions.length > 0));
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
-      <header className="max-w-6xl mx-auto mb-8">
+      <header className="max-w-7xl mx-auto mb-8">
         <div className="flex items-center gap-3 mb-2">
           <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
              <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="38" fontWeight="bold" fill="currentColor">V</text>
@@ -295,137 +289,89 @@ export default function ShareContractPage() {
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Contract Review</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Shared on: {formatDateDisplay(sharedVersion.sharedAt)}
-          {sharedVersion.brandHasViewed && sharedVersion.lastViewedByBrandAt && (
-            <span className="ml-2 text-green-600 dark:text-green-400">(Viewed on: {formatDateDisplay(sharedVersion.lastViewedByBrandAt)})</span>
-          )}
+          Shared by creator on: {formatDateDisplay(sharedVersion.sharedAt)}
         </p>
       </header>
 
-      <main className="max-w-6xl mx-auto">
-        <div className="lg:grid lg:grid-cols-3 lg:gap-8 space-y-6 lg:space-y-0">
+      <main className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Main Document */}
           <div className="lg:col-span-2 space-y-6">
             {sharedVersion.notesForBrand && (
               <Card className="bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700 shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-lg text-blue-700 dark:text-blue-300 flex items-center">
-                    <MessageSquare className="mr-2 h-5 w-5"/> Notes from Creator
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-blue-600 dark:text-blue-200 whitespace-pre-wrap">{sharedVersion.notesForBrand}</p>
-                </CardContent>
+                <CardHeader><CardTitle className="text-lg text-blue-700 dark:text-blue-300 flex items-center"><MessageSquare className="mr-2 h-5 w-5"/> Notes from Creator</CardTitle></CardHeader>
+                <CardContent><p className="text-sm text-blue-600 dark:text-blue-200 whitespace-pre-wrap">{sharedVersion.notesForBrand}</p></CardContent>
               </Card>
             )}
 
             <Card className="shadow-lg bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle className="text-xl text-slate-700 dark:text-slate-200">
-                  Contract: {contract.brand} - {contract.projectName || contract.fileName || 'Details'}
-                </CardTitle>
-                <CardDescription className="dark:text-slate-400">
-                    {contract.contractType && <Badge variant="secondary" className="capitalize mr-2">{contract.contractType}</Badge>}
-                    Invoice Status: <Badge variant={contract.invoiceStatus === 'paid' ? 'default' : 'outline'} className={`capitalize ${contract.invoiceStatus === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-100'}`}>{contract.invoiceStatus?.replace('_', ' ') || 'None'}</Badge>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div><strong className="text-slate-600 dark:text-slate-300">Brand:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.brand}</span></div>
-                  <div><strong className="text-slate-600 dark:text-slate-300">Amount:</strong> <span className="text-slate-800 dark:text-slate-100 font-semibold">${contract.amount.toLocaleString()}</span></div>
-                  <div><strong className="text-slate-600 dark:text-slate-300">Due Date:</strong> <span className="text-slate-800 dark:text-slate-100">{formatDateDisplay(contract.dueDate)}</span></div>
-                  {contract.projectName && <div><strong className="text-slate-600 dark:text-slate-300">Project:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.projectName}</span></div>}
-                  {contract.clientName && <div><strong className="text-slate-600 dark:text-slate-300">Client Name:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.clientName}</span></div>}
-                  {contract.clientEmail && <div><strong className="text-slate-600 dark:text-slate-300">Client Email:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.clientEmail}</span></div>}
-                </div>
-                {contract.fileUrl && (
-                  <div className="mt-3">
-                    <Button variant="outline" asChild size="sm">
-                      <a href={contract.fileUrl} target="_blank" rel="noopener noreferrer">
-                        <FileText className="mr-2 h-4 w-4" /> View Original Contract File
-                      </a>
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {contract.contractText && (
-              <Card className="shadow-lg bg-card text-card-foreground">
                 <CardHeader>
-                  <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Full Contract Text (Snapshot)</CardTitle>
+                    <CardTitle className="text-xl text-slate-700 dark:text-slate-200">Contract: {contract.brand} - {contract.projectName || 'Details'}</CardTitle>
+                    <CardDescription className="dark:text-slate-400">
+                        A snapshot of the contract terms for your review.
+                    </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="relative">
-                    <ScrollArea
-                      onMouseUp={handleTextSelection}
-                      className="h-[300px] border rounded-md p-3 bg-slate-50 dark:bg-slate-800"
-                    >
-                      <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
-                    </ScrollArea>
-                    {selectedText && (
-                      <div className="absolute top-2 right-2 z-10">
-                        <Button onClick={handleProposeEditForSelection} size="sm" variant="default" className="shadow-lg">
-                          <FilePenLine className="mr-2 h-4 w-4" />
-                          Propose Edit
-                        </Button>
+                <CardContent className="space-y-6">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm p-4 border rounded-lg bg-muted/30">
+                        <div><strong className="text-slate-600 dark:text-slate-300">Brand:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.brand}</span></div>
+                        <div><strong className="text-slate-600 dark:text-slate-300">Amount:</strong> <span className="text-slate-800 dark:text-slate-100 font-semibold">${contract.amount.toLocaleString()}</span></div>
+                        <div><strong className="text-slate-600 dark:text-slate-300">Due Date:</strong> <span className="text-slate-800 dark:text-slate-100">{formatDateDisplay(contract.dueDate)}</span></div>
+                        {contract.projectName && <div><strong className="text-slate-600 dark:text-slate-300">Project:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.projectName}</span></div>}
+                     </div>
+                     {contract.contractText && (
+                      <div className="relative">
+                        <h3 className="font-semibold text-lg mb-2 text-slate-700 dark:text-slate-200">Full Contract Text</h3>
+                        <p className="text-xs text-muted-foreground mb-2">Select text below to propose an edit.</p>
+                        <ScrollArea onMouseUp={handleTextSelection} className="h-[500px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
+                        </ScrollArea>
+                        {selectedText && (
+                            <div className="absolute top-10 right-4 z-10">
+                                <Button onClick={handleProposeEditForSelection} size="sm" variant="default" className="shadow-lg">
+                                    <FilePenLine className="mr-2 h-4 w-4" />Propose Edit
+                                </Button>
+                            </div>
+                        )}
                       </div>
                     )}
-                  </div>
                 </CardContent>
-              </Card>
-            )}
+            </Card>
           </div>
 
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="shadow-lg sticky top-8 bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Your Information</CardTitle>
-                <CardDescription>Enter your name and email to leave feedback.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="commenterName" className="dark:text-slate-300">Your Name*</Label>
-                    <Input 
-                      id="commenterName" 
-                      value={newCommenterName} 
-                      onChange={(e) => setNewCommenterName(e.target.value)} 
-                      placeholder="e.g., Jane Doe" 
-                      required 
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="commenterEmail" className="dark:text-slate-300">Your Email (Optional)</Label>
-                    <Input 
-                      id="commenterEmail" 
-                      type="email"
-                      value={newCommenterEmail} 
-                      onChange={(e) => setNewCommenterEmail(e.target.value)} 
-                      placeholder="jane.doe@brand.com" 
-                      className="mt-1"
-                    />
-                  </div>
-              </CardContent>
-            </Card>
-
+          {/* Right Column - Feedback & Actions */}
+          <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-8 h-fit">
              <Card className="shadow-lg bg-card text-card-foreground">
                 <CardHeader>
-                    <CardTitle className="text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2"><FilePenLine/>Suggest an Edit (Redline)</CardTitle>
-                    <CardDescription>Propose a specific change to the contract text.</CardDescription>
+                    <CardTitle className="text-lg text-slate-700 dark:text-slate-200">Provide Your Feedback</CardTitle>
+                    <CardDescription>Enter your name to leave comments or suggest edits.</CardDescription>
                 </CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <Label htmlFor="commenterName" className="dark:text-slate-300">Your Name*</Label>
+                        <Input id="commenterName" value={newCommenterName} onChange={(e) => setNewCommenterName(e.target.value)} placeholder="e.g., Jane Doe" required className="mt-1"/>
+                    </div>
+                    <div>
+                        <Label htmlFor="commenterEmail" className="dark:text-slate-300">Your Email (Optional)</Label>
+                        <Input id="commenterEmail" type="email" value={newCommenterEmail} onChange={(e) => setNewCommenterEmail(e.target.value)} placeholder="jane.doe@brand.com" className="mt-1"/>
+                    </div>
+                </CardContent>
+            </Card>
+            
+            <Card className="shadow-lg bg-card text-card-foreground">
+                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FilePenLine/>Suggest an Edit (Redline)</CardTitle></CardHeader>
                 <CardContent>
                     <form ref={redlineFormRef} onSubmit={handleAddProposal} className="space-y-4">
                         <div>
-                            <Label htmlFor="originalText">Original Text to Replace</Label>
-                            <Textarea id="originalText" value={newOriginalText} onChange={(e) => setNewOriginalText(e.target.value)} required placeholder="Copy and paste the exact text from the contract here..." rows={4} className="mt-1 font-mono text-xs"/>
+                            <Label htmlFor="originalText">Original Text</Label>
+                            <Textarea id="originalText" value={newOriginalText} onChange={(e) => setNewOriginalText(e.target.value)} required placeholder="Select text from the contract to populate this..." rows={3} className="mt-1 font-mono text-xs"/>
                         </div>
                         <div>
-                            <Label htmlFor="proposedText">Your Proposed New Text</Label>
-                            <Textarea id="proposedText" value={newProposedText} onChange={(e) => setNewProposedText(e.target.value)} required placeholder="Enter your suggested replacement text here..." rows={4} className="mt-1 font-mono text-xs"/>
+                            <Label htmlFor="proposedText">Proposed New Text</Label>
+                            <Textarea id="proposedText" value={newProposedText} onChange={(e) => setNewProposedText(e.target.value)} required placeholder="Enter your suggested replacement..." rows={3} className="mt-1 font-mono text-xs"/>
                         </div>
                         <div>
-                            <Label htmlFor="proposalComment">Reason for Change (Optional)</Label>
-                            <Textarea id="proposalComment" value={newProposalComment} onChange={(e) => setNewProposalComment(e.target.value)} placeholder="Explain why you are suggesting this change..." rows={2} className="mt-1"/>
+                            <Label htmlFor="proposalComment">Reason (Optional)</Label>
+                            <Textarea id="proposalComment" value={newProposalComment} onChange={(e) => setNewProposalComment(e.target.value)} placeholder="Explain your change..." rows={2} className="mt-1"/>
                         </div>
                         <Button type="submit" disabled={isSubmittingProposal || !newOriginalText.trim() || !newProposedText.trim() || !newCommenterName.trim()} className="w-full">
                             {isSubmittingProposal ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>} Submit Proposal
@@ -433,102 +379,31 @@ export default function ShareContractPage() {
                     </form>
                 </CardContent>
             </Card>
-            
-            <Card className="shadow-lg bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle className="text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2"><MessageSquare/> General Comments</CardTitle>
-              </CardHeader>
+
+             <Card className="shadow-lg bg-card text-card-foreground">
+              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><MessageSquare/> General Comments</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleAddComment} className="space-y-4 mb-6">
                   <div>
                     <Label htmlFor="commentText" className="dark:text-slate-300">Your Comment</Label>
-                    <Textarea 
-                      id="commentText" 
-                      value={newCommentText} 
-                      onChange={(e) => setNewCommentText(e.target.value)} 
-                      placeholder="Enter your general feedback here..." 
-                      required 
-                      rows={4}
-                      className="mt-1"
-                      disabled={isSubmittingComment}
-                    />
+                    <Textarea id="commentText" value={newCommentText} onChange={(e) => setNewCommentText(e.target.value)} placeholder="General feedback..." required rows={4} className="mt-1" disabled={isSubmittingComment}/>
                   </div>
                   <Button type="submit" disabled={isSubmittingComment || !newCommentText.trim() || !newCommenterName.trim()} className="w-full">
-                    {isSubmittingComment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Submit Comment
+                    {isSubmittingComment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Submit Comment
                   </Button>
                 </form>
+                <Separator className="my-4"/>
+                <h4 className="font-semibold text-md text-foreground mb-3">Feedback History</h4>
+                <ScrollArea className="h-[250px] pr-3">
+                    {isLoadingProposals || isLoadingComments ? <div className="flex justify-center items-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    : (redlineProposals.length === 0 && comments.length === 0) ? <p className="text-sm text-muted-foreground text-center py-4">No feedback yet.</p>
+                    : <div className="space-y-4">
+                        {redlineProposals.map(p => <div key={p.id} className="p-3 border rounded-lg bg-muted/50 text-xs"><div className="flex justify-between items-center mb-1"><p className="font-semibold">{p.proposerName}</p><Badge variant="secondary">Proposal</Badge></div><p className="italic text-muted-foreground mb-2">"{p.comment || 'No comment.'}"</p><div><p className="text-red-500">Replaces: "{p.originalText}"</p><p className="text-green-500">With: "{p.proposedText}"</p></div></div>)}
+                        {comments.map(c => <div key={c.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70"><div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold">{c.commenterName}</p></div><p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{c.commentText}</p></div>)}
+                    </div>}
+                </ScrollArea>
               </CardContent>
             </Card>
-            
-             {(redlineProposals.length > 0 || comments.length > 0) && (
-              <Card className="shadow-lg bg-card text-card-foreground">
-                <CardHeader><CardTitle className="text-lg">Feedback History</CardTitle></CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[400px] pr-3">
-                    {isLoadingProposals || isLoadingComments ? (
-                      <div className="flex justify-center items-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                    ) : (
-                      <div className="space-y-6">
-                        {redlineProposals.length > 0 && (
-                          <div className="space-y-4">
-                            <h4 className="font-semibold text-md text-foreground">Proposed Edits</h4>
-                            {redlineProposals.map(proposal => (
-                              <div key={proposal.id} className="p-3 border rounded-lg bg-muted/50 text-xs">
-                                <div className="flex justify-between items-center mb-2">
-                                  <p className="font-semibold text-sm">{proposal.proposerName}</p>
-                                  <Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className="capitalize">{proposal.status}</Badge>
-                                </div>
-                                <p className="italic text-muted-foreground mb-2">"{proposal.comment || 'No comment provided.'}"</p>
-                                <div className="space-y-2">
-                                  <p><strong className="text-red-600 dark:text-red-400">Replaces:</strong> "{proposal.originalText}"</p>
-                                  <p><strong className="text-green-600 dark:text-green-400">With:</strong> "{proposal.proposedText}"</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {comments.length > 0 && (
-                          <div className="space-y-4">
-                             <h4 className="font-semibold text-md text-foreground">Comments</h4>
-                             {comments.map(comment => (
-                                <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
-                                  <div className="flex items-start justify-between mb-1">
-                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center">
-                                      <User className="h-4 w-4 mr-1.5 text-muted-foreground dark:text-slate-400"/>
-                                      {comment.commenterName}
-                                    </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateDisplay(comment.commentedAt)}</p>
-                                  </div>
-                                  {comment.commenterEmail && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 ml-5">{comment.commenterEmail}</p>}
-                                  <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                                  {comment.replies && comment.replies.length > 0 && (
-                                    <div className="mt-3 ml-8 pl-4 border-l border-primary/30 dark:border-primary/50 space-y-2">
-                                      {comment.replies.map(reply => (
-                                        <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5 dark:bg-primary/10">
-                                          <div className="flex items-center justify-between mb-0.5">
-                                            <p className="font-semibold text-primary text-xs flex items-center dark:text-primary/90">
-                                              <CornerDownRight className="h-3 w-3 mr-1.5 text-primary/80 dark:text-primary/70"/>
-                                              {reply.creatorName} (Creator)
-                                            </p>
-                                            <p className="text-xs text-muted-foreground dark:text-slate-400">{formatDateDisplay(reply.repliedAt)}</p>
-                                          </div>
-                                          <p className="text-foreground/80 dark:text-slate-300 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                             ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            )}
-
           </div>
         </div>
       </main>
