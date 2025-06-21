@@ -14,14 +14,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject } from '@/lib/firebase';
-import type { Contract, ExtractedTerms, NegotiationSuggestionsOutput } from '@/types';
+import type { Contract, NegotiationSuggestionsOutput } from '@/types';
 import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { extractContractDetails, type ExtractContractDetailsOutput as AIExtractOutput } from "@/ai/flows/extract-contract-details";
-import { summarizeContractTerms, type SummarizeContractTermsOutput as AISummaryOutput } from "@/ai/flows/summarize-contract-terms";
-import { getNegotiationSuggestions, type NegotiationSuggestionsOutput as AINegotiationOutput } from "@/ai/flows/negotiation-suggestions-flow";
+import { extractContractDetails } from "@/ai/flows/extract-contract-details";
+import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
+import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
 
 export default function EditContractPage() {
   const params = useParams();
@@ -50,7 +50,7 @@ export default function EditContractPage() {
   const [editedContractText, setEditedContractText] = useState('');
   const [hasContractTextChanged, setHasContractTextChanged] = useState(false);
   const [currentSummary, setCurrentSummary] = useState<string | undefined>(undefined);
-  const [currentNegotiationSuggestions, setCurrentNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null | undefined>(undefined);
+  const [currentNegotiationSuggestions, setCurrentNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null | undefined>(null);
 
   // State for new file upload
   const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
@@ -402,7 +402,10 @@ export default function EditContractPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Client &amp; File</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Client Info & Payment</CardTitle>
+              <CardDescription>Details needed for invoicing.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="clientName">Client Name</Label>
@@ -411,6 +414,14 @@ export default function EditContractPage() {
               <div>
                 <Label htmlFor="clientEmail">Client Email</Label>
                 <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
+              </div>
+               <div>
+                <Label htmlFor="clientAddress">Client Address</Label>
+                <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} />
+              </div>
+              <div>
+                <Label htmlFor="paymentInstructions">Payment Instructions</Label>
+                <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/>
               </div>
                <div>
                  <Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>
@@ -426,3 +437,5 @@ export default function EditContractPage() {
     </form>
   );
 }
+
+    
