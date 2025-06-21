@@ -221,3 +221,19 @@ body {
     /* Reset other dark mode colors to sensible print defaults if necessary */
   }
 }
+
+/* Redlining diff styles */
+ins.diff-ins {
+  background-color: hsl(134 65% 90%);
+  text-decoration: none;
+}
+del.diff-del {
+  background-color: hsl(0 72% 90%);
+  text-decoration: line-through;
+}
+.dark ins.diff-ins {
+  background-color: hsl(134 30% 25%);
+}
+.dark del.diff-del {
+  background-color: hsl(0 50% 30%);
+}

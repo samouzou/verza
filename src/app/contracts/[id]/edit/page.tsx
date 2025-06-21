@@ -18,10 +18,33 @@ import type { Contract, NegotiationSuggestionsOutput } from '@/types';
 import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { diffChars } from 'diff';
 
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
+
+const PreviewChanges = ({ original, current }: { original: string; current: string }) => {
+  const diff = diffChars(original, current);
+  
+  return (
+      <ScrollArea className="h-[520px] rounded-md border p-3 font-mono text-sm">
+          <pre className="whitespace-pre-wrap">
+              {diff.map((part, index) => {
+                  if (part.added) {
+                      return <ins key={index} className="diff-ins">{part.value}</ins>;
+                  }
+                  if (part.removed) {
+                      return <del key={index} className="diff-del">{part.value}</del>;
+                  }
+                  return <span key={index}>{part.value}</span>;
+              })}
+          </pre>
+      </ScrollArea>
+  );
+};
+
 
 export default function EditContractPage() {
   const params = useParams();
@@ -47,6 +70,7 @@ export default function EditContractPage() {
   const [contractType, setContractType] = useState<Contract['contractType']>('other');
   
   // State for editable contract text and its AI-derived data
+  const [originalContractText, setOriginalContractText] = useState('');
   const [editedContractText, setEditedContractText] = useState('');
   const [hasContractTextChanged, setHasContractTextChanged] = useState(false);
   const [currentSummary, setCurrentSummary] = useState<string | undefined>(undefined);
@@ -57,6 +81,8 @@ export default function EditContractPage() {
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   const [copiedSuggestion, setCopiedSuggestion] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+
 
   const handleCopySuggestion = (text: string | undefined) => {
     if (!text) return;
@@ -87,6 +113,7 @@ export default function EditContractPage() {
             setClientAddress(data.clientAddress || '');
             setPaymentInstructions(data.paymentInstructions || '');
             
+            setOriginalContractText(data.contractText || '');
             setEditedContractText(data.contractText || '');
             setCurrentSummary(data.summary);
             setCurrentNegotiationSuggestions(data.negotiationSuggestions);
@@ -281,30 +308,47 @@ export default function EditContractPage() {
         {/* Main Editor Column */}
         <div className="lg:col-span-2 space-y-4">
           <Card className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
+            <CardHeader className="flex flex-row items-start sm:items-center justify-between gap-2">
+              <div className="flex-1">
                 <CardTitle>Contract Editor</CardTitle>
                 <CardDescription>Make changes to the full text of the contract below.</CardDescription>
               </div>
-               <Button
-                type="button"
-                onClick={handleAiReparse}
-                disabled={!hasContractTextChanged || isReparsingAi || isSaving}
-                variant="outline"
-              >
-                {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                Re-process Text
-              </Button>
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
+                <RadioGroup value={viewMode} onValueChange={(value) => setViewMode(value as 'edit' | 'preview')} className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <RadioGroupItem value="edit" id="edit-mode" />
+                    <Label htmlFor="edit-mode" className="cursor-pointer">Edit</Label>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <RadioGroupItem value="preview" id="preview-mode" />
+                    <Label htmlFor="preview-mode" className="cursor-pointer">Preview</Label>
+                  </div>
+                </RadioGroup>
+                <Button
+                  type="button"
+                  onClick={handleAiReparse}
+                  disabled={!hasContractTextChanged || isReparsingAi || isSaving}
+                  variant="outline"
+                  size="sm"
+                >
+                  {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  Re-process
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <Textarea
-                id="editedContractText"
-                value={editedContractText}
-                onChange={(e) => handleContractTextChange(e.target.value)}
-                rows={25}
-                className="font-mono text-sm resize-y"
-                placeholder="Paste or edit contract text here..."
-              />
+              {viewMode === 'edit' ? (
+                <Textarea
+                  id="editedContractText"
+                  value={editedContractText}
+                  onChange={(e) => handleContractTextChange(e.target.value)}
+                  rows={25}
+                  className="font-mono text-sm resize-y"
+                  placeholder="Paste or edit contract text here..."
+                />
+              ) : (
+                <PreviewChanges original={originalContractText} current={editedContractText} />
+              )}
             </CardContent>
           </Card>
         </div>
@@ -323,7 +367,7 @@ export default function EditContractPage() {
                     <h4 className="font-semibold mb-1">AI Summary</h4>
                     <p className="text-muted-foreground whitespace-pre-wrap">{currentSummary || "No summary available. Process text with AI to generate one."}</p>
                   </div>
-                  {(currentNegotiationSuggestions?.paymentTerms || currentNegotiationSuggestions?.exclusivity || currentNegotiationSuggestions?.ipRights || currentNegotiationSuggestions?.generalSuggestions) && (
+                  {(currentNegotiationSuggestions?.paymentTerms || currentNegotiationSuggestions?.exclusivity || currentNegotiationSuggestions?.ipRights) && (
                     <div className="space-y-3 pt-2">
                        <h4 className="font-semibold mb-1">Negotiation Points</h4>
                        {currentNegotiationSuggestions.paymentTerms && (
@@ -437,7 +481,3 @@ export default function EditContractPage() {
     </form>
   );
 }
-
-    
-
-    
