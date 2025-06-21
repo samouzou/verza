@@ -20,10 +20,9 @@ const NegotiationSuggestionsInputSchema = z.object({
 export type NegotiationSuggestionsInput = z.infer<typeof NegotiationSuggestionsInputSchema>;
 
 const NegotiationSuggestionsOutputSchema = z.object({
-  paymentTerms: z.string().optional().describe('Suggestions for negotiating payment terms (e.g., net days, upfront payment).'),
-  exclusivity: z.string().optional().describe('Suggestions regarding exclusivity clauses (e.g., duration, scope, carve-outs).'),
-  ipRights: z.string().optional().describe('Suggestions for negotiating intellectual property rights (e.g., ownership, licensing, usage).'),
-  generalSuggestions: z.array(z.string()).optional().describe('Other general negotiation points or tips.'),
+  paymentTerms: z.string().optional().describe('A complete, alternative payment terms clause that is more favorable to the creator.'),
+  exclusivity: z.string().optional().describe('A complete, alternative exclusivity clause with a more limited scope or duration.'),
+  ipRights: z.string().optional().describe('A complete, alternative intellectual property rights clause, for example, granting a license instead of ownership.'),
 });
 export type NegotiationSuggestionsOutput = z.infer<typeof NegotiationSuggestionsOutputSchema>;
 
@@ -37,15 +36,17 @@ const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
-  prompt: `You are an expert negotiation advisor for content creators reviewing a contract.
-  Based on the following contract text, provide actionable negotiation suggestions.
-  Focus on common areas like:
-  1.  Payment Terms: Advise on favorable terms (e.g., shorter payment cycles like Net-15 or Net-30, upfront payments, kill fees).
-  2.  Exclusivity: Analyze any exclusivity clauses. Suggest ways to limit scope (e.g., platform-specific, content-specific, shorter duration) or negotiate carve-outs.
-  3.  Intellectual Property (IP) Rights: Advise on retaining IP ownership where possible, or clearly defining usage rights, licensing terms, and duration for any content created.
+  prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract and suggest alternative phrasing for key clauses that would be more favorable to the creator.
 
-  Provide concise, practical advice for each category if applicable. If a category is not relevant or no specific suggestion can be made, you can omit it.
-  You can also include general negotiation tips if they arise from the contract context.
+  Based on the following contract text, provide alternative clauses that can be directly copied and pasted into the document. The language and tone of your suggestions should match the existing contract.
+
+  Focus on these key areas:
+  1.  **Payment Terms**: If the payment terms are unfavorable (e.g., Net-60 or longer), suggest a clause for a shorter payment cycle (e.g., Net-30) or upfront payment. For example, "Payment will be due within thirty (30) days of receipt of invoice."
+  2.  **Exclusivity**: If the exclusivity clause is too broad, suggest a more limited version. For example, limit it to a specific platform ("...exclusive to the Instagram platform...") or a shorter duration.
+  3.  **Intellectual Property (IP) Rights**: If the brand is asking for full ownership of the content, suggest a clause where the creator retains ownership and grants the brand a specific license. For example, "Creator grants Brand a non-exclusive, worldwide, perpetual license to use the content..."
+
+  Provide the full, ready-to-use legal text for each suggested clause. If a category is not relevant or the existing clause is already favorable, you can omit it.
+  Do not provide advice or explanations, only the replacement legal text itself.
 
   Contract Text:
   {{{contractText}}}
