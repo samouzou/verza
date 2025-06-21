@@ -279,6 +279,9 @@ export default function ShareContractPage() {
   }
 
   const contract = sharedVersion.contractData;
+  const originalText = contract.previousContractText || contract.contractText || "";
+  const currentText = contract.contractText || "";
+  const changes = diffChars(originalText, currentText);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
@@ -309,7 +312,7 @@ export default function ShareContractPage() {
                 <CardHeader>
                     <CardTitle className="text-xl text-slate-700 dark:text-slate-200">Contract: {contract.brand} - {contract.projectName || 'Details'}</CardTitle>
                     <CardDescription className="dark:text-slate-400">
-                        A snapshot of the contract terms for your review.
+                        Review the proposed changes below. Deletions are in red, additions are in green.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -324,7 +327,17 @@ export default function ShareContractPage() {
                         <h3 className="font-semibold text-lg mb-2 text-slate-700 dark:text-slate-200">Full Contract Text</h3>
                         <p className="text-xs text-muted-foreground mb-2">Select text below to propose an edit.</p>
                         <ScrollArea onMouseUp={handleTextSelection} className="h-[500px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
-                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contract.contractText}</p>
+                          <pre className="whitespace-pre-wrap font-mono text-sm">
+                            {changes.map((part, index) => {
+                                if (part.added) {
+                                  return <ins key={index} className="diff-ins">{part.value}</ins>;
+                                }
+                                if (part.removed) {
+                                  return <del key={index} className="diff-del">{part.value}</del>;
+                                }
+                                return <span key={index}>{part.value}</span>;
+                            })}
+                          </pre>
                         </ScrollArea>
                         {selectedText && (
                             <div className="absolute top-10 right-4 z-10">

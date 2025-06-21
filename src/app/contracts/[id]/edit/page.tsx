@@ -225,6 +225,7 @@ export default function EditContractPage() {
         clientAddress: clientAddress.trim() || null,
         paymentInstructions: paymentInstructions.trim() || null,
         
+        previousContractText: hasContractTextChanged ? contract.contractText : contract.previousContractText,
         contractText: editedContractText.trim() || null,
         summary: currentSummary || null,
         negotiationSuggestions: currentNegotiationSuggestions ? JSON.parse(JSON.stringify(currentNegotiationSuggestions)) : null,
@@ -447,8 +448,8 @@ export default function EditContractPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Client Info & Payment</CardTitle>
-              <CardDescription>Details needed for invoicing.</CardDescription>
+              <CardTitle>Client & File</CardTitle>
+              <CardDescription>Details for invoicing and the original file.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>

@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -52,6 +51,7 @@ export interface Contract {
   };
   summary?: string;
   contractText?: string;
+  previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
   negotiationSuggestions?: NegotiationSuggestionsOutput | null;
