@@ -326,7 +326,7 @@ export default function ShareContractPage() {
                       <div className="relative">
                         <h3 className="font-semibold text-lg mb-2 text-slate-700 dark:text-slate-200">Full Contract Text</h3>
                         <p className="text-xs text-muted-foreground mb-2">Select text below to propose an edit.</p>
-                        <ScrollArea onMouseUp={handleTextSelection} className="h-[500px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
+                        <ScrollArea onMouseUp={handleTextSelection} className="h-[1100px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
                           <pre className="whitespace-pre-wrap font-mono text-sm">
                             {changes.map((part, index) => {
                                 if (part.added) {
