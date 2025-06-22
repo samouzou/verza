@@ -74,7 +74,7 @@ export interface Contract {
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
   lastSignatureEventAt?: Timestamp | null;
-  lastGeneratedSignatureFileUrl?: string | null;
+  lastGeneratedSignatureFilePath?: string | null;
   
   createdAt: Timestamp;
   updatedAt?: Timestamp;

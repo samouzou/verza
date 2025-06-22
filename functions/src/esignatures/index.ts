@@ -7,7 +7,7 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
-import { getStorage } from "firebase-admin/storage";
+import {getStorage} from "firebase-admin/storage";
 
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -74,7 +74,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     // NEW LOGIC: Generate file from text if available
     if (contractData.contractText) {
       logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
-      
+
       const htmlContent = `
         <!DOCTYPE html>
         <html lang="en">
@@ -97,19 +97,22 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       const fileName = `generated-contracts/${contractId}/${Date.now()}.html`;
       const file = bucket.file(fileName);
 
-      await file.save(Buffer.from(htmlContent, 'utf8'), {
-        contentType: 'text/html',
+      await file.save(Buffer.from(htmlContent, "utf8"), {
+        contentType: "text/html",
       });
-      
-      await file.makePublic();
-      
-      fileUrlForSignature = file.publicUrl();
 
-      // Optionally, update the contract with the URL of the generated file for tracking
-      await contractDocRef.update({
-        lastGeneratedSignatureFileUrl: fileUrlForSignature
+      // Generate a short-lived signed URL for Dropbox Sign to access the file
+      const [signedUrl] = await file.getSignedUrl({
+        action: "read",
+        expires: Date.now() + 60 * 60 * 1000, // 1 hour validity
       });
-      
+
+      fileUrlForSignature = signedUrl;
+
+      // Optionally, update the contract with the PATH of the generated file for tracking
+      await contractDocRef.update({
+        lastGeneratedSignatureFilePath: file.name,
+      });
     } else if (contractData.fileUrl) {
       // FALLBACK LOGIC: Use existing fileUrl if no contractText
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
