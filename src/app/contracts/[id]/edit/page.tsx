@@ -29,7 +29,7 @@ const PreviewChanges = ({ original, current }: { original: string; current: stri
   const diff = diffChars(original, current);
   
   return (
-      <ScrollArea className="h-[520px] rounded-md border p-3 font-mono text-sm">
+      <ScrollArea className="h-[1100px] rounded-md border p-3 font-mono text-sm">
           <pre className="whitespace-pre-wrap">
               {diff.map((part, index) => {
                   if (part.added) {
@@ -343,7 +343,7 @@ export default function EditContractPage() {
                   id="editedContractText"
                   value={editedContractText}
                   onChange={(e) => handleContractTextChange(e.target.value)}
-                  rows={25}
+                  rows={95}
                   className="font-mono text-sm resize-y"
                   placeholder="Paste or edit contract text here..."
                 />
