@@ -279,9 +279,8 @@ export default function ShareContractPage() {
   }
 
   const contract = sharedVersion.contractData;
-  const originalText = contract.previousContractText || contract.contractText || "";
-  const currentText = contract.contractText || "";
-  const changes = diffChars(originalText, currentText);
+  const hasChangesToShow = !!contract.previousContractText && contract.previousContractText !== contract.contractText;
+  const changes = hasChangesToShow ? diffChars(contract.previousContractText!, contract.contractText || '') : [];
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
@@ -312,7 +311,9 @@ export default function ShareContractPage() {
                 <CardHeader>
                     <CardTitle className="text-xl text-slate-700 dark:text-slate-200">Contract: {contract.brand} - {contract.projectName || 'Details'}</CardTitle>
                     <CardDescription className="dark:text-slate-400">
-                        Review the proposed changes below. Deletions are in red, additions are in green.
+                      {hasChangesToShow
+                        ? "Review the proposed changes below. Deletions are in red, additions are in green."
+                        : "Review the full text of the agreement below."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -328,15 +329,19 @@ export default function ShareContractPage() {
                         <p className="text-xs text-muted-foreground mb-2">Select text below to propose an edit.</p>
                         <ScrollArea onMouseUp={handleTextSelection} className="h-[1100px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
                           <pre className="whitespace-pre-wrap font-mono text-sm">
-                            {changes.map((part, index) => {
-                                if (part.added) {
-                                  return <ins key={index} className="diff-ins">{part.value}</ins>;
-                                }
-                                if (part.removed) {
-                                  return <del key={index} className="diff-del">{part.value}</del>;
-                                }
-                                return <span key={index}>{part.value}</span>;
-                            })}
+                            {hasChangesToShow ? (
+                              changes.map((part, index) => {
+                                  if (part.added) {
+                                    return <ins key={index} className="diff-ins">{part.value}</ins>;
+                                  }
+                                  if (part.removed) {
+                                    return <del key={index} className="diff-del">{part.value}</del>;
+                                  }
+                                  return <span key={index}>{part.value}</span>;
+                              })
+                            ) : (
+                              <span>{contract.contractText || "No contract text available."}</span>
+                            )}
                           </pre>
                         </ScrollArea>
                         {selectedText && (
@@ -469,3 +474,5 @@ export default function ShareContractPage() {
     </div>
   );
 }
+
+    
