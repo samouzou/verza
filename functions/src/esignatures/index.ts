@@ -129,11 +129,16 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     }
 
     const userRecord = await admin.auth().getUser(userId);
-    const creatorEmail = userRecord.email;
+    const creatorEmail = userRecord.email; 
     if (!creatorEmail) {
       throw new HttpsError("failed-precondition", "Creator email not found. Cannot send signature request.");
     }
 
+    const userDoc = await db.collection("users").doc(userId).get();
+    const userData = userDoc.data();
+    if (!userData) {
+      throw new HttpsError("failed-precondition", "Creator display name not found. Cannot send signature request.");
+    }
 
     const options: DropboxSign.SignatureRequestSendRequest = {
       testMode: true, // Set to true for testing
@@ -144,7 +149,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.
         
         Thank you,
-        ${userRecord.displayName || "The Contract Sender"}
+        ${userData.displayName || "The Contract Sender"}
       `,
       signers: [
         { // Client Signer
@@ -154,7 +159,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         },
         { // Creator Signer
           emailAddress: creatorEmail,
-          name: userRecord.displayName || "Creator Signer",
+          name: userData.displayName || "Creator Signer",
           // order: 1 // Optional: explicitly set signing order if needed
         },
       ],
