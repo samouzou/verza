@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 
 // --- Mock Data ---
@@ -33,6 +33,8 @@ const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category
   { id: 'txn_6', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), description: "H&M Store 432", amount: -150.75, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
 ];
 // --- End Mock Data ---
+
+const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app";
 
 export default function BankingPage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
@@ -128,7 +130,7 @@ export default function BankingPage() {
     setIsConnecting(true);
     try {
       const firebaseFunctions = getFunctions();
-      const generateUrlCallable = httpsCallable(firebaseFunctions, 'generateFinicityConnectUrl');
+      const generateUrlCallable = httpsCallableFromURL(firebaseFunctions, GENERATE_FINICITY_CONNECT_URL);
       const result = await generateUrlCallable();
       const { connectUrl } = result.data as {connectUrl: string};
 
@@ -358,3 +360,5 @@ export default function BankingPage() {
     </>
   );
 }
+
+    
