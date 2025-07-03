@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useToast } from '@/hooks/use-toast';
 
 // --- Mock Data ---
 const MOCK_ACCOUNTS: BankAccount[] = [
@@ -33,7 +35,8 @@ const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category
 // --- End Mock Data ---
 
 export default function BankingPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -41,6 +44,25 @@ export default function BankingPage() {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
+
+  // Load Finicity Connect SDK script
+  useEffect(() => {
+    const scriptId = 'finicity-connect-sdk';
+    if (document.getElementById(scriptId)) return; // Script already added
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://connect.finicity.com/assets/sdk/finicity-connect.min.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      const existingScript = document.getElementById(scriptId);
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Simulate fetching account data
@@ -51,7 +73,6 @@ export default function BankingPage() {
       setIsLoadingTransactions(true);
       try {
         const processed = await Promise.all(MOCK_TRANSACTIONS_RAW.map(async (txn) => {
-          // Don't classify income payments
           if (txn.amount > 0) {
             return { ...txn, isTaxDeductible: false, category: 'Client Payment' };
           }
@@ -60,14 +81,12 @@ export default function BankingPage() {
             return { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible, category: classification.category };
           } catch (aiError) {
             console.error(`AI classification failed for "${txn.description}":`, aiError);
-            // Fallback if AI fails
             return { ...txn, isTaxDeductible: false, category: 'Other' };
           }
         }));
         setTransactions(processed as BankTransaction[]);
       } catch (error) {
         console.error("Error processing transactions:", error);
-        // Fallback to raw mock data on major error
         setTransactions(MOCK_TRANSACTIONS_RAW.map(t => ({...t, isTaxDeductible: false, category: 'Other'})) as BankTransaction[]);
       } finally {
         setIsLoadingTransactions(false);
@@ -78,7 +97,7 @@ export default function BankingPage() {
   }, []);
 
   useEffect(() => {
-    // AI Tax Estimation logic - runs after transactions are processed
+    // AI Tax Estimation logic
     const runTaxEstimation = async () => {
       if (isLoadingTransactions || transactions.length === 0) {
         if (!isLoadingTransactions) setIsLoadingTaxEstimation(false);
@@ -90,13 +109,13 @@ export default function BankingPage() {
         const estimation = await estimateTaxes({
           totalGrossIncome: grossIncome,
           transactions: transactions,
-          filingStatus: 'single', // Use a default for now
+          filingStatus: 'single',
           taxYear: new Date().getFullYear(),
         });
         setTaxEstimation(estimation);
       } catch (error) {
         console.error("Error estimating taxes:", error);
-        setTaxEstimation(null); // Clear previous estimations on error
+        setTaxEstimation(null);
       } finally {
         setIsLoadingTaxEstimation(false);
       }
@@ -105,13 +124,64 @@ export default function BankingPage() {
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
 
-  const handleConnectFinicity = () => {
+  const handleConnectFinicity = async () => {
     setIsConnecting(true);
-    setTimeout(() => {
-      alert("Finicity connection flow would launch here. This is a prototype.");
+    try {
+      const firebaseFunctions = getFunctions();
+      const generateUrlCallable = httpsCallable(firebaseFunctions, 'generateFinicityConnectUrl');
+      const result = await generateUrlCallable();
+      const { connectUrl } = result.data as {connectUrl: string};
+
+      if (!connectUrl) {
+          throw new Error("Connect URL not returned from server.");
+      }
+
+      const connectOptions = {
+        onSuccess: (event: any) => {
+          console.log('Finicity Connect Success!', event);
+          toast({
+            title: "Connection Successful!",
+            description: "Your account has been linked. We will now fetch your data.",
+          });
+          // In a real app, you would now trigger a refresh of accounts/transactions
+          // or wait for a webhook to update your database.
+        },
+        onCancel: () => {
+          console.log('Finicity Connect Canceled.');
+          toast({
+            title: "Connection Canceled",
+            description: "The bank connection process was canceled.",
+            variant: "default",
+          });
+        },
+        onError: (error: any) => {
+          console.error('Finicity Connect Error:', error);
+          toast({
+            title: "Connection Error",
+            description: error.message || "An error occurred while linking your account.",
+            variant: "destructive",
+          });
+        },
+      };
+
+      if ((window as any).FinicityConnect) {
+        (window as any).FinicityConnect.launch(connectUrl, connectOptions);
+      } else {
+        throw new Error("Finicity Connect SDK not loaded. Please try again in a moment.");
+      }
+
+    } catch (error: any) {
+      console.error("Error launching Finicity Connect:", error);
+      toast({
+        title: "Setup Failed",
+        description: error.message || "Could not start the bank connection process.",
+        variant: "destructive",
+      });
+    } finally {
       setIsConnecting(false);
-    }, 1500);
+    }
   };
+
 
   const handleTransactionUpdate = (txnId: string, field: 'category' | 'isTaxDeductible', value: string | boolean) => {
     setTransactions(currentTxns => 

@@ -7,6 +7,7 @@
  * - Email notification functions
  * - Scheduled tasks
  * - Contract Sharing functions
+ * - Finicity Integration functions
  */
 
 import {
@@ -36,6 +37,12 @@ import {
   createShareableContractVersion,
 } from "./sharing";
 
+import {
+  generateFinicityConnectUrl,
+  finicityWebhookHandler
+} from "./finicity";
+
+
 // Export all functions explicitly
 export {
   // Payments
@@ -55,4 +62,7 @@ export {
   stripeSubscriptionWebhookHandler,
   // Sharing
   createShareableContractVersion,
+  // Finicity
+  generateFinicityConnectUrl,
+  finicityWebhookHandler
 };
