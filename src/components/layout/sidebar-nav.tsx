@@ -17,7 +17,8 @@ import {
   XCircle,
   AlertTriangle as AlertTriangleIcon, // Renamed to avoid conflict
   ReceiptText, // New Icon for Receipts
-  Landmark // Icon for Banking & Taxes
+  Landmark, // Icon for Banking & Taxes
+  ChevronsLeft
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -57,6 +59,7 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
+  const { toggleSidebar, state } = useSidebar();
 
   const handleLogout = async () => {
     await logout();
@@ -143,7 +146,7 @@ export function SidebarNav() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2 mt-auto border-t border-sidebar-border">
          <div className="mb-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>
@@ -193,6 +196,17 @@ export function SidebarNav() {
              <span className="ml-3 group-data-[collapsible=icon]:hidden">Login</span>
           </Button>
          )}
+          <Button
+            variant="ghost"
+            className="w-full justify-start p-2 h-auto mt-2 group-data-[collapsible=icon]:justify-center"
+            onClick={toggleSidebar}
+            title={state === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <ChevronsLeft className="h-5 w-5 transition-transform duration-300 ease-in-out group-data-[state=collapsed]:rotate-180" />
+            <span className="ml-3 group-data-[collapsible=icon]:hidden">
+              Collapse
+            </span>
+          </Button>
       </SidebarFooter>
     </Sidebar>
   );
