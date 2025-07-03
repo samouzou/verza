@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
+import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 
 // --- Mock Data ---
 const MOCK_ACCOUNTS: BankAccount[] = [
@@ -21,12 +22,13 @@ const MOCK_ACCOUNTS: BankAccount[] = [
   { id: 'acc_3', userId: 'user_1', name: 'Creator Business Savings', officialName: 'BANK OF AMERICA SAVINGS', mask: '9012', type: 'depository', subtype: 'savings', balance: 50000.00, provider: 'Finicity', providerAccountId: 'fin_3' },
 ];
 
-const MOCK_TRANSACTIONS: BankTransaction[] = [
-  { id: 'txn_1', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Nike, Inc.", amount: 5000.00, currency: 'USD', category: 'Client Payment', isTaxDeductible: false, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_2', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), description: "Adobe Creative Cloud", amount: -59.99, currency: 'USD', category: 'Software', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', category: 'Meals & Entertainment', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', category: 'Travel', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', category: 'Client Payment', isTaxDeductible: false, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category'>[] = [
+  { id: 'txn_1', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Nike, Inc.", amount: 5000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_2', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), description: "Adobe Creative Cloud", amount: -59.99, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', isBrandSpend: false, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_6', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), description: "H&M Store 432", amount: -150.75, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
 ];
 // --- End Mock Data ---
 
@@ -34,21 +36,52 @@ export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // State to hold our data. In a real app, this would be fetched.
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [transactions, setTransactions] = useState<BankTransaction[]>(MOCK_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
 
+  useEffect(() => {
+    // Simulate fetching account data
+    setAccounts(MOCK_ACCOUNTS);
+
+    // AI Transaction Classification logic
+    const processTransactions = async () => {
+      setIsLoadingTransactions(true);
+      try {
+        const processed = await Promise.all(MOCK_TRANSACTIONS_RAW.map(async (txn) => {
+          // Don't classify income payments
+          if (txn.amount > 0) {
+            return { ...txn, isTaxDeductible: false, category: 'Client Payment' };
+          }
+          try {
+            const classification = await classifyTransaction({ description: txn.description });
+            return { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible, category: classification.category };
+          } catch (aiError) {
+            console.error(`AI classification failed for "${txn.description}":`, aiError);
+            // Fallback if AI fails
+            return { ...txn, isTaxDeductible: false, category: 'Other' };
+          }
+        }));
+        setTransactions(processed as BankTransaction[]);
+      } catch (error) {
+        console.error("Error processing transactions:", error);
+        // Fallback to raw mock data on major error
+        setTransactions(MOCK_TRANSACTIONS_RAW.map(t => ({...t, isTaxDeductible: false, category: 'Other'})) as BankTransaction[]);
+      } finally {
+        setIsLoadingTransactions(false);
+      }
+    };
+    
+    processTransactions();
+  }, []);
 
   useEffect(() => {
-    // Simulate fetching account data on component mount
-    setAccounts(MOCK_ACCOUNTS);
-    
-    // AI Tax Estimation logic
+    // AI Tax Estimation logic - runs after transactions are processed
     const runTaxEstimation = async () => {
-      if (transactions.length === 0) {
-        setIsLoadingTaxEstimation(false);
+      if (isLoadingTransactions || transactions.length === 0) {
+        if (!isLoadingTransactions) setIsLoadingTaxEstimation(false);
         return;
       }
       setIsLoadingTaxEstimation(true);
@@ -70,15 +103,12 @@ export default function BankingPage() {
     };
     
     runTaxEstimation();
-
-  }, [transactions]); // Re-run estimation if transactions change
+  }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = () => {
     setIsConnecting(true);
-    // Simulate Finicity connection flow
     setTimeout(() => {
-      alert("Finicity connection flow would launch here. This is a prototype, so we're showing a success state without a real connection.");
-      // In a real app, you'd handle success/error callbacks from the Finicity SDK
+      alert("Finicity connection flow would launch here. This is a prototype.");
       setIsConnecting(false);
     }, 1500);
   };
@@ -150,9 +180,15 @@ export default function BankingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Transactions</CardTitle>
-            <CardDescription>View, categorize, and manage your imported bank transactions to prepare for tax time.</CardDescription>
+            <CardDescription>AI has automatically categorized your transactions. Review and adjust as needed.</CardDescription>
           </CardHeader>
           <CardContent>
+            {isLoadingTransactions ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-3 text-muted-foreground">AI is classifying your transactions...</p>
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -193,6 +229,7 @@ export default function BankingPage() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
 
