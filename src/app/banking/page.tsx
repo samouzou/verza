@@ -110,16 +110,6 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
-    // Safety check: ensure SDK is loaded before trying to use it.
-    if (!(window as any).FinicityConnect) {
-      toast({
-        title: "Connection Not Ready",
-        description: "The banking connection service is still loading. Please try again in a moment.",
-        variant: "default",
-      });
-      return;
-    }
-
     setIsConnecting(true);
     try {
       const firebaseFunctions = getFunctions();
