@@ -82,9 +82,12 @@ const prompt = ai.definePrompt({
      - Assume a simplified state income tax (e.g., flat 5% if applicable, or skip if not specified).
      - Assume self-employment tax of 15.3% on 92.35% of net self-employment earnings (Estimated Taxable Income).
      - Sum these up for a rough total.
-  4. Suggest a Set-Aside Percentage: Based on the (Estimated Tax Owed / Total Gross Income), rounded up. Aim for 15-40% range generally. If income is zero, percentage should be zero.
-  5. Calculate Suggested Set-Aside Amount: Set-Aside Percentage * Total Gross Income.
-  6. Provide notes, including disclaimers that this is a very rough estimate and a tax professional should be consulted. Mention the assumed tax rates.
+  4. Suggest a Set-Aside Percentage: Calculate this as (Estimated Tax Owed / Total Gross Income). Add a 3% buffer to this rate for safety. Round the final percentage to the nearest whole number. If income is zero, the percentage should be zero. The range should generally be between 15-45%.
+  5. Calculate Suggested Set-Aside Amount: Use the final (rounded, buffered) Set-Aside Percentage * Total Gross Income.
+  6. Provide helpful notes:
+     - The first note must be a disclaimer: "This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional."
+     - Explain the set-aside logic: "The set-aside percentage is based on your gross income to ensure you're saving enough. It includes a small buffer for safety."
+     - Mention the assumed tax rates used in the calculation.
 
   Output the results in the specified JSON format.
   The 'calculationDate' should be the current date in YYYY-MM-DD format.
@@ -108,7 +111,12 @@ const taxEstimationFlow = ai.defineFlow(
      if (!result.notes) {
       result.notes = [];
     }
-    result.notes.push("Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.");
+    
+    // Ensure the primary disclaimer is always present, even if AI misses it.
+    const disclaimer = "Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.";
+    if (!result.notes.includes(disclaimer)) {
+        result.notes.unshift(disclaimer);
+    }
 
 
     return result;

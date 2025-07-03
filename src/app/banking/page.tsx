@@ -267,14 +267,20 @@ export default function BankingPage() {
                 <p className="text-lg text-muted-foreground">Categorize transactions to see tax estimates.</p>
               </div>
             )}
-             <div className="mt-6 p-3 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-md">
-                <div className="flex items-center gap-2">
-                    <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                    <h3 className="font-semibold text-amber-700 dark:text-amber-300">Disclaimer</h3>
+             <div className="mt-6 p-4 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-r-lg">
+                <div className="flex items-start gap-3">
+                    <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Notes & Disclaimers</h3>
+                      <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1 list-disc list-inside">
+                        {(taxEstimation?.notes && taxEstimation.notes.length > 0) ? (
+                          taxEstimation.notes.map((note, index) => <li key={index}>{note}</li>)
+                        ) : (
+                          <li>Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional.</li>
+                        )}
+                      </ul>
+                    </div>
                 </div>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                 {(taxEstimation?.notes || ["Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional."]).join(" ")}
-                </p>
             </div>
           </CardContent>
         </Card>
