@@ -154,7 +154,7 @@ export const generateFinicityConnectUrl = onCall({
       body: JSON.stringify({
         partnerId: FINICITY_PARTNER_ID,
         customerId: finicityCustomerId,
-        type: "voa", // Using "Verification of Assets" as a common starting point
+        connectType: "voa", // Using "Verification of Assets" as a common starting point
         redirectUri: `${appUrl}/banking`, // Where to redirect after success/cancel
         webhook: webhookUrl,
         webhookContentType: "application/json",
