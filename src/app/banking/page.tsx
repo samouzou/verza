@@ -34,7 +34,7 @@ const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category
 ];
 // --- End Mock Data ---
 
-const GENERATE_FINICITY_CONNECT_URL = "https://us-central1-verza-canvas.cloudfunctions.net/generateFinicityConnectUrl";
+const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app";
 
 export default function BankingPage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
