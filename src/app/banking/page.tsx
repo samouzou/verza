@@ -1,24 +1,77 @@
 
 "use client";
 
+import { useState, useEffect } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning } from "lucide-react";
+import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, Check, ShieldCheck } from "lucide-react";
+import type { BankAccount, BankTransaction, TaxEstimation } from '@/types';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
-// Placeholder for Finicity Connect - In a real scenario, you'd use their SDK/API
-const handleConnectFinicity = () => {
-  alert("Finicity connection flow would start here. (Coming Soon!)");
-  // This would typically involve:
-  // 1. Calling a backend endpoint to get a Finicity Connect URL.
-  // 2. Redirecting the user to that URL or opening it in a modal/iframe.
-  // 3. Handling the callback from Finicity after successful connection.
+// --- Mock Data ---
+const MOCK_ACCOUNTS: BankAccount[] = [
+  { id: 'acc_1', userId: 'user_1', name: 'Chase Sapphire Checking', officialName: 'CHASE SAPPHIRE CHECKING', mask: '1234', type: 'depository', subtype: 'checking', balance: 15234.88, provider: 'Finicity', providerAccountId: 'fin_1' },
+  { id: 'acc_2', userId: 'user_1', name: 'Amex Gold Card', officialName: 'AMERICAN EXPRESS GOLD', mask: '5678', type: 'credit', subtype: 'credit card', balance: -1245.21, provider: 'Finicity', providerAccountId: 'fin_2' },
+  { id: 'acc_3', userId: 'user_1', name: 'Creator Business Savings', officialName: 'BANK OF AMERICA SAVINGS', mask: '9012', type: 'depository', subtype: 'savings', balance: 50000.00, provider: 'Finicity', providerAccountId: 'fin_3' },
+];
+
+const MOCK_TRANSACTIONS: BankTransaction[] = [
+  { id: 'txn_1', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Nike, Inc.", amount: 5000.00, currency: 'USD', category: 'Client Payment', isTaxDeductible: false, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_2', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), description: "Adobe Creative Cloud", amount: -59.99, currency: 'USD', category: 'Software', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', category: 'Meals & Entertainment', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', category: 'Travel', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', category: 'Client Payment', isTaxDeductible: false, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+];
+
+const MOCK_TAX_ESTIMATION: TaxEstimation = {
+  estimatedTaxableIncome: 16461.70,
+  estimatedTaxOwed: 4526.97,
+  suggestedSetAsidePercentage: 27,
+  suggestedSetAsideAmount: 4590.00,
+  calculationDate: new Date().toISOString(),
+  notes: ["Based on simplified federal and self-employment tax rates.", "Assumes all marked expenses are fully deductible."]
 };
+// --- End Mock Data ---
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const [isConnecting, setIsConnecting] = useState(false);
+  
+  // State to hold our data. In a real app, this would be fetched.
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
 
+  useEffect(() => {
+    // Simulate fetching data on component mount
+    setAccounts(MOCK_ACCOUNTS);
+    setTransactions(MOCK_TRANSACTIONS);
+    setTaxEstimation(MOCK_TAX_ESTIMATION);
+  }, []);
+
+  const handleConnectFinicity = () => {
+    setIsConnecting(true);
+    // Simulate Finicity connection flow
+    setTimeout(() => {
+      alert("Finicity connection flow would launch here. This is a prototype, so we're showing a success state without a real connection.");
+      // In a real app, you'd handle success/error callbacks from the Finicity SDK
+      setIsConnecting(false);
+    }, 1500);
+  };
+
+  const handleTransactionUpdate = (txnId: string, field: 'category' | 'isTaxDeductible', value: string | boolean) => {
+    setTransactions(currentTxns => 
+      currentTxns.map(txn => 
+        txn.id === txnId ? { ...txn, [field]: value } : txn
+      )
+    );
+  };
+  
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
@@ -33,6 +86,8 @@ export default function BankingPage() {
     );
   }
 
+  const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
+
   return (
     <>
       <PageHeader
@@ -43,18 +98,32 @@ export default function BankingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6 text-primary" /> Bank Connections</CardTitle>
-            <CardDescription>Securely connect your bank accounts using Finicity to import transactions.</CardDescription>
+            <CardDescription>Securely connect your bank accounts to automatically import transactions.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Placeholder for connected accounts list */}
-            <div className="p-4 border rounded-md bg-muted text-center">
-              <p className="text-sm text-muted-foreground">No bank accounts connected yet.</p>
+            <div className="space-y-3">
+              {accounts.map(acc => (
+                <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="h-6 w-6 text-green-500" />
+                    <div>
+                      <p className="font-medium">{acc.name}</p>
+                      <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <Button onClick={handleConnectFinicity} className="w-full sm:w-auto">
-              Connect Bank Account (Finicity - Coming Soon)
+            <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
+              {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              Connect New Account
             </Button>
-             <p className="text-xs text-muted-foreground">
-              Verza uses Finicity, a Mastercard company, for secure bank connections. Your bank credentials are never stored by Verza.
+            <p className="text-xs text-muted-foreground">
+              Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
             </p>
           </CardContent>
         </Card>
@@ -62,44 +131,91 @@ export default function BankingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Transactions</CardTitle>
-            <CardDescription>View, categorize, and manage your imported bank transactions.</CardDescription>
+            <CardDescription>View, categorize, and manage your imported bank transactions to prepare for tax time.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="p-6 border rounded-md bg-muted text-center">
-              <p className="text-lg text-muted-foreground">Transaction management coming soon!</p>
-              <p className="text-sm text-muted-foreground mt-1">Once connected, your transactions will appear here for review and categorization.</p>
-            </div>
-            {/* Placeholder:
-                - Transaction list/table
-                - Filters (by account, date, category)
-                - Ability to mark as 'tax deductible' or 'brand spend'
-            */}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-[200px]">Category</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map(txn => (
+                  <TableRow key={txn.id}>
+                    <TableCell className="text-sm text-muted-foreground">{new Date(txn.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-medium">{txn.description}</TableCell>
+                    <TableCell>
+                      <Select 
+                        value={txn.category} 
+                        onValueChange={(value) => handleTransactionUpdate(txn.id, 'category', value)}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
+                        <SelectContent>
+                          {transactionCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className={`text-right font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                      {txn.amount > 0 ? '+' : ''}${txn.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox 
+                        checked={txn.isTaxDeductible} 
+                        onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
+                        aria-label="Is tax deductible"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><TrendingUp className="h-6 w-6 text-primary" /> Tax Estimation</CardTitle>
-            <CardDescription>Get an AI-powered estimate of your potential tax liability and suggested set-aside amounts.</CardDescription>
+            <CardDescription>An AI-powered estimate of your potential tax liability based on categorized transactions.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="p-6 border rounded-md bg-muted text-center">
-              <p className="text-lg text-muted-foreground">AI tax estimation coming soon!</p>
-              <p className="text-sm text-muted-foreground mt-1">Categorize your income and expenses to get tax insights.</p>
-            </div>
-             <div className="mt-4 p-3 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+            {taxEstimation ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">Est. Taxable Income</p>
+                  <p className="text-2xl font-bold">${taxEstimation.estimatedTaxableIncome.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">Est. Tax Owed</p>
+                  <p className="text-2xl font-bold">${taxEstimation.estimatedTaxOwed.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                </div>
+                 <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <p className="text-sm text-blue-600 dark:text-blue-300">Suggested Set-Aside</p>
+                  <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">{taxEstimation.suggestedSetAsidePercentage}%</p>
+                </div>
+                 <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <p className="text-sm text-blue-600 dark:text-blue-300">Set-Aside Amount</p>
+                  <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">${taxEstimation.suggestedSetAsideAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 border rounded-md bg-muted text-center">
+                <p className="text-lg text-muted-foreground">Categorize transactions to see tax estimates.</p>
+              </div>
+            )}
+             <div className="mt-6 p-3 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-md">
                 <div className="flex items-center gap-2">
                     <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                     <h3 className="font-semibold text-amber-700 dark:text-amber-300">Disclaimer</h3>
                 </div>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Tax estimations provided are for informational purposes only and should not be considered financial or legal advice. Consult with a qualified tax professional for personalized advice.
+                Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional.
                 </p>
             </div>
-            {/* Placeholder:
-                - Display for estimated tax owed, set-aside amount
-                - Button to "Recalculate with AI"
-            */}
           </CardContent>
         </Card>
       </div>

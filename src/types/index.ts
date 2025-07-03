@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -52,6 +51,7 @@ export interface Contract {
   };
   summary?: string;
   contractText?: string;
+  previousContractText?: string; // To store the previous version for diffing
   fileName?: string;
   fileUrl: string | null;
   negotiationSuggestions?: NegotiationSuggestionsOutput | null;
@@ -159,6 +159,19 @@ export interface Receipt {
 }
 
 // Banking & Tax Feature Types
+export interface BankAccount {
+  id: string;
+  userId: string;
+  name: string; // User-friendly name e.g., "Chase Sapphire Checking"
+  officialName: string | null;
+  mask: string; // Last 4 digits
+  type: 'depository' | 'credit' | 'loan' | 'investment' | 'other';
+  subtype: string | null; // e.g., "checking", "savings", "credit card"
+  balance: number;
+  provider: string; // e.g., 'Finicity', 'Plaid'
+  providerAccountId: string;
+}
+
 export interface BankTransaction {
   id: string; 
   userId: string;
@@ -183,4 +196,3 @@ export interface TaxEstimation {
   notes?: string[]; 
   calculationDate: string; 
 }
-
