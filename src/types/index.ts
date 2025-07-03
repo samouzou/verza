@@ -176,16 +176,16 @@ export interface BankTransaction {
   id: string; 
   userId: string;
   accountId: string; 
-  date: string; 
+  date: string; // ISO String
   description: string;
-  amount: number; 
+  amount: number; // positive for income, negative for expense
   currency: string;
   category?: string; 
   isTaxDeductible?: boolean;
-  isBrandSpend?: boolean; 
+  isBrandSpend?: boolean; // For tracking against contract budgets
   linkedReceiptId?: string | null; 
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt: any; // Using `any` for client-side compatibility with mock data new Date()
+  updatedAt?: any;
 }
 
 export interface TaxEstimation {
@@ -193,6 +193,6 @@ export interface TaxEstimation {
   estimatedTaxOwed: number;
   suggestedSetAsidePercentage: number;
   suggestedSetAsideAmount: number;
-  notes?: string[]; 
-  calculationDate: string; 
+  notes?: string[]; // Disclaimers and assumptions
+  calculationDate: string; // ISO String
 }

@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 
 // --- Mock Data ---
 const MOCK_ACCOUNTS: BankAccount[] = [
@@ -27,15 +28,6 @@ const MOCK_TRANSACTIONS: BankTransaction[] = [
   { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', category: 'Travel', isTaxDeductible: true, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
   { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', category: 'Client Payment', isTaxDeductible: false, isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
 ];
-
-const MOCK_TAX_ESTIMATION: TaxEstimation = {
-  estimatedTaxableIncome: 16461.70,
-  estimatedTaxOwed: 4526.97,
-  suggestedSetAsidePercentage: 27,
-  suggestedSetAsideAmount: 4590.00,
-  calculationDate: new Date().toISOString(),
-  notes: ["Based on simplified federal and self-employment tax rates.", "Assumes all marked expenses are fully deductible."]
-};
 // --- End Mock Data ---
 
 export default function BankingPage() {
@@ -44,15 +36,42 @@ export default function BankingPage() {
   
   // State to hold our data. In a real app, this would be fetched.
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [transactions, setTransactions] = useState<BankTransaction[]>(MOCK_TRANSACTIONS);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
+  const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
+
 
   useEffect(() => {
-    // Simulate fetching data on component mount
+    // Simulate fetching account data on component mount
     setAccounts(MOCK_ACCOUNTS);
-    setTransactions(MOCK_TRANSACTIONS);
-    setTaxEstimation(MOCK_TAX_ESTIMATION);
-  }, []);
+    
+    // AI Tax Estimation logic
+    const runTaxEstimation = async () => {
+      if (transactions.length === 0) {
+        setIsLoadingTaxEstimation(false);
+        return;
+      }
+      setIsLoadingTaxEstimation(true);
+      try {
+        const grossIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+        const estimation = await estimateTaxes({
+          totalGrossIncome: grossIncome,
+          transactions: transactions,
+          filingStatus: 'single', // Use a default for now
+          taxYear: new Date().getFullYear(),
+        });
+        setTaxEstimation(estimation);
+      } catch (error) {
+        console.error("Error estimating taxes:", error);
+        setTaxEstimation(null); // Clear previous estimations on error
+      } finally {
+        setIsLoadingTaxEstimation(false);
+      }
+    };
+    
+    runTaxEstimation();
+
+  }, [transactions]); // Re-run estimation if transactions change
 
   const handleConnectFinicity = () => {
     setIsConnecting(true);
@@ -165,7 +184,7 @@ export default function BankingPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Checkbox 
-                        checked={txn.isTaxDeductible} 
+                        checked={!!txn.isTaxDeductible} 
                         onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
                         aria-label="Is tax deductible"
                       />
@@ -183,7 +202,11 @@ export default function BankingPage() {
             <CardDescription>An AI-powered estimate of your potential tax liability based on categorized transactions.</CardDescription>
           </CardHeader>
           <CardContent>
-            {taxEstimation ? (
+            {isLoadingTaxEstimation ? (
+               <div className="flex items-center justify-center h-32">
+                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+               </div>
+            ) : taxEstimation ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Est. Taxable Income</p>
@@ -213,7 +236,7 @@ export default function BankingPage() {
                     <h3 className="font-semibold text-amber-700 dark:text-amber-300">Disclaimer</h3>
                 </div>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional.
+                 {(taxEstimation?.notes || ["Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional."]).join(" ")}
                 </p>
             </div>
           </CardContent>

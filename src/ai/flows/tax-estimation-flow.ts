@@ -75,14 +75,14 @@ const prompt = ai.definePrompt({
     {{/each}}
 
   Task:
-  1. Calculate total deductible expenses from the provided transactions (where isTaxDeductible is true and amount is negative).
-  2. Calculate Estimated Taxable Income: Total Gross Income - Total Deductible Expenses.
+  1. Calculate total deductible expenses from the provided transactions (where isTaxDeductible is true and amount is negative). Remember that expense amounts are negative, so sum their absolute values.
+  2. Calculate Estimated Taxable Income: Total Gross Income - Total Deductible Expenses. Ensure this is not below zero.
   3. Estimate Tax Owed:
      - Assume a simplified progressive federal income tax (e.g., 10% on first $10k, 12% on next $30k, 22% on rest).
      - Assume a simplified state income tax (e.g., flat 5% if applicable, or skip if not specified).
      - Assume self-employment tax of 15.3% on 92.35% of net self-employment earnings (Estimated Taxable Income).
      - Sum these up for a rough total.
-  4. Suggest a Set-Aside Percentage: Based on the (Estimated Tax Owed / Total Gross Income), rounded up. Aim for 15-40% range generally.
+  4. Suggest a Set-Aside Percentage: Based on the (Estimated Tax Owed / Total Gross Income), rounded up. Aim for 15-40% range generally. If income is zero, percentage should be zero.
   5. Calculate Suggested Set-Aside Amount: Set-Aside Percentage * Total Gross Income.
   6. Provide notes, including disclaimers that this is a very rough estimate and a tax professional should be consulted. Mention the assumed tax rates.
 
