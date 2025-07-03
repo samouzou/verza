@@ -138,14 +138,14 @@ export const generateFinicityConnectUrl = onCall({
         "The application's base URL (APP_URL) is not configured on the server."
       );
     }
-    
+
     const webhookUrl = process.env.FINICITY_WEBHOOK_URL;
     if (!webhookUrl) {
-        logger.error("The FINICITY_WEBHOOK_URL environment variable is not set.");
-        throw new HttpsError(
-          "failed-precondition",
-          "The Finicity webhook URL is not configured on the server."
-        );
+      logger.error("The FINICITY_WEBHOOK_URL environment variable is not set.");
+      throw new HttpsError(
+        "failed-precondition",
+        "The Finicity webhook URL is not configured on the server."
+      );
     }
 
 

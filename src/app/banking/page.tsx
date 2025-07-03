@@ -34,12 +34,13 @@ const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category
 ];
 // --- End Mock Data ---
 
-const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app";
+const GENERATE_FINICITY_CONNECT_URL = "https://us-central1-verza-canvas.cloudfunctions.net/generateFinicityConnectUrl";
 
 export default function BankingPage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isFinicitySdkReady, setIsFinicitySdkReady] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -50,12 +51,28 @@ export default function BankingPage() {
   // Load Finicity Connect SDK script
   useEffect(() => {
     const scriptId = 'finicity-connect-sdk';
-    if (document.getElementById(scriptId)) return; // Script already added
+    if (document.getElementById(scriptId)) {
+        if ((window as any).FinicityConnect) {
+            setIsFinicitySdkReady(true);
+        }
+        return;
+    }
 
     const script = document.createElement('script');
     script.id = scriptId;
     script.src = 'https://connect.finicity.com/assets/sdk/finicity-connect.min.js';
     script.async = true;
+    script.onload = () => {
+      setIsFinicitySdkReady(true);
+    };
+    script.onerror = () => {
+      toast({
+        title: "SDK Load Error",
+        description: "Could not load the banking connection SDK. Please refresh the page.",
+        variant: "destructive",
+      });
+      setIsFinicitySdkReady(false);
+    };
     document.body.appendChild(script);
 
     return () => {
@@ -64,7 +81,7 @@ export default function BankingPage() {
         document.body.removeChild(existingScript);
       }
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     // Simulate fetching account data
@@ -239,9 +256,9 @@ export default function BankingPage() {
                 </div>
               ))}
             </div>
-            <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
-              {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              Connect New Account
+            <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || !isFinicitySdkReady}>
+              {isConnecting || !isFinicitySdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              {isFinicitySdkReady ? 'Connect New Account' : 'Initializing...'}
             </Button>
             <p className="text-xs text-muted-foreground">
               Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
@@ -360,5 +377,3 @@ export default function BankingPage() {
     </>
   );
 }
-
-    
