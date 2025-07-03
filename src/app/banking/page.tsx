@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Script from 'next/script';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,41 +48,6 @@ export default function BankingPage() {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
-
-  // Load Finicity Connect SDK script
-  useEffect(() => {
-    const scriptId = 'finicity-connect-sdk';
-    if (document.getElementById(scriptId)) {
-        if ((window as any).FinicityConnect) {
-            setIsFinicitySdkReady(true);
-        }
-        return;
-    }
-
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = 'https://connect.finicity.com/assets/sdk/finicity-connect.min.js';
-    script.async = true;
-    script.onload = () => {
-      setIsFinicitySdkReady(true);
-    };
-    script.onerror = () => {
-      toast({
-        title: "SDK Load Error",
-        description: "Could not load the banking connection SDK. Please refresh the page.",
-        variant: "destructive",
-      });
-      setIsFinicitySdkReady(false);
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      const existingScript = document.getElementById(scriptId);
-      if (existingScript) {
-        document.body.removeChild(existingScript);
-      }
-    };
-  }, [toast]);
 
   useEffect(() => {
     // Simulate fetching account data
@@ -228,6 +194,23 @@ export default function BankingPage() {
 
   return (
     <>
+      <Script
+        id="finicity-connect-sdk"
+        src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          setIsFinicitySdkReady(true);
+        }}
+        onError={(e) => {
+          console.error('Error loading Finicity SDK:', e);
+          toast({
+            title: "SDK Load Error",
+            description: "Could not load the banking connection SDK. Please refresh the page.",
+            variant: "destructive",
+          });
+          setIsFinicitySdkReady(false);
+        }}
+      />
       <PageHeader
         title="Banking & Taxes"
         description="Connect bank accounts, categorize transactions, and estimate your taxes."
