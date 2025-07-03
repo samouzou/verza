@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import Script from 'next/script';
+import Script from 'next/script'; // Import Script
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,7 @@ export default function BankingPage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isFinicitySdkReady, setIsFinicitySdkReady] = useState(false);
+  const [isFinicitySdkReady, setIsFinicitySdkReady] = useState(false); // State to track SDK readiness
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -110,6 +110,7 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
+    // Safety check: ensure SDK is loaded before trying to use it.
     if (!(window as any).FinicityConnect) {
       toast({
         title: "Connection Not Ready",
@@ -199,11 +200,13 @@ export default function BankingPage() {
 
   return (
     <>
+      {/* Use next/script to load the Finicity SDK */}
       <Script
         id="finicity-connect-sdk"
         src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
         strategy="afterInteractive"
         onLoad={() => {
+          console.log("Finicity SDK loaded successfully.");
           setIsFinicitySdkReady(true);
         }}
         onError={(e) => {
@@ -244,6 +247,7 @@ export default function BankingPage() {
                 </div>
               ))}
             </div>
+            {/* Disable button until SDK is ready */}
             <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || !isFinicitySdkReady}>
               {isConnecting || !isFinicitySdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
               {isFinicitySdkReady ? 'Connect New Account' : 'Initializing...'}
