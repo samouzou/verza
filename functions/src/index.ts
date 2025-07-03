@@ -19,7 +19,7 @@ import {
 } from "./payments";
 
 import {
-  sendContractNotification, 
+  sendContractNotification,
   sendPaymentReminder,
 } from "./notifications";
 
@@ -39,7 +39,7 @@ import {
 
 import {
   generateFinicityConnectUrl,
-  finicityWebhookHandler
+  finicityWebhookHandler,
 } from "./finicity";
 
 
@@ -64,5 +64,5 @@ export {
   createShareableContractVersion,
   // Finicity
   generateFinicityConnectUrl,
-  finicityWebhookHandler
+  finicityWebhookHandler,
 };

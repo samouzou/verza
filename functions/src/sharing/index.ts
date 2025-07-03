@@ -104,7 +104,7 @@ export const createShareableContractVersion = onCall({
       "Error in createShareableContractVersion for user " +
       `${userId}, contract ${contractId}:`, error
     );
-    
+
     if (error instanceof HttpsError) {
       throw error;
     }
