@@ -1,5 +1,5 @@
 
-import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
+import {onCall, onRequest, HttpsError, type CallableRequest, type Request, type Response} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
@@ -112,15 +112,13 @@ async function getOrCreateFinicityCustomer(userId: string, token: string): Promi
 }
 
 /**
- * Generates a Finicity Connect URL for a user.
- * @param {string} userId - The ID of the user for whom the Connect URL is being generated.
- * @param {string} token - The Finicity API authentication token.
  * Callable function to generate a Finicity Connect URL.
+ * @param {CallableRequest} request - The request object from the client.
  */
 export const generateFinicityConnectUrl = onCall({
   enforceAppCheck: false, // Adjust as per your security requirements
   cors: true,
-}, async (request) => {
+}, async (request: CallableRequest) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
@@ -173,8 +171,10 @@ export const generateFinicityConnectUrl = onCall({
 
 /**
  * Webhook handler for Finicity events.
+ * @param {Request} request The Express-style request object.
+ * @param {Response} response The Express-style response object.
  */
-export const finicityWebhookHandler = onRequest(async (request, response) => {
+export const finicityWebhookHandler = onRequest(async (request: Request, response: Response) => {
   logger.info("Finicity webhook received a request.", {body: request.body});
 
   // TODO: Implement webhook event processing
