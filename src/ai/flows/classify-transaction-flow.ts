@@ -10,14 +10,14 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const ClassifyTransactionInputSchema = z.object({
+const ClassifyTransactionInputSchema = z.object({
   description: z.string().describe('The raw description of the bank transaction.'),
 });
 export type ClassifyTransactionInput = z.infer<typeof ClassifyTransactionInputSchema>;
 
 const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ] as const;
 
-export const ClassifyTransactionOutputSchema = z.object({
+const ClassifyTransactionOutputSchema = z.object({
   isTaxDeductible: z
     .boolean()
     .describe('Whether the transaction is a likely tax-deductible business expense for a content creator.'),
