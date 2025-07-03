@@ -83,10 +83,10 @@ const prompt = ai.definePrompt({
      - Assume self-employment tax of 15.3% on 92.35% of net self-employment earnings (Estimated Taxable Income).
      - Sum these up for a rough total.
   4. Suggest a Set-Aside Percentage: Calculate this as (Estimated Tax Owed / Total Gross Income). Add a 3% buffer to this rate for safety. Round the final percentage to the nearest whole number. If income is zero, the percentage should be zero. The range should generally be between 15-45%.
-  5. Calculate Suggested Set-Aside Amount: Use the final (rounded, buffered) Set-Aside Percentage * Total Gross Income.
+  5. Calculate Suggested Set-Aside Amount: This is the monetary amount to save from the gross income received to date. Calculate it using the final (rounded, buffered) Set-Aside Percentage * Total Gross Income.
   6. Provide helpful notes:
      - The first note must be a disclaimer: "This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional."
-     - Explain the set-aside logic: "The set-aside percentage is based on your gross income to ensure you're saving enough. It includes a small buffer for safety."
+     - Explain the set-aside logic: "The set-aside percentage is a general rule for how much of any income you receive should be saved for taxes. The Set-Aside Amount is that percentage applied to your Total Gross Income to date, and it includes a small buffer for safety."
      - Mention the assumed tax rates used in the calculation.
 
   Output the results in the specified JSON format.
