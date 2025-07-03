@@ -110,6 +110,15 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
+    if (!(window as any).FinicityConnect) {
+      toast({
+        title: "Connection Not Ready",
+        description: "The banking connection service is still loading. Please try again in a moment.",
+        variant: "default",
+      });
+      return;
+    }
+
     setIsConnecting(true);
     try {
       const firebaseFunctions = getFunctions();
@@ -149,11 +158,7 @@ export default function BankingPage() {
         },
       };
 
-      if ((window as any).FinicityConnect) {
-        (window as any).FinicityConnect.launch(connectUrl, connectOptions);
-      } else {
-        throw new Error("Finicity Connect SDK not loaded. Please try again in a moment.");
-      }
+      (window as any).FinicityConnect.launch(connectUrl, connectOptions);
 
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
