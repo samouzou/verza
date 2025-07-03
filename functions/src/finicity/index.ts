@@ -135,12 +135,19 @@ export const generateFinicityConnectUrl = onCall({
       logger.error("The APP_URL environment variable is not set for the 'generateFinicityConnectUrl' function.");
       throw new HttpsError(
         "failed-precondition",
-        "The application's base URL is not configured on the server. Please set the APP_URL environment variable."
+        "The application's base URL (APP_URL) is not configured on the server."
       );
     }
+    
+    const webhookUrl = process.env.FINICITY_WEBHOOK_URL;
+    if (!webhookUrl) {
+        logger.error("The FINICITY_WEBHOOK_URL environment variable is not set.");
+        throw new HttpsError(
+          "failed-precondition",
+          "The Finicity webhook URL is not configured on the server."
+        );
+    }
 
-    // This URL needs to be configured in your Firebase project
-    const webhookUrl = "https://finicitywebhookhandler-cpmccwbluq-uc.a.run.app";
 
     logger.info("Generating Finicity Connect URL...");
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
@@ -154,11 +161,9 @@ export const generateFinicityConnectUrl = onCall({
       body: JSON.stringify({
         partnerId: FINICITY_PARTNER_ID,
         customerId: finicityCustomerId,
-        connectType: "voa", // Using "Verification of Assets" as a common starting point
         redirectUri: `${appUrl}/banking`, // Where to redirect after success/cancel
         webhook: webhookUrl,
         webhookContentType: "application/json",
-        // You can add more configuration here, like a specific institution ID or branding
       }),
     });
 
