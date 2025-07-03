@@ -202,7 +202,7 @@ export default function BankingPage() {
       <Script
         id="finicity-connect-sdk"
         src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
-        strategy="lazyOnload"
+        strategy="afterInteractive"
         onLoad={() => {
           setIsFinicitySdkReady(true);
         }}
