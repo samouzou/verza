@@ -66,9 +66,11 @@ async function getFinicityApiToken(): Promise<string> {
 
 /**
  * Creates or gets a Finicity customer for the given Firebase user ID.
+ * @param {string} userId - The ID of the user for whom the Finicity customer is being created or retrieved.
+ * @param {string} token - The Finicity API authentication token.
  */
 async function getOrCreateFinicityCustomer(userId: string, token: string): Promise<string> {
-  const userDocRef = db.collection('users').doc(userId);
+  const userDocRef = db.collection("users").doc(userId);
   const userDoc = await userDocRef.get();
   const userData = userDoc.data();
 
@@ -109,8 +111,10 @@ async function getOrCreateFinicityCustomer(userId: string, token: string): Promi
   return finicityCustomerId;
 }
 
-
 /**
+ * Generates a Finicity Connect URL for a user.
+ * @param {string} userId - The ID of the user for whom the Connect URL is being generated.
+ * @param {string} token - The Finicity API authentication token.
  * Callable function to generate a Finicity Connect URL.
  */
 export const generateFinicityConnectUrl = onCall({
@@ -127,7 +131,7 @@ export const generateFinicityConnectUrl = onCall({
     const finicityCustomerId = await getOrCreateFinicityCustomer(userId, token);
 
     // This URL needs to be configured in your Firebase project
-    const webhookUrl = `https://finicitywebhookhandler-cpmccwbluq-uc.a.run.app`;
+    const webhookUrl = "https://finicitywebhookhandler-cpmccwbluq-uc.a.run.app";
 
     logger.info("Generating Finicity Connect URL...");
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
@@ -141,7 +145,7 @@ export const generateFinicityConnectUrl = onCall({
       body: JSON.stringify({
         partnerId: FINICITY_PARTNER_ID,
         customerId: finicityCustomerId,
-        type: 'voa', // Using "Verification of Assets" as a common starting point
+        type: "voa", // Using "Verification of Assets" as a common starting point
         redirectUri: `${process.env.APP_URL}/banking`, // Where to redirect after success/cancel
         webhook: webhookUrl,
         webhookContentType: "application/json",
