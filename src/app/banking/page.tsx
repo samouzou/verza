@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, Check, ShieldCheck } from "lucide-react";
-import type { BankAccount, BankTransaction, TaxEstimation } from '@/types';
+import type { BankAccount, BankTransaction, TaxEstimation, Receipt } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,6 +33,12 @@ const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category
   { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
   { id: 'txn_6', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), description: "H&M Store 432", amount: -150.75, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
 ];
+
+const MOCK_RECEIPTS: Receipt[] = [
+  { id: 'receipt_123', userId: 'user_1', description: 'Starbucks Client Mtg', amount: 24.50, receiptDate: '2024-07-20', receiptImageUrl: '', receiptFileName: 'starbucks.jpg', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_1' },
+  { id: 'receipt_456', userId: 'user_1', description: 'Office Supplies from Amazon', amount: 89.99, receiptDate: '2024-07-18', receiptImageUrl: '', receiptFileName: 'amazon.png', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_2' },
+  { id: 'receipt_789', userId: 'user_1', description: 'Team Lunch at The Grove', amount: 112.30, receiptDate: '2024-07-15', receiptImageUrl: '', receiptFileName: 'grove.pdf', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_3' },
+];
 // --- End Mock Data ---
 
 const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app";
@@ -45,6 +51,7 @@ export default function BankingPage() {
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [userReceipts, setUserReceipts] = useState<Receipt[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
@@ -52,6 +59,7 @@ export default function BankingPage() {
   useEffect(() => {
     // Simulate fetching account data
     setAccounts(MOCK_ACCOUNTS);
+    setUserReceipts(MOCK_RECEIPTS);
 
     // AI Transaction Classification logic
     const processTransactions = async () => {
@@ -171,7 +179,7 @@ export default function BankingPage() {
   };
 
 
-  const handleTransactionUpdate = (txnId: string, field: 'category' | 'isTaxDeductible', value: string | boolean) => {
+  const handleTransactionUpdate = (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
     setTransactions(currentTxns => 
       currentTxns.map(txn => 
         txn.id === txnId ? { ...txn, [field]: value } : txn
@@ -273,7 +281,7 @@ export default function BankingPage() {
                   <TableHead className="w-[200px]">Category</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
-                  <TableHead className="text-center w-[120px]">Receipt</TableHead>
+                  <TableHead className="w-[250px]">Receipt</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -302,15 +310,25 @@ export default function BankingPage() {
                         aria-label="Is tax deductible"
                       />
                     </TableCell>
-                    <TableCell className="text-center">
-                      {txn.linkedReceiptId ? (
-                          <Badge variant="secondary" className="text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/40">
-                              <Check className="h-3 w-3 mr-1.5"/>
-                              Attached
-                          </Badge>
-                      ) : (
-                          <Badge variant="outline">None</Badge>
-                      )}
+                    <TableCell>
+                      <Select
+                        value={txn.linkedReceiptId || ''}
+                        onValueChange={(receiptId) => handleTransactionUpdate(txn.id, 'linkedReceiptId', receiptId === '' ? null : receiptId)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Link a receipt..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">
+                            <span className="text-muted-foreground">No Receipt</span>
+                          </SelectItem>
+                          {userReceipts.map((receipt) => (
+                            <SelectItem key={receipt.id} value={receipt.id}>
+                              {receipt.description} - ${receipt.amount?.toFixed(2)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                   </TableRow>
                 ))}
