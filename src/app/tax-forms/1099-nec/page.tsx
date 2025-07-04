@@ -41,7 +41,7 @@ function Form1099NecContent() {
         );
     }
     
-    return <Form109Nec formData={formData} />;
+    return <Form1099Nec formData={formData} />;
 }
 
 
