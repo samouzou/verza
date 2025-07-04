@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -145,8 +144,10 @@ export default function TaxFormsPage() {
                           Total Paid: <span className="font-medium text-green-600">${payer.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> from {payer.contractCount} contract(s).
                         </p>
                       </div>
-                       <Button disabled>
-                          Generate Summary <ArrowRight className="ml-2 h-4 w-4" />
+                       <Button asChild>
+                          <Link href={`/tax-forms/summary?payer=${encodeURIComponent(payer.name)}&year=${selectedYear}`}>
+                            Generate Summary <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
                       </Button>
                     </div>
                   );
