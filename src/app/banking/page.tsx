@@ -312,14 +312,14 @@ export default function BankingPage() {
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={txn.linkedReceiptId || ''}
-                        onValueChange={(receiptId) => handleTransactionUpdate(txn.id, 'linkedReceiptId', receiptId === '' ? null : receiptId)}
+                        value={txn.linkedReceiptId || 'no-receipt-linked'}
+                        onValueChange={(receiptId) => handleTransactionUpdate(txn.id, 'linkedReceiptId', receiptId === 'no-receipt-linked' ? null : receiptId)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Link a receipt..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">
+                          <SelectItem value="no-receipt-linked">
                             <span className="text-muted-foreground">No Receipt</span>
                           </SelectItem>
                           {userReceipts.map((receipt) => (
