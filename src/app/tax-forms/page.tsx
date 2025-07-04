@@ -92,39 +92,25 @@ export default function TaxFormsPage() {
   }, [payers]);
   
   if (authLoading) {
-     return <div className="space-y-4"><PageHeader title="Tax Forms" description="Loading..." /><Skeleton className="h-64 w-full" /></div>
+     return <div className="space-y-4"><PageHeader title="Tax Summaries" description="Loading..." /><Skeleton className="h-64 w-full" /></div>
   }
   
   if (!user) {
-     return <div className="flex flex-col items-center justify-center h-full pt-10"><AlertCircle className="w-12 h-12 text-primary mb-4" /><p className="text-xl text-muted-foreground">Please log in to view your tax forms.</p></div>
+     return <div className="flex flex-col items-center justify-center h-full pt-10"><AlertCircle className="w-12 h-12 text-primary mb-4" /><p className="text-xl text-muted-foreground">Please log in to view your tax summaries.</p></div>
   }
-
-  const canGenerateForms = user.displayName && user.address && user.tin;
 
   return (
     <>
       <PageHeader
-        title="Tax Forms"
-        description="Generate draft 1099-NEC forms for your clients based on payments received."
+        title="Tax Summaries"
+        description="Generate annual income summaries for each client to assist with your tax preparation."
       />
       <div className="space-y-6">
-        {!canGenerateForms && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Recipient Information Incomplete</AlertTitle>
-            <AlertDescription>
-              To generate a 1099 form, you must have your full name, address, and Taxpayer ID (TIN) filled out in your profile.
-              <Button asChild variant="link" className="p-0 h-auto ml-1 text-destructive">
-                <Link href="/profile">Update your profile</Link>
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <CardTitle>1099-NEC Generation</CardTitle>
+                <CardTitle>Income by Payer</CardTitle>
                 <CardDescription>Clients who have paid you in the selected year.</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -151,17 +137,6 @@ export default function TaxFormsPage() {
             ) : sortedPayers.length > 0 ? (
               <div className="space-y-3">
                 {sortedPayers.map(payer => {
-                  const queryParams = new URLSearchParams({
-                    payerName: payer.name,
-                    payerAddress: payer.address || "",
-                    payerTin: payer.tin || "",
-                    recipientName: user.displayName || "",
-                    recipientAddress: user.address || "",
-                    recipientTin: user.tin || "",
-                    amount: payer.totalPaid.toString(),
-                    year: selectedYear,
-                  });
-
                   return (
                     <div key={payer.name} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4">
                       <div>
@@ -170,10 +145,8 @@ export default function TaxFormsPage() {
                           Total Paid: <span className="font-medium text-green-600">${payer.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> from {payer.contractCount} contract(s).
                         </p>
                       </div>
-                       <Button asChild disabled={!canGenerateForms} >
-                          <Link href={`/tax-forms/1099-nec?${queryParams.toString()}`}>
-                              Generate 1099 Draft <ArrowRight className="ml-2 h-4 w-4" />
-                          </Link>
+                       <Button disabled>
+                          Generate Summary <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </div>
                   );
@@ -191,9 +164,9 @@ export default function TaxFormsPage() {
 
          <Alert variant="default" className="mt-6 border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200">
           <AlertCircle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
-          <AlertTitle className="font-semibold">Disclaimer</AlertTitle>
+          <AlertTitle className="font-semibold">For Your Records</AlertTitle>
           <AlertDescription>
-            The generated forms are for informational purposes only and are not official IRS documents. They are meant to help you consolidate payment information. Always consult with a qualified tax professional for tax advice and official filings.
+            These summaries are for informational purposes to help you and your accountant with tax preparation. They are not official IRS documents.
           </AlertDescription>
         </Alert>
       </div>
