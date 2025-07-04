@@ -112,17 +112,6 @@ export default function BankingPage() {
   const handleConnectFinicity = async () => {
     setIsConnecting(true);
     try {
-      // Robust check right before usage
-      if (typeof (window as any)?.FinicityConnect?.launch !== 'function') {
-        toast({
-          title: "Initialization Error",
-          description: "The connection service is not yet ready. Please wait a moment and try again.",
-          variant: "destructive"
-        });
-        setIsConnecting(false);
-        return;
-      }
-
       const firebaseFunctions = getFunctions();
       const generateUrlCallable = httpsCallableFromURL(firebaseFunctions, GENERATE_FINICITY_CONNECT_URL);
       const result = await generateUrlCallable();
