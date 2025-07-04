@@ -121,28 +121,16 @@ export default function ReceiptsPage() {
   const handleOcr = async (imageDataUri: string) => {
     if (!imageDataUri) return;
     setIsProcessingOcr(true);
-    toast({ title: "Scanning receipt...", description: "AI is extracting details from the image." });
+    toast({ title: "Scanning receipt...", description: "AI is extracting the total amount." });
     try {
       const result = await extractReceiptDetails({ imageDataUri });
 
-      // Directly set state from structured data
-      if (result.vendorName) setVendorName(result.vendorName);
-      if (result.receiptDate) setReceiptDate(result.receiptDate);
-      if (typeof result.totalAmount === 'number') setAmount(String(result.totalAmount));
-      if (result.categorySuggestion) setCategory(result.categorySuggestion);
-
-      // New "smart" description logic
-      if (!description.trim()) { // Only set if description is empty
-        if (result.lineItems && result.lineItems.length > 0 && result.lineItems[0].description) {
-           // Use the first line item as the description
-           setDescription(result.lineItems[0].description);
-        } else if (result.vendorName) {
-           // Fallback to vendor name
-           setDescription(result.vendorName);
-        }
+      if (typeof result.totalAmount === 'number') {
+        setAmount(String(result.totalAmount));
+        toast({ title: "Total Extracted!", description: "AI has filled in the amount. Please review." });
+      } else {
+        toast({ title: "AI Scan Complete", description: "Could not automatically find a total amount.", variant: "default" });
       }
-      
-      toast({ title: "Receipt Scanned!", description: "AI has extracted details. Please review." });
 
     } catch (error) {
       console.error("Error processing receipt with AI:", error);
@@ -319,8 +307,8 @@ export default function ReceiptsPage() {
               <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isSaving || isProcessingOcr} />
               {isProcessingOcr && (
                 <div className="flex items-center text-sm text-muted-foreground mt-2">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  <span>Scanning receipt...</span>
+                  <Wand2 className="mr-2 h-4 w-4 animate-spin" />
+                  <span>AI is scanning receipt...</span>
                 </div>
               )}
             </div>
