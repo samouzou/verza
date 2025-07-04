@@ -98,15 +98,15 @@ export function Form1099Nec({ formData }: Form1099NecProps) {
            <div className="bg-white p-1 border border-black">
              <p className="text-[7px] font-semibold uppercase">VOID</p>
            </div>
-          <MultiLineBox label="PAYER'S TIN" value={formData.payerTin} className="bg-white"/>
-          <MultiLineBox label="RECIPIENT'S TIN" value={formData.recipientTin} className="bg-white"/>
+          <FormBox label="PAYER'S TIN" value={formData.payerTin} className="bg-white"/>
+          <FormBox label="RECIPIENT'S TIN" value={formData.recipientTin} className="bg-white"/>
            <MultiLineBox label="RECIPIENT'S name" lines={[formData.recipientName]} className="row-span-2 bg-white"/>
           <FormBox label="4 Federal income tax withheld" value="$ 0.00" isCurrency/>
           <MultiLineBox label="Street address (including apt. no.)" lines={[...recipientAddressLines]} className="row-span-2 bg-white"/>
           <FormBox label="5 State tax withheld" value="$ 0.00" isCurrency/>
           <FormBox label="6 State/Payer's state no." value=""/>
           <FormBox label="7 State income" value="$ 0.00" isCurrency/>
-           <MultiLineBox label="Account number (see instructions)" value="" className="col-span-2 bg-white"/>
+           <FormBox label="Account number (see instructions)" value="" className="col-span-2 bg-white"/>
         </div>
         <p className="text-xs text-center mt-2 font-semibold">Cat. No. 51804M</p>
         <p className="text-[7px] font-semibold text-center">www.irs.gov/Form1099NEC</p>
