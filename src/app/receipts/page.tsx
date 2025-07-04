@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle, Wand2 } from 'lucide-react';
 import Image from 'next/image';
 import { db, storage, addDoc, collection, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy } from '@/lib/firebase';
 import type { Receipt, Contract } from '@/types';
@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { extractReceiptDetails } from '@/ai/flows/extract-receipt-details-flow';
 
 export default function ReceiptsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -36,6 +37,7 @@ export default function ReceiptsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -116,6 +118,38 @@ export default function ReceiptsPage() {
     };
   }, [user, authLoading, toast]);
 
+  const handleOcr = async (imageDataUri: string) => {
+    if (!imageDataUri) return;
+    setIsProcessingOcr(true);
+    toast({ title: "Scanning receipt...", description: "AI is extracting details from the image." });
+    try {
+      const result = await extractReceiptDetails({ imageDataUri });
+
+      if (result.vendorName) setVendorName(result.vendorName);
+      if (result.receiptDate) setReceiptDate(result.receiptDate);
+      if (typeof result.totalAmount === 'number') setAmount(String(result.totalAmount));
+      if (result.categorySuggestion) setCategory(result.categorySuggestion);
+
+      // Smart description
+      if (!description.trim()) {
+        if (result.vendorName) {
+          setDescription(result.vendorName);
+        } else if (result.rawText) {
+          const firstLine = result.rawText.split('\n')[0];
+          setDescription(firstLine.substring(0, 50));
+        }
+      }
+
+      toast({ title: "Receipt Scanned!", description: "AI has extracted details. Please review." });
+
+    } catch (error) {
+      console.error("Error processing receipt with AI:", error);
+      toast({ title: "AI Scan Failed", description: "Could not automatically extract details from the receipt.", variant: "destructive" });
+    } finally {
+      setIsProcessingOcr(false);
+    }
+  };
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -129,7 +163,12 @@ export default function ReceiptsPage() {
       setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        const dataUri = reader.result as string;
+        setImagePreview(dataUri);
+        // Automatically trigger OCR for images
+        if (file.type.startsWith('image/')) {
+            handleOcr(dataUri);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -274,7 +313,13 @@ export default function ReceiptsPage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="receiptFile">Receipt Image*</Label>
-              <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isSaving} />
+              <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isSaving || isProcessingOcr} />
+              {isProcessingOcr && (
+                <div className="flex items-center text-sm text-muted-foreground mt-2">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <span>Scanning receipt...</span>
+                </div>
+              )}
             </div>
             
             {imagePreview && selectedFile && !selectedFile.type.includes('pdf') && (
@@ -290,12 +335,12 @@ export default function ReceiptsPage() {
 
             <div>
               <Label htmlFor="description">Description*</Label>
-              <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Lunch meeting with client" className="mt-1" disabled={isSaving} />
+              <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Lunch meeting with client" className="mt-1" disabled={isSaving || isProcessingOcr} />
             </div>
 
             <div>
               <Label htmlFor="linkedContractId">Link to Contract/Brand*</Label>
-              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isSaving || userContracts.length === 0}>
+              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isSaving || isProcessingOcr || userContracts.length === 0}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select a contract..." /></SelectTrigger>
                 <SelectContent>
                   {userContracts.length === 0 ? (
@@ -312,22 +357,22 @@ export default function ReceiptsPage() {
 
             <div>
               <Label htmlFor="category">Category (Optional)</Label>
-              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g., Meals, Travel, Software" className="mt-1" disabled={isSaving} />
+              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g., Meals, Travel, Software" className="mt-1" disabled={isSaving || isProcessingOcr} />
             </div>
             <div>
               <Label htmlFor="amount">Amount (Optional)</Label>
-              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isSaving} min="0" step="0.01"/>
+              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isSaving || isProcessingOcr} min="0" step="0.01"/>
             </div>
              <div>
               <Label htmlFor="receiptDate">Receipt Date (Optional)</Label>
-              <Input id="receiptDate" type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="mt-1" disabled={isSaving} />
+              <Input id="receiptDate" type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="mt-1" disabled={isSaving || isProcessingOcr} />
             </div>
             <div>
               <Label htmlFor="vendorName">Vendor Name (Optional)</Label>
-              <Input id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="e.g., Starbucks" className="mt-1" disabled={isSaving} />
+              <Input id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="e.g., Starbucks" className="mt-1" disabled={isSaving || isProcessingOcr} />
             </div>
             
-            <Button onClick={handleSaveReceipt} disabled={isSaving || !selectedFile || !description.trim() || !selectedContractId} className="w-full">
+            <Button onClick={handleSaveReceipt} disabled={isSaving || isProcessingOcr || !selectedFile || !description.trim() || !selectedContractId} className="w-full">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Receipt
             </Button>
           </CardContent>

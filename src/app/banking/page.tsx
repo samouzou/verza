@@ -110,6 +110,15 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
+    if (!isFinicitySdkReady) {
+      toast({
+        title: "Initializing...",
+        description: "The banking connection SDK is loading. Please try again in a moment.",
+        variant: "default",
+      });
+      return;
+    }
+    
     setIsConnecting(true);
     try {
       const firebaseFunctions = getFunctions();
@@ -128,8 +137,6 @@ export default function BankingPage() {
             title: "Connection Successful!",
             description: "Your account has been linked. We will now fetch your data.",
           });
-          // In a real app, you would now trigger a refresh of accounts/transactions
-          // or wait for a webhook to update your database.
         },
         onCancel: () => {
           console.log('Finicity Connect Canceled.');
@@ -190,7 +197,6 @@ export default function BankingPage() {
 
   return (
     <>
-      {/* Use next/script to load the Finicity SDK */}
       <Script
         id="finicity-connect-sdk"
         src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
@@ -237,7 +243,6 @@ export default function BankingPage() {
                 </div>
               ))}
             </div>
-            {/* Disable button until SDK is ready */}
             <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || !isFinicitySdkReady}>
               {isConnecting || !isFinicitySdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
               {isFinicitySdkReady ? 'Connect New Account' : 'Initializing...'}
@@ -268,6 +273,7 @@ export default function BankingPage() {
                   <TableHead className="w-[200px]">Category</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
+                  <TableHead className="text-center w-[120px]">Receipt</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -295,6 +301,16 @@ export default function BankingPage() {
                         onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
                         aria-label="Is tax deductible"
                       />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {txn.linkedReceiptId ? (
+                          <Badge variant="secondary" className="text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/40">
+                              <Check className="h-3 w-3 mr-1.5"/>
+                              Attached
+                          </Badge>
+                      ) : (
+                          <Badge variant="outline">None</Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
