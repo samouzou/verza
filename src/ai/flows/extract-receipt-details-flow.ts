@@ -28,13 +28,13 @@ const ReceiptLineItemSchema = z.object({
 });
 
 const ExtractReceiptDetailsOutputSchema = z.object({
-  vendorName: z.string().optional().describe('The name of the vendor or merchant.'),
+  vendorName: z.string().optional().describe('The name of the vendor or merchant. Just the name, e.g., "Gott\'s Roadside".'),
   receiptDate: z.string().optional().describe('The date on the receipt (YYYY-MM-DD if possible).'),
-  totalAmount: z.number().optional().describe('The final total amount paid on the receipt.'),
+  totalAmount: z.number().optional().describe('The final total amount paid on the receipt. Look for the "Total" line.'),
   currency: z.string().optional().describe('The currency of the total amount (e.g., USD, EUR). Default to USD if not specified.'),
   lineItems: z.array(ReceiptLineItemSchema).optional().describe('A list of items purchased.'),
-  categorySuggestion: z.string().optional().describe('A suggested expense category (e.g., Meals, Travel, Software).'),
-  rawText: z.string().optional().describe('The raw text extracted from the receipt by OCR.')
+  categorySuggestion: z.string().optional().describe('A suggested expense category (e.g., "Meals & Entertainment", "Travel", "Software").'),
+  rawText: z.string().optional().describe('The full raw text extracted from the receipt by OCR.')
 });
 export type ExtractReceiptDetailsOutput = z.infer<typeof ExtractReceiptDetailsOutputSchema>;
 
@@ -47,25 +47,21 @@ const prompt = ai.definePrompt({
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: ExtractReceiptDetailsOutputSchema },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.
-  Analyze the provided receipt image and extract the following information:
-  - vendorName: The name of the store or merchant.
-  - receiptDate: The date of the transaction. If possible, format as YYYY-MM-DD.
-  - totalAmount: The final total amount paid.
+  Analyze the provided receipt image and extract the following information. Be very precise.
+
+  - vendorName: The name of the store or merchant. This is usually the most prominent text at the top. DO NOT include address, phone numbers, or any other text. For example, for "Gott's Roadside - Ferry Building...", the correct vendorName is "Gott's Roadside".
+  - receiptDate: The date of the transaction. Format as YYYY-MM-DD.
+  - totalAmount: The final, total amount paid. Look for labels like "Total", "Amount Paid", or "Grand Total". Extract ONLY the numerical value. For "$42.07", the value is 42.07.
   - currency: The currency symbol or code (e.g., USD, EUR). If not found, assume USD.
-  - lineItems: An array of items purchased, each with a description and optionally quantity, unitPrice, and totalPrice.
+  - lineItems: An array of items purchased, each with a description and its total price.
   - categorySuggestion: Based on the vendor and items, suggest an expense category (e.g., "Meals & Entertainment", "Travel", "Office Supplies").
-  - rawText: The full raw text extracted from the receipt.
+  - rawText: The full raw text extracted from the receipt. This field can contain all the text, but the other fields must be precise and clean.
 
   Receipt Image:
   {{media url=imageDataUri}}
   `,
-   // Specify Gemini Flash for potential image input, or a model that supports multimodal
-  model: 'googleai/gemini-2.0-flash', // or gemini-1.5-flash, gemini-1.5-pro etc.
-  config: {
-    // Explicitly request text output, even with media input
-    // For some models, you might need to adjust response modalities if you expect structured JSON vs. just text.
-    // Safety settings can be adjusted if needed, but default is usually fine for receipts.
-  },
+  model: 'googleai/gemini-2.0-flash', 
+  config: {},
 });
 
 const extractReceiptDetailsFlow = ai.defineFlow(

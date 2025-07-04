@@ -125,21 +125,23 @@ export default function ReceiptsPage() {
     try {
       const result = await extractReceiptDetails({ imageDataUri });
 
+      // Directly set state from structured data
       if (result.vendorName) setVendorName(result.vendorName);
       if (result.receiptDate) setReceiptDate(result.receiptDate);
       if (typeof result.totalAmount === 'number') setAmount(String(result.totalAmount));
       if (result.categorySuggestion) setCategory(result.categorySuggestion);
 
-      // Smart description
-      if (!description.trim()) {
-        if (result.vendorName) {
-          setDescription(result.vendorName);
-        } else if (result.rawText) {
-          const firstLine = result.rawText.split('\n')[0];
-          setDescription(firstLine.substring(0, 50));
+      // New "smart" description logic
+      if (!description.trim()) { // Only set if description is empty
+        if (result.lineItems && result.lineItems.length > 0 && result.lineItems[0].description) {
+           // Use the first line item as the description
+           setDescription(result.lineItems[0].description);
+        } else if (result.vendorName) {
+           // Fallback to vendor name
+           setDescription(result.vendorName);
         }
       }
-
+      
       toast({ title: "Receipt Scanned!", description: "AI has extracted details. Please review." });
 
     } catch (error) {
@@ -149,6 +151,7 @@ export default function ReceiptsPage() {
       setIsProcessingOcr(false);
     }
   };
+
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
