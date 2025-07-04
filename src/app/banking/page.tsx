@@ -28,8 +28,8 @@ const MOCK_ACCOUNTS: BankAccount[] = [
 const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category'>[] = [
   { id: 'txn_1', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Nike, Inc.", amount: 5000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
   { id: 'txn_2', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), description: "Adobe Creative Cloud", amount: -59.99, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', isBrandSpend: false, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', isBrandSpend: true, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
+  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', isBrandSpend: true, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
   { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
   { id: 'txn_6', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), description: "H&M Store 432", amount: -150.75, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
 ];
@@ -281,6 +281,7 @@ export default function BankingPage() {
                   <TableHead className="w-[200px]">Category</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
+                  <TableHead className="text-center w-[120px]">Brand Spend</TableHead>
                   <TableHead className="w-[250px]">Receipt</TableHead>
                 </TableRow>
               </TableHeader>
@@ -308,6 +309,13 @@ export default function BankingPage() {
                         checked={!!txn.isTaxDeductible} 
                         onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
                         aria-label="Is tax deductible"
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox 
+                        checked={!!txn.isBrandSpend} 
+                        onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isBrandSpend', !!checked)}
+                        aria-label="Is brand spend"
                       />
                     </TableCell>
                     <TableCell>
