@@ -365,16 +365,17 @@ export default function ContractDetailPage() {
             </CardContent>
           </Card>
 
-          { (contract.clientName || contract.clientEmail || contract.clientAddress || contract.paymentInstructions) && (
+          { (contract.clientName || contract.clientEmail || contract.clientAddress || contract.clientTin || contract.paymentInstructions) && (
              <Card className="shadow-lg hide-on-print">
                 <CardHeader>
                     <CardTitle>Client & Payment Info</CardTitle>
-                    <CardDescription>Details for invoicing purposes.</CardDescription>
+                    <CardDescription>Details for invoicing and tax purposes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                     {contract.clientName && <p><strong className="text-foreground">Client Name:</strong> <span className="text-muted-foreground">{contract.clientName}</span></p>}
                     {contract.clientEmail && <p><strong className="text-foreground">Client Email:</strong> <span className="text-muted-foreground">{contract.clientEmail}</span></p>}
                     {contract.clientAddress && <p><strong className="text-foreground">Client Address:</strong> <span className="text-muted-foreground whitespace-pre-wrap">{contract.clientAddress}</span></p>}
+                    {contract.clientTin && <p><strong className="text-foreground">Client TIN:</strong> <span className="text-muted-foreground">{contract.clientTin}</span></p>}
                     {contract.paymentInstructions && <p><strong className="text-foreground">Payment Instructions:</strong> <span className="text-muted-foreground whitespace-pre-wrap">{contract.paymentInstructions}</span></p>}
                 </CardContent>
              </Card>

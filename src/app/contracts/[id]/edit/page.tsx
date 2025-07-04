@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageHeader } from '@/components/page-header';
@@ -18,6 +18,7 @@ import type { Contract, ExtractedTerms, NegotiationSuggestionsOutput } from '@/t
 import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { ClientInfo } from '@/components/contracts/edit/client-info';
 
 import { extractContractDetails, type ExtractContractDetailsOutput as AIExtractOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput as AISummaryOutput } from "@/ai/flows/summarize-contract-terms";
@@ -43,6 +44,7 @@ export default function EditContractPage() {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAddress, setClientAddress] = useState('');
+  const [clientTin, setClientTin] = useState('');
   const [paymentInstructions, setPaymentInstructions] = useState('');
   const [contractType, setContractType] = useState<Contract['contractType']>('other');
   
@@ -56,7 +58,26 @@ export default function EditContractPage() {
   // State for new file upload
   const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
-
+  
+  const populateForm = useCallback((data: Contract) => {
+      setContract(data);
+      setBrand(data.brand || '');
+      setProjectName(data.projectName || '');
+      setAmount(data.amount || '');
+      setDueDate(data.dueDate || '');
+      setContractType(data.contractType || 'other');
+      setClientName(data.clientName || '');
+      setClientEmail(data.clientEmail || '');
+      setClientAddress(data.clientAddress || '');
+      setClientTin(data.clientTin || '');
+      setPaymentInstructions(data.paymentInstructions || '');
+      setEditedContractText(data.contractText || '');
+      setCurrentSummary(data.summary);
+      setCurrentExtractedTerms(data.extractedTerms);
+      setCurrentNegotiationSuggestions(data.negotiationSuggestions);
+      setCurrentFileName(data.fileName || null);
+      setHasContractTextChanged(false);
+  }, []);
 
   useEffect(() => {
     if (id && user && !authLoading) {
@@ -67,25 +88,7 @@ export default function EditContractPage() {
           const contractSnap = await getDoc(contractDocRef);
           if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
             const data = contractSnap.data() as Contract;
-            setContract(data);
-            // Pre-fill form fields
-            setBrand(data.brand || '');
-            setProjectName(data.projectName || '');
-            setAmount(data.amount || '');
-            setDueDate(data.dueDate || '');
-            setContractType(data.contractType || 'other');
-            setClientName(data.clientName || '');
-            setClientEmail(data.clientEmail || '');
-            setClientAddress(data.clientAddress || '');
-            setPaymentInstructions(data.paymentInstructions || '');
-            
-            setEditedContractText(data.contractText || '');
-            setCurrentSummary(data.summary);
-            setCurrentExtractedTerms(data.extractedTerms);
-            setCurrentNegotiationSuggestions(data.negotiationSuggestions);
-            setCurrentFileName(data.fileName || null);
-            setHasContractTextChanged(false);
-
+            populateForm(data);
           } else {
             toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
             router.push('/contracts');
@@ -101,7 +104,7 @@ export default function EditContractPage() {
     } else if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [id, user, authLoading, router, toast]);
+  }, [id, user, authLoading, router, toast, populateForm]);
 
   const handleContractTextChange = (newText: string) => {
     setEditedContractText(newText);
@@ -121,10 +124,9 @@ export default function EditContractPage() {
         getNegotiationSuggestions({ contractText: editedContractText }),
       ]);
 
-      // Update form fields with AI extracted details
       setBrand(details.brand || '');
       setAmount(details.amount || 0);
-      const aiDueDate = details.dueDate ? new Date(details.dueDate + 'T00:00:00Z').toISOString().split('T')[0] : ''; // Ensure UTC for date input
+      const aiDueDate = details.dueDate ? new Date(details.dueDate + 'T00:00:00Z').toISOString().split('T')[0] : '';
       setDueDate(aiDueDate);
       
       setCurrentSummary(summaryOutput.summary);
@@ -162,24 +164,18 @@ export default function EditContractPage() {
       let newFileNameToSave: string | null = contract.fileName;
 
       if (newSelectedFile) {
-        // Attempt to delete old file if it exists
         if (contract.fileUrl) {
           try {
             const oldFileStorageRef = storageFileRefOriginal(storage, contract.fileUrl);
             await deleteStorageObject(oldFileStorageRef);
-            toast({ title: "Old File Removed", description: "Previous contract file deleted from storage." });
           } catch (deleteError: any) {
-            // Log error but don't block update if deletion fails (e.g., file already gone, or permissions)
             console.warn("Could not delete old file from storage:", deleteError.message);
-            toast({ title: "Warning", description: "Could not delete old file. It might have been already removed.", variant: "default" });
           }
         }
-        // Upload new file
         const fileStorageRef = storageFileRefOriginal(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
         const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
         newFileUrl = await getDownloadURL(uploadResult.ref);
         newFileNameToSave = newSelectedFile.name;
-        toast({ title: "New File Uploaded", description: "New contract file saved to storage." });
       }
       
       const updates: Partial<Contract> = {
@@ -191,11 +187,11 @@ export default function EditContractPage() {
         clientName: clientName.trim() || null,
         clientEmail: clientEmail.trim() || null,
         clientAddress: clientAddress.trim() || null,
+        clientTin: clientTin.trim() || null,
         paymentInstructions: paymentInstructions.trim() || null,
         
         contractText: editedContractText.trim() || null,
         summary: currentSummary || null,
-        // Ensure plain objects for Firestore
         extractedTerms: currentExtractedTerms ? JSON.parse(JSON.stringify(currentExtractedTerms)) : null,
         negotiationSuggestions: currentNegotiationSuggestions ? JSON.parse(JSON.stringify(currentNegotiationSuggestions)) : null,
         
@@ -206,7 +202,7 @@ export default function EditContractPage() {
 
       const finalUpdates: { [key: string]: any } = {};
       for (const key in updates) {
-        if ((updates as Record<string, any>)[key] !== undefined) { // Save nulls, but not undefined
+        if ((updates as Record<string, any>)[key] !== undefined) {
           finalUpdates[key] = (updates as Record<string, any>)[key];
         }
       }
@@ -251,6 +247,7 @@ export default function EditContractPage() {
                        clientName.trim() !== (contract.clientName || '') ||
                        clientEmail.trim() !== (contract.clientEmail || '') ||
                        clientAddress.trim() !== (contract.clientAddress || '') ||
+                       clientTin.trim() !== (contract.clientTin || '') ||
                        paymentInstructions.trim() !== (contract.paymentInstructions || '') ||
                        editedContractText.trim() !== (contract.contractText || '') ||
                        !!newSelectedFile;
@@ -273,8 +270,8 @@ export default function EditContractPage() {
             <Card>
               <AccordionTrigger className="p-6 hover:no-underline">
                 <div className="flex flex-col space-y-1.5 text-left">
-                  <CardTitle>Contract Details</CardTitle>
-                  <CardDescription>Update the core information for this agreement.</CardDescription>
+                  <CardTitle>Core Details</CardTitle>
+                  <CardDescription>Update the main information for this agreement.</CardDescription>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
@@ -318,36 +315,21 @@ export default function EditContractPage() {
           </AccordionItem>
 
           <AccordionItem value="item-client">
-            <Card>
               <AccordionTrigger className="p-6 hover:no-underline">
-                <div className="flex flex-col space-y-1.5 text-left">
-                  <CardTitle>Client Information</CardTitle>
-                  <CardDescription>Update client details relevant for invoicing.</CardDescription>
+                 <div className="flex flex-col space-y-1.5 text-left">
+                  <CardTitle>Client & Payment Information</CardTitle>
+                  <CardDescription>Update client details for invoicing and tax forms.</CardDescription>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="clientName">Client Name</Label>
-                      <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientEmail">Client Email</Label>
-                      <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="clientAddress">Client Address</Label>
-                    <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} rows={3} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentInstructions">Payment Instructions</Label>
-                    <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} rows={3} className="mt-1" />
-                  </div>
-                </CardContent>
+                <ClientInfo 
+                    clientName={clientName} setClientName={setClientName}
+                    clientEmail={clientEmail} setClientEmail={setClientEmail}
+                    clientAddress={clientAddress} setClientAddress={setClientAddress}
+                    clientTin={clientTin} setClientTin={setClientTin}
+                    paymentInstructions={paymentInstructions} setPaymentInstructions={setPaymentInstructions}
+                />
               </AccordionContent>
-            </Card>
           </AccordionItem>
 
           <AccordionItem value="item-file">
@@ -467,5 +449,3 @@ export default function EditContractPage() {
     </>
   );
 }
-
-    

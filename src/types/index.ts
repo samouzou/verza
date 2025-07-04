@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -41,6 +40,7 @@ export interface Contract {
   clientName?: string;
   clientEmail?: string;
   clientAddress?: string;
+  clientTin?: string; // Payer's TIN
   paymentInstructions?: string; // Base payment instructions from contract
 
   extractedTerms?: {
@@ -122,6 +122,7 @@ export interface UserProfileFirestoreData {
   avatarUrl: string | null;
   emailVerified: boolean;
   address?: string | null;
+  tin?: string | null; // Creator's TIN (SSN or EIN)
   createdAt?: Timestamp;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;

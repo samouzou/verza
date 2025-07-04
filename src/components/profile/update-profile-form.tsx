@@ -20,7 +20,8 @@ interface UpdateProfileFormProps {
 
 export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
-  const [address, setAddress] = useState(currentUser.address || ""); // Add address state
+  const [address, setAddress] = useState(currentUser.address || ""); 
+  const [tin, setTin] = useState(currentUser.tin || ""); // Add TIN state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(currentUser.avatarUrl);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -29,7 +30,8 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
 
   useEffect(() => {
     setDisplayName(currentUser.displayName || "");
-    setAddress(currentUser.address || ""); // Update address from currentUser
+    setAddress(currentUser.address || "");
+    setTin(currentUser.tin || "");
     setImagePreview(currentUser.avatarUrl);
   }, [currentUser]);
 
@@ -54,7 +56,13 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       toast({ title: "Error", description: "No authenticated user found.", variant: "destructive" });
       return;
     }
-    if (!displayName.trim() && !selectedFile && address.trim() === (currentUser.address || "")) {
+    
+    const hasProfileChanged = displayName.trim() !== (currentUser.displayName || "") ||
+                             address.trim() !== (currentUser.address || "") ||
+                             tin.trim() !== (currentUser.tin || "") ||
+                             !!selectedFile;
+
+    if (!hasProfileChanged) {
       toast({ title: "No Changes", description: "Please make changes to save.", variant: "default" });
       return;
     }
@@ -70,30 +78,23 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       }
 
       const authUpdates: { displayName?: string; photoURL?: string | null } = {};
-      const firestoreUpdates: { displayName?: string; avatarUrl?: string | null; address?: string } = {};
-      let hasChanges = false;
+      const firestoreUpdates: { displayName?: string; avatarUrl?: string | null; address?: string; tin?: string; } = {};
 
-      if (displayName.trim() && displayName.trim() !== currentUser.displayName) {
+      if (displayName.trim() !== currentUser.displayName) {
         authUpdates.displayName = displayName.trim();
         firestoreUpdates.displayName = displayName.trim();
-        hasChanges = true;
       }
       if (newAvatarUrl && newAvatarUrl !== currentUser.avatarUrl) {
         authUpdates.photoURL = newAvatarUrl;
         firestoreUpdates.avatarUrl = newAvatarUrl;
-        hasChanges = true;
       }
       if (address.trim() !== (currentUser.address || "")) {
         firestoreUpdates.address = address.trim();
-        hasChanges = true;
+      }
+      if (tin.trim() !== (currentUser.tin || "")) {
+        firestoreUpdates.tin = tin.trim();
       }
       
-      if (!hasChanges) {
-        toast({ title: "No Changes Detected", description: "Your profile information is already up to date.", variant: "default" });
-        setIsUpdating(false);
-        return;
-      }
-
       if (Object.keys(authUpdates).length > 0) {
         await updateFirebaseUserProfile(auth.currentUser, authUpdates);
       }
@@ -116,6 +117,12 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   };
 
   const userInitialForFallback = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : (currentUser.email ? currentUser.email.charAt(0).toUpperCase() : "U");
+  
+  const hasChanges = displayName.trim() !== (currentUser.displayName || "") ||
+                     address.trim() !== (currentUser.address || "") ||
+                     tin.trim() !== (currentUser.tin || "") ||
+                     !!selectedFile;
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -140,20 +147,33 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
         <p className="text-xs text-muted-foreground">Recommended: Square image, less than 2MB.</p>
       </div>
 
-      <div>
-        <Label htmlFor="displayName">Display Name</Label>
-        <Input
-          id="displayName"
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Your Name"
-          className="mt-1"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="displayName">Display Name</Label>
+          <Input
+            id="displayName"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your Name"
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
+          <Input
+            id="tin"
+            type="text"
+            value={tin}
+            onChange={(e) => setTin(e.target.value)}
+            placeholder="XXX-XX-XXXX"
+            className="mt-1"
+          />
+        </div>
       </div>
-
+      
       <div>
-        <Label htmlFor="address">Address (for Invoices)</Label>
+        <Label htmlFor="address">Address (for Invoices & Tax Forms)</Label>
         <Textarea
           id="address"
           value={address}
@@ -162,12 +182,12 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
           className="mt-1"
           rows={3}
         />
-        <p className="text-xs text-muted-foreground mt-1">This address will be used as the 'From' address on your invoices.</p>
+        <p className="text-xs text-muted-foreground mt-1">This address will be used on your invoices and tax forms.</p>
       </div>
 
       <Button 
         type="submit" 
-        disabled={isUpdating || (displayName === (currentUser.displayName || "") && !selectedFile && address === (currentUser.address || ""))}
+        disabled={isUpdating || !hasChanges}
       >
         {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
         Save Changes
