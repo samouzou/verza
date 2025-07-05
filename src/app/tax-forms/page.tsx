@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
 import type { Contract } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, FileStack, ArrowRight } from "lucide-react";
+import { AlertCircle, FileStack, ArrowRight, DollarSign } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -28,6 +29,7 @@ export default function TaxFormsPage() {
   const [payers, setPayers] = useState<Map<string, PayerInfo>>(new Map());
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [totalYearlyIncome, setTotalYearlyIncome] = useState(0);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -37,6 +39,7 @@ export default function TaxFormsPage() {
   useEffect(() => {
     if (user && !authLoading) {
       setIsLoadingData(true);
+      setTotalYearlyIncome(0); // Reset for new selection
       const fetchPaidContracts = async () => {
         try {
           const contractsCol = collection(db, 'contracts');
@@ -50,10 +53,12 @@ export default function TaxFormsPage() {
 
           const yearToFilter = parseInt(selectedYear, 10);
           const payersMap = new Map<string, PayerInfo>();
+          let yearlyIncome = 0;
 
           fetchedContracts.forEach(c => {
             const paidDate = c.updatedAt instanceof Timestamp ? c.updatedAt.toDate() : null;
             if (paidDate && paidDate.getFullYear() === yearToFilter) {
+              yearlyIncome += c.amount;
               const brandName = c.brand || "Unknown Brand";
               const existingPayer = payersMap.get(brandName) || {
                 name: brandName,
@@ -73,9 +78,11 @@ export default function TaxFormsPage() {
             }
           });
           setPayers(payersMap);
+          setTotalYearlyIncome(yearlyIncome);
         } catch (error) {
           console.error("Error fetching paid contracts:", error);
           setPayers(new Map());
+          setTotalYearlyIncome(0);
         } finally {
           setIsLoadingData(false);
         }
@@ -105,31 +112,55 @@ export default function TaxFormsPage() {
         description="Generate annual income summaries for each client to assist with your tax preparation."
       />
       <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                            <DollarSign className="h-5 w-5 text-primary" />
+                            Total Recorded Income for {selectedYear}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingData ? (
+                        <Skeleton className="h-10 w-48" />
+                        ) : (
+                        <p className="text-3xl font-bold text-green-600">
+                            ${totalYearlyIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                        Sum of all invoices marked as 'paid' within the selected tax year.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+             <div className="lg:col-span-2 flex items-end justify-end">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Tax Year:</span>
+                    <Select value={selectedYear} onValueChange={setSelectedYear}>
+                        <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {availableYears.map(year => (
+                            <SelectItem key={year} value={year}>{year}</SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+        </div>
+
         <Card>
           <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <CardTitle>Income by Payer</CardTitle>
-                <CardDescription>Clients who have paid you in the selected year.</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Tax Year:</span>
-                 <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map(year => (
-                      <SelectItem key={year} value={year}>{year}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <CardTitle>Income by Payer</CardTitle>
+            <CardDescription>Breakdown of payments received from each client in {selectedYear}.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingData ? (
                 <div className="space-y-4">
+                    <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
                 </div>
