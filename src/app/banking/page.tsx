@@ -227,177 +227,182 @@ export default function BankingPage() {
         title="Banking & Taxes"
         description="Connect bank accounts, categorize transactions, and estimate your taxes."
       />
-      <div className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6 text-primary" /> Bank Connections</CardTitle>
-            <CardDescription>Securely connect your bank accounts to automatically import transactions.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              {accounts.map(acc => (
-                <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="h-6 w-6 text-green-500" />
-                    <div>
-                      <p className="font-medium">{acc.name}</p>
-                      <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6 text-primary" /> Bank Connections</CardTitle>
+                <CardDescription>Securely connect your bank accounts to automatically import transactions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-3">
+                {accounts.map(acc => (
+                    <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                    <div className="flex items-center gap-3">
+                        <ShieldCheck className="h-6 w-6 text-green-500" />
+                        <div>
+                        <p className="font-medium">{acc.name}</p>
+                        <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+                        </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || !isFinicitySdkReady}>
-              {isConnecting || !isFinicitySdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              {isFinicitySdkReady ? 'Connect New Account' : 'Initializing...'}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Transactions</CardTitle>
-            <CardDescription>AI has automatically categorized your transactions. Review and adjust as needed.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTransactions ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">AI is classifying your transactions...</p>
-              </div>
-            ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[200px]">Category</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
-                  <TableHead className="text-center w-[120px]">Brand Spend</TableHead>
-                  <TableHead className="w-[250px]">Receipt</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.map(txn => (
-                  <TableRow key={txn.id}>
-                    <TableCell className="text-sm text-muted-foreground">{new Date(txn.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{txn.description}</TableCell>
-                    <TableCell>
-                      <Select 
-                        value={txn.category} 
-                        onValueChange={(value) => handleTransactionUpdate(txn.id, 'category', value)}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
-                        <SelectContent>
-                          {transactionCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className={`text-right font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {txn.amount > 0 ? '+' : ''}${txn.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Checkbox 
-                        checked={!!txn.isTaxDeductible} 
-                        onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
-                        aria-label="Is tax deductible"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Checkbox 
-                        checked={!!txn.isBrandSpend} 
-                        onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isBrandSpend', !!checked)}
-                        aria-label="Is brand spend"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={txn.linkedReceiptId || 'no-receipt-linked'}
-                        onValueChange={(receiptId) => handleTransactionUpdate(txn.id, 'linkedReceiptId', receiptId === 'no-receipt-linked' ? null : receiptId)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Link a receipt..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="no-receipt-linked">
-                            <span className="text-muted-foreground">No Receipt</span>
-                          </SelectItem>
-                          {userReceipts.map((receipt) => (
-                            <SelectItem key={receipt.id} value={receipt.id}>
-                              {receipt.description} - ${receipt.amount?.toFixed(2)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  </TableRow>
+                    <div className="text-right">
+                        <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
+                    </div>
+                    </div>
                 ))}
-              </TableBody>
-            </Table>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || !isFinicitySdkReady}>
+                {isConnecting || !isFinicitySdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                {isFinicitySdkReady ? 'Connect New Account' : 'Initializing...'}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
+                </p>
+            </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><TrendingUp className="h-6 w-6 text-primary" /> Tax Estimation</CardTitle>
-            <CardDescription>An AI-powered estimate of your potential tax liability based on categorized transactions.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTaxEstimation ? (
-               <div className="flex items-center justify-center h-32">
-                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-               </div>
-            ) : taxEstimation ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
-                <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Est. Taxable Income</p>
-                  <p className="text-2xl font-bold">${taxEstimation.estimatedTaxableIncome.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6 text-primary" /> Transactions</CardTitle>
+                <CardDescription>AI has automatically categorized your transactions. Review and adjust as needed.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoadingTransactions ? (
+                <div className="flex items-center justify-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-3 text-muted-foreground">AI is classifying your transactions...</p>
                 </div>
-                <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Est. Tax Owed</p>
-                  <p className="text-2xl font-bold">${taxEstimation.estimatedTaxOwed.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                ) : (
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="w-[200px]">Category</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
+                    <TableHead className="text-center w-[120px]">Brand Spend</TableHead>
+                    <TableHead className="w-[250px]">Receipt</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {transactions.map(txn => (
+                    <TableRow key={txn.id}>
+                        <TableCell className="text-sm text-muted-foreground">{new Date(txn.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-medium">{txn.description}</TableCell>
+                        <TableCell>
+                        <Select 
+                            value={txn.category} 
+                            onValueChange={(value) => handleTransactionUpdate(txn.id, 'category', value)}
+                        >
+                            <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
+                            <SelectContent>
+                            {transactionCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {txn.amount > 0 ? '+' : ''}${txn.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                        </TableCell>
+                        <TableCell className="text-center">
+                        <Checkbox 
+                            checked={!!txn.isTaxDeductible} 
+                            onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isTaxDeductible', !!checked)}
+                            aria-label="Is tax deductible"
+                        />
+                        </TableCell>
+                        <TableCell className="text-center">
+                        <Checkbox 
+                            checked={!!txn.isBrandSpend} 
+                            onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isBrandSpend', !!checked)}
+                            aria-label="Is brand spend"
+                        />
+                        </TableCell>
+                        <TableCell>
+                        <Select
+                            value={txn.linkedReceiptId || 'no-receipt-linked'}
+                            onValueChange={(receiptId) => handleTransactionUpdate(txn.id, 'linkedReceiptId', receiptId === 'no-receipt-linked' ? null : receiptId)}
+                        >
+                            <SelectTrigger>
+                            <SelectValue placeholder="Link a receipt..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="no-receipt-linked">
+                                <span className="text-muted-foreground">No Receipt</span>
+                            </SelectItem>
+                            {userReceipts.map((receipt) => (
+                                <SelectItem key={receipt.id} value={receipt.id}>
+                                {receipt.description} - ${receipt.amount?.toFixed(2)}
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+                )}
+            </CardContent>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-8">
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><TrendingUp className="h-6 w-6 text-primary" /> Tax Estimation</CardTitle>
+                <CardDescription>An AI-powered estimate of your potential tax liability based on categorized transactions.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoadingTaxEstimation ? (
+                <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-                 <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <p className="text-sm text-blue-600 dark:text-blue-300">Suggested Set-Aside</p>
-                  <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">{taxEstimation.suggestedSetAsidePercentage}%</p>
-                </div>
-                 <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <p className="text-sm text-blue-600 dark:text-blue-300">Set-Aside Amount</p>
-                  <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">${taxEstimation.suggestedSetAsideAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 border rounded-md bg-muted text-center">
-                <p className="text-lg text-muted-foreground">Categorize transactions to see tax estimates.</p>
-              </div>
-            )}
-             <div className="mt-6 p-4 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-r-lg">
-                <div className="flex items-start gap-3">
-                    <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Notes & Disclaimers</h3>
-                      <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1 list-disc list-inside">
-                        {(taxEstimation?.notes && taxEstimation.notes.length > 0) ? (
-                          taxEstimation.notes.map((note, index) => <li key={index}>{note}</li>)
-                        ) : (
-                          <li>Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional.</li>
-                        )}
-                      </ul>
+                ) : taxEstimation ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+                    <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Est. Taxable Income</p>
+                    <p className="text-2xl font-bold">${taxEstimation.estimatedTaxableIncome.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Est. Tax Owed</p>
+                    <p className="text-2xl font-bold">${taxEstimation.estimatedTaxOwed.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                    </div>
+                    <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <p className="text-sm text-blue-600 dark:text-blue-300">Suggested Set-Aside</p>
+                    <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">{taxEstimation.suggestedSetAsidePercentage}%</p>
+                    </div>
+                    <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <p className="text-sm text-blue-600 dark:text-blue-300">Set-Aside Amount</p>
+                    <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">${taxEstimation.suggestedSetAsideAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
                     </div>
                 </div>
-            </div>
-          </CardContent>
-        </Card>
+                ) : (
+                <div className="p-6 border rounded-md bg-muted text-center">
+                    <p className="text-lg text-muted-foreground">Categorize transactions to see tax estimates.</p>
+                </div>
+                )}
+                <div className="mt-6 p-4 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-r-lg">
+                    <div className="flex items-start gap-3">
+                        <FileWarning className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                        <h3 className="font-semibold text-amber-700 dark:text-amber-300 mb-1">Notes & Disclaimers</h3>
+                        <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1 list-disc list-inside">
+                            {(taxEstimation?.notes && taxEstimation.notes.length > 0) ? (
+                            taxEstimation.notes.map((note, index) => <li key={index}>{note}</li>)
+                            ) : (
+                            <li>Tax estimations are for informational purposes only and are not financial or legal advice. Consult a qualified tax professional.</li>
+                            )}
+                        </ul>
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+            </Card>
+        </div>
       </div>
     </>
   );
 }
+
+    
