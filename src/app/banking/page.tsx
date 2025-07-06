@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Script from 'next/script'; // Import Script
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ export default function BankingPage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isFinicitySdkReady, setIsFinicitySdkReady] = useState(false); // State to track SDK readiness
+  const [isFinicitySdkReady, setIsFinicitySdkReady] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -55,6 +55,32 @@ export default function BankingPage() {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
+
+  const handleScriptError = useCallback((e: any) => {
+    console.error('Error loading Finicity SDK:', e);
+    toast({
+      title: "SDK Load Error",
+      description: "Could not load the banking connection SDK. Please refresh the page.",
+      variant: "destructive",
+    });
+    setIsFinicitySdkReady(false);
+  }, [toast]);
+  
+  const handleScriptLoad = useCallback(() => {
+    const checkSdkReady = (retries: number) => {
+      if ((window as any).FinicityConnect?.launch) {
+        console.log("Finicity SDK is ready to launch.");
+        setIsFinicitySdkReady(true);
+      } else if (retries > 0) {
+        console.warn(`Finicity SDK not ready, retrying... (${retries} attempts left)`);
+        setTimeout(() => checkSdkReady(retries - 1), 300);
+      } else {
+        console.error("Finicity SDK failed to initialize after multiple attempts.");
+        handleScriptError(new Error("SDK failed to initialize launch function."));
+      }
+    };
+    checkSdkReady(5);
+  }, [handleScriptError]);
 
   useEffect(() => {
     // Simulate fetching account data
@@ -117,6 +143,32 @@ export default function BankingPage() {
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
 
+  const onConnectSuccess = useCallback((event: any) => {
+    console.log('Finicity Connect Success!', event);
+    toast({
+      title: "Connection Successful!",
+      description: "Your account has been linked. We will now fetch your data.",
+    });
+  }, [toast]);
+
+  const onConnectCancel = useCallback(() => {
+    console.log('Finicity Connect Canceled.');
+    toast({
+      title: "Connection Canceled",
+      description: "The bank connection process was canceled.",
+      variant: "default",
+    });
+  }, [toast]);
+
+  const onConnectError = useCallback((error: any) => {
+    console.error('Finicity Connect Error:', error);
+    toast({
+      title: "Connection Error",
+      description: error.message || "An error occurred while linking your account.",
+      variant: "destructive",
+    });
+  }, [toast]);
+
   const handleConnectFinicity = async () => {
     if (!isFinicitySdkReady) {
       toast({
@@ -138,33 +190,11 @@ export default function BankingPage() {
           throw new Error("Connect URL not returned from server.");
       }
 
-      const connectOptions = {
-        onSuccess: (event: any) => {
-          console.log('Finicity Connect Success!', event);
-          toast({
-            title: "Connection Successful!",
-            description: "Your account has been linked. We will now fetch your data.",
-          });
-        },
-        onCancel: () => {
-          console.log('Finicity Connect Canceled.');
-          toast({
-            title: "Connection Canceled",
-            description: "The bank connection process was canceled.",
-            variant: "default",
-          });
-        },
-        onError: (error: any) => {
-          console.error('Finicity Connect Error:', error);
-          toast({
-            title: "Connection Error",
-            description: error.message || "An error occurred while linking your account.",
-            variant: "destructive",
-          });
-        },
-      };
-
-      (window as any).FinicityConnect.launch(connectUrl, connectOptions);
+      (window as any).FinicityConnect.launch(connectUrl, {
+        onSuccess: onConnectSuccess,
+        onCancel: onConnectCancel,
+        onError: onConnectError,
+      });
 
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
@@ -209,19 +239,8 @@ export default function BankingPage() {
         id="finicity-connect-sdk"
         src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
         strategy="afterInteractive"
-        onLoad={() => {
-          console.log("Finicity SDK loaded successfully.");
-          setIsFinicitySdkReady(true);
-        }}
-        onError={(e) => {
-          console.error('Error loading Finicity SDK:', e);
-          toast({
-            title: "SDK Load Error",
-            description: "Could not load the banking connection SDK. Please refresh the page.",
-            variant: "destructive",
-          });
-          setIsFinicitySdkReady(false);
-        }}
+        onLoad={handleScriptLoad}
+        onError={handleScriptError}
       />
       <PageHeader
         title="Banking & Taxes"
@@ -404,5 +423,3 @@ export default function BankingPage() {
     </>
   );
 }
-
-    
