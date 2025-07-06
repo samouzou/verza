@@ -77,7 +77,7 @@ export function SidebarNav() {
                 <text x="0" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
              </svg>
              <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
-                <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
+                <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="72" fontWeight="600" fill="hsl(var(--primary))">V</text>
              </svg>
           </div>
         </SidebarHeader>
