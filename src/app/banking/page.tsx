@@ -170,7 +170,7 @@ export default function BankingPage() {
   }, [toast]);
 
   const handleConnectFinicity = async () => {
-    if (!isFinicitySdkReady) {
+    if (!isFinicitySdkReady || !(window as any).FinicityConnect?.launch) {
       toast({
         title: "Initializing...",
         description: "The banking connection SDK is loading. Please try again in a moment.",
@@ -189,12 +189,14 @@ export default function BankingPage() {
       if (!connectUrl) {
           throw new Error("Connect URL not returned from server.");
       }
-
-      (window as any).FinicityConnect.launch(connectUrl, {
+      
+      const connectOptions = {
         onSuccess: onConnectSuccess,
         onCancel: onConnectCancel,
         onError: onConnectError,
-      });
+      };
+
+      (window as any).FinicityConnect.launch(connectUrl, connectOptions);
 
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
