@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import Script from 'next/script'; // Import Script
+import { useState, useEffect, useCallback } from 'react';
+import Script from 'next/script';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, Check, ShieldCheck } from "lucide-react";
+import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, ShieldCheck } from "lucide-react";
 import type { BankAccount, BankTransaction, TaxEstimation, Receipt } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,7 @@ import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
+import { db, doc, getDoc, setDoc } from '@/lib/firebase';
 
 // --- Mock Data ---
 const MOCK_ACCOUNTS: BankAccount[] = [
@@ -41,15 +42,27 @@ const MOCK_RECEIPTS: Receipt[] = [
 ];
 // --- End Mock Data ---
 
-const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app";
+
+const FINICITY_SDK_URL = "https://connect.finicity.com/assets/sdk/finicity-connect.min.js";
+const GENERATE_FINICITY_CONNECT_URL_FUNCTION_NAME = "generateFinicityConnectUrl";
+const CREATE_FINICITY_CUSTOMER_FUNCTION_NAME = "createFinicityCustomer"; // Assuming this function exists
+
+declare global {
+  interface Window {
+    Finicity?: {
+      init: (config: any, successCb: () => void, errorCb: (error: any) => void) => void;
+      open: (options: any) => void;
+    };
+  }
+}
 
 export default function BankingPage() {
-  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Track script loading and SDK readiness separately
   const [isFinicityScriptLoaded, setIsFinicityScriptLoaded] = useState(false);
+  const [isFinicityInitialized, setIsFinicityInitialized] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -58,7 +71,6 @@ export default function BankingPage() {
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
 
-  // Simplified script error handler
   const handleScriptError = (e: any) => {
     console.error('Error loading Finicity SDK script:', e);
     toast({
@@ -66,21 +78,92 @@ export default function BankingPage() {
       description: "Could not load the banking connection script. Please refresh the page.",
       variant: "destructive",
     });
-    setIsFinicityScriptLoaded(false); // Ensure it's marked as not loaded
+    setIsFinicityScriptLoaded(false);
+    setIsFinicityInitialized(false);
   };
   
-  // Simplified script load handler
   const handleScriptLoad = () => {
     console.log("Finicity SDK script file has loaded.");
     setIsFinicityScriptLoaded(true);
   };
 
   useEffect(() => {
-    // Simulate fetching account data
+    if (!isFinicityScriptLoaded || !user || isFinicityInitialized) {
+      return;
+    }
+
+    const initializeFinicity = async () => {
+      if (!window.Finicity || typeof window.Finicity.init !== 'function') {
+        console.warn('window.Finicity.init not yet available.');
+        return;
+      }
+
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        let userDocSnap = await getDoc(userDocRef);
+        let userData = userDocSnap.data();
+        let finicityCustomerId = userData?.finicityCustomerId;
+
+        if (!finicityCustomerId) {
+          console.log(`No Finicity Customer ID found in Firestore. Creating a new one for user ${user.uid}.`);
+          const firebaseFunctions = getFunctions();
+          const createCustomerCallable = httpsCallableFromURL(firebaseFunctions, 'https://createfinicitycustomer-cpmccwbluq-uc.a.run.app');
+          const createCustomerResult = await createCustomerCallable({ userId: user.uid });
+          
+          const newId = (createCustomerResult.data as any)?.newCustomerId;
+          if (!newId) {
+            throw new Error("New Finicity Customer ID not returned from backend.");
+          }
+          
+          finicityCustomerId = newId;
+          await setDoc(userDocRef, { finicityCustomerId }, { merge: true });
+          console.log(`Created and stored new Finicity Customer ID: ${finicityCustomerId}`);
+        }
+
+        console.log(`Using Finicity Customer ID: ${finicityCustomerId}`);
+
+        const partnerId = process.env.NEXT_PUBLIC_FINICITY_PARTNER_ID;
+        if (!partnerId) {
+          throw new Error("Finicity Partner ID is not configured in environment variables.");
+        }
+
+        window.Finicity.init(
+          {
+            partnerId,
+            customerId: finicityCustomerId,
+            debug: true,
+            baseUrl: 'https://connect.finicity.com', 
+          },
+          () => { 
+            console.log('Finicity SDK successfully initialized!');
+            setIsFinicityInitialized(true);
+            toast({ title: "Finicity Ready", description: "Connection service is ready to use." });
+          },
+          (error: any) => { 
+            console.error('Finicity SDK initialization failed:', error);
+            toast({ title: "Finicity Error", description: error.message || "Failed to initialize connection service.", variant: "destructive" });
+            setIsFinicityInitialized(false);
+          }
+        );
+
+      } catch (error: any) {
+        console.error("Error during Finicity setup:", error);
+        toast({
+          title: "Connection Setup Error",
+          description: error.message || "Failed to configure Finicity connection.",
+          variant: "destructive",
+        });
+        setIsFinicityInitialized(false);
+      }
+    };
+
+    initializeFinicity();
+  }, [isFinicityScriptLoaded, user, toast, isFinicityInitialized]);
+  
+  useEffect(() => {
     setAccounts(MOCK_ACCOUNTS);
     setUserReceipts(MOCK_RECEIPTS);
 
-    // AI Transaction Classification logic
     const processTransactions = async () => {
       setIsLoadingTransactions(true);
       try {
@@ -109,7 +192,6 @@ export default function BankingPage() {
   }, []);
 
   useEffect(() => {
-    // AI Tax Estimation logic
     const runTaxEstimation = async () => {
       if (isLoadingTransactions || transactions.length === 0) {
         if (!isLoadingTransactions) setIsLoadingTaxEstimation(false);
@@ -137,8 +219,7 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
-    // Check for readiness *at the time of click*
-    if (!isFinicityScriptLoaded || typeof (window as any).FinicityConnect?.launch !== 'function') {
+    if (!isFinicityInitialized || !window.Finicity || typeof window.Finicity.open !== 'function') {
       toast({
         title: "Connection service not ready",
         description: "The banking connection service is still initializing. Please wait a moment and try again.",
@@ -146,11 +227,11 @@ export default function BankingPage() {
       });
       return;
     }
-    
+
     setIsConnecting(true);
     try {
       const firebaseFunctions = getFunctions();
-      const generateUrlCallable = httpsCallableFromURL(firebaseFunctions, GENERATE_FINICITY_CONNECT_URL);
+      const generateUrlCallable = httpsCallableFromURL(firebaseFunctions, `https://us-central1-${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.cloudfunctions.net/${GENERATE_FINICITY_CONNECT_URL_FUNCTION_NAME}`);
       const result = await generateUrlCallable();
       const { connectUrl } = result.data as {connectUrl: string};
 
@@ -158,7 +239,8 @@ export default function BankingPage() {
           throw new Error("Connect URL not returned from server.");
       }
       
-      const connectOptions = {
+      window.Finicity.open({
+        url: connectUrl,
         onSuccess: (event: any) => {
           console.log('Finicity Connect Success!', event);
           toast({
@@ -182,9 +264,7 @@ export default function BankingPage() {
             variant: "destructive",
           });
         },
-      };
-
-      (window as any).FinicityConnect.launch(connectUrl, connectOptions);
+      });
 
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
@@ -223,19 +303,20 @@ export default function BankingPage() {
 
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
   
-  const isButtonDisabled = isConnecting || !isFinicityScriptLoaded;
-  const buttonText = isConnecting ? 'Connecting...' : !isFinicityScriptLoaded ? 'Initializing...' : 'Connect New Account';
+  const isButtonDisabled = isConnecting || !isFinicityInitialized;
+  const buttonText = isConnecting ? 'Connecting...' : !isFinicityInitialized ? 'Initializing Finicity...' : 'Connect New Account';
 
 
   return (
     <>
       <Script
         id="finicity-connect-sdk"
-        src="https://connect.finicity.com/assets/sdk/finicity-connect.min.js"
+        src={FINICITY_SDK_URL}
         strategy="afterInteractive"
         onLoad={handleScriptLoad}
         onError={handleScriptError}
       />
+
       <PageHeader
         title="Banking & Taxes"
         description="Connect bank accounts, categorize transactions, and estimate your taxes."
@@ -266,7 +347,7 @@ export default function BankingPage() {
                 ))}
                 </div>
                 <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isButtonDisabled}>
-                  {isConnecting || !isFinicityScriptLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  {isConnecting || !isFinicityInitialized ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                   {buttonText}
                 </Button>
                 <p className="text-xs text-muted-foreground">
