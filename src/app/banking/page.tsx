@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, Check, ShieldCheck } from "lucide-react";
+import { Loader2, AlertTriangle, Landmark, BarChart3, TrendingUp, FileWarning, PlusCircle, ShieldCheck } from "lucide-react";
 import type { BankAccount, BankTransaction, TaxEstimation, Receipt } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,7 +56,6 @@ export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isSdkReady, setIsSdkReady] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -65,32 +64,6 @@ export default function BankingPage() {
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
 
-  const handleScriptError = (e: any) => {
-    console.error('Error loading Finicity SDK script:', e);
-    toast({
-      title: "SDK Load Error",
-      description: "Could not load the banking connection script. Please refresh the page.",
-      variant: "destructive",
-    });
-    setIsSdkReady(false);
-  };
-  
-  const handleScriptLoad = useCallback(() => {
-    console.log("Finicity SDK script file has loaded, checking for initialization...");
-    const checkSdkReady = (retries = 10) => {
-      if (typeof window.Finicity?.launch === 'function') {
-        console.log("Finicity SDK is ready.");
-        setIsSdkReady(true);
-      } else if (retries > 0) {
-        setTimeout(() => checkSdkReady(retries - 1), 300);
-      } else {
-        console.error("Finicity SDK failed to initialize after multiple attempts.");
-        handleScriptError(new Error("SDK failed to initialize launch function."));
-      }
-    };
-    checkSdkReady();
-  }, []);
-  
   useEffect(() => {
     setAccounts(MOCK_ACCOUNTS);
     setUserReceipts(MOCK_RECEIPTS);
@@ -150,7 +123,7 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
-    if (!isSdkReady || !window.Finicity?.launch) {
+    if (typeof window.Finicity?.launch !== 'function') {
        toast({
         title: "Connection Service Not Ready",
         description: "The banking connection service is still loading. Please wait a moment and try again.",
@@ -234,10 +207,6 @@ export default function BankingPage() {
   }
 
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
-  
-  const isButtonDisabled = isConnecting || !isSdkReady;
-  const buttonText = isConnecting ? 'Connecting...' : !isSdkReady ? 'Initializing...' : 'Connect New Account';
-
 
   return (
     <>
@@ -245,8 +214,6 @@ export default function BankingPage() {
         id="finicity-connect-sdk"
         src={FINICITY_SDK_URL}
         strategy="afterInteractive"
-        onLoad={handleScriptLoad}
-        onError={handleScriptError}
       />
 
       <PageHeader
@@ -278,9 +245,9 @@ export default function BankingPage() {
                     </div>
                 ))}
                 </div>
-                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isButtonDisabled}>
-                  {isConnecting || !isSdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                  {buttonText}
+                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
+                  {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  Connect New Account
                 </Button>
                 <p className="text-xs text-muted-foreground">
                 Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
