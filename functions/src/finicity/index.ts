@@ -155,7 +155,11 @@ export const generateFinicityConnectUrl = onCall({
         redirectUri: `${appUrl}/banking`,
         webhook: webhookUrl,
         webhookContentType: "application/json",
-        experience: "{\"brand\":\"Verza\",\"logo\":\"\",\"product\":\"aggregation\"}",
+        experience: {
+            "brand": "Verza",
+            "logo": "",
+            "product": "aggregation"
+        }
       }),
     });
 
