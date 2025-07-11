@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Script from 'next/script';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
-import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import { db, doc, getDoc, setDoc } from '@/lib/firebase';
+import { functions as firebaseFunctionsInstance } from '@/lib/firebase'; // Use pre-initialized instance
 
 // --- Mock Data ---
 const MOCK_ACCOUNTS: BankAccount[] = [
@@ -42,32 +42,21 @@ const MOCK_RECEIPTS: Receipt[] = [
 ];
 // --- End Mock Data ---
 
-// Define the Finicity Connect SDK URL and your Firebase Function URL
 const FINICITY_SDK_URL = "https://connect.finicity.com/assets/sdk/finicity-connect.min.js";
-const GENERATE_FINICITY_CONNECT_URL = "https://generatefinicityconnecturl-cpmccwbluq-uc.a.run.app"; // Your Firebase Function URL
 
-// Declare global Finicity object for TypeScript
 declare global {
   interface Window {
     Finicity?: {
-      init: (config: any, successCb?: () => void, errorCb?: (error: any) => void) => void;
-      open: (options: any) => void;
-      // If your specific integration uses FinicityConnect.launch, keep this:
-      FinicityConnect?: {
-        launch: (connectUrl: string, options: any) => void;
-      };
+      launch: (connectUrl: string, options: any) => void;
     };
   }
 }
 
 export default function BankingPage() {
-  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
-  
-  // Track script loading and SDK readiness separately
   const [isFinicityScriptLoaded, setIsFinicityScriptLoaded] = useState(false);
-  const [isFinicityInitialized, setIsFinicityInitialized] = useState(false); // New state for Finicity.init() success
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -76,7 +65,6 @@ export default function BankingPage() {
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
 
-  // Simplified script error handler
   const handleScriptError = (e: any) => {
     console.error('Error loading Finicity SDK script:', e);
     toast({
@@ -85,96 +73,17 @@ export default function BankingPage() {
       variant: "destructive",
     });
     setIsFinicityScriptLoaded(false);
-    setIsFinicityInitialized(false); // Also reset initialized state
   };
   
-  // Simplified script load handler
   const handleScriptLoad = () => {
     console.log("Finicity SDK script file has loaded.");
     setIsFinicityScriptLoaded(true);
   };
-
-  // --- NEW useEffect for Finicity SDK Initialization ---
+  
   useEffect(() => {
-    if (!isFinicityScriptLoaded || !user || isFinicityInitialized) {
-      return;
-    }
-
-    const initializeFinicity = async () => {
-      if (!window.Finicity || typeof window.Finicity.init !== 'function') {
-        console.warn('window.Finicity.init not yet available.');
-        return;
-      }
-
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        let userDocSnap = await getDoc(userDocRef);
-        let userData = userDocSnap.data();
-        let finicityCustomerId = userData?.finicityCustomerId;
-
-        if (!finicityCustomerId) {
-          console.log(`No Finicity Customer ID found in Firestore. Creating a new one for user ${user.uid}.`);
-          const firebaseFunctions = getFunctions();
-          const createCustomerCallable = httpsCallableFromURL(firebaseFunctions, GENERATE_FINICITY_CONNECT_URL);
-          const createCustomerResult = await createCustomerCallable({ userId: user.uid });
-          
-          const newId = (createCustomerResult.data as any)?.newCustomerId;
-          if (!newId) {
-            throw new Error("New Finicity Customer ID not returned from backend.");
-          }
-          
-          finicityCustomerId = newId;
-          await setDoc(userDocRef, { finicityCustomerId }, { merge: true });
-          console.log(`Created and stored new Finicity Customer ID: ${finicityCustomerId}`);
-        }
-
-        console.log(`Using Finicity Customer ID: ${finicityCustomerId}`);
-
-        const partnerId = process.env.NEXT_PUBLIC_FINICITY_PARTNER_ID;
-        if (!partnerId) {
-          throw new Error("Finicity Partner ID is not configured in environment variables.");
-        }
-
-        window.Finicity.init(
-          {
-            partnerId,
-            customerId: finicityCustomerId,
-            debug: true,
-            baseUrl: 'https://connect.finicity.com', 
-          },
-          () => { 
-            console.log('Finicity SDK successfully initialized!');
-            setIsFinicityInitialized(true);
-            toast({ title: "Finicity Ready", description: "Connection service is ready to use." });
-          },
-          (error: any) => { 
-            console.error('Finicity SDK initialization failed:', error);
-            toast({ title: "Finicity Error", description: error.message || "Failed to initialize connection service.", variant: "destructive" });
-            setIsFinicityInitialized(false);
-          }
-        );
-
-      } catch (error: any) {
-        console.error("Error during Finicity setup:", error);
-        toast({
-          title: "Connection Setup Error",
-          description: error.message || "Failed to configure Finicity connection.",
-          variant: "destructive",
-        });
-        setIsFinicityInitialized(false);
-      }
-    };
-
-    initializeFinicity();
-  }, [isFinicityScriptLoaded, user, toast, isFinicityInitialized]);
-
-  // --- Existing useEffects (unmodified) ---
-  useEffect(() => {
-    // Simulate fetching account data
     setAccounts(MOCK_ACCOUNTS);
     setUserReceipts(MOCK_RECEIPTS);
 
-    // AI Transaction Classification logic
     const processTransactions = async () => {
       setIsLoadingTransactions(true);
       try {
@@ -203,7 +112,6 @@ export default function BankingPage() {
   }, []);
 
   useEffect(() => {
-    // AI Tax Estimation logic
     const runTaxEstimation = async () => {
       if (isLoadingTransactions || transactions.length === 0) {
         if (!isLoadingTransactions) setIsLoadingTaxEstimation(false);
@@ -230,35 +138,19 @@ export default function BankingPage() {
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
 
-  // --- Modified handleConnectFinicity ---
   const handleConnectFinicity = async () => {
-    // Check for full Finicity SDK initialization before proceeding
-    if (!isFinicityInitialized) {
+    if (!isFinicityScriptLoaded || !window.Finicity?.launch) {
       toast({
         title: "Connection service not ready",
-        description: "The banking connection service is still initializing. Please wait a moment and try again.",
+        description: "The banking connection service is still loading. Please wait a moment and try again.",
         variant: "default",
-      });
-      return;
-    }
-    
-    // Ensure the launch/open function exists before calling it
-    // Use window.Finicity.open as it's more standard, or window.Finicity.FinicityConnect.launch
-    const launchFinicity = window.Finicity?.open || window.Finicity?.FinicityConnect?.launch;
-    if (!launchFinicity || typeof launchFinicity !== 'function') {
-      console.error('Finicity launch/open function not found after initialization.');
-      toast({
-        title: "Launch Error",
-        description: "Finicity launch function not available. Please refresh and try again.",
-        variant: "destructive",
       });
       return;
     }
 
     setIsConnecting(true);
     try {
-      const firebaseFunctions = getFunctions();
-      const generateUrlCallable = httpsCallableFromURL(firebaseFunctions, `${FINICITY_API_BASE_URL}/aggregation/v2/customers/testing`);
+      const generateUrlCallable = httpsCallable(firebaseFunctionsInstance, 'generateFinicityConnectUrl');
       const result = await generateUrlCallable();
       const { connectUrl } = result.data as {connectUrl: string};
 
@@ -267,7 +159,6 @@ export default function BankingPage() {
       }
       
       const connectOptions = {
-        // Finicity Connect callbacks
         onSuccess: (event: any) => {
           console.log('Finicity Connect Success!', event);
           toast({
@@ -294,8 +185,7 @@ export default function BankingPage() {
         },
       };
 
-      // Call the determined launch function
-      launchFinicity(connectUrl, connectOptions); // Pass connectUrl as first arg if using .launch
+      window.Finicity.launch(connectUrl, connectOptions);
 
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
@@ -334,20 +224,18 @@ export default function BankingPage() {
 
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
   
-  // Button disabled logic now depends on isFinicityInitialized
-  const isButtonDisabled = isConnecting || !isFinicityInitialized;
-  const buttonText = isConnecting ? 'Connecting...' : !isFinicityInitialized ? 'Initializing Finicity...' : 'Connect New Account';
+  const isButtonDisabled = isConnecting || !isFinicityScriptLoaded;
+  const buttonText = isConnecting ? 'Connecting...' : !isFinicityScriptLoaded ? 'Initializing...' : 'Connect New Account';
 
 
   return (
     <>
-      {/* Finicity SDK Script Loader */}
       <Script
         id="finicity-connect-sdk"
-        src={FINICITY_SDK_URL} // Use the constant
+        src={FINICITY_SDK_URL}
         strategy="afterInteractive"
         onLoad={handleScriptLoad}
-        onError={handleScriptError} // Assuming this function is defined elsewhere or inline
+        onError={handleScriptError}
       />
 
       <PageHeader
@@ -380,7 +268,7 @@ export default function BankingPage() {
                 ))}
                 </div>
                 <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isButtonDisabled}>
-                  {isConnecting || !isFinicityInitialized ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  {isConnecting || !isFinicityScriptLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                   {buttonText}
                 </Button>
                 <p className="text-xs text-muted-foreground">
@@ -429,7 +317,7 @@ export default function BankingPage() {
                             </SelectContent>
                         </Select>
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <TableCell className={'text-right font-semibold ' + (txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300')}>
                         {txn.amount > 0 ? '+' : ''}${txn.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
                         </TableCell>
                         <TableCell className="text-center">
