@@ -16,77 +16,90 @@ import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import { functions as firebaseFunctionsInstance } from '@/lib/firebase'; // Use pre-initialized instance
-
-// --- Mock Data ---
-const MOCK_ACCOUNTS: BankAccount[] = [
-  { id: 'acc_1', userId: 'user_1', name: 'Chase Sapphire Checking', officialName: 'CHASE SAPPHIRE CHECKING', mask: '1234', type: 'depository', subtype: 'checking', balance: 15234.88, provider: 'Finicity', providerAccountId: 'fin_1' },
-  { id: 'acc_2', userId: 'user_1', name: 'Amex Gold Card', officialName: 'AMERICAN EXPRESS GOLD', mask: '5678', type: 'credit', subtype: 'credit card', balance: -1245.21, provider: 'Finicity', providerAccountId: 'fin_2' },
-  { id: 'acc_3', userId: 'user_1', name: 'Creator Business Savings', officialName: 'BANK OF AMERICA SAVINGS', mask: '9012', type: 'depository', subtype: 'savings', balance: 50000.00, provider: 'Finicity', providerAccountId: 'fin_3' },
-];
-
-const MOCK_TRANSACTIONS_RAW: Omit<BankTransaction, 'isTaxDeductible' | 'category'>[] = [
-  { id: 'txn_1', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Nike, Inc.", amount: 5000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_2', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), description: "Adobe Creative Cloud", amount: -59.99, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_3', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), description: "Starbucks Client Mtg", amount: -24.50, currency: 'USD', isBrandSpend: true, linkedReceiptId: 'receipt_123', createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_4', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), description: "United Airlines Flight", amount: -453.81, currency: 'USD', isBrandSpend: true, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_5', userId: 'user_1', accountId: 'acc_1', date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), description: "Payment from Google LLC", amount: 12000.00, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-  { id: 'txn_6', userId: 'user_1', accountId: 'acc_2', date: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), description: "H&M Store 432", amount: -150.75, currency: 'USD', isBrandSpend: false, linkedReceiptId: null, createdAt: new Date() as any, updatedAt: new Date() as any },
-];
-
-const MOCK_RECEIPTS: Receipt[] = [
-  { id: 'receipt_123', userId: 'user_1', description: 'Starbucks Client Mtg', amount: 24.50, receiptDate: '2024-07-20', receiptImageUrl: '', receiptFileName: 'starbucks.jpg', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_1' },
-  { id: 'receipt_456', userId: 'user_1', description: 'Office Supplies from Amazon', amount: 89.99, receiptDate: '2024-07-18', receiptImageUrl: '', receiptFileName: 'amazon.png', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_2' },
-  { id: 'receipt_789', userId: 'user_1', description: 'Team Lunch at The Grove', amount: 112.30, receiptDate: '2024-07-15', receiptImageUrl: '', receiptFileName: 'grove.pdf', status: 'uploaded', createdAt: new Date() as any, linkedContractId: 'contract_3' },
-];
-// --- End Mock Data ---
+import { functions as firebaseFunctionsInstance, db, collection, onSnapshot, query, where, doc, updateDoc } from '@/lib/firebase';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const [isConnecting, setIsConnecting] = useState(false);
-  
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
-  const [userReceipts, setUserReceipts] = useState<Receipt[]>([]);
+  const [userReceipts, setUserReceipts] = useState<Receipt[]>([]); // Assuming receipts are still needed
+  
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+  const [isClassifying, setIsClassifying] = useState(false);
+  
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
   
+  // Real-time listener for Bank Accounts
   useEffect(() => {
-    // In a real app, this data would be fetched from Firestore after a successful connection.
-    // We use mock data here to demonstrate the UI.
-    setAccounts(MOCK_ACCOUNTS);
-    setUserReceipts(MOCK_RECEIPTS);
-
-    const processTransactions = async () => {
-      setIsLoadingTransactions(true);
-      try {
-        const processed = await Promise.all(MOCK_TRANSACTIONS_RAW.map(async (txn) => {
-          if (txn.amount > 0) {
-            return { ...txn, isTaxDeductible: false, category: 'Client Payment' };
-          }
-          try {
-            const classification = await classifyTransaction({ description: txn.description });
-            return { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible, category: classification.category };
-          } catch (aiError) {
-            console.error(`AI classification failed for "${txn.description}":`, aiError);
-            return { ...txn, isTaxDeductible: false, category: 'Other' };
-          }
-        }));
-        setTransactions(processed as BankTransaction[]);
-      } catch (error) {
-        console.error("Error processing transactions:", error);
-        setTransactions(MOCK_TRANSACTIONS_RAW.map(t => ({...t, isTaxDeductible: false, category: 'Other'})) as BankTransaction[]);
-      } finally {
-        setIsLoadingTransactions(false);
+    if (!user) return;
+    setIsLoadingAccounts(true);
+    const accountsQuery = query(collection(db, `users/${user.uid}/bankAccounts`));
+    const unsubscribe = onSnapshot(accountsQuery, 
+      (snapshot) => {
+        const fetchedAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankAccount));
+        setAccounts(fetchedAccounts);
+        setIsLoadingAccounts(false);
+      },
+      (error) => {
+        console.error("Error fetching bank accounts:", error);
+        toast({ title: "Error", description: "Could not fetch bank accounts.", variant: "destructive" });
+        setIsLoadingAccounts(false);
       }
-    };
-    
-    processTransactions();
-  }, []);
+    );
+    return () => unsubscribe();
+  }, [user, toast]);
 
+  // Real-time listener for Bank Transactions and AI classification
+  useEffect(() => {
+    if (!user) return;
+    setIsLoadingTransactions(true);
+    const transQuery = query(collection(db, `users/${user.uid}/bankTransactions`));
+    const unsubscribe = onSnapshot(transQuery, 
+      async (snapshot) => {
+        const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankTransaction));
+        
+        setIsClassifying(true);
+        const processedTransactions = await Promise.all(
+          fetchedTransactions.map(async (txn) => {
+            // Only classify if not already classified or is income
+            if (txn.category || txn.amount > 0) {
+              return txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn;
+            }
+            try {
+              const classification = await classifyTransaction({ description: txn.description });
+              const updatedTxn = { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible };
+              
+              // Asynchronously update Firestore document with new classification
+              const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txn.id);
+              updateDoc(txnDocRef, { category: classification.category, isTaxDeductible: !!classification.isTaxDeductible }).catch(e => console.warn("Failed to update transaction in Firestore:", e));
+              
+              return updatedTxn;
+            } catch (aiError) {
+              console.error(`AI classification failed for "${txn.description}":`, aiError);
+              return { ...txn, isTaxDeductible: false, category: 'Other' };
+            }
+          })
+        );
+        setTransactions(processedTransactions);
+        setIsClassifying(false);
+        setIsLoadingTransactions(false);
+      },
+      (error) => {
+        console.error("Error fetching transactions:", error);
+        toast({ title: "Error", description: "Could not fetch transactions.", variant: "destructive" });
+        setIsLoadingTransactions(false);
+        setIsClassifying(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [user, toast]);
+
+  // Tax Estimation Effect
   useEffect(() => {
     const runTaxEstimation = async () => {
       if (isLoadingTransactions || transactions.length === 0) {
@@ -110,7 +123,6 @@ export default function BankingPage() {
         setIsLoadingTaxEstimation(false);
       }
     };
-    
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
 
@@ -128,11 +140,7 @@ export default function BankingPage() {
       if (!connectUrl) {
           throw new Error("Connect URL not returned from server. Please try again.");
       }
-      
-      // The simplest and most reliable method is to open the URL in a new tab.
       window.open(connectUrl, '_blank', 'noopener,noreferrer');
-      // The Finicity flow will handle success/cancel and redirect back to the app,
-      // where you can then fetch the new account data.
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
       toast({
@@ -145,13 +153,20 @@ export default function BankingPage() {
     }
   };
 
-  const handleTransactionUpdate = (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
-    setTransactions(currentTxns => 
-      currentTxns.map(txn => 
-        txn.id === txnId ? { ...txn, [field]: value } : txn
-      )
-    );
-    // In a real app, you would also trigger a Firestore update here.
+  const handleTransactionUpdate = async (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
+    if (!user) return;
+    const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txnId);
+    try {
+        await updateDoc(txnDocRef, { [field]: value });
+        setTransactions(currentTxns => 
+          currentTxns.map(txn => 
+            txn.id === txnId ? { ...txn, [field]: value } : txn
+          )
+        );
+    } catch (error) {
+        console.error("Failed to update transaction in Firestore:", error);
+        toast({ title: "Update Failed", description: "Could not save transaction change.", variant: "destructive" });
+    }
   };
   
   if (authLoading) {
@@ -179,49 +194,37 @@ export default function BankingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
             <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6 text-primary" /> Bank Connections</CardTitle>
-                <CardDescription>Securely connect your bank accounts to automatically import transactions.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="space-y-3">
-                {accounts.length > 0 ? (
-                    accounts.map(acc => (
-                      <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
-                        <div className="flex items-center gap-3">
-                            <ShieldCheck className="h-6 w-6 text-green-500" />
-                            <div>
-                            <p className="font-medium">{acc.name}</p>
-                            <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
-                            </div>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6 text-primary" /> Bank Connections</CardTitle>
+                  <CardDescription>Securely connect your bank accounts to automatically import transactions.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  {isLoadingAccounts ? (
+                      <div className="flex items-center justify-center h-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                  ) : accounts.length > 0 ? (
+                      accounts.map(acc => (
+                        <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                          <div className="flex items-center gap-3">
+                              <ShieldCheck className="h-6 w-6 text-green-500" />
+                              <div>
+                              <p className="font-medium">{acc.name}</p>
+                              <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                            <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
-                        </div>
-                      </div>
-                    ))
-                ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No bank accounts connected yet.</p>
-                )}
-                </div>
-                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Connecting...
-                    </>
+                      ))
                   ) : (
-                    <>
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Connect New Account
-                    </>
+                      <p className="text-sm text-muted-foreground text-center py-4">No bank accounts connected yet.</p>
                   )}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
-                </p>
-            </CardContent>
+                  <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
+                    {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting...</> : <><PlusCircle className="mr-2 h-4 w-4" />Connect New Account</>}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Verza uses secure partners like Finicity to link your accounts. Your credentials are never stored by Verza.</p>
+              </CardContent>
             </Card>
 
             <Card>
@@ -230,10 +233,10 @@ export default function BankingPage() {
                 <CardDescription>AI has automatically categorized your transactions. Review and adjust as needed.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoadingTransactions ? (
+                {(isLoadingTransactions || isClassifying) ? (
                 <div className="flex items-center justify-center h-48">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">AI is classifying your transactions...</p>
+                    <p className="ml-3 text-muted-foreground">{isClassifying ? 'AI is classifying your transactions...' : 'Loading transactions...'}</p>
                 </div>
                 ) : transactions.length > 0 ? (
                 <Table>

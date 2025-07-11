@@ -7,20 +7,15 @@ import {db} from "../config/firebase";
 const FINICITY_PARTNER_ID = process.env.FINICITY_PARTNER_ID;
 const FINICITY_PARTNER_SECRET = process.env.FINICITY_PARTNER_SECRET;
 const FINICITY_APP_KEY = process.env.FINICITY_APP_KEY;
-// Use the sandbox URL for development
 const FINICITY_API_BASE_URL = "https://api.finicity.com";
 
 interface FinicityToken {
   token: string;
-  expires: number; // Expiration timestamp in milliseconds
+  expires: number;
 }
 
-// Simple in-memory cache for the API token
 let apiTokenCache: FinicityToken | null = null;
 
-/**
- * Gets a Finicity API token, using a cached one if available and not expired.
- */
 async function getFinicityApiToken(): Promise<string> {
   if (!FINICITY_PARTNER_ID || !FINICITY_PARTNER_SECRET || !FINICITY_APP_KEY) {
     logger.error("Finicity credentials are not configured in environment variables.");
@@ -28,16 +23,14 @@ async function getFinicityApiToken(): Promise<string> {
   }
 
   if (apiTokenCache && apiTokenCache.expires > Date.now()) {
-    logger.info("Using cached Finicity API token.");
     return apiTokenCache.token;
   }
 
-  logger.info("Requesting new Finicity API token.");
   const response = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v2/partners/authentication`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Finicity-App-Key": FINICITY_APP_KEY as string, // Type assertion
+      "Finicity-App-Key": FINICITY_APP_KEY as string,
       "Accept": "application/json",
     },
     body: JSON.stringify({
@@ -53,46 +46,33 @@ async function getFinicityApiToken(): Promise<string> {
   }
 
   const data = await response.json();
-  const token = data.token;
-
-  // Cache the token with a 5-minute buffer (Finicity tokens last 2 hours)
   apiTokenCache = {
-    token,
+    token: data.token,
     expires: Date.now() + (120 - 5) * 60 * 1000,
   };
-
-  return token;
+  return apiTokenCache.token;
 }
 
-/**
- * Creates or gets a Finicity customer for the given Firebase user ID.
- * @param {string} userId - The ID of the user for whom the Finicity customer is being created or retrieved.
- * @param {string} token - The Finicity API authentication token.
- */
 async function getOrCreateFinicityCustomer(userId: string, token: string): Promise<string> {
   const userDocRef = db.collection("users").doc(userId);
   const userDoc = await userDocRef.get();
   const userData = userDoc.data();
 
   if (userData?.finicityCustomerId) {
-    logger.info(`Found existing Finicity customer ID for user ${userId}`);
     return userData.finicityCustomerId;
   }
 
-  logger.info(`Creating new Finicity customer for user ${userId}`);
   const userRecord = await admin.auth().getUser(userId);
-
-  // Using 'testing' customer type for sandbox environments.
   const response = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v2/customers/testing`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Finicity-App-Key": FINICITY_APP_KEY as string, // Type assertion
+      "Finicity-App-Key": FINICITY_APP_KEY as string,
       "Finicity-App-Token": token,
       "Accept": "application/json",
     },
     body: JSON.stringify({
-      username: userRecord.email || `verza-user-${userId}`, // Finicity requires a unique username
+      username: userRecord.email || `verza-user-${userId}`,
     }),
   });
 
@@ -104,21 +84,12 @@ async function getOrCreateFinicityCustomer(userId: string, token: string): Promi
 
   const customerData = await response.json();
   const finicityCustomerId = customerData.id;
-
   await userDocRef.set({finicityCustomerId}, {merge: true});
-  logger.info(`Saved new Finicity customer ID ${finicityCustomerId} for user ${userId}`);
-
   return finicityCustomerId;
 }
 
-/**
- * Generates a Finicity Connect URL for a user.
- * @param {string} userId - The ID of the user for whom the Connect URL is being generated.
- * @param {string} token - The Finicity API authentication token.
- * Callable function to generate a Finicity Connect URL.
- */
 export const generateFinicityConnectUrl = onCall({
-  enforceAppCheck: false, // Adjust as per your security requirements
+  enforceAppCheck: false,
   cors: true,
 }, async (request) => {
   if (!request.auth) {
@@ -132,38 +103,28 @@ export const generateFinicityConnectUrl = onCall({
 
     const appUrl = process.env.APP_URL;
     if (!appUrl) {
-      logger.error("The APP_URL environment variable is not set for the 'generateFinicityConnectUrl' function.");
-      throw new HttpsError(
-        "failed-precondition",
-        "The application's base URL (APP_URL) is not configured on the server."
-      );
+      throw new HttpsError("failed-precondition", "The application's base URL (APP_URL) is not configured.");
     }
-
     const webhookUrl = process.env.FINICITY_WEBHOOK_URL;
     if (!webhookUrl) {
-      logger.error("The FINICITY_WEBHOOK_URL environment variable is not set.");
-      throw new HttpsError(
-        "failed-precondition",
-        "The Finicity webhook URL is not configured on the server."
-      );
+      throw new HttpsError("failed-precondition", "The Finicity webhook URL is not configured.");
     }
 
-
-    logger.info("Generating Finicity Connect URL...");
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Finicity-App-Key": FINICITY_APP_KEY as string, // Type assertion
+        "Finicity-App-Key": FINICITY_APP_KEY as string,
         "Finicity-App-Token": token,
         "Accept": "application/json",
       },
       body: JSON.stringify({
         partnerId: FINICITY_PARTNER_ID,
         customerId: finicityCustomerId,
-        redirectUri: `${appUrl}/banking`, // Where to redirect after success/cancel
+        redirectUri: `${appUrl}/banking`,
         webhook: webhookUrl,
         webhookContentType: "application/json",
+        experience: "{\"brand\":\"Verza\",\"logo\":\"\",\"product\":\"aggregation\"}",
       }),
     });
 
@@ -174,29 +135,114 @@ export const generateFinicityConnectUrl = onCall({
     }
 
     const data = await response.json();
-    logger.info("Successfully generated Finicity Connect URL.");
     return {connectUrl: data.link};
   } catch (error) {
     logger.error("Error in generateFinicityConnectUrl:", error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
+    if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while setting up bank connection.");
   }
 });
 
 
-/**
- * Webhook handler for Finicity events.
- */
-export const finicityWebhookHandler = onRequest(async (request, response) => {
+async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string, token: string) {
+  const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
+    headers: {"Finicity-App-Key": FINICITY_APP_KEY!, "Finicity-App-Token": token, "Accept": "application/json"},
+  });
+
+  if (!accountsResponse.ok) {
+    logger.error("Failed to fetch accounts for customer", finicityCustomerId);
+    return;
+  }
+
+  const {accounts} = await accountsResponse.json();
+  const batch = db.batch();
+
+  for (const account of accounts) {
+    const accountDocRef = db.collection("users").doc(userId).collection("bankAccounts").doc(account.id);
+    batch.set(accountDocRef, {
+      userId,
+      providerAccountId: account.id,
+      name: account.name,
+      officialName: account.officialName,
+      mask: account.number,
+      type: account.type,
+      subtype: account.detail?.type || null,
+      balance: account.balance,
+      provider: "Finicity",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    // Fetch and store transactions for this account
+    await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
+  }
+  await batch.commit();
+  logger.info(`Stored ${accounts.length} accounts and their transactions for user ${userId}`);
+}
+
+
+async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string, accountId: string, token: string, batch: admin.firestore.WriteBatch) {
+  const toDate = new Date();
+  const fromDate = new Date();
+  fromDate.setDate(toDate.getDate() - 90); // 90 days of transactions
+
+  const transactionsUrl = new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+  transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
+  transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
+
+  const txResponse = await fetch(transactionsUrl.toString(), {
+    headers: {"Finicity-App-Key": FINICITY_APP_KEY!, "Finicity-App-Token": token, "Accept": "application/json"},
+  });
+
+  if (!txResponse.ok) {
+    logger.error(`Failed to fetch transactions for account ${accountId}`);
+    return;
+  }
+
+  const {transactions} = await txResponse.json();
+
+  for (const tx of transactions) {
+    const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
+    batch.set(txDocRef, {
+      userId,
+      accountId,
+      providerTransactionId: tx.id,
+      date: new Date(tx.postedDate * 1000).toISOString(),
+      description: tx.description,
+      amount: tx.amount,
+      currency: tx.currencySymbol || "USD",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+  }
+}
+
+export const finicityWebhookHandler = onRequest({cors: true}, async (request, response) => {
   logger.info("Finicity webhook received a request.", {body: request.body});
 
-  // TODO: Implement webhook event processing
-  // - Verify the signature (if Finicity provides one)
-  // - Parse the event type (e.g., account added, transactions discovered)
-  // - If it's an account aggregation success event, queue a job to fetch accounts and transactions
-  // - Save data to Firestore under the correct user (e.g., using customerId from event)
+  try {
+    const event = request.body;
+    if (event.type === "created" && event.payload.customerId) {
+      const finicityCustomerId = event.payload.customerId;
 
-  response.status(204).send(); // Acknowledge receipt of the event
+      const usersRef = db.collection("users");
+      const snapshot = await usersRef.where("finicityCustomerId", "==", finicityCustomerId).limit(1).get();
+
+      if (snapshot.empty) {
+        logger.error("No user found for Finicity customer ID:", finicityCustomerId);
+        response.status(404).send("User not found");
+        return;
+      }
+
+      const userDoc = snapshot.docs[0];
+      const userId = userDoc.id;
+
+      logger.info(`Processing new accounts for user ${userId}`);
+
+      const token = await getFinicityApiToken();
+      await fetchAndStoreAccounts(userId, finicityCustomerId, token);
+    }
+    response.status(204).send();
+  } catch (error) {
+    logger.error("Error in finicityWebhookHandler:", error);
+    response.status(500).send("Internal Server Error");
+  }
 });
