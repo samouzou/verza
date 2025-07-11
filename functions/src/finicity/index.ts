@@ -143,7 +143,7 @@ export const generateFinicityConnectUrl = onCall({
     }
 
     if (!FINICITY_EXPERIENCE_GUID) {
-        throw new HttpsError("failed-precondition", "The Finicity Experience GUID is not configured.");
+      throw new HttpsError("failed-precondition", "The Finicity Experience GUID is not configured.");
     }
 
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
