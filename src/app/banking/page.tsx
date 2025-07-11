@@ -55,6 +55,8 @@ export default function BankingPage() {
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
   
   useEffect(() => {
+    // In a real app, this data would be fetched from Firestore after a successful connection.
+    // We use mock data here to demonstrate the UI.
     setAccounts(MOCK_ACCOUNTS);
     setUserReceipts(MOCK_RECEIPTS);
 
@@ -113,23 +115,28 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to connect a bank account.", variant: "destructive" });
+      return;
+    }
     setIsConnecting(true);
     try {
       const generateUrlCallable = httpsCallable(firebaseFunctionsInstance, 'generateFinicityConnectUrl');
       const result = await generateUrlCallable();
-      const { connectUrl } = result.data as {connectUrl: string};
+      const { connectUrl } = result.data as { connectUrl: string };
 
       if (!connectUrl) {
-          throw new Error("Connect URL not returned from server.");
+          throw new Error("Connect URL not returned from server. Please try again.");
       }
       
-      // Open the received URL in a new tab. This is the simplest, most reliable method.
+      // The simplest and most reliable method is to open the URL in a new tab.
       window.open(connectUrl, '_blank', 'noopener,noreferrer');
-
+      // The Finicity flow will handle success/cancel and redirect back to the app,
+      // where you can then fetch the new account data.
     } catch (error: any) {
       console.error("Error launching Finicity Connect:", error);
       toast({
-        title: "Setup Failed",
+        title: "Connection Setup Failed",
         description: error.message || "Could not start the bank connection process.",
         variant: "destructive",
       });
@@ -138,13 +145,13 @@ export default function BankingPage() {
     }
   };
 
-
   const handleTransactionUpdate = (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
     setTransactions(currentTxns => 
       currentTxns.map(txn => 
         txn.id === txnId ? { ...txn, [field]: value } : txn
       )
     );
+    // In a real app, you would also trigger a Firestore update here.
   };
   
   if (authLoading) {
@@ -178,21 +185,25 @@ export default function BankingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-3">
-                {accounts.map(acc => (
-                    <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
-                    <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-6 w-6 text-green-500" />
-                        <div>
-                        <p className="font-medium">{acc.name}</p>
-                        <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+                {accounts.length > 0 ? (
+                    accounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-6 w-6 text-green-500" />
+                            <div>
+                            <p className="font-medium">{acc.name}</p>
+                            <p className="text-sm text-muted-foreground">{acc.officialName} ••••{acc.mask}</p>
+                            </div>
                         </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
-                    </div>
-                    </div>
-                ))}
+                        <div className="text-right">
+                            <p className="font-semibold text-lg">${acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{acc.subtype}</p>
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">No bank accounts connected yet.</p>
+                )}
                 </div>
                 <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
                   {isConnecting ? (
@@ -224,7 +235,7 @@ export default function BankingPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <p className="ml-3 text-muted-foreground">AI is classifying your transactions...</p>
                 </div>
-                ) : (
+                ) : transactions.length > 0 ? (
                 <Table>
                 <TableHeader>
                     <TableRow>
@@ -233,7 +244,6 @@ export default function BankingPage() {
                     <TableHead className="w-[200px]">Category</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="text-center w-[120px]">Tax Deductible</TableHead>
-                    <TableHead className="text-center w-[120px]">Brand Spend</TableHead>
                     <TableHead className="w-[250px]">Receipt</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -263,13 +273,6 @@ export default function BankingPage() {
                             aria-label="Is tax deductible"
                         />
                         </TableCell>
-                        <TableCell className="text-center">
-                        <Checkbox 
-                            checked={!!txn.isBrandSpend} 
-                            onCheckedChange={(checked) => handleTransactionUpdate(txn.id, 'isBrandSpend', !!checked)}
-                            aria-label="Is brand spend"
-                        />
-                        </TableCell>
                         <TableCell>
                         <Select
                             value={txn.linkedReceiptId || 'no-receipt-linked'}
@@ -294,6 +297,8 @@ export default function BankingPage() {
                     ))}
                 </TableBody>
                 </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-10">No transactions found for the connected accounts.</p>
                 )}
             </CardContent>
             </Card>
