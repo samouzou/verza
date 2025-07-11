@@ -202,7 +202,8 @@ async function fetchAndStoreSingleAccount(
   token: string,
   batch: admin.firestore.WriteBatch
 ) {
-  const accountDetailsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts/${accountId}`, {
+  const accountDetailsResponse =
+  await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts/${accountId}`, {
     headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
   });
 
@@ -315,11 +316,12 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
           await fetchAndStoreSingleAccount(userId, finicityCustomerId, account.accountId, token, batch);
         }
       }
-      
+
       await batch.commit();
       logger.info(`Successfully stored ${newAccounts.length} new accounts and their transactions for user ${userId}.`);
     } else {
-      logger.info("Webhook received, but it was not a 'created' event with accounts, or payload was malformed. Skipping.", {type: event.type});
+      logger.info("Webhook received, but it was not a 'created' event with accounts, or payload was malformed. Skipping.",
+        {type: event.type});
     }
 
     response.status(204).send();
@@ -328,3 +330,5 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
+
+    
