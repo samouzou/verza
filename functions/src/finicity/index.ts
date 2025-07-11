@@ -8,6 +8,7 @@ const FINICITY_PARTNER_ID = process.env.FINICITY_PARTNER_ID;
 const FINICITY_PARTNER_SECRET = process.env.FINICITY_PARTNER_SECRET;
 const FINICITY_APP_KEY = process.env.FINICITY_APP_KEY;
 const FINICITY_API_BASE_URL = "https://api.finicity.com";
+const FINICITY_EXPERIENCE_GUID = process.env.FINICITY_EXPERIENCE_GUID;
 
 interface FinicityToken {
   token: string;
@@ -141,6 +142,10 @@ export const generateFinicityConnectUrl = onCall({
       throw new HttpsError("failed-precondition", "The Finicity webhook URL is not configured.");
     }
 
+    if (!FINICITY_EXPERIENCE_GUID) {
+        throw new HttpsError("failed-precondition", "The Finicity Experience GUID is not configured.");
+    }
+
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
       method: "POST",
       headers: {
@@ -155,11 +160,7 @@ export const generateFinicityConnectUrl = onCall({
         redirectUri: `${appUrl}/banking`,
         webhook: webhookUrl,
         webhookContentType: "application/json",
-        experience: {
-            "brand": "Verza",
-            "logo": "",
-            "product": "aggregation"
-        }
+        experience: FINICITY_EXPERIENCE_GUID,
       }),
     });
 

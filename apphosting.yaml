@@ -68,3 +68,10 @@ env:
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     secret: VERZA_STRIPE_PUBLISHABLE_KEY
 
+  # Finicity
+  - variable: FINICITY_EXPERIENCE_GUID
+    secret: FINICITY_EXPERIENCE_GUID
+    availability:
+      - RUNTIME
+
+
