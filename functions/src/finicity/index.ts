@@ -14,8 +14,15 @@ interface FinicityToken {
   expires: number;
 }
 
+/**
+ * Simple in-memory cache for the Finicity API token.
+ */
 let apiTokenCache: FinicityToken | null = null;
 
+/**
+ * Gets a Finicity API token, using a cached one if available and not expired.
+ * @return {Promise<string>} A Promise that resolves with the Finicity API token.
+ */
 async function getFinicityApiToken(): Promise<string> {
   if (!FINICITY_PARTNER_ID || !FINICITY_PARTNER_SECRET || !FINICITY_APP_KEY) {
     logger.error("Finicity credentials are not configured in environment variables.");
@@ -46,13 +53,24 @@ async function getFinicityApiToken(): Promise<string> {
   }
 
   const data = await response.json();
+  /**
+   * Cache the token with a 5-minute buffer (Finicity tokens last 2 hours).
+   * @type {FinicityToken}
+   */
   apiTokenCache = {
     token: data.token,
     expires: Date.now() + (120 - 5) * 60 * 1000,
   };
+  // Return the newly acquired and cached token.
   return apiTokenCache.token;
 }
 
+/**
+ * Creates or gets a Finicity customer for the given Firebase user ID.
+ * @param {string} userId - The Firebase user ID.
+ * @param {string} token - The Finicity API authentication token.
+ * @return {Promise<string>} A Promise that resolves with the Finicity customer ID.
+ */
 async function getOrCreateFinicityCustomer(userId: string, token: string): Promise<string> {
   const userDocRef = db.collection("users").doc(userId);
   const userDoc = await userDocRef.get();
@@ -88,6 +106,15 @@ async function getOrCreateFinicityCustomer(userId: string, token: string): Promi
   return finicityCustomerId;
 }
 
+/**
+ * Handles incoming requests to generate a Finicity Connect URL for the authenticated user.
+ * This is a callable function that retrieves the necessary Finicity customer and API token,
+ * then calls the Finicity API to generate a Connect URL.
+ * @param {object} data - The data passed to the callable function (unused in this case, as auth provides user ID).
+ * @returns {Promise<{connectUrl: string}>} A Promise that resolves with an object containing the generated Finicity Connect URL.
+ * Callable function to generate a Finicity Connect URL for a user.
+ * @param {object} data - The data passed to the callable function (unused in this case, as auth provides user ID).
+ */
 export const generateFinicityConnectUrl = onCall({
   enforceAppCheck: false,
   cors: true,
@@ -95,6 +122,10 @@ export const generateFinicityConnectUrl = onCall({
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
+  // Safely access the user ID, throwing an error if not authenticated (which is already checked above)
+  // We use a non-null assertion here because the check 'if (!request.auth)' guarantees request.auth is defined.
+  // Alternatively, you could use:
+  // const userId = request.auth?.uid; if handling unauthenticated case differently
   const userId = request.auth.uid;
 
   try {
@@ -134,19 +165,33 @@ export const generateFinicityConnectUrl = onCall({
       throw new HttpsError("internal", "Could not generate Finicity Connect URL.");
     }
 
+    /**
+ * Successfully generated Finicity Connect URL.
+ * @type {{connectUrl: string}}
+ */
     const data = await response.json();
+    logger.info("Successfully generated Finicity Connect URL.", {customerId: finicityCustomerId});
+    // Returning the connect URL data
     return {connectUrl: data.link};
   } catch (error) {
     logger.error("Error in generateFinicityConnectUrl:", error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while setting up bank connection.");
   }
-});
+}
+);
 
 
+/**
+ * Fetches and stores bank accounts for a given user and Finicity customer ID.
+ * @param {string} userId - The Firebase user ID.
+ * @param {string} finicityCustomerId - The Finicity customer ID.
+ * @param {string} token - The Finicity API authentication token.
+ * @return {Promise<void>} A Promise that resolves when accounts are fetched and stored.
+ */
 async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string, token: string) {
   const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
-    headers: {"Finicity-App-Key": FINICITY_APP_KEY!, "Finicity-App-Token": token, "Accept": "application/json"},
+    headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
   });
 
   if (!accountsResponse.ok) {
@@ -176,22 +221,39 @@ async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string,
     await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
   }
   await batch.commit();
-  logger.info(`Stored ${accounts.length} accounts and their transactions for user ${userId}`);
+  logger.info(
+    `Stored ${accounts.length} accounts and their transactions for user ${userId}`
+  );
 }
 
 
-async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string, accountId: string, token: string, batch: admin.firestore.WriteBatch) {
+/**
+ * Fetches and stores transactions for a given account.
+ * @param {string} userId - The Firebase user ID.
+ * @param {string} finicityCustomerId - The Finicity customer ID.
+ * @param {string} accountId - The ID of the account to fetch transactions for.
+ * @param {string} token - The Finicity API authentication token.
+ * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add transaction write operations to.
+ * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
+ * Note: The batch needs to be committed by the caller.
+ * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
+ * Note: The batch needs to be committed by the caller.
+ */
+async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
+  accountId: string, token: string, batch: admin.firestore.WriteBatch) {
   const toDate = new Date();
   const fromDate = new Date();
   fromDate.setDate(toDate.getDate() - 90); // 90 days of transactions
 
-  const transactionsUrl = new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+  const transactionsUrl =
+  new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
   transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
   transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
 
-  const txResponse = await fetch(transactionsUrl.toString(), {
-    headers: {"Finicity-App-Key": FINICITY_APP_KEY!, "Finicity-App-Token": token, "Accept": "application/json"},
-  });
+  const txResponse = await fetch(
+    transactionsUrl.toString(), {
+      headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
+    });
 
   if (!txResponse.ok) {
     logger.error(`Failed to fetch transactions for account ${accountId}`);
@@ -215,6 +277,10 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   }
 }
 
+
+/**
+ * Webhook handler for Finicity events.
+ */
 export const finicityWebhookHandler = onRequest({cors: true}, async (request, response) => {
   logger.info("Finicity webhook received a request.", {body: request.body});
 
