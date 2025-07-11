@@ -20,7 +20,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
 import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
-import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
@@ -704,6 +704,30 @@ export default function ManageInvoicePage() {
                 <Label htmlFor="edit-paymentInstr">Payment Instructions</Label>
                 <Textarea id="edit-paymentInstr" value={editablePaymentInstructions} onChange={(e) => setEditablePaymentInstructions(e.target.value)} rows={3} className="mt-1"/>
               </div>
+
+              <div className="border-t pt-4 mt-4">
+                  <h4 className="text-md font-semibold mb-2">Linked Receipts</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    These receipts are linked to the contract and will be automatically included as supporting documents in the generated invoice.
+                  </p>
+                  {contractReceipts.length > 0 ? (
+                    <ul className="space-y-2">
+                      {contractReceipts.map((receipt, index) => (
+                        <li key={index} className="flex items-center gap-2 text-sm p-2 border rounded-md bg-muted/50">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="flex-grow">{receipt.description || "Receipt"}</span>
+                          <a href={receipt.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            <LinkIcon className="h-4 w-4" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-center text-muted-foreground p-4 border-dashed border rounded-md">
+                      No receipts linked to this contract. <Link href="/receipts" className="text-primary underline">Upload one now</Link>.
+                    </p>
+                  )}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -739,3 +763,4 @@ export default function ManageInvoicePage() {
     
 
     
+
