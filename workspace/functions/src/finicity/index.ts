@@ -141,12 +141,6 @@ export const generateFinicityConnectUrl = onCall({
       throw new HttpsError("failed-precondition", "The Finicity webhook URL is not configured.");
     }
 
-    const experience = JSON.stringify({
-      "brand": "Verza",
-      "logo": "",
-      "product": "aggregation"
-    });
-
     const response = await fetch(`${FINICITY_API_BASE_URL}/connect/v2/generate`, {
       method: "POST",
       headers: {
@@ -161,7 +155,11 @@ export const generateFinicityConnectUrl = onCall({
         redirectUri: `${appUrl}/banking`,
         webhook: webhookUrl,
         webhookContentType: "application/json",
-        experience: experience,
+        experience: {
+            "brand": "Verza",
+            "logo": "",
+            "product": "aggregation"
+        }
       }),
     });
 
