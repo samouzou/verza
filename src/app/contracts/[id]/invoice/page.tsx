@@ -156,7 +156,7 @@ export default function ManageInvoicePage() {
       totalAmount: totalAmount,
       deliverables: detailsToUse.deliverables.map(d => ({ ...d, total: d.quantity * d.unitPrice })),
       payInvoiceLink: currentPayUrl || undefined,
-      receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
+      receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
     };
 
     try {
@@ -350,7 +350,7 @@ export default function ManageInvoicePage() {
         totalAmount: finalTotalAmount,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrl || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
+        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
       };
       const htmlResult = await generateInvoiceHtml(inputForAI);
       const finalHtmlToSave = htmlResult.invoiceHtml;
@@ -458,7 +458,7 @@ export default function ManageInvoicePage() {
         totalAmount: totalAmountForEmail,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrlForEmail || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
+        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt" })) : undefined,
       };
       const htmlResultForSend = await generateInvoiceHtml(inputForAISend);
       const htmlToSend = htmlResultForSend.invoiceHtml;
