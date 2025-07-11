@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Script from 'next/script';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,8 @@ declare global {
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  
+  const [isSdkLoading, setIsSdkLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -64,6 +66,30 @@ export default function BankingPage() {
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
 
+  const handleScriptError = useCallback((e: any) => {
+    console.error('Finicity SDK script failed to load:', e);
+    toast({
+      title: "Connection Error",
+      description: "Could not load the banking connection service. Please refresh the page.",
+      variant: "destructive",
+    });
+    setIsSdkLoading(false);
+  }, [toast]);
+
+  const handleScriptLoad = useCallback(() => {
+    const checkSdkReady = (retries: number) => {
+      if (typeof window.Finicity?.launch === 'function') {
+        setIsSdkLoading(false);
+      } else if (retries > 0) {
+        setTimeout(() => checkSdkReady(retries - 1), 300);
+      } else {
+        console.error("Finicity SDK failed to initialize after multiple attempts.");
+        handleScriptError(new Error("SDK failed to initialize launch function."));
+      }
+    };
+    checkSdkReady(10); // Try for ~3 seconds
+  }, [handleScriptError]);
+  
   useEffect(() => {
     setAccounts(MOCK_ACCOUNTS);
     setUserReceipts(MOCK_RECEIPTS);
@@ -140,7 +166,6 @@ export default function BankingPage() {
             title: "Connection Successful!",
             description: "Your account has been linked. We will now fetch your data.",
           });
-          // TODO: Implement logic to refresh accounts/transactions after successful connection
         },
         onCancel: () => {
           console.log('Finicity Connect Canceled.');
@@ -209,6 +234,8 @@ export default function BankingPage() {
         id="finicity-connect-sdk"
         src={FINICITY_SDK_URL}
         strategy="afterInteractive"
+        onLoad={handleScriptLoad}
+        onError={handleScriptError}
       />
 
       <PageHeader
@@ -240,9 +267,23 @@ export default function BankingPage() {
                     </div>
                 ))}
                 </div>
-                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
-                  {isConnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                  Connect New Account
+                <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting || isSdkLoading}>
+                  {isSdkLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Initializing...
+                    </>
+                  ) : isConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Connect New Account
+                    </>
+                  )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
                 Verza uses secure partners like Finicity to link your accounts. Your bank credentials are never stored by Verza.
