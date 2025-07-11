@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { functions as firebaseFunctionsInstance } from '@/lib/firebase'; // Use pre-initialized instance
 
@@ -56,7 +56,7 @@ export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isFinicityScriptLoaded, setIsFinicityScriptLoaded] = useState(false);
+  const [isSdkReady, setIsSdkReady] = useState(false);
   
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -72,13 +72,24 @@ export default function BankingPage() {
       description: "Could not load the banking connection script. Please refresh the page.",
       variant: "destructive",
     });
-    setIsFinicityScriptLoaded(false);
+    setIsSdkReady(false);
   };
   
-  const handleScriptLoad = () => {
-    console.log("Finicity SDK script file has loaded.");
-    setIsFinicityScriptLoaded(true);
-  };
+  const handleScriptLoad = useCallback(() => {
+    console.log("Finicity SDK script file has loaded, checking for initialization...");
+    const checkSdkReady = (retries = 10) => {
+      if (typeof window.Finicity?.launch === 'function') {
+        console.log("Finicity SDK is ready.");
+        setIsSdkReady(true);
+      } else if (retries > 0) {
+        setTimeout(() => checkSdkReady(retries - 1), 300);
+      } else {
+        console.error("Finicity SDK failed to initialize after multiple attempts.");
+        handleScriptError(new Error("SDK failed to initialize launch function."));
+      }
+    };
+    checkSdkReady();
+  }, []);
   
   useEffect(() => {
     setAccounts(MOCK_ACCOUNTS);
@@ -139,9 +150,9 @@ export default function BankingPage() {
   }, [transactions, isLoadingTransactions]);
 
   const handleConnectFinicity = async () => {
-    if (!isFinicityScriptLoaded || !window.Finicity?.launch) {
-      toast({
-        title: "Connection service not ready",
+    if (!isSdkReady || !window.Finicity?.launch) {
+       toast({
+        title: "Connection Service Not Ready",
         description: "The banking connection service is still loading. Please wait a moment and try again.",
         variant: "default",
       });
@@ -224,8 +235,8 @@ export default function BankingPage() {
 
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
   
-  const isButtonDisabled = isConnecting || !isFinicityScriptLoaded;
-  const buttonText = isConnecting ? 'Connecting...' : !isFinicityScriptLoaded ? 'Initializing...' : 'Connect New Account';
+  const isButtonDisabled = isConnecting || !isSdkReady;
+  const buttonText = isConnecting ? 'Connecting...' : !isSdkReady ? 'Initializing...' : 'Connect New Account';
 
 
   return (
@@ -268,7 +279,7 @@ export default function BankingPage() {
                 ))}
                 </div>
                 <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isButtonDisabled}>
-                  {isConnecting || !isFinicityScriptLoaded ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  {isConnecting || !isSdkReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                   {buttonText}
                 </Button>
                 <p className="text-xs text-muted-foreground">
@@ -317,7 +328,7 @@ export default function BankingPage() {
                             </SelectContent>
                         </Select>
                         </TableCell>
-                        <TableCell className={'text-right font-semibold ' + (txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300')}>
+                        <TableCell className={`text-right font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-slate-700 dark:text-slate-300'}`}>
                         {txn.amount > 0 ? '+' : ''}${txn.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}
                         </TableCell>
                         <TableCell className="text-center">
