@@ -196,7 +196,7 @@ export const generateFinicityConnectUrl = onCall({
  */
 async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
   token: string, batch: admin.firestore.WriteBatch) {
-  const TOTAL_MONTHS_TO_FETCH = 12;
+  const TOTAL_MONTHS_TO_FETCH = 3;
   const DAYS_PER_FETCH = 180;
   const now = new Date();
 
@@ -331,7 +331,7 @@ async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId
 /**
  * Webhook handler for Finicity events.
  */
-export const finicityWebhookHandler = onRequest({cors: true}, async (request, response) => {
+export const finicityWebhookHandler = onRequest({cors: true, timeoutSeconds: 300}, async (request, response) => {
   logger.info("Finicity webhook received a request.", {body: request.body});
 
   try {
