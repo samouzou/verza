@@ -293,8 +293,8 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     const event = request.body;
 
     // A more robust check: trigger if we get any event with a customer ID.
-    if (event.payload?.customerId) {
-      const finicityCustomerId = event.payload.customerId;
+    if (event.customerId) {
+      const finicityCustomerId = event.customerId;
 
       const usersRef = db.collection("users");
       const snapshot = await usersRef.where("finicityCustomerId", "==", finicityCustomerId).limit(1).get();
@@ -308,13 +308,14 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       const userDoc = snapshot.docs[0];
       const userId = userDoc.id;
 
-      logger.info(`Processing webhook event of type "${event.type}" for user ${userId}. Refreshing accounts.`);
+      logger.info(`Processing webhook event of type "${event.eventType}" for user ${userId}. Refreshing accounts.`);
 
       const token = await getFinicityApiToken();
       // Fetch all accounts for the customer to ensure we get the latest state.
       await fetchAndStoreAccounts(userId, finicityCustomerId, token);
     } else {
-      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.", {type: event.type});
+      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.",
+        {eventType: event.eventType});
     }
 
     response.status(204).send();
