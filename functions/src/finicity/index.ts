@@ -188,47 +188,47 @@ export const generateFinicityConnectUrl = onCall({
 
 
 /**
- * Fetches details for a single account and stores it in Firestore.
+ * Fetches and stores bank accounts for a given user and Finicity customer ID.
  * @param {string} userId - The Firebase user ID.
  * @param {string} finicityCustomerId - The Finicity customer ID.
- * @param {string} accountId - The ID of the account to fetch and store.
  * @param {string} token - The Finicity API authentication token.
- * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add operations to.
+ * @return {Promise<void>} A Promise that resolves when accounts are fetched and stored.
  */
-async function fetchAndStoreSingleAccount(
-  userId: string,
-  finicityCustomerId: string,
-  accountId: string,
-  token: string,
-  batch: admin.firestore.WriteBatch
-) {
-  const accountDetailsResponse =
-  await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts/${accountId}`, {
+async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string, token: string) {
+  const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
     headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
   });
 
-  if (!accountDetailsResponse.ok) {
-    logger.error(`Failed to fetch details for account ${accountId}`);
+  if (!accountsResponse.ok) {
+    logger.error("Failed to fetch accounts for customer", finicityCustomerId);
     return;
   }
 
-  const account = await accountDetailsResponse.json();
-  const accountDocRef = db.collection("users").doc(userId).collection("bankAccounts").doc(account.id);
-  batch.set(accountDocRef, {
-    userId,
-    providerAccountId: account.id,
-    name: account.name,
-    officialName: account.officialName,
-    mask: account.number,
-    type: account.type,
-    subtype: account.detail?.type || null,
-    balance: account.balance,
-    provider: "Finicity",
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, {merge: true});
+  const {accounts} = await accountsResponse.json();
+  const batch = db.batch();
 
-  // Fetch and store transactions for this single account
-  await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
+  for (const account of accounts) {
+    const accountDocRef = db.collection("users").doc(userId).collection("bankAccounts").doc(account.id);
+    batch.set(accountDocRef, {
+      userId,
+      providerAccountId: account.id,
+      name: account.name,
+      officialName: account.officialName,
+      mask: account.number,
+      type: account.type,
+      subtype: account.detail?.type || null,
+      balance: account.balance,
+      provider: "Finicity",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    // Fetch and store transactions for this account
+    await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
+  }
+  await batch.commit();
+  logger.info(
+    `Stored ${accounts.length} accounts and their transactions for user ${userId}`
+  );
 }
 
 
@@ -291,9 +291,10 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
 
   try {
     const event = request.body;
-    if (event.type === "created" && event.payload?.customerId && Array.isArray(event.payload?.accounts)) {
+
+    // A more robust check: trigger if we get any event with a customer ID.
+    if (event.payload?.customerId) {
       const finicityCustomerId = event.payload.customerId;
-      const newAccounts = event.payload.accounts;
 
       const usersRef = db.collection("users");
       const snapshot = await usersRef.where("finicityCustomerId", "==", finicityCustomerId).limit(1).get();
@@ -307,21 +308,13 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       const userDoc = snapshot.docs[0];
       const userId = userDoc.id;
 
-      logger.info(`Processing ${newAccounts.length} new accounts for user ${userId}`);
+      logger.info(`Processing webhook event of type "${event.type}" for user ${userId}. Refreshing accounts.`);
+
       const token = await getFinicityApiToken();
-      const batch = db.batch();
-
-      for (const account of newAccounts) {
-        if (account.accountId) {
-          await fetchAndStoreSingleAccount(userId, finicityCustomerId, account.accountId, token, batch);
-        }
-      }
-
-      await batch.commit();
-      logger.info(`Successfully stored ${newAccounts.length} new accounts and their transactions for user ${userId}.`);
+      // Fetch all accounts for the customer to ensure we get the latest state.
+      await fetchAndStoreAccounts(userId, finicityCustomerId, token);
     } else {
-      logger.info("Webhook received, but it was not a 'created' event with accounts, or payload was malformed. Skipping.",
-        {type: event.type});
+      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.", {type: event.type});
     }
 
     response.status(204).send();
@@ -330,5 +323,3 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
-
-    
