@@ -1,6 +1,6 @@
 
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
+import * => logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 
@@ -187,52 +187,71 @@ export const generateFinicityConnectUrl = onCall({
 );
 
 /**
- * Fetches and stores transactions for a given account.
+ * Fetches and stores transactions for a given account. It handles pagination and the 180-day limit.
  * @param {string} userId - The Firebase user ID.
  * @param {string} finicityCustomerId - The Finicity customer ID.
  * @param {string} accountId - The ID of the account to fetch transactions for.
  * @param {string} token - The Finicity API authentication token.
  * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add transaction write operations to.
  * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
- * Note: The batch needs to be committed by the caller.
- * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
- * Note: The batch needs to be committed by the caller.
  */
 async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
   accountId: string, token: string, batch: admin.firestore.WriteBatch) {
-  const toDate = new Date();
-  const fromDate = new Date();
-  fromDate.setMonth(fromDate.getMonth() - 12); // 12 months of transactions
+  const TOTAL_MONTHS_TO_FETCH = 24;
+  const DAYS_PER_FETCH = 180;
+  const now = new Date();
 
-  const transactionsUrl =
-  new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
-  transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
-  transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
+  // Loop back in 180-day increments for up to 24 months
+  for (let i = 0; i < (TOTAL_MONTHS_TO_FETCH * 30) / DAYS_PER_FETCH; i++) {
+    const toDate = new Date(now);
+    toDate.setDate(now.getDate() - (i * DAYS_PER_FETCH));
+    const fromDate = new Date(now);
+    fromDate.setDate(now.getDate() - ((i + 1) * DAYS_PER_FETCH));
 
-  const txResponse = await fetch(
-    transactionsUrl.toString(), {
-      headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
-    });
+    let hasMore = true;
+    let nextStart = 1;
 
-  if (!txResponse.ok) {
-    logger.error(`Failed to fetch transactions for account ${accountId}`);
-    return;
-  }
+    // Handle pagination within the 180-day window
+    while (hasMore) {
+      const transactionsUrl = new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+      transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
+      transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
+      transactionsUrl.searchParams.set("start", nextStart.toString());
+      transactionsUrl.searchParams.set("limit", "1000"); // Max limit
 
-  const {transactions} = await txResponse.json();
+      const txResponse = await fetch(transactionsUrl.toString(), {
+        headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
+      });
 
-  for (const tx of transactions) {
-    const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
-    batch.set(txDocRef, {
-      userId,
-      accountId,
-      providerTransactionId: tx.id,
-      date: new Date(tx.postedDate * 1000).toISOString(),
-      description: tx.description,
-      amount: tx.amount,
-      currency: tx.currencySymbol || "USD",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, {merge: true});
+      if (!txResponse.ok) {
+        logger.error(`Failed to fetch transactions for account ${accountId} in date range ${fromDate} - ${toDate}`, {status: txResponse.status});
+        hasMore = false; // Stop trying for this chunk if an error occurs
+        continue;
+      }
+
+      const {transactions, displaying, moreAvailable} = await txResponse.json();
+      if (transactions && transactions.length > 0) {
+        for (const tx of transactions) {
+          const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
+          batch.set(txDocRef, {
+            userId,
+            accountId,
+            providerTransactionId: tx.id,
+            date: new Date(tx.postedDate * 1000).toISOString(),
+            description: tx.description,
+            amount: tx.amount,
+            currency: tx.currencySymbol || "USD",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, {merge: true});
+        }
+      }
+
+      if (moreAvailable) {
+        nextStart = displaying + 1;
+      } else {
+        hasMore = false;
+      }
+    }
   }
 }
 
