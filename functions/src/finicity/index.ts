@@ -213,7 +213,7 @@ async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string,
       userId,
       providerAccountId: account.id,
       name: account.name,
-      officialName: account.officialName,
+      officialName: account.officialName || null,
       mask: account.number,
       type: account.type,
       subtype: account.detail?.type || null,
@@ -248,7 +248,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   accountId: string, token: string, batch: admin.firestore.WriteBatch) {
   const toDate = new Date();
   const fromDate = new Date();
-  fromDate.setDate(toDate.getDate() - 90); // 90 days of transactions
+  fromDate.setMonth(fromDate.getMonth() - 24); // 24 months of transactions
 
   const transactionsUrl =
   new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
