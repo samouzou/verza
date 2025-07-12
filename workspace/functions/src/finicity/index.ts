@@ -186,29 +186,120 @@ export const generateFinicityConnectUrl = onCall({
 }
 );
 
+/**
+ * Fetches and stores transactions for a given account. It handles pagination and the 180-day limit.
+ * @param {string} userId - The Firebase user ID.
+ * @param {string} finicityCustomerId - The Finicity customer ID.
+ * @param {string} accountId - The ID of the account to fetch transactions for.
+ * @param {string} token - The Finicity API authentication token.
+ * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add transaction write operations to.
+ * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
+ */
+async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
+  accountId: string, token: string, batch: admin.firestore.WriteBatch) {
+  const TOTAL_MONTHS_TO_FETCH = 24;
+  const DAYS_PER_FETCH = 180;
+  const now = new Date();
+
+  // Loop back in 180-day increments for up to 24 months
+  for (let i = 0; i < (TOTAL_MONTHS_TO_FETCH * 30) / DAYS_PER_FETCH; i++) {
+    const toDate = new Date(now);
+    toDate.setDate(now.getDate() - (i * DAYS_PER_FETCH));
+    const fromDate = new Date(now);
+    fromDate.setDate(now.getDate() - ((i + 1) * DAYS_PER_FETCH));
+
+    let hasMore = true;
+    let nextStart = 1;
+
+    // Handle pagination within the 180-day window
+    while (hasMore) {
+      const transactionsUrl = new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+      transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
+      transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
+      transactionsUrl.searchParams.set("start", nextStart.toString());
+      transactionsUrl.searchParams.set("limit", "1000"); // Max limit
+
+      const txResponse = await fetch(transactionsUrl.toString(), {
+        headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
+      });
+
+      if (!txResponse.ok) {
+        logger.error(`Failed to fetch transactions for account ${accountId} in date range ${fromDate} - ${toDate}`, {status: txResponse.status});
+        hasMore = false; // Stop trying for this chunk if an error occurs
+        continue;
+      }
+
+      const {transactions, displaying, moreAvailable} = await txResponse.json();
+      if (transactions && transactions.length > 0) {
+        for (const tx of transactions) {
+          const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
+          batch.set(txDocRef, {
+            userId,
+            accountId,
+            providerTransactionId: tx.id,
+            date: new Date(tx.postedDate * 1000).toISOString(),
+            description: tx.description,
+            amount: tx.amount,
+            currency: tx.currencySymbol || "USD",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, {merge: true});
+        }
+      }
+
+      if (moreAvailable) {
+        nextStart = displaying + 1;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+}
+
 
 /**
- * Fetches and stores bank accounts for a given user and Finicity customer ID.
+ * Fetches the current list of accounts from Finicity and synchronizes them with Firestore.
+ * This includes adding new accounts, updating existing ones, and deleting those no longer present.
  * @param {string} userId - The Firebase user ID.
  * @param {string} finicityCustomerId - The Finicity customer ID.
  * @param {string} token - The Finicity API authentication token.
- * @return {Promise<void>} A Promise that resolves when accounts are fetched and stored.
+ * @return {Promise<void>}
  */
-async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string, token: string) {
+async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId: string, token: string) {
+  // 1. Fetch current accounts from Finicity
   const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
     headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
   });
 
   if (!accountsResponse.ok) {
-    logger.error("Failed to fetch accounts for customer", finicityCustomerId);
+    logger.error("Failed to fetch accounts for synchronization for customer", finicityCustomerId);
     return;
   }
+  const {accounts: finicityAccounts} = await accountsResponse.json();
+  const finicityAccountIds = new Set(finicityAccounts.map((acc: any) => acc.id.toString()));
 
-  const {accounts} = await accountsResponse.json();
+  // 2. Get existing accounts from Firestore
+  const firestoreAccountsRef = db.collection("users").doc(userId).collection("bankAccounts");
+  const firestoreSnapshot = await firestoreAccountsRef.get();
+  const firestoreAccountIds = new Set(firestoreSnapshot.docs.map((doc) => doc.id));
+
+  // 3. Determine accounts to delete
+  const accountsToDelete = [...firestoreAccountIds].filter((id) => !finicityAccountIds.has(id));
+
+  // 4. Batch all database operations
   const batch = db.batch();
 
-  for (const account of accounts) {
-    const accountDocRef = db.collection("users").doc(userId).collection("bankAccounts").doc(account.id);
+  // Handle deletions
+  if (accountsToDelete.length > 0) {
+    for (const accountId of accountsToDelete) {
+      const accountDocRef = firestoreAccountsRef.doc(accountId);
+      batch.delete(accountDocRef);
+    }
+    logger.info(`Marked ${accountsToDelete.length} stale accounts for deletion for user ${userId}.`);
+  }
+
+  // Handle additions/updates
+  for (const account of finicityAccounts) {
+    const accountDocRef = firestoreAccountsRef.doc(account.id.toString());
     batch.set(accountDocRef, {
       userId,
       providerAccountId: account.id,
@@ -219,69 +310,19 @@ async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string,
       subtype: account.detail?.type || null,
       balance: account.balance,
       provider: "Finicity",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Use serverTimestamp for new docs, don't overwrite on updates
+      createdAt: firestoreAccountIds.has(account.id.toString()) ? null : admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
 
-    // Fetch and store transactions for this account
+    // Fetch and store transactions for this account (added to the same batch)
     await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
   }
+
+  // 5. Commit all changes
   await batch.commit();
-  logger.info(
-    `Stored ${accounts.length} accounts and their transactions for user ${userId}`
-  );
+  logger.info(`Synchronized ${finicityAccounts.length} accounts and their transactions for user ${userId}.`);
 }
-
-
-/**
- * Fetches and stores transactions for a given account.
- * @param {string} userId - The Firebase user ID.
- * @param {string} finicityCustomerId - The Finicity customer ID.
- * @param {string} accountId - The ID of the account to fetch transactions for.
- * @param {string} token - The Finicity API authentication token.
- * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add transaction write operations to.
- * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
- * Note: The batch needs to be committed by the caller.
- * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
- * Note: The batch needs to be committed by the caller.
- */
-async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
-  accountId: string, token: string, batch: admin.firestore.WriteBatch) {
-  const toDate = new Date();
-  const fromDate = new Date();
-  fromDate.setMonth(fromDate.getMonth() - 12); // 12 months of transactions
-
-  const transactionsUrl =
-  new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
-  transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
-  transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
-
-  const txResponse = await fetch(
-    transactionsUrl.toString(), {
-      headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
-    });
-
-  if (!txResponse.ok) {
-    logger.error(`Failed to fetch transactions for account ${accountId}`);
-    return;
-  }
-
-  const {transactions} = await txResponse.json();
-
-  for (const tx of transactions) {
-    const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
-    batch.set(txDocRef, {
-      userId,
-      accountId,
-      providerTransactionId: tx.id,
-      date: new Date(tx.postedDate * 1000).toISOString(),
-      description: tx.description,
-      amount: tx.amount,
-      currency: tx.currencySymbol || "USD",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, {merge: true});
-  }
-}
-
 
 /**
  * Webhook handler for Finicity events.
@@ -294,8 +335,7 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
 
     // A more robust check: trigger if we get any event with a customer ID.
     if (event.customerId) {
-      const finicityCustomerId = event.customerId;
-
+      const finicityCustomerId = event.customerId.toString();
       const usersRef = db.collection("users");
       const snapshot = await usersRef.where("finicityCustomerId", "==", finicityCustomerId).limit(1).get();
 
@@ -308,11 +348,11 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       const userDoc = snapshot.docs[0];
       const userId = userDoc.id;
 
-      logger.info(`Processing webhook event of type "${event.eventType}" for user ${userId}. Refreshing accounts.`);
+      logger.info(`Processing webhook event for user ${userId}. Refreshing all accounts.`);
 
       const token = await getFinicityApiToken();
-      // Fetch all accounts for the customer to ensure we get the latest state.
-      await fetchAndStoreAccounts(userId, finicityCustomerId, token);
+      // Sync all accounts, which includes fetching, adding, updating, and deleting.
+      await syncAllAccountsAndTransactions(userId, finicityCustomerId, token);
     } else {
       logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.",
         {eventType: event.eventType});
@@ -324,3 +364,5 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
+
+    
