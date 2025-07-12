@@ -292,7 +292,7 @@ async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId
       balance: account.balance,
       provider: "Finicity",
       // Use serverTimestamp for new docs, don't overwrite on updates
-      createdAt: firestoreAccountIds.has(account.id.toString()) ? undefined : admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: firestoreAccountIds.has(account.id.toString()) ? null : admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
 
