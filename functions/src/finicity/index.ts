@@ -157,7 +157,7 @@ export const generateFinicityConnectUrl = onCall({
       body: JSON.stringify({
         partnerId: FINICITY_PARTNER_ID,
         customerId: finicityCustomerId,
-        redirectUri: `${appUrl}/banking`,
+        redirectUri: `${appUrl}/banking?reason=complete&code=200`, // Added params for clarity on redirect
         webhook: webhookUrl,
         webhookContentType: "application/json",
         experience: FINICITY_EXPERIENCE_GUID,
