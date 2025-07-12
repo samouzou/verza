@@ -292,7 +292,7 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
   try {
     const event = request.body;
 
-    // Corrected check: Look for customerId at the root of the event object.
+    // Check for customerId directly on the event body, as seen in logs.
     if (event.customerId) {
       const finicityCustomerId = event.customerId;
 
@@ -314,7 +314,7 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       // Fetch all accounts for the customer to ensure we get the latest state.
       await fetchAndStoreAccounts(userId, finicityCustomerId, token);
     } else {
-      logger.info("Webhook received, but it did not contain a customerId. Skipping.", { eventType: event.eventType });
+      logger.info("Webhook received, but it did not contain a customerId at the root level. Skipping.", { eventType: event.eventType });
     }
 
     response.status(204).send();
@@ -323,3 +323,5 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
+
+    
