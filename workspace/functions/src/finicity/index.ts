@@ -49,7 +49,7 @@ async function getFinicityApiToken(): Promise<string> {
 
   if (!response.ok) {
     const errorBody = await response.text();
-    logger.error("Failed to get Finicity token:", { status: response.status, body: errorBody });
+    logger.error("Failed to get Finicity token:", {status: response.status, body: errorBody});
     throw new HttpsError("internal", "Could not authenticate with Finicity.");
   }
 
@@ -213,7 +213,7 @@ async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string,
       userId,
       providerAccountId: account.id,
       name: account.name,
-      officialName: account.officialName,
+      officialName: account.officialName || null,
       mask: account.number,
       type: account.type,
       subtype: account.detail?.type || null,
@@ -248,7 +248,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   accountId: string, token: string, batch: admin.firestore.WriteBatch) {
   const toDate = new Date();
   const fromDate = new Date();
-  fromDate.setDate(toDate.getDate() - 90); // 90 days of transactions
+  fromDate.setMonth(fromDate.getMonth() - 12); // 12 months of transactions
 
   const transactionsUrl =
   new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
@@ -292,7 +292,7 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
   try {
     const event = request.body;
 
-    // Check for customerId directly on the event body, as seen in logs.
+    // A more robust check: trigger if we get any event with a customer ID.
     if (event.customerId) {
       const finicityCustomerId = event.customerId;
 
@@ -314,7 +314,8 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       // Fetch all accounts for the customer to ensure we get the latest state.
       await fetchAndStoreAccounts(userId, finicityCustomerId, token);
     } else {
-      logger.info("Webhook received, but it did not contain a customerId at the root level. Skipping.", { eventType: event.eventType });
+      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.",
+        {eventType: event.eventType});
     }
 
     response.status(204).send();
@@ -323,5 +324,3 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
-
-    
