@@ -190,7 +190,6 @@ export const generateFinicityConnectUrl = onCall({
  * Fetches and stores transactions for a given account. It handles pagination and the 180-day limit.
  * @param {string} userId - The Firebase user ID.
  * @param {string} finicityCustomerId - The Finicity customer ID.
- * @param {string} accountId - The ID of the account to fetch transactions for.
  * @param {string} token - The Finicity API authentication token.
  * @param {admin.firestore.WriteBatch} batch - The Firestore batch to add transaction write operations to.
  * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
@@ -215,8 +214,12 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
     while (hasMore) {
       const transactionsUrl =
         new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/transactions`);
-      transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
-      transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
+      
+      const fromDateInSeconds = Math.floor(fromDate.getTime() / 1000);
+      const toDateInSeconds = Math.floor(toDate.getTime() / 1000);
+      
+      transactionsUrl.searchParams.set("fromDate", fromDateInSeconds.toString());
+      transactionsUrl.searchParams.set("toDate", toDateInSeconds.toString());
       transactionsUrl.searchParams.set("start", nextStart.toString());
       transactionsUrl.searchParams.set("limit", "1000"); // Max limit
 
@@ -226,7 +229,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
 
       if (!txResponse.ok) {
         logger.error(`Failed to fetch transactions for customer ${finicityCustomerId} in date range ${fromDate} - ${toDate}`,
-          {status: txResponse.status});
+          {status: txResponse.status, url: transactionsUrl.toString()});
         hasMore = false; // Stop trying for this chunk if an error occurs
         continue;
       }
@@ -367,3 +370,5 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
+
+    
