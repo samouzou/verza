@@ -1,6 +1,6 @@
 
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
-import * => logger from "firebase-functions/logger";
+import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 
@@ -196,7 +196,7 @@ export const generateFinicityConnectUrl = onCall({
  * @return {Promise<void>} A Promise that resolves when transactions are fetched and added to the batch.
  */
 async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
-  accountId: string, token: string, batch: admin.firestore.WriteBatch) {
+  token: string, batch: admin.firestore.WriteBatch) {
   const TOTAL_MONTHS_TO_FETCH = 24;
   const DAYS_PER_FETCH = 180;
   const now = new Date();
@@ -213,7 +213,8 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
 
     // Handle pagination within the 180-day window
     while (hasMore) {
-      const transactionsUrl = new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+      const transactionsUrl =
+        new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/transactions`);
       transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
       transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
       transactionsUrl.searchParams.set("start", nextStart.toString());
@@ -224,7 +225,8 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
       });
 
       if (!txResponse.ok) {
-        logger.error(`Failed to fetch transactions for account ${accountId} in date range ${fromDate} - ${toDate}`, {status: txResponse.status});
+        logger.error(`Failed to fetch transactions for customer ${finicityCustomerId} in date range ${fromDate} - ${toDate}`,
+          {status: txResponse.status});
         hasMore = false; // Stop trying for this chunk if an error occurs
         continue;
       }
@@ -235,7 +237,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
           const txDocRef = db.collection("users").doc(userId).collection("bankTransactions").doc(tx.id.toString());
           batch.set(txDocRef, {
             userId,
-            accountId,
+            accountId: tx.accountId,
             providerTransactionId: tx.id,
             date: new Date(tx.postedDate * 1000).toISOString(),
             description: tx.description,
@@ -314,10 +316,11 @@ async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId
       createdAt: firestoreAccountIds.has(account.id.toString()) ? null : admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
-
-    // Fetch and store transactions for this account (added to the same batch)
-    await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
   }
+  
+  // Fetch and store transactions for ALL accounts for this customer
+  await fetchAndStoreTransactions(userId, finicityCustomerId, token, batch);
+
 
   // 5. Commit all changes
   await batch.commit();
