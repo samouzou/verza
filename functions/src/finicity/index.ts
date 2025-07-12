@@ -196,11 +196,11 @@ export const generateFinicityConnectUrl = onCall({
  */
 async function fetchAndStoreTransactions(userId: string, finicityCustomerId: string,
   token: string, batch: admin.firestore.WriteBatch) {
-  const TOTAL_MONTHS_TO_FETCH = 24;
+  const TOTAL_MONTHS_TO_FETCH = 12;
   const DAYS_PER_FETCH = 180;
   const now = new Date();
 
-  // Loop back in 180-day increments for up to 24 months
+  // Loop back in 180-day increments for up to 12 months
   for (let i = 0; i < (TOTAL_MONTHS_TO_FETCH * 30) / DAYS_PER_FETCH; i++) {
     const toDate = new Date(now);
     toDate.setDate(now.getDate() - (i * DAYS_PER_FETCH));
@@ -214,10 +214,9 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
     while (hasMore) {
       const transactionsUrl =
         new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/transactions`);
-      
       const fromDateInSeconds = Math.floor(fromDate.getTime() / 1000);
       const toDateInSeconds = Math.floor(toDate.getTime() / 1000);
-      
+
       transactionsUrl.searchParams.set("fromDate", fromDateInSeconds.toString());
       transactionsUrl.searchParams.set("toDate", toDateInSeconds.toString());
       transactionsUrl.searchParams.set("start", nextStart.toString());
@@ -324,7 +323,6 @@ async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId
   // Fetch and store transactions for ALL accounts for this customer
   await fetchAndStoreTransactions(userId, finicityCustomerId, token, batch);
 
-
   // 5. Commit all changes
   await batch.commit();
   logger.info(`Synchronized ${finicityAccounts.length} accounts and their transactions for user ${userId}.`);
@@ -370,5 +368,3 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
-
-    
