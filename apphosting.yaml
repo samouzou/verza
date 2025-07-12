@@ -6,7 +6,7 @@ runConfig:
   maxInstances: 5
   concurrency: 80
   cpu: 2
-  memoryMiB: 4096
+  memoryMiB: 8192
 
 # Environment variables and secrets.
 env:
@@ -73,5 +73,6 @@ env:
     secret: FINICITY_EXPERIENCE_GUID
     availability:
       - RUNTIME
+
 
 

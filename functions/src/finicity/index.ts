@@ -200,7 +200,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   const DAYS_PER_FETCH = 180;
   const now = new Date();
 
-  // Loop back in 180-day increments for up to 12 months
+  // Loop back in 180-day increments for up to 3 months
   for (let i = 0; i < (TOTAL_MONTHS_TO_FETCH * 30) / DAYS_PER_FETCH; i++) {
     const toDate = new Date(now);
     toDate.setDate(now.getDate() - (i * DAYS_PER_FETCH));
