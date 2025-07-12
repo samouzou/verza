@@ -251,7 +251,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   fromDate.setMonth(fromDate.getMonth() - 12); // 12 months of transactions
 
   const transactionsUrl =
-  new URL(`${FINICITY_API_BASE_URL}/aggregation/v4/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
+  new URL(`${FINICITY_API_BASE_URL}/aggregation/v3/customers/${finicityCustomerId}/accounts/${accountId}/transactions`);
   transactionsUrl.searchParams.set("fromDate", fromDate.getTime().toString());
   transactionsUrl.searchParams.set("toDate", toDate.getTime().toString());
 
@@ -324,3 +324,5 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
     response.status(500).send("Internal Server Error");
   }
 });
+
+    
