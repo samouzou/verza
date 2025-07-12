@@ -186,52 +186,6 @@ export const generateFinicityConnectUrl = onCall({
 }
 );
 
-
-/**
- * Fetches and stores bank accounts for a given user and Finicity customer ID.
- * @param {string} userId - The Firebase user ID.
- * @param {string} finicityCustomerId - The Finicity customer ID.
- * @param {string} token - The Finicity API authentication token.
- * @return {Promise<void>} A Promise that resolves when accounts are fetched and stored.
- */
-async function fetchAndStoreAccounts(userId: string, finicityCustomerId: string, token: string) {
-  const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
-    headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},
-  });
-
-  if (!accountsResponse.ok) {
-    logger.error("Failed to fetch accounts for customer", finicityCustomerId);
-    return;
-  }
-
-  const {accounts} = await accountsResponse.json();
-  const batch = db.batch();
-
-  for (const account of accounts) {
-    const accountDocRef = db.collection("users").doc(userId).collection("bankAccounts").doc(account.id);
-    batch.set(accountDocRef, {
-      userId,
-      providerAccountId: account.id,
-      name: account.name,
-      officialName: account.officialName || null,
-      mask: account.number,
-      type: account.type,
-      subtype: account.detail?.type || null,
-      balance: account.balance,
-      provider: "Finicity",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, {merge: true});
-
-    // Fetch and store transactions for this account
-    await fetchAndStoreTransactions(userId, finicityCustomerId, account.id, token, batch);
-  }
-  await batch.commit();
-  logger.info(
-    `Stored ${accounts.length} accounts and their transactions for user ${userId}`
-  );
-}
-
-
 /**
  * Fetches and stores transactions for a given account.
  * @param {string} userId - The Firebase user ID.
@@ -381,7 +335,8 @@ export const finicityWebhookHandler = onRequest({cors: true}, async (request, re
       // Sync all accounts, which includes fetching, adding, updating, and deleting.
       await syncAllAccountsAndTransactions(userId, finicityCustomerId, token);
     } else {
-      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.", {eventType: event.eventType});
+      logger.info("Webhook received, but it did not contain a customerId in the payload. Skipping.",
+        {eventType: event.eventType});
     }
 
     response.status(204).send();
