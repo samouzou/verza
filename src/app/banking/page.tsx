@@ -16,7 +16,7 @@ import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import { functions as firebaseFunctionsInstance, db, collection, onSnapshot, query, where, doc, updateDoc } from '@/lib/firebase';
+import { functions as firebaseFunctionsInstance, db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -111,9 +111,21 @@ export default function BankingPage() {
       setIsLoadingTaxEstimation(true);
       try {
         const grossIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+        
+        // Convert Timestamps to plain objects for Server Action
+        const serializableTransactions = transactions.map(txn => ({
+          ...txn,
+          createdAt: txn.createdAt instanceof Timestamp 
+            ? { seconds: txn.createdAt.seconds, nanoseconds: txn.createdAt.nanoseconds } 
+            : txn.createdAt,
+          updatedAt: txn.updatedAt instanceof Timestamp 
+            ? { seconds: txn.updatedAt.seconds, nanoseconds: txn.updatedAt.nanoseconds } 
+            : txn.updatedAt,
+        }));
+
         const estimation = await estimateTaxes({
           totalGrossIncome: grossIncome,
-          transactions: transactions,
+          transactions: serializableTransactions,
           filingStatus: 'single',
           taxYear: new Date().getFullYear(),
         });
