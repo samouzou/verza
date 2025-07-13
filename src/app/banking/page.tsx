@@ -25,7 +25,7 @@ export default function BankingPage() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
-  const [userReceipts, setUserReceipts] = useState<Receipt[]>([]); // Assuming receipts are still needed
+  const [userReceipts, setUserReceipts] = useState<Receipt[]>([]);
   
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
@@ -33,6 +33,10 @@ export default function BankingPage() {
   
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   // Real-time listener for Bank Accounts
   useEffect(() => {
@@ -66,7 +70,6 @@ export default function BankingPage() {
         setIsClassifying(true);
         const processedTransactions = await Promise.all(
           fetchedTransactions.map(async (txn) => {
-            // Only classify if not already classified or is income
             if (txn.category || txn.amount > 0) {
               return txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn;
             }
@@ -74,7 +77,6 @@ export default function BankingPage() {
               const classification = await classifyTransaction({ description: txn.description });
               const updatedTxn = { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible };
               
-              // Asynchronously update Firestore document with new classification
               const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txn.id);
               updateDoc(txnDocRef, { category: classification.category, isTaxDeductible: !!classification.isTaxDeductible }).catch(e => console.warn("Failed to update transaction in Firestore:", e));
               
@@ -183,6 +185,12 @@ export default function BankingPage() {
     );
   }
 
+  // Pagination logic
+  const lastItemIndex = currentPage * itemsPerPage;
+  const firstItemIndex = lastItemIndex - itemsPerPage;
+  const currentTransactions = transactions.slice(firstItemIndex, lastItemIndex);
+  const totalPages = Math.ceil(transactions.length / itemsPerPage);
+
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
 
   return (
@@ -239,6 +247,7 @@ export default function BankingPage() {
                     <p className="ml-3 text-muted-foreground">{isClassifying ? 'AI is classifying your transactions...' : 'Loading transactions...'}</p>
                 </div>
                 ) : transactions.length > 0 ? (
+                <>
                 <Table>
                 <TableHeader>
                     <TableRow>
@@ -251,7 +260,7 @@ export default function BankingPage() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {transactions.map(txn => (
+                    {currentTransactions.map(txn => (
                     <TableRow key={txn.id}>
                         <TableCell className="text-sm text-muted-foreground">{new Date(txn.date).toLocaleDateString()}</TableCell>
                         <TableCell className="font-medium">{txn.description}</TableCell>
@@ -300,6 +309,30 @@ export default function BankingPage() {
                     ))}
                 </TableBody>
                 </Table>
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {firstItemIndex + 1} to {Math.min(lastItemIndex, transactions.length)} of {transactions.length} transactions.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+                </>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-10">No transactions found for the connected accounts.</p>
                 )}
