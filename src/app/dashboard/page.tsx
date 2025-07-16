@@ -226,14 +226,11 @@ export default function DashboardPage() {
       }
       
       const sentHistoryEntry = c.invoiceHistory?.find(h => h.action === 'Invoice Sent to Client');
-      if (sentHistoryEntry) {
-        const sentDate = sentHistoryEntry.timestamp.toDate();
-        if (sentDate.getFullYear() === currentYear) {
-          const sentMonth = sentDate.getMonth();
-          newEarningsChartData[sentMonth].invoiced += c.amount;
-          if (sentMonth === currentMonth) {
-            currentInvoicedThisMonthAmountForSummary += c.amount;
-          }
+      if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
+        const invoicedMonth = updatedAtDate.getMonth();
+        newEarningsChartData[invoicedMonth].invoiced += c.amount;
+        if (invoicedMonth === currentMonth) {
+          currentInvoicedThisMonthAmountForSummary += c.amount;
         }
       }
     });
