@@ -108,6 +108,10 @@ export default function DashboardPage() {
               createdAt: createdAt,
               updatedAt: updatedAt,
               invoiceStatus: data.invoiceStatus || 'none',
+              invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
+                ...entry,
+                timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : new Timestamp(entry.timestamp.seconds, entry.timestamp.nanoseconds)
+              })) || [],
             } as Contract;
           });
           setAllContracts(fetchedContracts);
@@ -143,10 +147,6 @@ export default function DashboardPage() {
       const projectMatch = filters.project === "all" || c.projectName === filters.project;
       
       let dateMatch = true;
-      // Date filter should apply to dueDate for pending/upcoming items
-      // and updatedAt for paid items if we want to filter by payment date.
-      // For simplicity here, we'll primarily filter based on dueDate for items shown in lists.
-      // The chart and monthly summaries will do their own monthly aggregation.
       if (c.dueDate && filters.dateRange?.from) { 
         const contractDueDate = new Date(c.dueDate + 'T00:00:00'); 
         const fromDate = new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate());
@@ -172,10 +172,9 @@ export default function DashboardPage() {
     const atRiskPaymentsListSource: AtRiskPayment[] = [];
     let totalPendingIncomeCalc = 0;
     let currentPaidThisMonthAmount = 0;
-    let currentInvoicedThisMonthAmountForSummary = 0; // For summary card
+    let currentInvoicedThisMonthAmountForSummary = 0;
     let currentTotalOverdueCountCalc = 0;
 
-    // Initialize chart data for current year
     const newEarningsChartData: EarningsDataPoint[] = monthNames.map(monthName => ({
       month: monthName,
       year: currentYear,
@@ -218,7 +217,6 @@ export default function DashboardPage() {
         totalPendingIncomeCalc += c.amount;
       }
       
-      // Calculate for chart and monthly summaries
       if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
         const paymentMonth = updatedAtDate.getMonth();
         newEarningsChartData[paymentMonth].collected += c.amount;
@@ -227,11 +225,15 @@ export default function DashboardPage() {
         }
       }
       
-      if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && invoiceStatus !== 'paid' && contractDueDate && contractDueDate.getFullYear() === currentYear) {
-        const dueMonth = contractDueDate.getMonth();
-        newEarningsChartData[dueMonth].invoiced += c.amount;
-        if (dueMonth === currentMonth) {
-          currentInvoicedThisMonthAmountForSummary += c.amount;
+      const sentHistoryEntry = c.invoiceHistory?.find(h => h.action === 'Invoice Sent to Client');
+      if (sentHistoryEntry) {
+        const sentDate = sentHistoryEntry.timestamp.toDate();
+        if (sentDate.getFullYear() === currentYear) {
+          const sentMonth = sentDate.getMonth();
+          newEarningsChartData[sentMonth].invoiced += c.amount;
+          if (sentMonth === currentMonth) {
+            currentInvoicedThisMonthAmountForSummary += c.amount;
+          }
         }
       }
     });
