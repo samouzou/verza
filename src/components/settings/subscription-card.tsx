@@ -222,7 +222,7 @@ export function SubscriptionCard() {
                   htmlFor="plan-yearly"
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer relative"
                 >
-                  <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">Save 20%</Badge>
+                  <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">Save 17%</Badge>
                   <BadgeDollarSign className="mb-3 h-6 w-6" />
                   Yearly Plan
                   <span className="block text-2xl font-bold mt-1">$249/year</span>
