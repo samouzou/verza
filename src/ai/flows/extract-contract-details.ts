@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview Extracts contract details (brand, amount, due date, and common terms) from contract documents using an LLM.
+ * @fileOverview Extracts contract details (brand, amount, due date, client info, and common terms) from contract documents using an LLM.
  *
  * - extractContractDetails - A function that handles the contract detail extraction process.
  * - ExtractContractDetailsInput - The input type for the extractContractDetails function.
@@ -28,6 +28,13 @@ const ExtractContractDetailsOutputSchema = z.object({
   brand: z.string().describe('The brand or counterparty name in the contract. If not found, use "Unknown Brand".'),
   amount: z.number().describe('The payment amount specified in the contract. If not found, use 0.'),
   dueDate: z.string().describe('The payment due date in ISO 8601 format (YYYY-MM-DD). If not found, use current date.'),
+  
+  // Client & Payment Details for Invoicing
+  clientName: z.string().optional().describe('The name of the client or contact person. May be the same as the brand.'),
+  clientEmail: z.string().optional().describe('The email address of the client.'),
+  clientAddress: z.string().optional().describe('The mailing address of the client.'),
+  paymentInstructions: z.string().optional().describe('Specific payment instructions found in the contract (e.g., bank details, PayPal address).'),
+  
   extractedTerms: ExtractedTermsSchema.optional().describe('An object containing other relevant terms. If no specific terms are found, this object can be empty or omitted.'),
 });
 export type ExtractContractDetailsOutput = z.infer<typeof ExtractContractDetailsOutputSchema>;
@@ -46,8 +53,12 @@ const prompt = ai.definePrompt({
   - brand: The name of the brand or counterparty involved in the contract. If no brand name is explicitly mentioned, output "Unknown Brand".
   - amount: The payment amount specified in the contract (as a number). If no amount is specified, output 0.
   - dueDate: The payment due date in ISO 8601 format (YYYY-MM-DD). If no due date is specified, use the current date in YYYY-MM-DD format.
+  - clientName: The name of the client or contact person. This might be the same as the brand name if no specific person is listed.
+  - clientEmail: The client's email address if present.
+  - clientAddress: The client's mailing address if present.
+  - paymentInstructions: Any specific payment details like bank account info, PayPal email, or payment portal instructions.
   - extractedTerms: An object containing other relevant terms. Focus on:
-    - paymentMethod: The method of payment (e.g., "Bank Transfer", "PayPal").
+    - paymentMethod: The general method of payment (e.g., "Bank Transfer", "PayPal").
     - deliverables: A list of key deliverables or services to be provided (e.g., ["1 Instagram Reel", "2 Story posts"]).
     - usageRights: A brief description of content usage rights.
     - terminationClauses: A brief summary of termination conditions.

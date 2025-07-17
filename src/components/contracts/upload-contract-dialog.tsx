@@ -116,9 +116,16 @@ export function UploadContractDialog() {
       setParsedDetails(details);
       setSummary(termsSummary);
       setNegotiationSuggestions(negSuggestions);
+      
+      // Auto-populate client and payment details
+      if (details.clientName) setClientName(details.clientName);
+      if (details.clientEmail) setClientEmail(details.clientEmail);
+      if (details.clientAddress) setClientAddress(details.clientAddress);
+      if (details.paymentInstructions) setPaymentInstructions(details.paymentInstructions);
+      
       toast({
         title: "AI Analysis Successful",
-        description: "Contract details have been extracted.",
+        description: "Contract details have been extracted and relevant fields populated.",
       });
     } catch (error) {
       console.error("AI Parsing error:", error);
