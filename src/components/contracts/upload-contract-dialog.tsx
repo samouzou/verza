@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
+import { extractTextFromDocument } from "@/ai/flows/extract-text-from-document-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles } from "lucide-react";
 import type { Contract } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +37,7 @@ export function UploadContractDialog() {
   const [contractText, setContractText] = useState("");
   const [fileName, setFileName] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [isParsing, startParseTransition] = useTransition();
+  const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -63,31 +64,37 @@ export function UploadContractDialog() {
       user.trialEndsAt &&
       user.trialEndsAt.toMillis() > now);
 
+  const resetState = useCallback(() => {
+    setContractText("");
+    setFileName("");
+    setProjectName("");
+    setSelectedFile(null);
+    setParsedDetails(null);
+    setSummary(null);
+    setNegotiationSuggestions(null);
+    setParseError(null);
+    setIsSaving(false);
+    setIsParsing(false);
+    setClientName("");
+    setClientEmail("");
+    setClientAddress("");
+    setPaymentInstructions("");
+    setIsRecurring(false);
+    setRecurrenceInterval(undefined);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) {
-      setContractText("");
-      setFileName("");
-      setProjectName("");
-      setSelectedFile(null);
-      setParsedDetails(null);
-      setSummary(null);
-      setNegotiationSuggestions(null);
-      setParseError(null);
-      setIsSaving(false);
-      setClientName("");
-      setClientEmail("");
-      setClientAddress("");
-      setPaymentInstructions("");
-      setIsRecurring(false);
-      setRecurrenceInterval(undefined);
+      resetState();
     }
-  }, [isOpen]);
+  }, [isOpen, resetState]);
 
-  const handleParseContract = async () => {
-    if (!contractText.trim()) {
+
+  const handleParseContract = useCallback(async (textToParse: string) => {
+    if (!textToParse.trim()) {
       toast({
         title: "Error",
-        description: "Please paste contract text to parse.",
+        description: "Cannot parse empty text.",
         variant: "destructive",
       });
       return;
@@ -97,33 +104,74 @@ export function UploadContractDialog() {
     setParsedDetails(null);
     setSummary(null);
     setNegotiationSuggestions(null);
+    setIsParsing(true);
+    toast({ title: "AI Analysis Started", description: "Extracting details, summarizing, and generating suggestions..." });
 
-    startParseTransition(async () => {
-      try {
-        const [details, termsSummary, negSuggestions] = await Promise.all([
-          extractContractDetails({ contractText }),
-          summarizeContractTerms({ contractText }),
-          getNegotiationSuggestions({ contractText }),
-        ]);
-        setParsedDetails(details);
-        setSummary(termsSummary);
-        setNegotiationSuggestions(negSuggestions);
-        toast({
-          title: "AI Analysis Successful",
-          description: "Contract details extracted, summarized, and negotiation suggestions provided.",
-        });
-      } catch (error) {
-        console.error("AI Parsing error:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
-        setParseError(errorMessage);
-        toast({
-          title: "AI Analysis Failed",
-          description: `Could not process contract with AI: ${errorMessage}`,
-          variant: "destructive",
-        });
+    try {
+      const [details, termsSummary, negSuggestions] = await Promise.all([
+        extractContractDetails({ contractText: textToParse }),
+        summarizeContractTerms({ contractText: textToParse }),
+        getNegotiationSuggestions({ contractText: textToParse }),
+      ]);
+      setParsedDetails(details);
+      setSummary(termsSummary);
+      setNegotiationSuggestions(negSuggestions);
+      toast({
+        title: "AI Analysis Successful",
+        description: "Contract details have been extracted.",
+      });
+    } catch (error) {
+      console.error("AI Parsing error:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
+      setParseError(errorMessage);
+      toast({
+        title: "AI Analysis Failed",
+        description: `Could not process contract with AI: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsParsing(false);
+    }
+  }, [toast]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files ? e.target.files[0] : null;
+      if (!file) return;
+
+      setSelectedFile(file);
+      if (!fileName.trim()) {
+        setFileName(file.name);
       }
-    });
+
+      setIsParsing(true);
+      toast({ title: "Processing Document...", description: "Extracting text from your file with OCR." });
+
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = async () => {
+            const dataUri = reader.result as string;
+            const ocrResult = await extractTextFromDocument({ documentDataUri: dataUri });
+            if (ocrResult.extractedText) {
+                setContractText(ocrResult.extractedText);
+                // Automatically trigger the next step
+                await handleParseContract(ocrResult.extractedText);
+            } else {
+                throw new Error("OCR could not extract any text from the document.");
+            }
+        };
+        reader.onerror = (error) => {
+           throw new Error("Failed to read the file.");
+        }
+      } catch (error) {
+          console.error("Error during file processing and OCR:", error);
+          const errorMessage = error instanceof Error ? error.message : "Could not process the uploaded file.";
+          setParseError(errorMessage);
+          toast({ title: "File Processing Failed", description: errorMessage, variant: "destructive" });
+          setIsParsing(false);
+      }
   };
+
 
   const handleSaveContract = async () => {
     if (!user) {
@@ -244,7 +292,7 @@ export function UploadContractDialog() {
             <FileText className="h-6 w-6 text-primary" /> Add New Contract
           </DialogTitle>
           <DialogDescription>
-            Upload a contract file and/or paste its text. Fill in client details for invoicing.
+            Upload a contract file to automatically extract text and analyze it with AI, or paste the text manually.
           </DialogDescription>
         </DialogHeader>
         
@@ -266,7 +314,7 @@ export function UploadContractDialog() {
           </Alert>
         )}
 
-        <ScrollArea className="max-h-[calc(80vh-250px-50px)]"> {/* Adjusted max height if alert is shown */}
+        <ScrollArea className="max-h-[calc(80vh-250px-50px)]">
         <div className="grid gap-6 p-1 pr-4">
            <div>
             <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
@@ -277,6 +325,7 @@ export function UploadContractDialog() {
               onChange={(e) => setFileName(e.target.value)}
               placeholder="e.g., BrandX_Sponsorship_Q4.pdf"
               className="mt-1"
+              disabled={isParsing || isSaving}
             />
           </div>
           <div>
@@ -288,22 +337,20 @@ export function UploadContractDialog() {
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="e.g., Q3 YouTube Campaign"
               className="mt-1"
+              disabled={isParsing || isSaving}
             />
           </div>
           <div>
-            <Label htmlFor="contractFile">Upload Contract File (Optional)</Label>
+            <Label htmlFor="contractFile">Upload Contract File (PDF, PNG, JPG)</Label>
             <Input
               id="contractFile"
               type="file"
+              accept=".pdf,.png,.jpg,.jpeg"
               className="mt-1"
-              onChange={(e) => {
-                const file = e.target.files ? e.target.files[0] : null;
-                setSelectedFile(file);
-                if (file && !fileName.trim()) {
-                  setFileName(file.name);
-                }
-              }}
+              onChange={handleFileChange}
+              disabled={isParsing || isSaving}
             />
+            <p className="text-xs text-muted-foreground mt-1">Uploading a file will automatically trigger OCR and AI analysis.</p>
           </div>
 
           <Card>
@@ -311,19 +358,19 @@ export function UploadContractDialog() {
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="clientName">Client Name</Label>
-                <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" />
+                <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isParsing || isSaving} />
               </div>
               <div>
                 <Label htmlFor="clientEmail">Client Email</Label>
-                <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" />
+                <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isParsing || isSaving} />
               </div>
               <div className="md:col-span-2">
                 <Label htmlFor="clientAddress">Client Address</Label>
-                <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3}/>
+                <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isParsing || isSaving}/>
               </div>
               <div className="md:col-span-2">
                 <Label htmlFor="paymentInstructions">Payment Instructions (Bank details, PayPal, etc.)</Label>
-                <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3}/>
+                <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isParsing || isSaving}/>
               </div>
             </CardContent>
           </Card>
@@ -336,6 +383,7 @@ export function UploadContractDialog() {
                   id="isRecurring"
                   checked={isRecurring}
                   onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
+                  disabled={isParsing || isSaving}
                 />
                 <Label htmlFor="isRecurring" className="font-normal">
                   Is this a recurring contract?
@@ -347,6 +395,7 @@ export function UploadContractDialog() {
                   <Select
                     value={recurrenceInterval}
                     onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
+                    disabled={isParsing || isSaving}
                   >
                     <SelectTrigger id="recurrenceInterval" className="mt-1">
                       <SelectValue placeholder="Select interval" />
@@ -364,28 +413,33 @@ export function UploadContractDialog() {
 
 
           <div>
-            <Label htmlFor="contractText">Paste Contract Text (for AI Parsing)*</Label>
+            <Label htmlFor="contractText">Contract Text (auto-filled from upload)</Label>
             <Textarea
               id="contractText"
               value={contractText}
               onChange={(e) => setContractText(e.target.value)}
-              placeholder="Paste the full text of your contract here if you want AI to extract details and summarize..."
+              placeholder="Paste the full text of your contract here, or upload a file to automatically fill this."
               rows={8}
               className="mt-1"
+              disabled={isParsing || isSaving}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              *Pasting text is required if you want AI to extract details, summarize, and get negotiation suggestions.
-            </p>
+            <Button onClick={() => handleParseContract(contractText)} disabled={isParsing || !contractText.trim() || isSaving} className="w-full sm:w-auto mt-2">
+                {isParsing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-2 h-4 w-4" />
+                )}
+                Re-process Text with AI
+            </Button>
           </div>
 
-          <Button onClick={handleParseContract} disabled={isParsing || !contractText.trim() || isSaving} className="w-full sm:w-auto">
-            {isParsing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="mr-2 h-4 w-4" />
-            )}
-            Process Text with AI
-          </Button>
+          {isParsing && (
+              <div className="flex items-center justify-center p-6 text-muted-foreground">
+                  <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                  <span>AI is analyzing your document... This may take a moment.</span>
+              </div>
+          )}
+
 
           {parseError && (
             <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-start gap-2">
@@ -397,7 +451,7 @@ export function UploadContractDialog() {
             </div>
           )}
 
-          {(parsedDetails || summary || negotiationSuggestions) && !parseError && (
+          {!isParsing && (parsedDetails || summary || negotiationSuggestions) && !parseError && (
             <div className="mt-2 space-y-4">
               <h3 className="text-lg font-semibold text-foreground">AI Analysis Results</h3>
               {parsedDetails && (
@@ -454,7 +508,7 @@ export function UploadContractDialog() {
         </div>
         </ScrollArea>
         <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
+          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving || isParsing}>Cancel</Button>
           <Button 
             onClick={handleSaveContract} 
             disabled={isParsing || (!selectedFile && !contractText.trim() && !parsedDetails) || isSaving || !canPerformProAction}
