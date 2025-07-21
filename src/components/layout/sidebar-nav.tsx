@@ -17,8 +17,7 @@ import {
   XCircle,
   AlertTriangle as AlertTriangleIcon,
   ReceiptText,
-  Landmark,
-  PanelLeft, // Added PanelLeft for the collapse icon
+  Landmark
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,7 +55,7 @@ const navItems = [
 export function SidebarNav() {
   const pathname = usePathname();
   const { user, logout, isLoading: authLoading } = useAuth();
-  const { isMobile, setOpenMobile, toggleSidebar } = useSidebar(); // Get toggleSidebar from hook
+  const { setOpenMobile, isMobile } = useSidebar();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -199,16 +198,6 @@ export function SidebarNav() {
              <span className="ml-3 group-data-[collapsible=icon]:hidden">Login</span>
           </Button>
          )}
-         <div className="hidden md:block mt-auto">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={toggleSidebar} tooltip={{children: "Collapse Sidebar", side:"right", align:"center"}}>
-                  <PanelLeft className="h-5 w-5" />
-                  <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </div>
       </SidebarFooter>
     </Sidebar>
   );
