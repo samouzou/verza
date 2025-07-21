@@ -4,6 +4,19 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "runtime": "nodejs22"
+    }
+  ],
   "storage": {
     "rules": "storage.rules"
   },
@@ -23,4 +36,3 @@
     "region": "us-central1"
   }
 }
-    
