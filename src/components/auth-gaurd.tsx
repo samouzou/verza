@@ -44,7 +44,11 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   // If not loading, not on login page, and authenticated, show the app layout.
   if (isAuthenticated) {
-    return <AppLayout>{children}</AppLayout>;
+    return (
+      <SidebarProvider>
+        <AppLayout>{children}</AppLayout>
+      </SidebarProvider>
+    );
   }
   
   // If not loading, not on login page, and not authenticated,
