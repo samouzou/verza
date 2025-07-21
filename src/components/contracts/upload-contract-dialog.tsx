@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
+import { ocrDocument } from "@/ai/flows/ocr-flow"; // Import the new OCR flow
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles } from "lucide-react";
 import type { Contract } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,7 @@ export function UploadContractDialog() {
   const [contractText, setContractText] = useState("");
   const [fileName, setFileName] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [isParsing, startParseTransition] = useTransition();
+  const [isProcessingAi, setIsProcessingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -82,47 +82,86 @@ export function UploadContractDialog() {
       setRecurrenceInterval(undefined);
     }
   }, [isOpen]);
-
-  const handleParseContract = async () => {
-    if (!contractText.trim()) {
-      toast({
-        title: "Error",
-        description: "Please paste contract text to parse.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  
+  const handleFullAnalysis = async (textToAnalyze: string) => {
+    setIsProcessingAi(true);
     setParseError(null);
     setParsedDetails(null);
     setSummary(null);
     setNegotiationSuggestions(null);
 
-    startParseTransition(async () => {
-      try {
-        const [details, termsSummary, negSuggestions] = await Promise.all([
-          extractContractDetails({ contractText }),
-          summarizeContractTerms({ contractText }),
-          getNegotiationSuggestions({ contractText }),
-        ]);
-        setParsedDetails(details);
-        setSummary(termsSummary);
-        setNegotiationSuggestions(negSuggestions);
-        toast({
-          title: "AI Analysis Successful",
-          description: "Contract details extracted, summarized, and negotiation suggestions provided.",
-        });
-      } catch (error) {
-        console.error("AI Parsing error:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
-        setParseError(errorMessage);
-        toast({
-          title: "AI Analysis Failed",
-          description: `Could not process contract with AI: ${errorMessage}`,
-          variant: "destructive",
-        });
+    try {
+      const [details, termsSummary, negSuggestions] = await Promise.all([
+        extractContractDetails({ contractText: textToAnalyze }),
+        summarizeContractTerms({ contractText: textToAnalyze }),
+        getNegotiationSuggestions({ contractText: textToAnalyze }),
+      ]);
+      setParsedDetails(details);
+      setSummary(termsSummary);
+      setNegotiationSuggestions(negSuggestions);
+      toast({
+        title: "AI Analysis Successful",
+        description: "Contract details extracted, summarized, and negotiation suggestions provided.",
+      });
+    } catch (error) {
+      console.error("AI Parsing error:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during AI processing.";
+      setParseError(errorMessage);
+      toast({
+        title: "AI Analysis Failed",
+        description: `Could not process contract with AI: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingAi(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    if (!fileName.trim()) {
+      setFileName(file.name);
+    }
+
+    setIsProcessingAi(true);
+    setParseError(null);
+    setContractText(`Processing "${file.name}" with AI...`);
+
+    try {
+      // 1. Convert file to data URI
+      const reader = new FileReader();
+      const dataUriPromise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+      const documentDataUri = await dataUriPromise;
+
+      // 2. Call OCR flow
+      const ocrResult = await ocrDocument({ documentDataUri });
+      if (!ocrResult || !ocrResult.extractedText) {
+        throw new Error("OCR process failed to extract text.");
       }
-    });
+      setContractText(ocrResult.extractedText);
+
+      // 3. Automatically trigger full analysis on the extracted text
+      await handleFullAnalysis(ocrResult.extractedText);
+
+    } catch (error) {
+      console.error("Error during file processing and OCR:", error);
+      const errorMessage = error instanceof Error ? error.message : "Could not process file.";
+      setParseError(errorMessage);
+      setContractText(`Error processing file: ${errorMessage}`);
+      toast({
+        title: "File Processing Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsProcessingAi(false);
+    }
   };
 
   const handleSaveContract = async () => {
@@ -244,7 +283,7 @@ export function UploadContractDialog() {
             <FileText className="h-6 w-6 text-primary" /> Add New Contract
           </DialogTitle>
           <DialogDescription>
-            Upload a contract file and/or paste its text. Fill in client details for invoicing.
+            Upload a contract file to automatically extract text and analyze with AI.
           </DialogDescription>
         </DialogHeader>
         
@@ -266,7 +305,7 @@ export function UploadContractDialog() {
           </Alert>
         )}
 
-        <ScrollArea className="max-h-[calc(80vh-250px-50px)]"> {/* Adjusted max height if alert is shown */}
+        <ScrollArea className="max-h-[calc(80vh-250px-50px)]">
         <div className="grid gap-6 p-1 pr-4">
            <div>
             <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
@@ -291,19 +330,17 @@ export function UploadContractDialog() {
             />
           </div>
           <div>
-            <Label htmlFor="contractFile">Upload Contract File (Optional)</Label>
+            <Label htmlFor="contractFile">Upload Contract File</Label>
             <Input
               id="contractFile"
               type="file"
+              accept=".pdf,image/*"
               className="mt-1"
-              onChange={(e) => {
-                const file = e.target.files ? e.target.files[0] : null;
-                setSelectedFile(file);
-                if (file && !fileName.trim()) {
-                  setFileName(file.name);
-                }
-              }}
+              onChange={handleFileChange}
             />
+             <p className="text-xs text-muted-foreground mt-1">
+              Uploading will automatically extract text and run AI analysis.
+            </p>
           </div>
 
           <Card>
@@ -364,28 +401,24 @@ export function UploadContractDialog() {
 
 
           <div>
-            <Label htmlFor="contractText">Paste Contract Text (for AI Parsing)*</Label>
+            <Label htmlFor="contractText">Extracted Contract Text</Label>
             <Textarea
               id="contractText"
               value={contractText}
               onChange={(e) => setContractText(e.target.value)}
-              placeholder="Paste the full text of your contract here if you want AI to extract details and summarize..."
+              placeholder="Upload a file to automatically extract text here..."
               rows={8}
               className="mt-1"
+              readOnly={isProcessingAi}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              *Pasting text is required if you want AI to extract details, summarize, and get negotiation suggestions.
-            </p>
           </div>
 
-          <Button onClick={handleParseContract} disabled={isParsing || !contractText.trim() || isSaving} className="w-full sm:w-auto">
-            {isParsing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="mr-2 h-4 w-4" />
-            )}
-            Process Text with AI
-          </Button>
+          {isProcessingAi && (
+            <div className="flex items-center gap-2 text-primary">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>AI is analyzing your document...</span>
+            </div>
+          )}
 
           {parseError && (
             <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-start gap-2">
@@ -397,7 +430,7 @@ export function UploadContractDialog() {
             </div>
           )}
 
-          {(parsedDetails || summary || negotiationSuggestions) && !parseError && (
+          {(parsedDetails || summary || negotiationSuggestions) && !parseError && !isProcessingAi && (
             <div className="mt-2 space-y-4">
               <h3 className="text-lg font-semibold text-foreground">AI Analysis Results</h3>
               {parsedDetails && (
@@ -435,17 +468,6 @@ export function UploadContractDialog() {
                     {negotiationSuggestions.paymentTerms && <p><strong>Payment Terms:</strong> {negotiationSuggestions.paymentTerms}</p>}
                     {negotiationSuggestions.exclusivity && <p><strong>Exclusivity:</strong> {negotiationSuggestions.exclusivity}</p>}
                     {negotiationSuggestions.ipRights && <p><strong>IP Rights:</strong> {negotiationSuggestions.ipRights}</p>}
-                    {negotiationSuggestions.generalSuggestions && negotiationSuggestions.generalSuggestions.length > 0 && (
-                      <div>
-                        <strong>General Suggestions:</strong>
-                        <ul className="list-disc list-inside ml-4 text-muted-foreground">
-                          {negotiationSuggestions.generalSuggestions.map((item, i) => <li key={i}>{item}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {(!negotiationSuggestions.paymentTerms && !negotiationSuggestions.exclusivity && !negotiationSuggestions.ipRights && (!negotiationSuggestions.generalSuggestions || negotiationSuggestions.generalSuggestions.length === 0)) && (
-                      <p className="text-muted-foreground">No specific negotiation suggestions generated by AI for this text.</p>
-                    )}
                   </CardContent>
                 </Card>
               )}
@@ -457,7 +479,7 @@ export function UploadContractDialog() {
           <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
           <Button 
             onClick={handleSaveContract} 
-            disabled={isParsing || (!selectedFile && !contractText.trim() && !parsedDetails) || isSaving || !canPerformProAction}
+            disabled={isProcessingAi || (!selectedFile && !contractText.trim()) || isSaving || !canPerformProAction}
           >
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save Contract
