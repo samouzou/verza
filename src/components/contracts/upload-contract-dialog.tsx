@@ -278,7 +278,10 @@ export function UploadContractDialog() {
           <UploadCloud className="mr-2 h-4 w-4" /> Add Contract
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh]">
+      <DialogContent 
+        className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" /> Add New Contract
