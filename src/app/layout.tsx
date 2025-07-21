@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth'; 
 import { AuthGuard } from '@/components/auth-gaurd';
 import { ThemeProvider } from "next-themes";
+import { SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   title: 'Verza', // Updated title
@@ -29,9 +30,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider> 
-            <AuthGuard>
-              {children}
-            </AuthGuard>
+            <SidebarProvider>
+              <AuthGuard>
+                {children}
+              </AuthGuard>
+            </SidebarProvider>
             <Toaster />
           </AuthProvider> 
         </ThemeProvider>
