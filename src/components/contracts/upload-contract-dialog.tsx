@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,7 @@ export function UploadContractDialog() {
   }, [isOpen]);
   
   const handleFullAnalysis = async (textToAnalyze: string) => {
+    toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
     setIsProcessingAi(true);
     setParseError(null);
     setParsedDetails(null);
@@ -129,9 +131,9 @@ export function UploadContractDialog() {
     setIsProcessingAi(true);
     setParseError(null);
     setContractText(`Processing "${file.name}" with AI...`);
+    toast({ title: "File Uploaded", description: "Extracting text with OCR..." });
 
     try {
-      // 1. Convert file to data URI
       const reader = new FileReader();
       const dataUriPromise = new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve(reader.result as string);
@@ -140,14 +142,12 @@ export function UploadContractDialog() {
       });
       const documentDataUri = await dataUriPromise;
 
-      // 2. Call OCR flow
       const ocrResult = await ocrDocument({ documentDataUri });
       if (!ocrResult || !ocrResult.extractedText) {
         throw new Error("OCR process failed to extract text.");
       }
       setContractText(ocrResult.extractedText);
-
-      // 3. Automatically trigger full analysis on the extracted text
+      
       await handleFullAnalysis(ocrResult.extractedText);
 
     } catch (error) {
