@@ -3,7 +3,7 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"; // Import SidebarTrigger
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"; // Import SidebarTrigger
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,7 +23,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const showVerificationBanner = user && !user.emailVerified && !authIsLoading;
 
   return (
-    <SidebarProvider>
       <div className="flex min-h-screen flex-col md:flex-row">
         {/* SidebarNav will be handled by SidebarProvider: 
             - Renders as fixed/collapsible on desktop.
@@ -73,6 +72,5 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-    </SidebarProvider>
   );
 }

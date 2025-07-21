@@ -7,6 +7,7 @@ import type { ReactNode} from 'react';
 import { useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Skeleton } from "@/components/ui/skeleton"; 
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth(); // Updated hook usage
@@ -43,7 +44,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   // If not loading, not on login page, and authenticated, show the app layout.
   if (isAuthenticated) {
-    return <AppLayout>{children}</AppLayout>;
+    return <SidebarProvider><AppLayout>{children}</AppLayout></SidebarProvider>;
   }
   
   // If not loading, not on login page, and not authenticated,
