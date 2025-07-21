@@ -17,7 +17,9 @@ import {
   XCircle,
   AlertTriangle as AlertTriangleIcon,
   ReceiptText,
-  Landmark
+  Landmark,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,7 +58,7 @@ const navItems = [
 export function SidebarNav() {
   const pathname = usePathname();
   const { user, logout, isLoading: authLoading } = useAuth();
-  const { setOpenMobile, isMobile } = useSidebar();
+  const { open, setOpen, setOpenMobile, isMobile } = useSidebar();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -199,6 +201,24 @@ export function SidebarNav() {
              <span className="ml-3 group-data-[collapsible=icon]:hidden">Login</span>
           </Button>
          )}
+         <SidebarMenuButton
+            onClick={() => setOpen(!open)}
+            className="hidden md:flex justify-start text-muted-foreground"
+            variant="ghost"
+            tooltip={{
+              children: open ? "Collapse Sidebar" : "Expand Sidebar",
+              className: "group-data-[collapsible=icon]:block hidden",
+            }}
+          >
+            {open ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeftOpen className="h-5 w-5" />
+            )}
+            <span className="group-data-[collapsible=icon]:hidden">
+              Collapse Sidebar
+            </span>
+          </SidebarMenuButton>
       </SidebarFooter>
     </Sidebar>
   );
