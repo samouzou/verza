@@ -144,7 +144,6 @@ export default function ReceiptsPage() {
       try {
         const imageDataUri = await dataUriPromise;
         setIsProcessingAi(true);
-        toast({ title: "Scanning Receipt", description: "AI is extracting the total amount..." });
         
         const result = await extractReceiptDetails({ imageDataUri });
 
@@ -307,6 +306,13 @@ export default function ReceiptsPage() {
               <Label htmlFor="receiptFile">Receipt Image*</Label>
               <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isFormDisabled} />
             </div>
+            
+            {isProcessingAi && (
+              <div className="flex items-center gap-2 text-primary text-sm mt-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>AI is analyzing your receipt...</span>
+              </div>
+            )}
             
             {imagePreview && selectedFile && !selectedFile.type.includes('pdf') && (
               <div className="mt-4 border rounded-md p-2 bg-muted max-h-60 overflow-auto">
