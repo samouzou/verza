@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { ocrDocument } from "@/ai/flows/ocr-flow"; // Import the new OCR flow
+import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles } from "lucide-react";
 import type { Contract } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -409,7 +409,7 @@ export function UploadContractDialog() {
               placeholder="Upload a file to automatically extract text here..."
               rows={8}
               className="mt-1"
-              readOnly={isProcessingAi}
+              disabled={isProcessingAi}
             />
           </div>
 
