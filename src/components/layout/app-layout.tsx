@@ -37,7 +37,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="app-layout-header-global flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
             <div className="flex items-center">
               <SidebarTrigger className="mr-2 h-7 w-7" /> {/* Trigger to open mobile Sheet */}
-              <span className="font-semibold text-lg">Verza</span>
+              <div className="flex items-center gap-2">
+                <svg width="32" height="32" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
+                  <text x="5" y="38" fontFamily="Space Grotesk, sans-serif" fontSize="42" fontWeight="bold" fill="currentColor">V</text>
+                </svg>
+                <span className="font-semibold text-lg">Verza</span>
+              </div>
             </div>
             {/* You can add other mobile-specific header items here, like a ThemeToggle */}
           </div>
