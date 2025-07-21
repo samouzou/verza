@@ -45,47 +45,27 @@ export async function extractReceiptDetails(input: ExtractReceiptDetailsInput): 
 const prompt = ai.definePrompt({
   name: 'extractReceiptDetailsPrompt',
   input: { schema: ExtractReceiptDetailsInputSchema },
-  output: { schema: ExtractReceiptDetailsOutputSchema },
+  output: { schema: z.object({ totalAmount: z.number().optional() }) },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.
-  Analyze the provided receipt image and extract the following information:
-  - vendorName: The name of the store or merchant.
-  - receiptDate: The date of the transaction. If possible, format as YYYY-MM-DD.
-  - totalAmount: The final total amount paid.
-  - currency: The currency symbol or code (e.g., USD, EUR). If not found, assume USD.
-  - lineItems: An array of items purchased, each with a description and optionally quantity, unitPrice, and totalPrice.
-  - categorySuggestion: Based on the vendor and items, suggest an expense category (e.g., "Meals & Entertainment", "Travel", "Office Supplies").
-  - rawText: The full raw text extracted from the receipt.
+  Your ONLY task is to find the final, total amount on the provided receipt image.
+  Look for keywords like "Total", "Grand Total", "Amount Paid".
+  Return only the numerical value for the total amount.
 
   Receipt Image:
   {{media url=imageDataUri}}
   `,
    // Specify Gemini Flash for potential image input, or a model that supports multimodal
-  model: 'googleai/gemini-2.0-flash', // or gemini-1.5-flash, gemini-1.5-pro etc.
-  config: {
-    // Explicitly request text output, even with media input
-    // For some models, you might need to adjust response modalities if you expect structured JSON vs. just text.
-    // Safety settings can be adjusted if needed, but default is usually fine for receipts.
-  },
+  model: 'googleai/gemini-2.0-flash', 
 });
 
 const extractReceiptDetailsFlow = ai.defineFlow(
   {
     name: 'extractReceiptDetailsFlow',
     inputSchema: ExtractReceiptDetailsInputSchema,
-    outputSchema: ExtractReceiptDetailsOutputSchema,
+    outputSchema: z.object({ totalAmount: z.number().optional() }),
   },
   async (input) => {
     const { output } = await prompt(input);
-    
-    // Post-processing or default setting if AI doesn't provide it
-    const result = output!; // Assuming output will not be null
-    if (result.totalAmount !== undefined && result.currency === undefined) {
-        result.currency = "USD"; // Default currency if amount exists but currency doesn't
-    }
-    if (!result.lineItems) {
-        result.lineItems = [];
-    }
-
-    return result;
+    return output!;
   }
 );

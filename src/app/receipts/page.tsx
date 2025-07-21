@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle, Wand2 } from 'lucide-react';
 import Image from 'next/image';
 import { db, storage, addDoc, collection, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy } from '@/lib/firebase';
 import type { Receipt, Contract } from '@/types';
@@ -26,8 +26,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { extractReceiptDetails } from '@/ai/flows/extract-receipt-details-flow';
 
 export default function ReceiptsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -36,6 +36,7 @@ export default function ReceiptsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isProcessingAi, setIsProcessingAi] = useState(false);
   
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -116,7 +117,7 @@ export default function ReceiptsPage() {
     };
   }, [user, authLoading, toast]);
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
@@ -128,10 +129,37 @@ export default function ReceiptsPage() {
       }
       setSelectedFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      
+      const dataUriPromise = new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            setImagePreview(result);
+            resolve(result);
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+
+      try {
+        const imageDataUri = await dataUriPromise;
+        setIsProcessingAi(true);
+        toast({ title: "Scanning Receipt", description: "AI is extracting the total amount..." });
+        
+        const result = await extractReceiptDetails({ imageDataUri });
+
+        if (result.totalAmount !== undefined) {
+          setAmount(result.totalAmount.toString());
+          toast({ title: "AI Analysis Complete", description: `Amount set to $${result.totalAmount}.` });
+        } else {
+          toast({ title: "AI Analysis", description: "Could not automatically determine the amount.", variant: "default" });
+        }
+
+      } catch (error) {
+         console.error("Error during receipt OCR:", error);
+         toast({ title: "AI Error", description: "Could not process the receipt image.", variant: "destructive" });
+      } finally {
+        setIsProcessingAi(false);
+      }
     }
   };
   
@@ -258,6 +286,8 @@ export default function ReceiptsPage() {
       </div>
     );
   }
+  
+  const isFormDisabled = isSaving || isProcessingAi;
 
   return (
      <>
@@ -274,7 +304,7 @@ export default function ReceiptsPage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="receiptFile">Receipt Image*</Label>
-              <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isSaving} />
+              <Input id="receiptFile" type="file" accept="image/jpeg, image/png, application/pdf" onChange={handleFileChange} className="mt-1" disabled={isFormDisabled} />
             </div>
             
             {imagePreview && selectedFile && !selectedFile.type.includes('pdf') && (
@@ -290,12 +320,12 @@ export default function ReceiptsPage() {
 
             <div>
               <Label htmlFor="description">Description*</Label>
-              <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Lunch meeting with client" className="mt-1" disabled={isSaving} />
+              <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Lunch meeting with client" className="mt-1" disabled={isFormDisabled} />
             </div>
 
             <div>
               <Label htmlFor="linkedContractId">Link to Contract/Brand*</Label>
-              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isSaving || userContracts.length === 0}>
+              <Select value={selectedContractId} onValueChange={setSelectedContractId} disabled={isFormDisabled || userContracts.length === 0}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select a contract..." /></SelectTrigger>
                 <SelectContent>
                   {userContracts.length === 0 ? (
@@ -311,23 +341,24 @@ export default function ReceiptsPage() {
             </div>
 
             <div>
-              <Label htmlFor="category">Category (Optional)</Label>
-              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g., Meals, Travel, Software" className="mt-1" disabled={isSaving} />
-            </div>
-            <div>
               <Label htmlFor="amount">Amount (Optional)</Label>
-              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isSaving} min="0" step="0.01"/>
+              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="mt-1" disabled={isFormDisabled} min="0" step="0.01"/>
+            </div>
+
+            <div>
+              <Label htmlFor="category">Category (Optional)</Label>
+              <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g., Meals, Travel, Software" className="mt-1" disabled={isFormDisabled} />
             </div>
              <div>
               <Label htmlFor="receiptDate">Receipt Date (Optional)</Label>
-              <Input id="receiptDate" type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="mt-1" disabled={isSaving} />
+              <Input id="receiptDate" type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="mt-1" disabled={isFormDisabled} />
             </div>
             <div>
               <Label htmlFor="vendorName">Vendor Name (Optional)</Label>
-              <Input id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="e.g., Starbucks" className="mt-1" disabled={isSaving} />
+              <Input id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="e.g., Starbucks" className="mt-1" disabled={isFormDisabled} />
             </div>
             
-            <Button onClick={handleSaveReceipt} disabled={isSaving || !selectedFile || !description.trim() || !selectedContractId} className="w-full">
+            <Button onClick={handleSaveReceipt} disabled={isFormDisabled || !selectedFile || !description.trim() || !selectedContractId} className="w-full">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Receipt
             </Button>
           </CardContent>
