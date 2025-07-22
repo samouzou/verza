@@ -42,6 +42,11 @@ import {
   helloSignWebhookHandler, // Added webhook handler
 } from "./esignatures";
 
+import {
+  generateFinicityConnectUrl,
+  finicityWebhookHandler,
+} from "./finicity";
+
 
 // Export all functions explicitly
 export {
@@ -65,4 +70,7 @@ export {
   // E-Signatures
   initiateHelloSignRequest,
   helloSignWebhookHandler,
+  // Finicity
+  generateFinicityConnectUrl,
+  finicityWebhookHandler,
 };

@@ -129,7 +129,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     }
 
     const userRecord = await admin.auth().getUser(userId);
-    const creatorEmail = userRecord.email; 
+    const creatorEmail = userRecord.email;
     if (!creatorEmail) {
       throw new HttpsError("failed-precondition", "Creator email not found. Cannot send signature request.");
     }
