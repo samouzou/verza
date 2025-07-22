@@ -218,29 +218,28 @@ export default function DashboardPage() {
         totalPendingIncomeCalc += c.amount;
       }
       
-      // Calculate for chart based on due date
-      if (contractDueDate && contractDueDate.getFullYear() === currentYear) {
-          const dueMonth = contractDueDate.getMonth();
-          if (invoiceStatus === 'paid') {
-              newEarningsChartData[dueMonth].collected += c.amount;
-          } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
-              newEarningsChartData[dueMonth].invoiced += c.amount;
-          }
+      // Correctly calculate for chart and monthly summaries
+      // Paid amounts are logged in the month they were updated (paid)
+      if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
+        const paidMonth = updatedAtDate.getMonth();
+        newEarningsChartData[paidMonth].collected += c.amount;
+        if (paidMonth === currentMonth) {
+          currentPaidThisMonthAmount += c.amount;
+        }
       }
 
-      // Calculate paid this month based on updatedAt
-      if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear && updatedAtDate.getMonth() === currentMonth) {
-        currentPaidThisMonthAmount += c.amount;
-      }
-      
-      // Calculate invoiced this month based on invoiceHistory timestamp
+      // Invoiced amounts are logged in the month they were sent
       if (c.invoiceHistory && Array.isArray(c.invoiceHistory)) {
         for (const event of c.invoiceHistory) {
           if (event.action === 'Invoice Sent to Client') {
             const eventDate = event.timestamp.toDate();
-            if (eventDate.getFullYear() === currentYear && eventDate.getMonth() === currentMonth) {
-              currentInvoicedThisMonthAmountForSummary += c.amount;
-              break; // Count each contract's invoice amount only once per month
+            if (eventDate.getFullYear() === currentYear) {
+              const eventMonth = eventDate.getMonth();
+              newEarningsChartData[eventMonth].invoiced += c.amount;
+              if (eventMonth === currentMonth) {
+                  currentInvoicedThisMonthAmountForSummary += c.amount;
+              }
+              break; // Count each contract's invoice amount only once
             }
           }
         }
