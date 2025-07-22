@@ -52,9 +52,9 @@ const navItems = [
   { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/receipts", label: "Receipts", icon: ReceiptText },
   { href: "/integrations", label: "Integrations", icon: Link2 },
-  { href: "/wallet", label: "Creator Wallet", icon: Wallet },
   { href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { href: "/tax-forms", label: "Tax Forms", icon: FileStack },
+  { href: "/wallet", label: "Creator Wallet", icon: Wallet },
 ];
 
 export function SidebarNav() {
