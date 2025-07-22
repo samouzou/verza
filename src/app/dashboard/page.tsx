@@ -218,20 +218,31 @@ export default function DashboardPage() {
         totalPendingIncomeCalc += c.amount;
       }
       
-      // Calculate for chart and monthly summaries
-      if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
-        const paymentMonth = updatedAtDate.getMonth();
-        newEarningsChartData[paymentMonth].collected += c.amount;
-        if (paymentMonth === currentMonth) {
-          currentPaidThisMonthAmount += c.amount;
-        }
+      // Calculate for chart based on due date
+      if (contractDueDate && contractDueDate.getFullYear() === currentYear) {
+          const dueMonth = contractDueDate.getMonth();
+          if (invoiceStatus === 'paid') {
+              newEarningsChartData[dueMonth].collected += c.amount;
+          } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
+              newEarningsChartData[dueMonth].invoiced += c.amount;
+          }
+      }
+
+      // Calculate paid this month based on updatedAt
+      if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear && updatedAtDate.getMonth() === currentMonth) {
+        currentPaidThisMonthAmount += c.amount;
       }
       
-      if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && invoiceStatus !== 'paid' && contractDueDate && contractDueDate.getFullYear() === currentYear) {
-        const dueMonth = contractDueDate.getMonth();
-        newEarningsChartData[dueMonth].invoiced += c.amount;
-        if (dueMonth === currentMonth) {
-          currentInvoicedThisMonthAmountForSummary += c.amount;
+      // Calculate invoiced this month based on invoiceHistory timestamp
+      if (c.invoiceHistory && Array.isArray(c.invoiceHistory)) {
+        for (const event of c.invoiceHistory) {
+          if (event.action === 'Invoice Sent to Client') {
+            const eventDate = event.timestamp.toDate();
+            if (eventDate.getFullYear() === currentYear && eventDate.getMonth() === currentMonth) {
+              currentInvoicedThisMonthAmountForSummary += c.amount;
+              break; // Count each contract's invoice amount only once per month
+            }
+          }
         }
       }
     });
@@ -370,7 +381,7 @@ export default function DashboardPage() {
           title="Invoiced This Month" 
           value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
           icon={FileSpreadsheet}
-          description="Based on invoices sent/viewed this month"
+          description="Based on invoices sent this month"
         />
         <SummaryCard 
           title="Collected This Month" 
