@@ -31,6 +31,7 @@ export interface UserProfile {
   avatarUrl: string | null;
   emailVerified: boolean;
   address?: string | null; 
+  tin?: string | null;
   createdAt?: Timestamp;
 
   // Subscription Fields
@@ -84,6 +85,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.avatarUrl = photoURL || null;
     updates.emailVerified = emailVerified;
     updates.address = null; 
+    updates.tin = null;
     updates.createdAt = createdAt;
 
     updates.stripeCustomerId = null;
@@ -124,6 +126,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
     if (existingData.address === undefined) { 
       updates.address = null;
+      needsUpdate = true;
+    }
+     if (existingData.tin === undefined) { 
+      updates.tin = null;
       needsUpdate = true;
     }
     
@@ -198,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
           emailVerified: currentFirebaseUser.emailVerified,
           address: firestoreUserData.address || null, 
+          tin: firestoreUserData.tin || null,
           createdAt: firestoreUserData.createdAt,
           stripeCustomerId: firestoreUserData.stripeCustomerId,
           stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
@@ -220,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatarUrl: currentFirebaseUser.photoURL,
           emailVerified: currentFirebaseUser.emailVerified,
           address: null, 
+          tin: null,
           createdAt: Timestamp.now(), 
           subscriptionStatus: 'none',
           subscriptionInterval: null, // Initialize interval

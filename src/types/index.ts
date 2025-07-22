@@ -1,3 +1,4 @@
+
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -40,6 +41,7 @@ export interface Contract {
   clientName?: string;
   clientEmail?: string;
   clientAddress?: string;
+  clientTin?: string;
   paymentInstructions?: string; // Base payment instructions from contract
 
   extractedTerms?: {
@@ -151,6 +153,7 @@ export interface UserProfileFirestoreData {
   avatarUrl: string | null;
   emailVerified: boolean;
   address?: string | null;
+  tin?: string | null;
   createdAt?: Timestamp;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
@@ -189,6 +192,21 @@ export interface Receipt {
 }
 
 // Banking & Tax Feature Types
+export interface BankAccount {
+  id: string;
+  userId: string;
+  providerAccountId: string;
+  name: string;
+  officialName: string | null;
+  mask: string;
+  type: string;
+  subtype: string | null;
+  balance: number;
+  provider: "Finicity"; // Or other providers in the future
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface BankTransaction {
   id: string; 
   userId: string;

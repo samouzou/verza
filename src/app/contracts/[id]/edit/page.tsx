@@ -67,6 +67,7 @@ export default function EditContractPage() {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAddress, setClientAddress] = useState('');
+  const [clientTin, setClientTin] = useState('');
   const [paymentInstructions, setPaymentInstructions] = useState('');
   const [contractType, setContractType] = useState<Contract['contractType']>('other');
   
@@ -112,6 +113,7 @@ export default function EditContractPage() {
             setClientName(data.clientName || '');
             setClientEmail(data.clientEmail || '');
             setClientAddress(data.clientAddress || '');
+            setClientTin(data.clientTin || '');
             setPaymentInstructions(data.paymentInstructions || '');
             
             setOriginalContractText(data.contractText || '');
@@ -224,6 +226,7 @@ export default function EditContractPage() {
         clientName: clientName.trim() || null,
         clientEmail: clientEmail.trim() || null,
         clientAddress: clientAddress.trim() || null,
+        clientTin: clientTin.trim() || null,
         paymentInstructions: paymentInstructions.trim() || null,
         
         previousContractText: hasContractTextChanged ? contract.contractText : contract.previousContractText,
@@ -263,6 +266,7 @@ export default function EditContractPage() {
     clientName.trim() !== (contract.clientName || '') ||
     clientEmail.trim() !== (contract.clientEmail || '') ||
     clientAddress.trim() !== (contract.clientAddress || '') ||
+    clientTin.trim() !== (contract.clientTin || '') ||
     paymentInstructions.trim() !== (contract.paymentInstructions || '') ||
     editedContractText.trim() !== (contract.contractText || '') ||
     !!newSelectedFile
@@ -471,6 +475,10 @@ export default function EditContractPage() {
                     <div>
                       <Label htmlFor="clientEmail">Client Email</Label>
                       <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label>
+                      <Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" />
                     </div>
                     <div>
                       <Label htmlFor="clientAddress">Client Address</Label>
