@@ -486,7 +486,8 @@ export default function ManageInvoicePage() {
       
       const updatesToSave: Partial<Contract> = { 
         invoiceStatus: 'sent', 
-        invoiceHistory: arrayUnion(historyEntry) as any, 
+        invoiceHistory: arrayUnion(historyEntry) as any,
+        lastReminderSentAt: serverTimestamp() as Timestamp, // Initialize reminder timestamp
         updatedAt: serverTimestamp() as Timestamp, 
         invoiceHtmlContent: htmlToSend,
         editableInvoiceDetails: currentFormData, 
