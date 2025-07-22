@@ -20,6 +20,7 @@ import {
   Landmark,
   PanelLeftClose,
   PanelLeftOpen,
+  FileStack,
 } from "lucide-react";
 import {
   Sidebar,
@@ -53,6 +54,7 @@ const navItems = [
   { href: "/integrations", label: "Integrations", icon: Link2 },
   { href: "/wallet", label: "Creator Wallet", icon: Wallet },
   { href: "/banking", label: "Banking & Taxes", icon: Landmark },
+  { href: "/tax-forms", label: "Tax Forms", icon: FileStack },
 ];
 
 export function SidebarNav() {
