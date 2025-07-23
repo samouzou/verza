@@ -40,6 +40,7 @@ export const createAgency = onCall(async (request) => {
     // Update user's role and add agency membership
     const userUpdate: Partial<UserProfileFirestoreData> = {
       role: "agency_owner",
+      isAgencyOwner: true, // Add the isAgencyOwner field to the Firestore document
       agencyMemberships: admin.firestore.FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
@@ -58,7 +59,7 @@ export const createAgency = onCall(async (request) => {
 
     await batch.commit();
 
-    logger.info(`Agency "${name}" created successfully for user ${userId}. Custom claim set.`);
+    logger.info(`Agency "${name}" created successfully for user ${userId}. Custom claim and Firestore field set.`);
 
     return {success: true, agencyId: newAgency.id};
   } catch (error) {
@@ -176,11 +177,8 @@ export const acceptAgencyInvitation = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "No pending invitation found for this user in the specified agency.");
     }
 
-    if (!userData.agencyMemberships) {
-      throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership record.");
-    }
-    const membershipIndex = userData.agencyMemberships.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
-    if (membershipIndex === -1) {
+    const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
+    if (membershipIndex === -1 || membershipIndex === undefined) {
       throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership.");
     }
 
@@ -188,8 +186,9 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     updatedTalentArray[talentIndex] =
       {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
 
-    const updatedMembershipsArray = [...userData.agencyMemberships];
+    const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
     updatedMembershipsArray[membershipIndex] = {...updatedMembershipsArray[membershipIndex], status: "active"};
+
 
     transaction.update(agencyDocRef, {talent: updatedTalentArray});
     transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
@@ -235,6 +234,9 @@ export const declineAgencyInvitation = onCall(async (request) => {
 
     if (userData.agencyMemberships && updatedMembershipsArray.length < userData.agencyMemberships.length) {
       transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
+    } else if (userData.agencyMemberships && updatedMembershipsArray.length === 0) {
+      // If the array becomes empty, ensure it's set to an empty array
+      transaction.update(userDocRef, {agencyMemberships: []});
     }
 
     return {success: true, message: "Invitation declined successfully."};

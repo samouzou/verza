@@ -28,7 +28,7 @@ export interface EditableInvoiceDetails {
 
 export interface Contract {
   id: string; // Document ID from Firestore
-  userId: string; // Firebase Auth User ID of the creator/agency owner
+  userId: string; // Firebase Auth User ID of the creator/talent
   ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
   ownerId: string; // UID of the user or ID of the agency
   brand: string;
@@ -157,6 +157,7 @@ export interface UserProfileFirestoreData {
   tin?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner';
+  isAgencyOwner?: boolean; // Added this field
   agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
