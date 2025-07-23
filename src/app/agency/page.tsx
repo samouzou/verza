@@ -319,15 +319,15 @@ export default function AgencyPage() {
     );
   }
   
-  const userOwnsAgency = ownedAgencies.length > 0;
-  const isTalentMember = (user.agencyMemberships?.length ?? 0) > 0;
+  const userOwnsAnAgency = ownedAgencies.length > 0;
+  const isMemberOfAnyAgency = (user.agencyMemberships?.filter(m => memberAgencies.some(a => a.id === m.agencyId)).length ?? 0) > 0;
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
-  if (userOwnsAgency) {
+  if (userOwnsAnAgency) {
     pageTitle = ownedAgencies[0].name;
     pageDescription = "Manage your agency's talent, contracts, and finances.";
-  } else if (isTalentMember) {
+  } else if (isMemberOfAnyAgency) {
     pageTitle = "My Agencies";
     pageDescription = "View and respond to agency invitations.";
   }
@@ -339,9 +339,9 @@ export default function AgencyPage() {
         description={pageDescription}
       />
       <div className="space-y-6">
-        {userOwnsAgency ? (
+        {userOwnsAnAgency ? (
           <AgencyDashboard agency={ownedAgencies[0]} />
-        ) : isTalentMember ? (
+        ) : isMemberOfAnyAgency ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
           <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
@@ -350,3 +350,5 @@ export default function AgencyPage() {
     </>
   );
 }
+
+    
