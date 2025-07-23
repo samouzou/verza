@@ -20,7 +20,7 @@ import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
 import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
-import type { Agency, Contract } from "@/types";
+import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
@@ -199,18 +199,19 @@ export function UploadContractDialog() {
     // Determine the owner and user IDs
     let ownerType: 'user' | 'agency' = 'user';
     let ownerId = user.uid;
-    let finalUserId = user.uid; // The user responsible for the work
+    let finalUserId = user.uid;
+    let talentName: string | undefined = undefined;
 
     if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
         ownerType = 'agency';
         ownerId = agency.id;
         finalUserId = selectedOwner; // The talent's UID
+        talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
     }
 
     try {
       if (selectedFile) {
-        // Use a generic path or one based on the owner
-        const filePath = `contracts/${ownerType === 'agency' ? ownerId : user.uid}/${Date.now()}_${selectedFile.name}`;
+        const filePath = `contracts/${ownerId}/${Date.now()}_${selectedFile.name}`;
         const fileStorageRef = storageRefOriginal(storage, filePath);
         const uploadResult = await uploadBytes(fileStorageRef, selectedFile);
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
@@ -235,6 +236,7 @@ export function UploadContractDialog() {
 
       const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
         userId: finalUserId,
+        talentName: talentName,
         ownerType: ownerType,
         ownerId: ownerId,
         brand: currentParsedDetails.brand || "Unknown Brand",

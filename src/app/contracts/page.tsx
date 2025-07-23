@@ -27,13 +27,29 @@ export default function ContractsPage() {
       const contractsCol = collection(db, 'contracts');
       
       let q;
-      // This query now fetches contracts where the user is either the direct owner 
-      // OR the talent on an agency contract. This covers all roles.
-      q = query(
-        contractsCol,
-        where('userId', '==', user.uid),
-        firestoreOrderBy('createdAt', 'desc')
-      );
+      if (user.role === 'agency_owner' && user.agencyMemberships && user.agencyMemberships.length > 0) {
+        // Agency owner fetches all contracts owned by their agency
+        const agencyId = user.agencyMemberships.find(m => m.role === 'owner')?.agencyId;
+        if (agencyId) {
+          q = query(
+            contractsCol,
+            where('ownerId', '==', agencyId),
+            firestoreOrderBy('createdAt', 'desc')
+          );
+        }
+      } else {
+        // Talent or individual creator fetches contracts assigned to them
+        q = query(
+          contractsCol,
+          where('userId', '==', user.uid),
+          firestoreOrderBy('createdAt', 'desc')
+        );
+      }
+      
+      if (!q) {
+          setIsLoadingContracts(false);
+          return;
+      }
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const contractList = querySnapshot.docs.map(docSnap => {

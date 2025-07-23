@@ -1,3 +1,4 @@
+
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -29,6 +30,7 @@ export interface EditableInvoiceDetails {
 export interface Contract {
   id: string; // Document ID from Firestore
   userId: string; // Firebase Auth User ID of the creator/talent
+  talentName?: string; // Denormalized talent name for agency view
   ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
   ownerId: string; // UID of the user or ID of the agency
   brand: string;
