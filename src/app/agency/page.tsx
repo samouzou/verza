@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -79,6 +79,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   // Payout form state
   const [payoutTalentId, setPayoutTalentId] = useState("");
   const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutDate, setPayoutDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
   const [payoutDescription, setPayoutDescription] = useState("");
   const [isSendingPayout, setIsSendingPayout] = useState(false);
   
@@ -141,6 +142,10 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
         toast({ title: "Description Required", description: "Please enter a reason for this payment.", variant: "destructive"});
         return;
     }
+     if (!payoutDate) {
+        toast({ title: "Payment Date Required", description: "Please select a date for the payment.", variant: "destructive"});
+        return;
+    }
 
     setIsSendingPayout(true);
     try {
@@ -149,11 +154,13 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
             talentId: payoutTalentId,
             amount: amountNum,
             description: payoutDescription.trim(),
+            paymentDate: payoutDate,
         });
         toast({ title: "Payout Initiated", description: "The internal payout has been recorded and is pending."});
         setPayoutTalentId("");
         setPayoutAmount("");
         setPayoutDescription("");
+        setPayoutDate(new Date().toISOString().split('T')[0]); // Reset to today
     } catch (error: any) {
         console.error("Error sending payout:", error);
         toast({ title: "Payout Failed", description: error.message || "Could not initiate the payout.", variant: "destructive" });
@@ -193,7 +200,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
-            <CardDescription>Send one-off payments to your talent.</CardDescription>
+            <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -207,15 +214,21 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                 </SelectContent>
               </Select>
             </div>
-             <div>
-              <Label htmlFor="payout-amount">Amount ($)</Label>
-              <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout} />
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="payout-amount">Amount ($)</Label>
+                  <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout} />
+                </div>
+                 <div>
+                  <Label htmlFor="payout-date">Payment Date</Label>
+                  <Input id="payout-date" type="date" value={payoutDate} onChange={(e) => setPayoutDate(e.target.value)} disabled={isSendingPayout} />
+                </div>
             </div>
             <div>
               <Label htmlFor="payout-description">Payment For</Label>
-              <Textarea id="payout-description" placeholder="e.g., Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout} />
+              <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout} />
             </div>
-            <Button onClick={handleSendPayout} disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription}>
+            <Button onClick={handleSendPayout} disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate}>
               {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
               Send Payment
             </Button>
@@ -256,12 +269,12 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
           {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
            : payoutHistory.length > 0 ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Talent</TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Talent</TableHead><TableHead>Payment Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
               <TableBody>
                 {payoutHistory.map(p => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.talentName}</TableCell>
-                    <TableCell>{(p.initiatedAt as Timestamp).toDate().toLocaleDateString()}</TableCell>
+                    <TableCell>{p.paymentDate ? new Date(p.paymentDate.seconds * 1000).toLocaleDateString() : (p.initiatedAt as Timestamp).toDate().toLocaleDateString()}</TableCell>
                     <TableCell>{p.description}</TableCell>
                     <TableCell><Badge variant={p.status === 'paid' ? 'default' : 'secondary'} className={`capitalize ${p.status === 'paid' ? 'bg-green-500' : ''}`}>{p.status}</Badge></TableCell>
                     <TableCell className="text-right font-mono">${p.amount.toLocaleString()}</TableCell>

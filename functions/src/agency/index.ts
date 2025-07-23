@@ -251,13 +251,16 @@ export const createInternalPayout = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   const agencyOwnerId = request.auth.uid;
-  const {agencyId, talentId, amount, description} = request.data;
+  const {agencyId, talentId, amount, description, paymentDate} = request.data;
 
-  if (!agencyId || !talentId || !amount || !description) {
-    throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, and description are required.");
+  if (!agencyId || !talentId || !amount || !description || !paymentDate) {
+    throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, description, and payment date are required.");
   }
   if (typeof amount !== "number" || amount <= 0) {
     throw new HttpsError("invalid-argument", "Amount must be a positive number.");
+  }
+   if (typeof paymentDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+    throw new HttpsError("invalid-argument", "Payment date must be a valid YYYY-MM-DD string.");
   }
 
   try {
@@ -288,6 +291,7 @@ export const createInternalPayout = onCall(async (request) => {
       description,
       status: "pending",
       initiatedAt: admin.firestore.Timestamp.now() as any,
+      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
     };
     await payoutDocRef.set(newPayout);
 

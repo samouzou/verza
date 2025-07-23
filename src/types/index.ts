@@ -271,6 +271,7 @@ export interface InternalPayout {
   talentName: string;
   amount: number;
   description: string;
+  paymentDate?: Timestamp;
   status: 'pending' | 'processing' | 'paid' | 'failed';
   initiatedAt: Timestamp;
   paidAt?: Timestamp;
