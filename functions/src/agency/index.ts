@@ -54,7 +54,7 @@ export const createAgency = onCall(async (request) => {
     batch.update(userDocRef, userUpdate);
 
     // Set a custom claim on the user to identify them as an agency owner
-    await admin.auth().setCustomUserClaims(userId, { isAgencyOwner: true });
+    await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true});
 
     await batch.commit();
 
