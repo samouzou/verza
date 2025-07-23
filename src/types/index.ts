@@ -157,7 +157,7 @@ export interface UserProfileFirestoreData {
   tin?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner';
-  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent' }>;
+  agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
@@ -251,4 +251,11 @@ export interface Agency {
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   talent: Talent[];
+}
+
+export interface AgencyMembership {
+  agencyId: string;
+  agencyName: string;
+  role: 'owner' | 'talent';
+  status: 'pending' | 'active';
 }

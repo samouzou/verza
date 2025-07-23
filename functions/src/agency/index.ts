@@ -94,7 +94,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
     try {
       talentUser = await admin.auth().getUserByEmail(talentEmailCleaned);
     } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
+      if (error.code === "auth/user-not-found") {
         throw new HttpsError("not-found", "No user found with this email address. They must have a Verza account to be invited.");
       }
       throw new HttpsError("internal", "Error finding user by email.");
@@ -123,8 +123,8 @@ export const inviteTalentToAgency = onCall(async (request) => {
     const talentAgencyMembership: AgencyMembership = {
       agencyId: agencyId,
       agencyName: agencyData.name,
-      role: 'talent',
-      status: 'pending',
+      role: "talent",
+      status: "pending",
     };
 
     const batch = db.batch();
@@ -145,89 +145,90 @@ export const inviteTalentToAgency = onCall(async (request) => {
 });
 
 export const acceptAgencyInvitation = onCall(async (request) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
+  }
+  const talentUserId = request.auth.uid;
+  const {agencyId} = request.data;
+
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(talentUserId);
+
+  return db.runTransaction(async (transaction) => {
+    const agencyDoc = await transaction.get(agencyDocRef);
+    const userDoc = await transaction.get(userDocRef);
+
+    if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
+    if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
+
+    const agencyData = agencyDoc.data() as Agency;
+    const userData = userDoc.data() as UserProfileFirestoreData;
+
+    const talentIndex = agencyData.talent.findIndex((t) => t.userId === talentUserId && t.status === "pending");
+    if (talentIndex === -1) {
+      throw new HttpsError("failed-precondition", "No pending invitation found for this user in the specified agency.");
     }
-    const talentUserId = request.auth.uid;
-    const { agencyId } = request.data;
 
-    if (!agencyId) {
-        throw new HttpsError("invalid-argument", "Agency ID is required.");
+    const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
+    if (membershipIndex === -1 || !userData.agencyMemberships) {
+      throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership.");
     }
 
-    const agencyDocRef = db.collection("agencies").doc(agencyId);
-    const userDocRef = db.collection("users").doc(talentUserId);
+    const updatedTalentArray = [...agencyData.talent];
+    updatedTalentArray[talentIndex] =
+      {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
 
-    return db.runTransaction(async (transaction) => {
-        const agencyDoc = await transaction.get(agencyDocRef);
-        const userDoc = await transaction.get(userDocRef);
+    const updatedMembershipsArray = [...userData.agencyMemberships];
+    updatedMembershipsArray[membershipIndex] = {...updatedMembershipsArray[membershipIndex], status: "active"};
 
-        if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
-        if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
+    transaction.update(agencyDocRef, {talent: updatedTalentArray});
+    transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
 
-        const agencyData = agencyDoc.data() as Agency;
-        const userData = userDoc.data() as UserProfileFirestoreData;
-
-        const talentIndex = agencyData.talent.findIndex(t => t.userId === talentUserId && t.status === 'pending');
-        if (talentIndex === -1) {
-            throw new HttpsError("failed-precondition", "No pending invitation found for this user in the specified agency.");
-        }
-
-        const membershipIndex = userData.agencyMemberships?.findIndex(m => m.agencyId === agencyId && m.status === 'pending');
-        if (membershipIndex === -1 || !userData.agencyMemberships) {
-            throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership.");
-        }
-
-        const updatedTalentArray = [...agencyData.talent];
-        updatedTalentArray[talentIndex] = { ...updatedTalentArray[talentIndex], status: 'active', joinedAt: admin.firestore.Timestamp.now() as any };
-        
-        const updatedMembershipsArray = [...userData.agencyMemberships];
-        updatedMembershipsArray[membershipIndex] = { ...updatedMembershipsArray[membershipIndex], status: 'active' };
-
-        transaction.update(agencyDocRef, { talent: updatedTalentArray });
-        transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
-
-        return { success: true, message: "Invitation accepted successfully." };
-    }).catch(error => {
-        logger.error(`Error accepting invitation for user ${talentUserId} to agency ${agencyId}:`, error);
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "An unexpected error occurred while accepting the invitation.");
-    });
+    return {success: true, message: "Invitation accepted successfully."};
+  }).catch((error) => {
+    logger.error(`Error accepting invitation for user ${talentUserId} to agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An unexpected error occurred while accepting the invitation.");
+  });
 });
 
 export const declineAgencyInvitation = onCall(async (request) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
-    }
-    const talentUserId = request.auth.uid;
-    const { agencyId } = request.data;
-     if (!agencyId) {
-        throw new HttpsError("invalid-argument", "Agency ID is required.");
-    }
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
+  }
+  const talentUserId = request.auth.uid;
+  const {agencyId} = request.data;
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
 
-    const agencyDocRef = db.collection("agencies").doc(agencyId);
-    const userDocRef = db.collection("users").doc(talentUserId);
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(talentUserId);
 
-     return db.runTransaction(async (transaction) => {
-        const agencyDoc = await transaction.get(agencyDocRef);
-        const userDoc = await transaction.get(userDocRef);
+  return db.runTransaction(async (transaction) => {
+    const agencyDoc = await transaction.get(agencyDocRef);
+    const userDoc = await transaction.get(userDocRef);
 
-        if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
-        if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
-        
-        const agencyData = agencyDoc.data() as Agency;
-        const userData = userDoc.data() as UserProfileFirestoreData;
-        
-        const updatedTalentArray = agencyData.talent.filter(t => t.userId !== talentUserId);
-        const updatedMembershipsArray = userData.agencyMemberships?.filter(m => m.agencyId !== agencyId) || [];
+    if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
+    if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
 
-        transaction.update(agencyDocRef, { talent: updatedTalentArray });
-        transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
+    const agencyData = agencyDoc.data() as Agency;
+    const userData = userDoc.data() as UserProfileFirestoreData;
 
-        return { success: true, message: "Invitation declined successfully." };
-     }).catch(error => {
-        logger.error(`Error declining invitation for user ${talentUserId} to agency ${agencyId}:`, error);
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
-    });
+    const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== talentUserId);
+    const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
+
+    transaction.update(agencyDocRef, {talent: updatedTalentArray});
+    transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
+
+    return {success: true, message: "Invitation declined successfully."};
+  }).catch((error) => {
+    logger.error(`Error declining invitation for user ${talentUserId} to agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
+  });
 });
