@@ -259,7 +259,7 @@ export const createInternalPayout = onCall(async (request) => {
   if (typeof amount !== "number" || amount <= 0) {
     throw new HttpsError("invalid-argument", "Amount must be a positive number.");
   }
-   if (typeof paymentDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+  if (typeof paymentDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
     throw new HttpsError("invalid-argument", "Payment date must be a valid YYYY-MM-DD string.");
   }
 
