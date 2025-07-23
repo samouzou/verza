@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency } from '@/types';
+import type { Agency, AgencyMembership } from '@/types';
 import { onSnapshot, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -164,23 +164,79 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   );
 }
 
-function TalentAgencyView({ agencies }: { agencies: Agency[] }) {
+function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], memberships: AgencyMembership[] }) {
+  const { toast } = useToast();
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  
+  const acceptAgencyInvitationCallable = httpsCallable(functions, 'acceptAgencyInvitation');
+  const declineAgencyInvitationCallable = httpsCallable(functions, 'declineAgencyInvitation');
+
+  const handleInvitationAction = async (agencyId: string, action: 'accept' | 'decline') => {
+    setProcessingId(agencyId);
+    try {
+      if (action === 'accept') {
+        await acceptAgencyInvitationCallable({ agencyId });
+        toast({ title: "Invitation Accepted!", description: "You are now an active member of the agency." });
+      } else {
+        await declineAgencyInvitationCallable({ agencyId });
+        toast({ title: "Invitation Declined", description: "You have declined the invitation." });
+      }
+    } catch (error: any) {
+      console.error(`Error ${action}ing invitation for agency ${agencyId}:`, error);
+      toast({ title: "Action Failed", description: error.message || "Could not process your request.", variant: "destructive" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Briefcase className="text-primary"/> Your Agencies</CardTitle>
-        <CardDescription>You are a member of the following agencies. Contact the owner for details on your contracts.</CardDescription>
+        <CardDescription>You are a member of or have been invited to the following agencies.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {agencies.map(agency => (
-            <div key={agency.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+        {agencies.map(agency => {
+          const membership = memberships.find(m => m.agencyId === agency.id);
+          const isPending = membership?.status === 'pending';
+
+          return (
+            <div key={agency.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
+              <div className="flex-grow">
                 <div className="font-medium">{agency.name}</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="h-4 w-4"/>
                     <span>{agency.talent.length} Talent</span>
                 </div>
+              </div>
+              <div className="flex-shrink-0 flex items-center gap-2">
+                {isPending ? (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="destructive_outline"
+                      onClick={() => handleInvitationAction(agency.id, 'decline')}
+                      disabled={processingId === agency.id}
+                    >
+                      {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="mr-1 h-3 w-3" />}
+                      Decline
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={() => handleInvitationAction(agency.id, 'accept')}
+                      disabled={processingId === agency.id}
+                    >
+                       {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="mr-1 h-3 w-3" />}
+                      Accept
+                    </Button>
+                  </>
+                ) : (
+                   <Badge variant="default" className="bg-green-500">Active Member</Badge>
+                )}
+              </div>
             </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );
@@ -214,11 +270,10 @@ export default function AgencyPage() {
       setIsLoadingAgencies(false);
     });
 
-    // Fetch agencies the user is a member of
+    // Fetch agencies the user is a member of (both pending and active)
     const fetchMemberAgencies = async () => {
       const memberAgencyIds = user.agencyMemberships
-        ?.filter(mem => mem.role === 'talent')
-        .map(mem => mem.agencyId) || [];
+        ?.map(mem => mem.agencyId) || [];
 
       if (memberAgencyIds.length > 0) {
         try {
@@ -264,7 +319,7 @@ export default function AgencyPage() {
   }
   
   const userOwnsAgency = ownedAgencies.length > 0;
-  const isTalentMember = memberAgencies.length > 0;
+  const isTalentMember = (user.agencyMemberships?.length ?? 0) > 0;
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
@@ -273,7 +328,7 @@ export default function AgencyPage() {
     pageDescription = "Manage your agency's talent, contracts, and finances.";
   } else if (isTalentMember) {
     pageTitle = "My Agencies";
-    pageDescription = "View the agencies you are a part of.";
+    pageDescription = "View and respond to agency invitations.";
   }
 
   return (
@@ -286,7 +341,7 @@ export default function AgencyPage() {
         {userOwnsAgency ? (
           <AgencyDashboard agency={ownedAgencies[0]} />
         ) : isTalentMember ? (
-          <TalentAgencyView agencies={memberAgencies} />
+          <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
           <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
         )}
