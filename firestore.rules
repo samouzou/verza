@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -21,6 +22,22 @@ service cloud.firestore {
       }
     }
 
+    // --- Agency Collection ---
+    match /agencies/{agencyId} {
+      // An authenticated user can read an agency if they are the owner OR if their user profile has a membership for that agency.
+      allow read: if request.auth != null &&
+                     (request.auth.uid == resource.data.ownerId ||
+                      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.exists(m => m.agencyId == agencyId)
+                     );
+                      
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if request.auth != null && request.auth.uid == resource.data.ownerId;
+      
+      allow delete: if false; // Deletions should be handled by a backend process.
+    }
+
     // --- Primary Collections ---
     
     // Rules for the 'contracts' collection
@@ -40,24 +57,6 @@ service cloud.firestore {
     match /receipts/{receiptId} {
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-    }
-
-    // Rules for the 'agencies' collection
-    match /agencies/{agencyId} {
-      // Allow read if user is the owner or a member of the agency.
-      allow read: if request.auth != null && 
-                     (request.auth.uid == resource.data.ownerId || 
-                      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                      agencyId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships[*].agencyId);
-      
-      // Allow create if user is authenticated and is the owner.
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      
-      // Allow updates only by the owner.
-      allow update: if request.auth != null && request.auth.uid == resource.data.ownerId;
-      
-      // Deleting agencies should be handled by a backend process.
-      allow delete: if false;
     }
     
     // --- Sharing and Feedback ---
