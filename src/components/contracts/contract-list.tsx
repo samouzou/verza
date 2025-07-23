@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Edit3, Trash2, Eye, User } from "lucide-react";
+import { ExternalLink, Edit3, Trash2, Eye, User, Briefcase } from "lucide-react";
 import type { Contract } from "@/types";
 import { ContractStatusBadge } from "./contract-status-badge";
 import {
@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { Timestamp } from 'firebase/firestore'; 
 import { useAuth } from "@/hooks/use-auth";
 
 interface ContractListProps {
@@ -33,10 +33,8 @@ export function ContractList({ contracts }: ContractListProps) {
     if (dateInput instanceof Timestamp) {
       return dateInput.toDate().toLocaleDateString();
     }
-    // Assuming string is YYYY-MM-DD for dueDate
-    // For createdAt string (from older data or client-side before proper conversion), try parsing
     try {
-      return new Date(dateInput + 'T00:00:00').toLocaleDateString(); // Ensure UTC for YYYY-MM-DD
+      return new Date(dateInput + 'T00:00:00').toLocaleDateString(); 
     } catch (e) {
       return 'Invalid Date';
     }
@@ -50,7 +48,7 @@ export function ContractList({ contracts }: ContractListProps) {
         <TableHeader>
           <TableRow>
             <TableHead>Brand</TableHead>
-            {isAgencyView && <TableHead className="hidden md:table-cell">Talent</TableHead>}
+            {isAgencyView && <TableHead className="hidden md:table-cell">Associated With</TableHead>}
             <TableHead className="hidden md:table-cell">Type</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead className="hidden sm:table-cell">Due Date</TableHead>
@@ -66,8 +64,17 @@ export function ContractList({ contracts }: ContractListProps) {
               {isAgencyView && (
                 <TableCell className="hidden md:table-cell">
                   <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground"/>
-                    <span>{contract.talentName || 'N/A'}</span>
+                    {contract.ownerType === 'agency' ? (
+                      <>
+                        <Briefcase className="h-4 w-4 text-muted-foreground"/>
+                        <span>{contract.talentName || 'Talent'}</span>
+                      </>
+                    ) : (
+                       <>
+                        <User className="h-4 w-4 text-muted-foreground"/>
+                        <span>Personal</span>
+                      </>
+                    )}
                   </div>
                 </TableCell>
               )}
