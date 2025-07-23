@@ -8,15 +8,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency } from '@/types';
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 const CREATE_AGENCY_FUNCTION_URL = "https://createagency-cpmccwbluq-uc.a.run.app";
+const INVITE_TALENT_FUNCTION_URL = "https://invitetalenttoagency-cpmccwbluq-uc.a.run.app";
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -69,17 +74,93 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
 }
 
 function AgencyDashboard({ agency }: { agency: Agency }) {
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
+  const { toast } = useToast();
+  const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
+
+  const handleInviteTalent = async () => {
+    if (!inviteEmail.trim() || !/^\S+@\S+\.\S+$/.test(inviteEmail)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    setIsInviting(true);
+    try {
+      await inviteTalentCallable({ agencyId: agency.id, talentEmail: inviteEmail.trim() });
+      toast({ title: "Invitation Sent", description: `An invitation has been sent to ${inviteEmail}.` });
+      setInviteEmail("");
+    } catch (error: any) {
+      console.error("Error inviting talent:", error);
+      toast({ title: "Invitation Failed", description: error.message || "Could not invite talent.", variant: "destructive" });
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Manage Your Talent</CardTitle>
-        <CardDescription>Invite creators to your agency and manage their contracts and payouts.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p>Talent management features coming soon!</p>
-        {/* Placeholder for talent list and invite form */}
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
+          <CardDescription>Invite creators to your agency by email. They will be added to your talent roster once they accept.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-grow">
+               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+               <Input 
+                type="email" 
+                placeholder="creator@example.com" 
+                className="pl-10"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                disabled={isInviting}
+              />
+            </div>
+            <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim()}>
+              {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+              Send Invite
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Manage Your Talent</CardTitle>
+          <CardDescription>View your current roster of creators.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           {agency.talent && agency.talent.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Creator</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agency.talent.map(t => (
+                  <TableRow key={t.userId}>
+                    <TableCell className="font-medium flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback>
+                      </Avatar>
+                      {t.displayName || 'N/A'}
+                    </TableCell>
+                    <TableCell>{t.email}</TableCell>
+                    <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${t.status === 'active' ? 'bg-green-500' : ''}`}>{t.status}</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           ) : (
+            <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators to get started!</p>
+           )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -89,7 +170,7 @@ export default function AgencyPage() {
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
 
   useEffect(() => {
-    if (user && user.role === 'agency_owner') {
+    if (user) {
       setIsLoadingAgencies(true);
       const agencyQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
       const unsubscribe = onSnapshot(agencyQuery, 
@@ -104,11 +185,11 @@ export default function AgencyPage() {
         }
       );
       return () => unsubscribe();
-    } else if (user) {
-      // User is not an agency owner, no need to query
+    } else if (!authLoading) {
+      // User is not logged in
       setIsLoadingAgencies(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   if (authLoading || (user && isLoadingAgencies)) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -124,7 +205,7 @@ export default function AgencyPage() {
     );
   }
   
-  const userOwnsAgency = user.role === 'agency_owner' && agencies.length > 0;
+  const userOwnsAgency = agencies.length > 0;
 
   return (
     <>

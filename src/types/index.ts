@@ -236,15 +236,19 @@ export interface TaxEstimation {
 }
 
 // Agency & Talent Types
+export interface Talent {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  status: 'pending' | 'active';
+  joinedAt?: Timestamp;
+}
+
 export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  talent: Array<{
-    userId: string;
-    name: string;
-    email: string;
-  }>;
+  talent: Talent[];
 }
