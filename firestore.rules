@@ -3,88 +3,92 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read/write their own profile, and read other profiles for basic info.
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+    // Helper function to check for agency ownership
+    function isAgencyOwner(agencyId, userId) {
+      return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == userId;
     }
 
-    // Agencies can be read by any authenticated user, but only written by the owner.
+    // Rules for User Profiles
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rules for Contracts
+    match /contracts/{contractId} {
+      allow read: if request.auth.uid == resource.data.userId || 
+                     (resource.data.ownerType == 'agency' && isAgencyOwner(resource.data.ownerId, request.auth.uid));
+
+      allow create: if (request.resource.data.ownerType == 'user' && request.resource.data.ownerId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
+                     (request.resource.data.ownerType == 'agency' && isAgencyOwner(request.resource.data.ownerId, request.auth.uid));
+      
+      allow update, delete: if resource.data.ownerType == 'user' && resource.data.userId == request.auth.uid ||
+                               (resource.data.ownerType == 'agency' && isAgencyOwner(resource.data.ownerId, request.auth.uid));
+    }
+    
+    // Rules for Shared Contract Versions (Public Read)
+    match /sharedContractVersions/{versionId} {
+      allow read: if resource.data.status == 'active';
+      allow write: if false; // Disallow public writes
+    }
+
+    // Rules for Contract Comments (Public Write for brands)
+    match /contractComments/{commentId} {
+      // Allow anyone to create (write) a new comment. Rules on parent doc prevent spam.
+      allow create: if true;
+      // Only the creator who owns the contract can update (e.g., add replies) or delete comments.
+      allow update, delete: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId;
+      // Allow the creator to read comments on their shared contracts.
+      allow read: if request.auth != null && request.auth.uid == resource.data.creatorId;
+    }
+    
+    // Rules for Redline Proposals
+    match /redlineProposals/{proposalId} {
+      allow create: if true; // Public can create proposals
+      // Only the creator can read or update (accept/reject) proposals for their contracts
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
+    }
+    
+     // Rules for Agencies
     match /agencies/{agencyId} {
       allow read: if request.auth != null;
-      allow create: if request.auth.uid == request.resource.data.ownerId && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true;
-      allow update, delete: if request.auth.uid == resource.data.ownerId;
+      allow create, update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
 
-    // Contracts can be read by their assigned user OR by an agency owner.
-    // Writes are more restricted.
-    match /contracts/{contractId} {
-        allow read: if request.auth != null && 
-          (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true);
-
-        allow create: if request.auth != null && 
-          (request.auth.uid == request.resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true);
-          
-        allow update: if request.auth != null && 
-          (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true);
-          
-        allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
-
-    // Shared versions of contracts can be read publicly.
-    // Only the creator can create or revoke them.
-    match /sharedContractVersions/{versionId} {
-      allow read: if true;
-      allow create, update: if request.auth != null && request.auth.uid == request.resource.data.userId;
-    }
-    
-    // Comments on shared contracts can be created by anyone, read by creator.
-    match /contractComments/{commentId} {
-        allow read: if request.auth != null && request.auth.uid == resource.data.creatorId;
-        allow create: if request.resource.data.commenterName is string && request.resource.data.commenterName.size() > 0;
-        allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
-        // Replies can be added by the creator
-        allow update: if request.auth != null && request.auth.uid == resource.data.creatorId;
-    }
-
-    // Redline proposals on shared contracts
-    match /redlineProposals/{proposalId} {
-        allow read: if request.auth != null && request.auth.uid == resource.data.creatorId;
-        allow create: if request.resource.data.proposerName is string && request.resource.data.proposerName.size() > 0;
-        // Only the creator can accept/reject (update)
-        allow update: if request.auth != null && request.auth.uid == resource.data.creatorId;
-    }
-
-    // Receipts can only be managed by the user who owns them.
+    // Rules for Receipts
     match /receipts/{receiptId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // User can manage their own receipts
+      allow read, write, delete: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
-
-    // Bank accounts can only be managed by the user who owns them.
+    
+    // Bank Accounts & Transactions are creator-only
     match /users/{userId}/bankAccounts/{accountId} {
-      allow read, write: if request.auth.uid == userId;
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+     match /users/{userId}/bankTransactions/{transactionId} {
+       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Bank transactions can only be managed by the user who owns them.
-    match /users/{userId}/bankTransactions/{transactionId} {
-      allow read, write: if request.auth.uid == userId;
-    }
-    
-    // Payment intents log
-     match /paymentIntents/{intentId} {
-      allow read, write: if false; // Should only be written by backend functions
-    }
-    
-    // Payments log
-    match /payments/{paymentId} {
-      allow read: if request.auth.uid == resource.data.userId;
-      allow write: if false; // Should only be written by backend functions
-    }
-    
-     // Email logs
+    // Rules for Email Logs
     match /emailLogs/{logId} {
-        allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-        allow write: if false; // Only backend can write
+      // Only the authenticated user associated with the log can read it.
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Disallow public or unauthorized creation/updates/deletions.
+      // Creation should be handled by backend functions only.
+      allow write: if false;
+    }
+
+    // Rules for Payments & Payment Intents
+    match /paymentIntents/{intentId} {
+      // Only the user associated with the intent can read it
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Creation is backend-only
+      allow write: if false;
+    }
+     match /payments/{paymentId} {
+      // Only the user associated with the payment can read it
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Creation is backend-only
+      allow write: if false;
     }
   }
 }
