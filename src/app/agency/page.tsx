@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,17 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency, AgencyMembership } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, documentId } from 'firebase/firestore';
+import type { Agency, AgencyMembership, InternalPayout } from '@/types';
+import { onSnapshot, collection, query, where, getDocs, documentId, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -75,6 +75,39 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
   const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
+  
+  // Payout form state
+  const [payoutTalentId, setPayoutTalentId] = useState("");
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutDescription, setPayoutDescription] = useState("");
+  const [isSendingPayout, setIsSendingPayout] = useState(false);
+  
+  // Payout history state
+  const [payoutHistory, setPayoutHistory] = useState<InternalPayout[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
+  
+  useEffect(() => {
+    if (!agency.id) return;
+    setIsLoadingHistory(true);
+    const payoutsQuery = query(
+        collection(db, "internalPayouts"), 
+        where("agencyId", "==", agency.id),
+        orderBy("initiatedAt", "desc")
+    );
+    const unsubscribe = onSnapshot(payoutsQuery, (snapshot) => {
+        const history = snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as InternalPayout));
+        setPayoutHistory(history);
+        setIsLoadingHistory(false);
+    }, (error) => {
+        console.error("Error fetching payout history:", error);
+        toast({ title: "History Error", description: "Could not fetch payout history.", variant: "destructive" });
+        setIsLoadingHistory(false);
+    });
+
+    return () => unsubscribe();
+  }, [agency.id, toast]);
 
   const handleInviteTalent = async () => {
     if (!inviteEmail.trim() || !/^\S+@\S+\.\S+$/.test(inviteEmail)) {
@@ -93,57 +126,116 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
       setIsInviting(false);
     }
   };
+  
+  const handleSendPayout = async () => {
+    const amountNum = parseFloat(payoutAmount);
+    if (!payoutTalentId) {
+        toast({ title: "Talent Required", description: "Please select a talent to pay.", variant: "destructive"});
+        return;
+    }
+    if (isNaN(amountNum) || amountNum <= 0) {
+        toast({ title: "Invalid Amount", description: "Please enter a valid positive amount.", variant: "destructive"});
+        return;
+    }
+    if (!payoutDescription.trim()) {
+        toast({ title: "Description Required", description: "Please enter a reason for this payment.", variant: "destructive"});
+        return;
+    }
+
+    setIsSendingPayout(true);
+    try {
+        await createInternalPayoutCallable({
+            agencyId: agency.id,
+            talentId: payoutTalentId,
+            amount: amountNum,
+            description: payoutDescription.trim(),
+        });
+        toast({ title: "Payout Initiated", description: "The internal payout has been recorded and is pending."});
+        setPayoutTalentId("");
+        setPayoutAmount("");
+        setPayoutDescription("");
+    } catch (error: any) {
+        console.error("Error sending payout:", error);
+        toast({ title: "Payout Failed", description: error.message || "Could not initiate the payout.", variant: "destructive" });
+    } finally {
+        setIsSendingPayout(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
-          <CardDescription>Invite creators to your agency by email. They will be added to your talent roster once they accept.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-grow">
-               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-               <Input 
-                type="email" 
-                placeholder="creator@example.com" 
-                className="pl-10"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                disabled={isInviting}
-              />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+            <CardHeader>
+            <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
+            <CardDescription>Invite creators to join your agency via email.</CardDescription>
+            </CardHeader>
+            <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-grow">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    type="email" 
+                    placeholder="creator@example.com" 
+                    className="pl-10"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    disabled={isInviting}
+                />
+                </div>
+                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim()}>
+                {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                Send Invite
+                </Button>
             </div>
-            <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim()}>
-              {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-              Send Invite
+            </CardContent>
+        </Card>
+         <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
+            <CardDescription>Send one-off payments to your talent.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="payout-talent">Talent</Label>
+              <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout}>
+                <SelectTrigger id="payout-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
+                <SelectContent>
+                  {agency.talent.filter(t => t.status === 'active').map(t => (
+                    <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+             <div>
+              <Label htmlFor="payout-amount">Amount ($)</Label>
+              <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout} />
+            </div>
+            <div>
+              <Label htmlFor="payout-description">Payment For</Label>
+              <Textarea id="payout-description" placeholder="e.g., Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout} />
+            </div>
+            <Button onClick={handleSendPayout} disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription}>
+              {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
+              Send Payment
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
+          </CardContent>
+        </Card>
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Manage Your Talent</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>
           <CardDescription>View your current roster of creators.</CardDescription>
         </CardHeader>
         <CardContent>
            {agency.talent && agency.talent.length > 0 ? (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Creator</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>
                 {agency.talent.map(t => (
                   <TableRow key={t.userId}>
                     <TableCell className="font-medium flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback>
-                      </Avatar>
+                      <Avatar className="h-8 w-8"><AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
                       {t.displayName || 'N/A'}
                     </TableCell>
                     <TableCell>{t.email}</TableCell>
@@ -152,9 +244,32 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                 ))}
               </TableBody>
             </Table>
-           ) : (
-            <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators to get started!</p>
-           )}
+           ) : <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators!</p>}
+        </CardContent>
+      </Card>
+       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
+          <CardDescription>History of one-off payments made to your talent.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
+           : payoutHistory.length > 0 ? (
+            <Table>
+              <TableHeader><TableRow><TableHead>Talent</TableHead><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {payoutHistory.map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">{p.talentName}</TableCell>
+                    <TableCell>{(p.initiatedAt as Timestamp).toDate().toLocaleDateString()}</TableCell>
+                    <TableCell>{p.description}</TableCell>
+                    <TableCell><Badge variant={p.status === 'paid' ? 'default' : 'secondary'} className={`capitalize ${p.status === 'paid' ? 'bg-green-500' : ''}`}>{p.status}</Badge></TableCell>
+                    <TableCell className="text-right font-mono">${p.amount.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           ) : <p className="text-center text-muted-foreground py-6">No internal payouts have been made.</p>}
         </CardContent>
       </Card>
     </div>
@@ -271,7 +386,7 @@ export default function AgencyPage() {
     const fetchMemberAgencies = async () => {
       const memberAgencyIds = user.agencyMemberships
         ?.map(mem => mem.agencyId)
-        .filter(id => !!id) || []; // Filter out any empty/null/undefined IDs
+        .filter(id => !!id) || [];
 
       if (memberAgencyIds.length > 0) {
         try {
@@ -298,7 +413,6 @@ export default function AgencyPage() {
   }, [user, authLoading]);
   
   const handleAgencyCreated = () => {
-    // Refresh auth user to get the new role and membership, which will trigger the useEffect
     refreshAuthUser();
   }
 

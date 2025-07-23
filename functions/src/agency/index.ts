@@ -1,9 +1,8 @@
-
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership} from "../../../src/types";
+import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout} from "../../../src/types";
 
 export const createAgency = onCall(async (request) => {
   if (!request.auth) {
@@ -245,4 +244,60 @@ export const declineAgencyInvitation = onCall(async (request) => {
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   });
+});
+
+export const createInternalPayout = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  const agencyOwnerId = request.auth.uid;
+  const {agencyId, talentId, amount, description} = request.data;
+
+  if (!agencyId || !talentId || !amount || !description) {
+    throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, and description are required.");
+  }
+  if (typeof amount !== "number" || amount <= 0) {
+    throw new HttpsError("invalid-argument", "Amount must be a positive number.");
+  }
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+
+    if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
+      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
+    }
+    const agencyData = agencySnap.data() as Agency;
+    const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
+
+    if (!talentInfo) {
+      throw new HttpsError("not-found", "The selected talent is not a member of this agency.");
+    }
+
+    // TODO: Integrate with Stripe to create a transfer to the talent's connected account.
+    // For now, we will just create the record in Firestore.
+    const payoutDocRef = db.collection("internalPayouts").doc();
+    const newPayout: InternalPayout = {
+      id: payoutDocRef.id,
+      agencyId,
+      agencyName: agencyData.name,
+      agencyOwnerId,
+      talentId,
+      talentName: talentInfo.displayName || "N/A",
+      amount,
+      description,
+      status: "pending",
+      initiatedAt: admin.firestore.Timestamp.now() as any,
+    };
+    await payoutDocRef.set(newPayout);
+
+    logger.info(`Internal payout created for talent ${talentId} by agency ${agencyId}.`);
+    return {success: true, payoutId: newPayout.id, message: "Payout initiated successfully."};
+  } catch (error) {
+    logger.error(`Error creating internal payout by agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", "An unexpected error occurred while creating the payout.");
+  }
 });

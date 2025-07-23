@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -261,4 +260,19 @@ export interface AgencyMembership {
   agencyName: string;
   role: 'owner' | 'talent';
   status: 'pending' | 'active';
+}
+
+export interface InternalPayout {
+  id: string;
+  agencyId: string;
+  agencyName: string;
+  agencyOwnerId: string;
+  talentId: string;
+  talentName: string;
+  amount: number;
+  description: string;
+  status: 'pending' | 'processing' | 'paid' | 'failed';
+  initiatedAt: Timestamp;
+  paidAt?: Timestamp;
+  stripeTransferId?: string;
 }
