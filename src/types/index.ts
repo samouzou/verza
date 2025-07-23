@@ -159,7 +159,7 @@ export interface UserProfileFirestoreData {
   tin?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner';
-  isAgencyOwner?: boolean; // Added this field
+  isAgencyOwner?: boolean;
   agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;

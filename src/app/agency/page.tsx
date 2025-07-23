@@ -20,9 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
-const CREATE_AGENCY_FUNCTION_URL = "https://createagency-cpmccwbluq-uc.a.run.app";
-const INVITE_TALENT_FUNCTION_URL = "https://invitetalenttoagency-cpmccwbluq-uc.a.run.app";
-
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -350,5 +347,3 @@ export default function AgencyPage() {
     </>
   );
 }
-
-    
