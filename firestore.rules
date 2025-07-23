@@ -28,7 +28,7 @@ service cloud.firestore {
       allow read: if request.auth != null &&
                      (request.auth.uid == resource.data.ownerId ||
                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.exists(m => m.agencyId == agencyId)
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.exists(m == m.agencyId == agencyId)
                      );
                       
       allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
