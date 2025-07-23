@@ -273,7 +273,8 @@ export default function AgencyPage() {
     // Fetch agencies the user is a member of (both pending and active)
     const fetchMemberAgencies = async () => {
       const memberAgencyIds = user.agencyMemberships
-        ?.map(mem => mem.agencyId) || [];
+        ?.map(mem => mem.agencyId)
+        .filter(id => !!id) || []; // Filter out any empty/null/undefined IDs
 
       if (memberAgencyIds.length > 0) {
         try {
