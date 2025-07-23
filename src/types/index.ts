@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -29,7 +28,9 @@ export interface EditableInvoiceDetails {
 
 export interface Contract {
   id: string; // Document ID from Firestore
-  userId: string; // Firebase Auth User ID
+  userId: string; // Firebase Auth User ID of the creator/agency owner
+  ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
+  ownerId: string; // UID of the user or ID of the agency
   brand: string;
   amount: number; // This will represent the total amount of the invoice, derived from editableInvoiceDetails if present
   dueDate: string; // YYYY-MM-DD
@@ -155,6 +156,8 @@ export interface UserProfileFirestoreData {
   address?: string | null;
   tin?: string | null;
   createdAt?: Timestamp;
+  role: 'individual_creator' | 'agency_owner';
+  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent' }>;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
@@ -230,4 +233,18 @@ export interface TaxEstimation {
   suggestedSetAsideAmount: number;
   notes?: string[]; 
   calculationDate: string; 
+}
+
+// Agency & Talent Types
+export interface Agency {
+  id: string;
+  name: string;
+  ownerId: string; // UID of the user who owns the agency
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  talent: Array<{
+    userId: string;
+    name: string;
+    email: string;
+  }>;
 }
