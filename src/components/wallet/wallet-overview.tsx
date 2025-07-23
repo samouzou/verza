@@ -5,14 +5,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { DollarSign, PlusCircle, ArrowDownCircle, Banknote, Users } from "lucide-react";
 import { useState, useEffect } from 'react';
+import type { InternalPayout } from '@/types';
 
-export function WalletOverview() {
+interface WalletOverviewProps {
+  payouts: InternalPayout[];
+}
+
+export function WalletOverview({ payouts }: WalletOverviewProps) {
   const [balance, setBalance] = useState(0);
+  const [upcomingPayouts, setUpcomingPayouts] = useState(0);
 
   useEffect(() => {
-    // Simulate fetching balance
-    setBalance(12345.67);
-  }, []);
+    const paidBalance = payouts
+      .filter(p => p.status === 'paid')
+      .reduce((acc, p) => acc + p.amount, 0);
+    setBalance(paidBalance);
+
+    const pendingAmount = payouts
+      .filter(p => p.status === 'pending')
+      .reduce((acc, p) => acc + p.amount, 0);
+    setUpcomingPayouts(pendingAmount);
+
+  }, [payouts]);
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -49,21 +63,21 @@ export function WalletOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">$5,230.00</p>
-            <p className="text-xs text-muted-foreground">from 3 contracts, expected next 30 days.</p>
+            <p className="text-2xl font-bold">${upcomingPayouts.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs text-muted-foreground">{payouts.filter(p=>p.status === 'pending').length} pending payouts from your agency.</p>
           </CardContent>
         </Card>
         <Card className="shadow-lg">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Users className="h-5 w-5 text-muted-foreground" />
-              Pay Your Talent
+              Agency View
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-3">Initiate payouts to your agency's talent (UI Placeholder).</p>
-            <Button variant="secondary" className="w-full" disabled>
-              Create Payout
+            <p className="text-sm text-muted-foreground mb-3">Agency owners can manage payouts from the Agency page.</p>
+            <Button variant="secondary" className="w-full" asChild>
+                <a href="/agency">Go to Agency Dashboard</a>
             </Button>
           </CardContent>
         </Card>
