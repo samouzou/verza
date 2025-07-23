@@ -47,7 +47,13 @@ import {
   finicityWebhookHandler,
 } from "./finicity";
 
-import {createAgency, inviteTalentToAgency, acceptAgencyInvitation, declineAgencyInvitation, createInternalPayout} from "./agency";
+import {
+  createAgency,
+  inviteTalentToAgency,
+  acceptAgencyInvitation,
+  declineAgencyInvitation,
+  createInternalPayout,
+} from "./agency";
 
 
 // Export all functions explicitly
