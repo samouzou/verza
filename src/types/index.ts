@@ -53,7 +53,7 @@ export interface Contract {
     lateFeePenalty?: string;
   };
   summary?: string;
-  contractText?: string;
+  contractText?: string | null;
   previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
