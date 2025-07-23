@@ -1,32 +1,52 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the 'users' collection
-    // Users can read and update their own profile information.
-    // Users can create their own user document (e.g., on first sign-up).
-    // Deleting user documents directly by clients is generally disallowed.
+    // --- User Profile and Sub-collections ---
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // For user document writes (like subscription status by backend),
-      // the Admin SDK used by Cloud Functions bypasses these client-side rules.
-      // If you need client to write specific fields here, you'd add more granular 'update' rules.
+      // Users can create, read, and update their own profile document.
+      allow create, read, update: if request.auth != null && request.auth.uid == userId;
+      // Deleting a user document should be handled by a backend process.
       allow delete: if false;
+
+      // Rules for Bank Accounts sub-collection
+      match /bankAccounts/{accountId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Rules for Bank Transactions sub-collection
+      match /bankTransactions/{transactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
+    // --- Primary Collections ---
+
+    // Rules for the 'agencies' collection
+    match /agencies/{agencyId} {
+      // Allow read if the user is the owner OR is listed as a talent member in the agency.
+      // This uses the user's own profile to check for membership.
+      allow read: if request.auth != null &&
+                   (request.auth.uid == resource.data.ownerId ||
+                    agencyId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.map(mem => mem.agencyId));
+
+      // Allow create if the user is authenticated and setting themselves as the owner.
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+
+      // Allow update only by the owner of the agency.
+      allow update: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      
+      // Deleting an agency should be handled by a backend process for safety.
+      allow delete: if false;
+    }
+    
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      // PUBLIC READ: Allow anyone to read contract details.
-      // This is necessary for the public payment page (/pay/contract/[id])
-      // to fetch and display contract information (e.g., amount, brand name)
-      // before the client makes a payment.
-      // WARNING: This makes ALL fields of ALL contracts publicly readable if the contractId is known.
-      // For enhanced security in a production app with sensitive contract data,
-      // consider using a Cloud Function as an intermediary to serve only essential,
-      // non-sensitive details to the public payment page.
-      allow read: if true;
+      // Authenticated users can read contracts. This is required for various app functions.
+      // For the public payment page, the backend function will need to handle data fetching.
+      allow read: if request.auth != null;
 
       // Authenticated users can create contracts if they are the owner.
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
@@ -35,11 +55,17 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
+    // Rules for the 'receipts' collection
+    match /receipts/{receiptId} {
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // --- Sharing and Feedback ---
+
     match /sharedContractVersions/{sharedVersionId} {
       // PUBLIC READ for active links: Allow anyone to read if the status is 'active'.
       // Authenticated creator can always read their own versions regardless of status.
-      // Note: A backend function will be needed to update brandHasViewed securely without
-      //       granting public write access. For now, this is best-effort from the client.
       allow read: if (resource.data.status == 'active') || 
                        (request.auth != null && request.auth.uid == resource.data.userId);
 
@@ -52,8 +78,7 @@ service cloud.firestore {
                        get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
 
       // Only the creator can update (e.g., to revoke) or delete.
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
     
     // Rules for 'contractComments' collection
@@ -71,12 +96,10 @@ service cloud.firestore {
       allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
                      (request.auth != null && request.auth.uid == resource.data.creatorId);
 
-      // Allow creator to update (e.g., add replies)
-      // Ensures critical fields of the comment itself are not changed during a reply addition.
       allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       request.resource.data.creatorId == resource.data.creatorId && // Ensure original creatorId isn't changed
-                       request.resource.data.originalContractId == resource.data.originalContractId && // Ensure originalContractId isn't changed
-                       request.resource.data.sharedVersionId == resource.data.sharedVersionId && // Ensure sharedVersionId isn't changed
+                       request.resource.data.creatorId == resource.data.creatorId && 
+                       request.resource.data.originalContractId == resource.data.originalContractId && 
+                       request.resource.data.sharedVersionId == resource.data.sharedVersionId && 
                        (request.resource.data.replies == null || request.resource.data.replies is list);
                        
       allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
@@ -84,78 +107,46 @@ service cloud.firestore {
     
     // Rules for 'redlineProposals' collection
     match /redlineProposals/{proposalId} {
-      // ANYONE can create a proposal on an active shared contract.
-      // This validates that the proposal is being created against a valid, active shared version
-      // and that the proposer provides the required information.
       allow create: if request.resource.data.sharedVersionId != null &&
                        exists(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)) &&
                        get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
-                       // Proposer must provide their name.
                        request.resource.data.proposerName is string && request.resource.data.proposerName.size() > 0 &&
-                       // Proposal must contain text to change.
                        request.resource.data.originalText is string && request.resource.data.originalText.size() > 0 &&
                        request.resource.data.proposedText is string && request.resource.data.proposedText.size() > 0 &&
-                       // The creator ID must match the owner of the contract.
                        request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
-                       // The status must be 'proposed' on creation.
                        request.resource.data.status == 'proposed' &&
-                       // The proposedAt timestamp must match the server time.
                        request.resource.data.proposedAt == request.time;
       
-      // ANYONE can read proposals for an active shared version.
-      // The CREATOR can always read proposals for their contracts.
       allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
                      (request.auth != null && request.auth.uid == resource.data.creatorId);
 
-      // ONLY THE CREATOR can update a proposal (to accept or reject it).
-      // They cannot change the original proposal content.
       allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       // Ensure the core proposal data is immutable
                        request.resource.data.originalText == resource.data.originalText &&
                        request.resource.data.proposedText == resource.data.proposedText &&
                        request.resource.data.proposerName == resource.data.proposerName &&
-                       // Allow status to be changed to 'accepted' or 'rejected'.
                        request.resource.data.status in ['accepted', 'rejected'];
 
-      // ONLY THE CREATOR can delete a proposal.
       allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
     }
-    
-    // Rules for the 'receipts' collection
-    match /receipts/{receiptId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-    }
-    
+
+    // --- Backend-Managed Collections ---
+
     // Rules for 'paymentIntents' collection (created by backend)
-    // Typically, these should only be writable by your backend (Admin SDK)
-    // and perhaps readable by the authenticated user who initiated it or owns the contract.
     match /paymentIntents/{intentId} {
-      allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||  // Payer
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient
-                  );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.creatorId);
+      allow write: if false; // Only backend via Admin SDK
     }
 
     // Rules for 'payments' collection (created by backend webhook)
-    // Similar to paymentIntents, mostly backend-managed.
     match /payments/{paymentId} {
-       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || // Payer mentioned in metadata
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient if you add this field
-                  );
-      allow create, update, delete: if false; // Only backend via Admin SDK
+       allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.creatorId);
+      allow write: if false; // Only backend via Admin SDK
     }
 
     // Rules for 'emailLogs' collection (created by backend)
-    // Typically, these should only be writable by your backend.
-    // Read access might be for admins or specific users if needed.
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid; // If logs contain userId
-      // Or, if only admins/backend should read:
-      // allow read: if false; 
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false; // Only backend via Admin SDK
     }
   }
 }
