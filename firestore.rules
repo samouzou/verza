@@ -21,38 +21,50 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
-
-    // --- Primary Collections ---
     
-    // Rules for the 'agencies' collection
+    // Rules for 'agencies' collection
     match /agencies/{agencyId} {
-      // Any authenticated user can read agency data. 
-      // This is safe as sensitive data is not stored here.
-      // The client-side code filters which agencies to display.
+       // An authenticated user can read an agency if they are the owner OR they are listed as a talent member
       allow read: if request.auth != null;
 
-      // User can create an agency if they are the owner.
+      // Allow a user to create an agency if they are authenticated and are the designated owner.
       allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
       
-      // Only the agency owner can update the agency document.
-      // Talent can update it via specific Cloud Functions (e.g., accepting invites).
-      allow update: if request.auth != null && request.auth.uid == resource.data.ownerId;
+      // Allow the owner to update the agency document (e.g., to add talent)
+      allow update: if request.auth != null && (
+        // Case 1: Agency owner is making changes
+        (resource.data.ownerId == request.auth.uid) ||
+        // Case 2: A talent is accepting/declining an invitation
+        (request.auth.uid in resource.data.talent.map(t => t.userId))
+      );
       
-      // Deleting agencies should be a backend process.
+      // Prevent accidental deletion from the client.
       allow delete: if false;
     }
 
+    // --- Primary Collections ---
+    
     // Rules for the 'contracts' collection
     match /contracts/{contractId} {
-      // Authenticated users can read contracts. This is required for various app functions.
-      // For the public payment page, the backend function will need to handle data fetching.
-      allow read: if request.auth != null;
+      // Allow read if the user is the talent on the contract OR is the owner of the agency that owns the contract
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        (resource.data.ownerType == 'agency' && get(/databases/$(database)/documents/agencies/$(resource.data.ownerId)).data.ownerId == request.auth.uid)
+      );
 
-      // Authenticated users can create contracts if they are the owner.
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Allow create if the user is creating it for themselves, or an agency owner is creating it for their talent.
+      allow create: if request.auth != null && (
+        // Case 1: User creates a personal contract
+        (request.resource.data.ownerType == 'user' && request.resource.data.ownerId == request.auth.uid && request.resource.data.userId == request.auth.uid) ||
+        // Case 2: Agency owner creates a contract for their talent
+        (request.resource.data.ownerType == 'agency' && get(/databases/$(database)/documents/agencies/$(request.resource.data.ownerId)).data.ownerId == request.auth.uid)
+      );
       
-      // Authenticated users can update or delete only their own contracts.
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Allow update/delete if the user is the talent on the contract (for some actions) OR the agency owner.
+      allow update, delete: if request.auth != null && (
+        (resource.data.ownerType == 'user' && resource.data.userId == request.auth.uid) ||
+        (resource.data.ownerType == 'agency' && get(/databases/$(database)/documents/agencies/$(resource.data.ownerId)).data.ownerId == request.auth.uid)
+      );
     }
     
     // Rules for the 'receipts' collection
