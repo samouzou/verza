@@ -22,14 +22,29 @@ export default function ContractsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user && user.uid && !authLoading) {
+    if (user && !authLoading) {
       setIsLoadingContracts(true);
       const contractsCol = collection(db, 'contracts');
-      const q = query(
-        contractsCol,
-        where('userId', '==', user.uid),
-        firestoreOrderBy('createdAt', 'desc')
-      );
+      
+      let q;
+      // If the user is an agency owner, fetch contracts where the agency is the owner.
+      // Otherwise, fetch contracts where the user is the direct owner.
+      if (user.role === 'agency_owner' && user.agencyMemberships && user.agencyMemberships.length > 0) {
+        const agencyId = user.agencyMemberships[0].agencyId; // Assuming one agency per owner for now
+        q = query(
+          contractsCol,
+          where('ownerType', '==', 'agency'),
+          where('ownerId', '==', agencyId),
+          firestoreOrderBy('createdAt', 'desc')
+        );
+      } else {
+        q = query(
+          contractsCol,
+          where('ownerType', '==', 'user'),
+          where('ownerId', '==', user.uid),
+          firestoreOrderBy('createdAt', 'desc')
+        );
+      }
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const contractList = querySnapshot.docs.map(docSnap => {
@@ -168,4 +183,3 @@ export default function ContractsPage() {
     </>
   );
 }
-

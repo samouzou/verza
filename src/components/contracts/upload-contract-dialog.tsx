@@ -19,12 +19,12 @@ import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
 import { ocrDocument } from "@/ai/flows/ocr-flow";
-import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles } from "lucide-react";
-import type { Contract } from "@/types";
+import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
+import type { Agency, Contract } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage } from '@/lib/firebase';
+import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc } from '@/lib/firebase';
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -42,6 +42,9 @@ export function UploadContractDialog() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { user } = useAuth();
+  
+  const [agency, setAgency] = useState<Agency | null>(null);
+  const [selectedOwner, setSelectedOwner] = useState<string>("personal"); // 'personal' or a talent's UID
 
   const [parsedDetails, setParsedDetails] = useState<ExtractContractDetailsOutput | null>(null);
   const [summary, setSummary] = useState<SummarizeContractTermsOutput | null>(null);
@@ -81,8 +84,19 @@ export function UploadContractDialog() {
       setPaymentInstructions("");
       setIsRecurring(false);
       setRecurrenceInterval(undefined);
+      setAgency(null);
+      setSelectedOwner("personal");
+    } else if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
+      // Fetch agency data when dialog opens for an agency owner
+      const agencyId = user.agencyMemberships[0].agencyId;
+      const agencyDocRef = doc(db, "agencies", agencyId);
+      getDoc(agencyDocRef).then(docSnap => {
+        if (docSnap.exists()) {
+          setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+        }
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
   
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -181,10 +195,23 @@ export function UploadContractDialog() {
 
     setIsSaving(true);
     let fileUrlToSave: string | null = null;
+    
+    // Determine the owner and user IDs
+    let ownerType: 'user' | 'agency' = 'user';
+    let ownerId = user.uid;
+    let finalUserId = user.uid; // The user responsible for the work
+
+    if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
+        ownerType = 'agency';
+        ownerId = agency.id;
+        finalUserId = selectedOwner; // The talent's UID
+    }
 
     try {
       if (selectedFile) {
-        const fileStorageRef = storageRefOriginal(storage, `contracts/${user.uid}/${Date.now()}_${selectedFile.name}`);
+        // Use a generic path or one based on the owner
+        const filePath = `contracts/${ownerType === 'agency' ? ownerId : user.uid}/${Date.now()}_${selectedFile.name}`;
+        const fileStorageRef = storageRefOriginal(storage, filePath);
         const uploadResult = await uploadBytes(fileStorageRef, selectedFile);
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
@@ -207,7 +234,9 @@ export function UploadContractDialog() {
         : null;
 
       const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
-        userId: user.uid,
+        userId: finalUserId,
+        ownerType: ownerType,
+        ownerId: ownerId,
         brand: currentParsedDetails.brand || "Unknown Brand",
         amount: currentParsedDetails.amount || 0,
         dueDate: currentParsedDetails.dueDate || new Date().toISOString().split('T')[0],
@@ -311,6 +340,22 @@ export function UploadContractDialog() {
 
         <ScrollArea className="max-h-[calc(80vh-250px-50px)]">
         <div className="grid gap-6 p-1 pr-4">
+           {user?.role === 'agency_owner' && agency && (
+            <div>
+              <Label htmlFor="contractOwner">Contract For</Label>
+              <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select who this contract is for..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
+                  {agency.talent?.filter(t => t.status === 'active').map(t => (
+                    <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
            <div>
             <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
             <Input
