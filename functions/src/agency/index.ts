@@ -9,7 +9,7 @@ export const createAgency = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const { name } = request.data;
+  const {name} = request.data;
   if (!name || typeof name !== "string" || name.trim().length === 0) {
     throw new HttpsError("invalid-argument", "A valid agency name is required.");
   }
@@ -22,9 +22,9 @@ export const createAgency = onCall(async (request) => {
     // Check if user already owns an agency to prevent creating multiple
     const existingAgencyQuery = await agenciesColRef.where("ownerId", "==", userId).limit(1).get();
     if (!existingAgencyQuery.empty) {
-        throw new HttpsError("already-exists", "You already own an agency.");
+      throw new HttpsError("already-exists", "You already own an agency.");
     }
-    
+
     // Create new agency document
     const newAgencyRef = agenciesColRef.doc();
     const newAgency = {
@@ -38,25 +38,24 @@ export const createAgency = onCall(async (request) => {
 
     // Update user's role and add agency membership
     const userUpdate = {
-      role: 'agency_owner',
+      role: "agency_owner",
       agencyMemberships: admin.firestore.FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
-        role: 'owner',
+        role: "owner",
       }),
     };
-    
+
     // Use a batch to ensure both writes succeed or fail together
     const batch = db.batch();
     batch.set(newAgencyRef, newAgency);
     batch.update(userDocRef, userUpdate);
-    
+
     await batch.commit();
 
     logger.info(`Agency "${name}" created successfully for user ${userId}.`);
 
-    return { success: true, agencyId: newAgency.id };
-
+    return {success: true, agencyId: newAgency.id};
   } catch (error) {
     logger.error("Error creating agency for user:", userId, error);
     if (error instanceof HttpsError) {
