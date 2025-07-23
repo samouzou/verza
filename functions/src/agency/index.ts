@@ -173,8 +173,11 @@ export const acceptAgencyInvitation = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "No pending invitation found for this user in the specified agency.");
     }
 
-    const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
-    if (membershipIndex === -1 || !userData.agencyMemberships) {
+    if (!userData.agencyMemberships) {
+      throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership record.");
+    }
+    const membershipIndex = userData.agencyMemberships.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
+    if (membershipIndex === -1) {
       throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership.");
     }
 
@@ -222,8 +225,14 @@ export const declineAgencyInvitation = onCall(async (request) => {
     const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== talentUserId);
     const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
 
-    transaction.update(agencyDocRef, {talent: updatedTalentArray});
-    transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
+    // Only update if there's a change to be made
+    if (updatedTalentArray.length < agencyData.talent.length) {
+      transaction.update(agencyDocRef, {talent: updatedTalentArray});
+    }
+
+    if (userData.agencyMemberships && updatedMembershipsArray.length < userData.agencyMemberships.length) {
+      transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
+    }
 
     return {success: true, message: "Invitation declined successfully."};
   }).catch((error) => {
