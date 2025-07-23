@@ -8,12 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency } from '@/types';
-import { onSnapshot, collection, query, where } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -164,32 +164,90 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   );
 }
 
+function TalentAgencyView({ agencies }: { agencies: Agency[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Briefcase className="text-primary"/> Your Agencies</CardTitle>
+        <CardDescription>You are a member of the following agencies. Contact the owner for details on your contracts.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {agencies.map(agency => (
+            <div key={agency.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/50">
+                <div className="font-medium">{agency.name}</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Users className="h-4 w-4"/>
+                    <span>{agency.talent.length} Talent</span>
+                </div>
+            </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 export default function AgencyPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
-  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
+  const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      setIsLoadingAgencies(true);
-      const agencyQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
-      const unsubscribe = onSnapshot(agencyQuery, 
-        (snapshot) => {
-          const userAgencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-          setAgencies(userAgencies);
-          setIsLoadingAgencies(false);
-        }, 
-        (error) => {
-          console.error("Error fetching agencies:", error);
-          setIsLoadingAgencies(false);
-        }
-      );
-      return () => unsubscribe();
-    } else if (!authLoading) {
-      // User is not logged in
-      setIsLoadingAgencies(false);
+    if (!user || authLoading) {
+      if (!authLoading) setIsLoadingAgencies(false);
+      return;
     }
+
+    setIsLoadingAgencies(true);
+
+    // Listener for agencies the user owns
+    const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
+    const unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
+      const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+      setOwnedAgencies(agencies);
+      if (!user.agencyMemberships || user.agencyMemberships.length === 0) {
+        setIsLoadingAgencies(false);
+      }
+    }, (error) => {
+      console.error("Error fetching owned agencies:", error);
+      setIsLoadingAgencies(false);
+    });
+
+    // Fetch agencies the user is a member of
+    const fetchMemberAgencies = async () => {
+      const memberAgencyIds = user.agencyMemberships
+        ?.filter(mem => mem.role === 'talent')
+        .map(mem => mem.agencyId) || [];
+
+      if (memberAgencyIds.length > 0) {
+        try {
+          // Firestore 'in' query can take up to 30 elements
+          const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", memberAgencyIds));
+          const snapshot = await getDocs(memberQuery);
+          const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+          setMemberAgencies(agencies);
+        } catch (error) {
+          console.error("Error fetching member agencies:", error);
+          setMemberAgencies([]);
+        }
+      } else {
+        setMemberAgencies([]);
+      }
+      setIsLoadingAgencies(false);
+    };
+
+    fetchMemberAgencies();
+
+    return () => {
+      unsubscribeOwner();
+    };
   }, [user, authLoading]);
+  
+  const handleAgencyCreated = () => {
+    // Refresh auth user to get the new role and membership, which will trigger the useEffect
+    refreshAuthUser();
+  }
 
   if (authLoading || (user && isLoadingAgencies)) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -205,16 +263,33 @@ export default function AgencyPage() {
     );
   }
   
-  const userOwnsAgency = agencies.length > 0;
+  const userOwnsAgency = ownedAgencies.length > 0;
+  const isTalentMember = memberAgencies.length > 0;
+
+  let pageTitle = "Agency Management";
+  let pageDescription = "Create or manage your creator agency.";
+  if (userOwnsAgency) {
+    pageTitle = ownedAgencies[0].name;
+    pageDescription = "Manage your agency's talent, contracts, and finances.";
+  } else if (isTalentMember) {
+    pageTitle = "My Agencies";
+    pageDescription = "View the agencies you are a part of.";
+  }
 
   return (
     <>
       <PageHeader
-        title={userOwnsAgency ? agencies[0].name : "Agency Management"}
-        description={userOwnsAgency ? "Manage your agency's talent, contracts, and finances." : "Create and manage your creator agency."}
+        title={pageTitle}
+        description={pageDescription}
       />
       <div className="space-y-6">
-        {userOwnsAgency ? <AgencyDashboard agency={agencies[0]} /> : <CreateAgencyForm onAgencyCreated={refreshAuthUser} />}
+        {userOwnsAgency ? (
+          <AgencyDashboard agency={ownedAgencies[0]} />
+        ) : isTalentMember ? (
+          <TalentAgencyView agencies={memberAgencies} />
+        ) : (
+          <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
+        )}
       </div>
     </>
   );
