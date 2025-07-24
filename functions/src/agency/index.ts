@@ -1,8 +1,19 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout} from "../../../src/types";
+import Stripe from "stripe";
+
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeKey) {
+  throw new Error("STRIPE_SECRET_KEY environment variable is not set.");
+}
+const stripe = new Stripe(stripeKey, {
+  apiVersion: "2025-05-28.basil",
+});
+
 
 export const createAgency = onCall(async (request) => {
   if (!request.auth) {
@@ -276,9 +287,31 @@ export const createInternalPayout = onCall(async (request) => {
     if (!talentInfo) {
       throw new HttpsError("not-found", "The selected talent is not a member of this agency.");
     }
+    
+    // Get talent's Stripe Connect account ID
+    const talentUserDocRef = db.collection("users").doc(talentId);
+    const talentUserSnap = await talentUserDocRef.get();
+    const talentUserData = talentUserSnap.data() as UserProfileFirestoreData;
+    
+    if (!talentUserData.stripeAccountId || talentUserData.stripeAccountStatus !== 'active' || !talentUserData.stripePayoutsEnabled) {
+      throw new HttpsError("failed-precondition", "The selected talent does not have an active, verified Stripe account ready for payouts.");
+    }
+    
+    // Create the Stripe Transfer
+    const amountInCents = Math.round(amount * 100);
+    const transfer = await stripe.transfers.create({
+      amount: amountInCents,
+      currency: "usd",
+      destination: talentUserData.stripeAccountId,
+      transfer_group: `agency_payout_${agencyId}`,
+      metadata: {
+        agencyId: agencyId,
+        talentId: talentId,
+        description: description,
+        paymentDate: paymentDate,
+      },
+    });
 
-    // TODO: Integrate with Stripe to create a transfer to the talent's connected account.
-    // For now, we will just create the record in Firestore.
     const payoutDocRef = db.collection("internalPayouts").doc();
     const newPayout: InternalPayout = {
       id: payoutDocRef.id,
@@ -289,19 +322,23 @@ export const createInternalPayout = onCall(async (request) => {
       talentName: talentInfo.displayName || "N/A",
       amount,
       description,
-      status: "pending",
+      status: "processing", // Status is now processing as we wait for Stripe confirmation
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
+      stripeTransferId: transfer.id,
     };
     await payoutDocRef.set(newPayout);
 
-    logger.info(`Internal payout created for talent ${talentId} by agency ${agencyId}.`);
-    return {success: true, payoutId: newPayout.id, message: "Payout initiated successfully."};
-  } catch (error) {
+    logger.info(`Stripe transfer ${transfer.id} initiated for talent ${talentId} by agency ${agencyId}.`);
+    return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
+  } catch (error: any) {
     logger.error(`Error creating internal payout by agency ${agencyId}:`, error);
     if (error instanceof HttpsError) {
       throw error;
     }
-    throw new HttpsError("internal", "An unexpected error occurred while creating the payout.");
+    if (error.type === 'StripeCardError') {
+      throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}`);
+    }
+    throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
 });
