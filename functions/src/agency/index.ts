@@ -305,15 +305,14 @@ export const createInternalPayout = onCall(async (request) => {
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
-    
+
     // Get their payment methods
     const paymentMethods = await stripe.paymentMethods.list({
       customer: agencyOwnerData.stripeCustomerId,
-      type: 'card', // or 'bank_account', etc., depending on what you support
     });
-    
+
     if (!paymentMethods.data || paymentMethods.data.length === 0) {
-       throw new HttpsError("failed-precondition", "Agency owner has no saved payment methods in Stripe to charge.");
+      throw new HttpsError("failed-precondition", "Agency owner has no saved payment methods in Stripe to charge.");
     }
     const paymentMethodId = paymentMethods.data[0].id; // Use the first available payment method
 
@@ -383,5 +382,3 @@ export const createInternalPayout = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
 });
-
-    
