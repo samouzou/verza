@@ -190,21 +190,28 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
   const actionText = isExistingUser ? "View Invitation" : "Sign Up & Accept";
 
   if (isExistingUser) {
-    text = `You've been invited to join ${agencyName} on Verza. Log in to your account to accept the invitation and start collaborating. Visit: ${actionUrl}`;
+    text = `You've been invited to join ${agencyName} on Verza.
+    Log in to your account to accept the invitation and start collaborating. Visit: ${actionUrl}`;
     html = `
       <h2>Invitation to Join ${agencyName}</h2>
       <p>Hello,</p>
-      <p>You have been invited to join <strong>${agencyName}</strong> on the Verza platform. Log in to your account to view and accept your invitation.</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>You have been invited to join <strong>${agencyName}</strong> on the Verza platform.
+      Log in to your account to view and accept your invitation.</p>
+      <p><a href="${actionUrl}"
+      style="padding: 10px 15px; background-color: #007bff; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   } else {
-    text = `${agencyName} has invited you to join them on Verza, a platform for creator contract management. Sign up to get started. Visit: ${actionUrl}`;
+    text = `${agencyName} has invited you to join them on Verza, a platform for creator contract management.
+    Sign up to get started. Visit: ${actionUrl}`;
     html = `
       <h2>${agencyName} Wants to Collaborate!</h2>
       <p>Hello,</p>
-      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join them. Create your free Verza account to accept the invitation and start collaborating.</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join them.
+      Create your free Verza account to accept the invitation and start collaborating.</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   }

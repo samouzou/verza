@@ -82,4 +82,5 @@ export {
 };
 
 // Import and export v1 auth trigger using require/exports
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 exports.processNewUser = require("./users").processNewUser;
