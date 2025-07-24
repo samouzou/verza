@@ -305,6 +305,17 @@ export const createInternalPayout = onCall(async (request) => {
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
+    
+    // Get their payment methods
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: agencyOwnerData.stripeCustomerId,
+      type: 'card', // or 'bank_account', etc., depending on what you support
+    });
+    
+    if (!paymentMethods.data || paymentMethods.data.length === 0) {
+       throw new HttpsError("failed-precondition", "Agency owner has no saved payment methods in Stripe to charge.");
+    }
+    const paymentMethodId = paymentMethods.data[0].id; // Use the first available payment method
 
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
     if (!talentInfo) {
@@ -321,19 +332,19 @@ export const createInternalPayout = onCall(async (request) => {
         "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
-    // Use Payment Intents API instead of Charges
     const amountInCents = Math.round(amount * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "usd",
       customer: agencyOwnerData.stripeCustomerId,
+      payment_method: paymentMethodId,
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
       transfer_data: {
         destination: talentUserData.stripeAccountId,
       },
-      confirm: true, // Attempt to charge immediately
-      off_session: true, // Indicates the customer is not present
+      confirm: true,
+      off_session: true,
       metadata: {
         agencyId: agencyId,
         talentId: talentId,
@@ -352,10 +363,10 @@ export const createInternalPayout = onCall(async (request) => {
       talentName: talentInfo.displayName || "N/A",
       amount,
       description,
-      status: "processing", // Initial status for Payment Intent
+      status: "processing",
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      stripeChargeId: paymentIntent.id, // Storing the Payment Intent ID
+      stripeChargeId: paymentIntent.id,
     };
     await payoutDocRef.set(newPayout);
 
@@ -372,3 +383,5 @@ export const createInternalPayout = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
 });
+
+    
