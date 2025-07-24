@@ -296,13 +296,13 @@ export const createInternalPayout = onCall(async (request) => {
     }
     const agencyData = agencySnap.data() as Agency;
 
-    // Get agency owner's Stripe account to charge from it
+    // Get agency owner's Stripe customer ID to charge them
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
-    if (!agencyOwnerData.stripeAccountId || !agencyOwnerData.stripeChargesEnabled) {
-      throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe account enabled for making payments.");
+    if (!agencyOwnerData.stripeCustomerId) {
+      throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
 
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
@@ -323,10 +323,12 @@ export const createInternalPayout = onCall(async (request) => {
     // Create the Stripe Charge and Transfer
     const amountInCents = Math.round(amount * 100);
 
+    // This creates a charge on the agency owner's default payment method (e.g., linked bank account)
+    // and transfers the funds to the talent's connected account.
     const charge = await stripe.charges.create({
       amount: amountInCents,
       currency: "usd",
-      source: agencyOwnerData.stripeAccountId, // Charge the agency's connected account
+      customer: agencyOwnerData.stripeCustomerId, // Charge the agency owner's customer object
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
       transfer_data: {
         destination: talentUserData.stripeAccountId, // Transfer funds to talent's connected account
