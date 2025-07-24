@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   FileStack,
+  Building,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,6 +55,7 @@ const navItems = [
   { href: "/integrations", label: "Integrations", icon: Link2 },
   { href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { href: "/tax-forms", label: "Tax Forms", icon: FileStack },
+  { href: "/agency", label: "Agency", icon: Building },
   { href: "/wallet", label: "Creator Wallet", icon: Wallet },
 ];
 

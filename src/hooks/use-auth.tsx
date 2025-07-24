@@ -33,6 +33,8 @@ export interface UserProfile {
   address?: string | null; 
   tin?: string | null;
   createdAt?: Timestamp;
+  role: 'individual_creator' | 'agency_owner';
+  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent' }>;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -87,6 +89,8 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.address = null; 
     updates.tin = null;
     updates.createdAt = createdAt;
+    updates.role = 'individual_creator'; // Default role
+    updates.agencyMemberships = [];
 
     updates.stripeCustomerId = null;
     updates.stripeSubscriptionId = null;
@@ -130,6 +134,14 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.tin === undefined) { 
       updates.tin = null;
+      needsUpdate = true;
+    }
+    if (existingData.role === undefined) {
+      updates.role = 'individual_creator';
+      needsUpdate = true;
+    }
+    if (existingData.agencyMemberships === undefined) {
+      updates.agencyMemberships = [];
       needsUpdate = true;
     }
     
@@ -206,6 +218,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           address: firestoreUserData.address || null, 
           tin: firestoreUserData.tin || null,
           createdAt: firestoreUserData.createdAt,
+          role: firestoreUserData.role || 'individual_creator',
+          agencyMemberships: firestoreUserData.agencyMemberships || [],
           stripeCustomerId: firestoreUserData.stripeCustomerId,
           stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
           subscriptionStatus: firestoreUserData.subscriptionStatus,
@@ -228,7 +242,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           emailVerified: currentFirebaseUser.emailVerified,
           address: null, 
           tin: null,
-          createdAt: Timestamp.now(), 
+          createdAt: Timestamp.now(),
+          role: 'individual_creator',
+          agencyMemberships: [],
           subscriptionStatus: 'none',
           subscriptionInterval: null, // Initialize interval
           stripeAccountStatus: 'none',

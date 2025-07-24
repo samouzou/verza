@@ -29,7 +29,10 @@ export interface EditableInvoiceDetails {
 
 export interface Contract {
   id: string; // Document ID from Firestore
-  userId: string; // Firebase Auth User ID
+  userId: string; // Firebase Auth User ID of the creator/talent
+  talentName?: string; // Denormalized talent name for agency view
+  ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
+  ownerId: string; // UID of the user or ID of the agency
   brand: string;
   amount: number; // This will represent the total amount of the invoice, derived from editableInvoiceDetails if present
   dueDate: string; // YYYY-MM-DD
@@ -52,7 +55,7 @@ export interface Contract {
     lateFeePenalty?: string;
   };
   summary?: string;
-  contractText?: string;
+  contractText?: string | null;
   previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
@@ -155,6 +158,9 @@ export interface UserProfileFirestoreData {
   address?: string | null;
   tin?: string | null;
   createdAt?: Timestamp;
+  role: 'individual_creator' | 'agency_owner';
+  isAgencyOwner?: boolean;
+  agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
@@ -230,4 +236,45 @@ export interface TaxEstimation {
   suggestedSetAsideAmount: number;
   notes?: string[]; 
   calculationDate: string; 
+}
+
+// Agency & Talent Types
+export interface Talent {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  status: 'pending' | 'active';
+  joinedAt?: Timestamp;
+}
+
+export interface Agency {
+  id: string;
+  name: string;
+  ownerId: string; // UID of the user who owns the agency
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  talent: Talent[];
+}
+
+export interface AgencyMembership {
+  agencyId: string;
+  agencyName: string;
+  role: 'owner' | 'talent';
+  status: 'pending' | 'active';
+}
+
+export interface InternalPayout {
+  id: string;
+  agencyId: string;
+  agencyName: string;
+  agencyOwnerId: string;
+  talentId: string;
+  talentName: string;
+  amount: number;
+  description: string;
+  paymentDate?: Timestamp;
+  status: 'pending' | 'processing' | 'paid' | 'failed';
+  initiatedAt: Timestamp;
+  paidAt?: Timestamp;
+  stripeChargeId?: string; // Replaced transferId with chargeId
 }
