@@ -56,8 +56,6 @@ import {
   createInternalPayout,
 } from "./agency";
 
-import { processNewUser } from "./users";
-
 // Export v2 functions
 export {
   createStripeConnectedAccount,
@@ -81,5 +79,8 @@ export {
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
-  processNewUser,
 };
+
+// Import and export v1 auth trigger using require/exports
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+exports.processNewUser = require("./users").processNewUser;
