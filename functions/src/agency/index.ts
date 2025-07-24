@@ -122,7 +122,8 @@ export const inviteTalentToAgency = onCall(async (request) => {
       talentUser = await admin.auth().getUserByEmail(talentEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        throw new HttpsError("not-found", "No user found with this email address. They must have a Verza account to be invited.");
+        throw new HttpsError("not-found",
+          "No user found with this email address. They must have a Verza account to be invited.");
       }
       throw new HttpsError("internal", "Error finding user by email.");
     }
@@ -320,19 +321,19 @@ export const createInternalPayout = onCall(async (request) => {
         "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
-    // Create the Stripe Charge and Transfer
+    // Use Payment Intents API instead of Charges
     const amountInCents = Math.round(amount * 100);
 
-    // This creates a charge on the agency owner's default payment method (e.g., linked bank account)
-    // and transfers the funds to the talent's connected account.
-    const charge = await stripe.charges.create({
+    const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "usd",
-      customer: agencyOwnerData.stripeCustomerId, // Charge the agency owner's customer object
+      customer: agencyOwnerData.stripeCustomerId,
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
       transfer_data: {
-        destination: talentUserData.stripeAccountId, // Transfer funds to talent's connected account
+        destination: talentUserData.stripeAccountId,
       },
+      confirm: true, // Attempt to charge immediately
+      off_session: true, // Indicates the customer is not present
       metadata: {
         agencyId: agencyId,
         talentId: talentId,
@@ -351,14 +352,14 @@ export const createInternalPayout = onCall(async (request) => {
       talentName: talentInfo.displayName || "N/A",
       amount,
       description,
-      status: "processing", // Status is now processing as we wait for Stripe confirmation
+      status: "processing", // Initial status for Payment Intent
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      stripeChargeId: charge.id,
+      stripeChargeId: paymentIntent.id, // Storing the Payment Intent ID
     };
     await payoutDocRef.set(newPayout);
 
-    logger.info(`Stripe charge ${charge.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
+    logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
     return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
   } catch (error: any) {
     logger.error(`Error creating internal payout by agency ${agencyId}:`, error);
