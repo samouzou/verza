@@ -282,8 +282,17 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
     const agencyData = agencySnap.data() as Agency;
-    const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
+    
+    // Get agency owner's Stripe account to charge from it
+    const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
+    const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
+    const agencyOwnerData = agencyOwnerUserSnap.data() as UserProfileFirestoreData;
+    
+    if (!agencyOwnerData.stripeAccountId || !agencyOwnerData.stripeChargesEnabled) {
+      throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe account enabled for making payments.");
+    }
 
+    const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
     if (!talentInfo) {
       throw new HttpsError("not-found", "The selected talent is not a member of this agency.");
     }
@@ -293,21 +302,25 @@ export const createInternalPayout = onCall(async (request) => {
     const talentUserSnap = await talentUserDocRef.get();
     const talentUserData = talentUserSnap.data() as UserProfileFirestoreData;
     
-    if (!talentUserData.stripeAccountId || talentUserData.stripeAccountStatus !== 'active' || !talentUserData.stripePayoutsEnabled) {
+    if (!talentUserData.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
       throw new HttpsError("failed-precondition", "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
     
-    // Create the Stripe Transfer
+    // Create the Stripe Charge and Transfer
     const amountInCents = Math.round(amount * 100);
-    const transfer = await stripe.transfers.create({
+
+    const charge = await stripe.charges.create({
       amount: amountInCents,
       currency: "usd",
-      destination: talentUserData.stripeAccountId,
-      transfer_group: `agency_payout_${agencyId}`,
+      source: agencyOwnerData.stripeAccountId, // Charge the agency's connected account
+      description: `Payout to ${talentInfo.displayName} for: ${description}`,
+      transfer_data: {
+        destination: talentUserData.stripeAccountId, // Transfer funds to talent's connected account
+      },
       metadata: {
         agencyId: agencyId,
         talentId: talentId,
-        description: description,
+        payout_description: description,
         paymentDate: paymentDate,
       },
     });
@@ -325,11 +338,11 @@ export const createInternalPayout = onCall(async (request) => {
       status: "processing", // Status is now processing as we wait for Stripe confirmation
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      stripeTransferId: transfer.id,
+      stripeChargeId: charge.id,
     };
     await payoutDocRef.set(newPayout);
 
-    logger.info(`Stripe transfer ${transfer.id} initiated for talent ${talentId} by agency ${agencyId}.`);
+    logger.info(`Stripe charge ${charge.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
     return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
   } catch (error: any) {
     logger.error(`Error creating internal payout by agency ${agencyId}:`, error);
