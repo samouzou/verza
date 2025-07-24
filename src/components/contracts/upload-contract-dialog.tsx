@@ -200,7 +200,7 @@ export function UploadContractDialog() {
     let ownerType: 'user' | 'agency' = 'user';
     let ownerId = user.uid;
     let finalUserId = user.uid;
-    let talentName: string | undefined = undefined;
+    let talentName: string | undefined | null = undefined;
 
     if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
         ownerType = 'agency';
@@ -236,7 +236,7 @@ export function UploadContractDialog() {
 
       const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
         userId: finalUserId,
-        talentName: talentName,
+        talentName: talentName || null,
         ownerType: ownerType,
         ownerId: ownerId,
         brand: currentParsedDetails.brand || "Unknown Brand",
