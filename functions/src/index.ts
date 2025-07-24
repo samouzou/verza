@@ -10,6 +10,7 @@
  * - E-Signature functions
  */
 
+// Import and export v2 functions using ES module syntax
 import {
   createStripeConnectedAccount,
   createStripeAccountLink,
@@ -39,7 +40,7 @@ import {
 
 import {
   initiateHelloSignRequest,
-  helloSignWebhookHandler, // Added webhook handler
+  helloSignWebhookHandler,
 } from "./esignatures";
 
 import {
@@ -55,40 +56,30 @@ import {
   createInternalPayout,
 } from "./agency";
 
-import { processNewUser } from "./users";
-
-
-// Export all functions explicitly
+// Export v2 functions
 export {
-  // Payments
   createStripeConnectedAccount,
   createStripeAccountLink,
   createPaymentIntent,
   handlePaymentSuccess,
   handleStripeAccountWebhook,
-  // Notifications
   sendContractNotification,
   sendPaymentReminder,
-  // Scheduler
   sendOverdueInvoiceReminders,
-  // Subscriptions
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
-  // Sharing
   createShareableContractVersion,
-  // E-Signatures
   initiateHelloSignRequest,
   helloSignWebhookHandler,
-  // Finicity
   generateFinicityConnectUrl,
   finicityWebhookHandler,
-  // Agency
   createAgency,
   inviteTalentToAgency,
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
-  // User Management
-  processNewUser,
 };
+
+// Import and export v1 auth trigger using require/exports
+exports.processNewUser = require("./users").processNewUser;
