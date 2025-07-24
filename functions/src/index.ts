@@ -55,6 +55,8 @@ import {
   createInternalPayout,
 } from "./agency";
 
+import { processNewUser } from "./users";
+
 
 // Export all functions explicitly
 export {
@@ -87,4 +89,6 @@ export {
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
+  // User Management
+  processNewUser,
 };

@@ -5,6 +5,7 @@ import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout} from "../../../src/types";
 import Stripe from "stripe";
+import {sendAgencyInvitationEmail} from "../notifications";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -109,35 +110,42 @@ export const inviteTalentToAgency = onCall(async (request) => {
   const talentEmailCleaned = talentEmail.trim().toLowerCase();
 
   try {
-    // 1. Verify the caller owns the agency
     const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
     if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
+    const agencyData = agencySnap.data() as Agency;
 
-    // 2. Find the user by email
     let talentUser;
     try {
       talentUser = await admin.auth().getUserByEmail(talentEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        throw new HttpsError("not-found",
-          "No user found with this email address. They must have a Verza account to be invited.");
+        // User does not exist, send an email to invite them to sign up
+        const invitationsRef = db.collection("agencyInvitations").doc(talentEmailCleaned);
+        await invitationsRef.set({
+          agencyId: agencyId,
+          agencyName: agencyData.name,
+          talentEmail: talentEmailCleaned,
+          status: "pending",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, false);
+        logger.info(`Invitation sent to new user ${talentEmailCleaned} for agency ${agencyData.name}.`);
+        return {success: true, message: "Invitation sent successfully to the new user."};
       }
-      throw new HttpsError("internal", "Error finding user by email.");
+      throw new HttpsError("internal", "Error checking for user by email.");
     }
 
+    // User exists
     const talentUserId = talentUser.uid;
     const talentUserDocRef = db.collection("users").doc(talentUserId);
 
-    // 3. Check if the user is already in the agency
-    const agencyData = agencySnap.data() as Agency;
     if (agencyData.talent.some((t) => t.userId === talentUserId)) {
       throw new HttpsError("already-exists", "This user is already a member of your agency.");
     }
 
-    // 4. Update both the agency and the user's document
     const talentDocSnap = await talentUserDocRef.get();
     const talentDocData = talentDocSnap.data() as UserProfileFirestoreData | undefined;
 
@@ -160,6 +168,9 @@ export const inviteTalentToAgency = onCall(async (request) => {
     batch.update(talentUserDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership)});
 
     await batch.commit();
+
+    // Send email to existing user
+    await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, true);
 
     logger.info(`Talent ${talentEmailCleaned} invited to agency ${agencyId} by owner ${agencyOwnerId}.`);
     return {success: true, message: "Talent invited successfully."};
