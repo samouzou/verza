@@ -1,13 +1,12 @@
 
-import * as functions from "firebase-functions/v1";
+import {onUserCreate} from "firebase-functions/v2/auth";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../src/types";
 
-
-export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const {uid, email, displayName} = user;
+export const processNewUser = onUserCreate(async (user) => {
+  const {uid, email, displayName} = user.data;
 
   if (!email) {
     logger.info(`User ${uid} created without an email, skipping invitation check.`);
