@@ -1,3 +1,4 @@
+
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';

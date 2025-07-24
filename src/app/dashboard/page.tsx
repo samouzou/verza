@@ -19,7 +19,6 @@ import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangl
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
-// MOCK_EARNINGS_DATA is no longer needed
 import { Skeleton } from "@/components/ui/skeleton";
 
 const addDays = (date: Date, days: number): Date => {
@@ -143,10 +142,6 @@ export default function DashboardPage() {
       const projectMatch = filters.project === "all" || c.projectName === filters.project;
       
       let dateMatch = true;
-      // Date filter should apply to dueDate for pending/upcoming items
-      // and updatedAt for paid items if we want to filter by payment date.
-      // For simplicity here, we'll primarily filter based on dueDate for items shown in lists.
-      // The chart and monthly summaries will do their own monthly aggregation.
       if (c.dueDate && filters.dateRange?.from) { 
         const contractDueDate = new Date(c.dueDate + 'T00:00:00'); 
         const fromDate = new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate());
@@ -175,7 +170,6 @@ export default function DashboardPage() {
     let currentInvoicedThisMonthAmountForSummary = 0; // For summary card
     let currentTotalOverdueCountCalc = 0;
 
-    // Initialize chart data for current year
     const newEarningsChartData: EarningsDataPoint[] = monthNames.map(monthName => ({
       month: monthName,
       year: currentYear,
@@ -218,8 +212,6 @@ export default function DashboardPage() {
         totalPendingIncomeCalc += c.amount;
       }
       
-      // Correctly calculate for chart and monthly summaries
-      // Paid amounts are logged in the month they were updated (paid)
       if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
         const paidMonth = updatedAtDate.getMonth();
         newEarningsChartData[paidMonth].collected += c.amount;
@@ -228,7 +220,6 @@ export default function DashboardPage() {
         }
       }
 
-      // Invoiced amounts are logged in the month they were sent
       if (c.invoiceHistory && Array.isArray(c.invoiceHistory)) {
         for (const event of c.invoiceHistory) {
           if (event.action === 'Invoice Sent to Client') {
@@ -239,7 +230,7 @@ export default function DashboardPage() {
               if (eventMonth === currentMonth) {
                   currentInvoicedThisMonthAmountForSummary += c.amount;
               }
-              break; // Count each contract's invoice amount only once
+              break; 
             }
           }
         }
