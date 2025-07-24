@@ -1,3 +1,4 @@
+
 import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import sgMail from "@sendgrid/mail";
@@ -172,3 +173,62 @@ export const sendPaymentReminder = onRequest(async (request, response) => {
     });
   }
 });
+
+/**
+ * Sends an invitation email to a talent for an agency.
+ * @param {string} talentEmail The email of the talent to invite.
+ * @param {string} agencyName The name of the agency inviting the talent.
+ * @param {boolean} isExistingUser Whether the talent is already a Verza user.
+ * @return {Promise<void>}
+ */
+export async function sendAgencyInvitationEmail(talentEmail: string, agencyName: string, isExistingUser: boolean): Promise<void> {
+  const appUrl = process.env.APP_URL || "http://localhost:9002";
+  const subject = `You've been invited to join ${agencyName} on Verza`;
+  let text;
+  let html;
+  const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
+  const actionText = isExistingUser ? "View Invitation" : "Sign Up & Accept";
+
+  if (isExistingUser) {
+    text = `You've been invited to join ${agencyName} on Verza.
+    Log in to your account to accept the invitation and start collaborating. Visit: ${actionUrl}`;
+    html = `
+      <h2>Invitation to Join ${agencyName}</h2>
+      <p>Hello,</p>
+      <p>You have been invited to join <strong>${agencyName}</strong> on the Verza platform.
+      Log in to your account to view and accept your invitation.</p>
+      <p><a href="${actionUrl}"
+      style="padding: 10px 15px; background-color: #007bff; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>Thanks,<br/>The Verza Team</p>
+    `;
+  } else {
+    text = `${agencyName} has invited you to join them on Verza, a platform for creator contract management.
+    Sign up to get started. Visit: ${actionUrl}`;
+    html = `
+      <h2>${agencyName} Wants to Collaborate!</h2>
+      <p>Hello,</p>
+      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join them.
+      Create your free Verza account to accept the invitation and start collaborating.</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>Thanks,<br/>The Verza Team</p>
+    `;
+  }
+
+  const msg = {
+    to: talentEmail,
+    from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+    subject,
+    text,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Agency invitation email sent to ${talentEmail} for agency ${agencyName}.`);
+  } catch (error) {
+    logger.error(`Failed to send agency invitation email to ${talentEmail}:`, error);
+    // We don't throw an error here to avoid failing the parent function, but we log it.
+  }
+}

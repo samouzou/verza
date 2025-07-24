@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -19,6 +20,17 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -168,6 +180,8 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
         setIsSendingPayout(false);
     }
   };
+  
+  const selectedTalentForPayout = agency.talent.find(t => t.userId === payoutTalentId);
 
   return (
     <div className="space-y-6">
@@ -228,10 +242,29 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
               <Label htmlFor="payout-description">Payment For</Label>
               <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout} />
             </div>
-            <Button onClick={handleSendPayout} disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate}>
-              {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
-              Send Payment
-            </Button>
+             <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Payment
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. This action will charge your linked payment method and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleSendPayout} disabled={isSendingPayout}>
+                    {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Confirm Payment
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>
