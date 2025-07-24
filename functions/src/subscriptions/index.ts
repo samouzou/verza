@@ -57,8 +57,8 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
-  const selectedInterval = request.data?.interval || "month"; // 'month' or 'year'
-  logger.info(`Creating checkout session for user ${userId} with interval: ${selectedInterval}`);
+  const planId = request.data?.planId || "individual_monthly"; // e.g., 'individual_monthly', 'agency_pro'
+  logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
 
   const userDoc = await db.collection("users").doc(userId).get();
@@ -84,18 +84,26 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     }
 
     let priceId;
-    if (selectedInterval === "year") {
+    switch (planId) {
+    case "individual_monthly":
+      priceId = process.env.STRIPE_PRICE_ID;
+      break;
+    case "individual_yearly":
       priceId = process.env.STRIPE_YEARLY_PRICE_ID;
-      if (!priceId) {
-        logger.error("STRIPE_YEARLY_PRICE_ID is not set in environment variables.");
-        throw new Error("Yearly pricing option is not available at this moment.");
-      }
-    } else {
-      priceId = process.env.STRIPE_PRICE_ID; // Default to monthly
-      if (!priceId) {
-        logger.error("STRIPE_PRICE_ID (monthly) is not set in environment variables.");
-        throw new Error("Monthly pricing option is not available at this moment.");
-      }
+      break;
+    case "agency_pro":
+      priceId = process.env.STRIPE_AGENCY_PRO_PRICE_ID;
+      break;
+    case "agency_scale":
+      priceId = process.env.STRIPE_AGENCY_SCALE_PRICE_ID;
+      break;
+    default:
+      throw new Error(`Invalid planId: ${planId}`);
+    }
+
+    if (!priceId) {
+      logger.error(`Stripe Price ID for plan ${planId} is not set in environment variables.`);
+      throw new Error("The selected pricing option is not available at this moment.");
     }
 
 
@@ -103,7 +111,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {
       metadata: {
         firebaseUID: userId,
-        selectedInterval: selectedInterval, // Store interval for webhook
+        planId: planId, // Store planId for webhook
       },
     };
 
@@ -134,7 +142,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       subscription_data: subscriptionData,
       metadata: { // Top-level metadata for session itself
         firebaseUID: userId,
-        selectedInterval: selectedInterval,
+        planId: planId,
       },
       allow_promotion_codes: true,
     });
@@ -174,7 +182,8 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
 });
 
 // Handle Stripe webhooks
-export const stripeSubscriptionWebhookHandler = onRequest(async (request, response) => {
+export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (request, response) => {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
   // Set CORS headers
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -241,7 +250,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session &
-      { metadata?: { firebaseUID?: string, selectedInterval?: "month" | "year" }};
+      { metadata?: { firebaseUID?: string, planId?: string }};
       if (session.mode === "subscription" && session.subscription) {
         const subscriptionResponse = await stripe.subscriptions.retrieve(session.subscription as string);
         const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
@@ -259,22 +268,26 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
         }
 
-        // Determine interval from session metadata or subscription item
-        const intervalFromMetadata = session.metadata?.selectedInterval;
-        const intervalFromSubscription = subscription.items.data[0]?.price?.recurring?.interval;
-        const finalInterval = intervalFromMetadata || intervalFromSubscription || "month";
+        const planId = session.metadata?.planId;
+        const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
+        
+        let talentLimit = 0;
+        if (planId === 'agency_pro') talentLimit = 5;
+        if (planId === 'agency_scale') talentLimit = 15;
 
 
         await userDocRef.update({
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: session.customer,
           subscriptionStatus: subscription.status,
-          subscriptionInterval: finalInterval,
+          subscriptionInterval: interval,
+          subscriptionPlanId: planId,
+          talentLimit,
           subscriptionEndsAt: firestoreSubscriptionEndsAt,
           trialEndsAt: firestoreTrialEndsAt,
         });
         logger.info("Updated user subscription from checkout.session.completed:",
-          {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: finalInterval});
+          {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId});
       }
       break;
     }
@@ -295,18 +308,25 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       if (typeof subscription.trial_end === "number") {
         firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
       }
-
+      
+      const planId = subscription.metadata?.planId;
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
+      
+      let talentLimit = 0;
+      if (planId === 'agency_pro') talentLimit = 5;
+      if (planId === 'agency_scale') talentLimit = 15;
 
       await userDocRef.update({
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
         subscriptionInterval: interval,
+        subscriptionPlanId: planId,
+        talentLimit,
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
         trialEndsAt: firestoreTrialEndsAt,
       });
       logger.info(`Updated user subscription from ${event.type}:`,
-        {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval});
+        {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId});
       break;
     }
 
@@ -323,16 +343,11 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       if (typeof endTimestamp === "number") {
         firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(endTimestamp * 1000);
       }
-
-      // When a subscription is deleted, we might not know the interval anymore directly from this event.
-      // It's okay to leave the existing subscriptionInterval as is, or set to null.
-      // For simplicity, we'll leave it, as the subscription is ending anyway.
-
+      
       await userDocRef.update({
-        subscriptionStatus: "canceled", // Or use subscription.status if more accurate for your logic
+        subscriptionStatus: "canceled",
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
-        // Optionally reset stripeSubscriptionId if you want to allow immediate resubscribe to a new plan:
-        // stripeSubscriptionId: null,
+        talentLimit: 0, // Reset talent limit on cancellation
       });
       logger.info("Updated user subscription from customer.subscription.deleted:",
         {userId: firebaseUID, subId: subscription.id, status: "canceled"});
@@ -383,4 +398,3 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     });
   }
 });
-

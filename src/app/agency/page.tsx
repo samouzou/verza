@@ -2,13 +2,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,6 +87,7 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
 function AgencyDashboard({ agency }: { agency: Agency }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const { user } = useAuth();
   const { toast } = useToast();
   const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
   
@@ -101,6 +104,10 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
 
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
+  const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
+  const talentLimit = user?.talentLimit ?? 0;
+  const atTalentLimit = activeTalentCount >= talentLimit;
+
   useEffect(() => {
     if (!agency.id) return;
     setIsLoadingHistory(true);
@@ -125,6 +132,10 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   const handleInviteTalent = async () => {
     if (!inviteEmail.trim() || !/^\S+@\S+\.\S+$/.test(inviteEmail)) {
       toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    if (atTalentLimit) {
+      toast({ title: "Talent Limit Reached", description: "Please upgrade your plan to invite more talent.", variant: "destructive"});
       return;
     }
     setIsInviting(true);
@@ -185,6 +196,28 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
 
   return (
     <div className="space-y-6">
+      {(!user?.subscriptionPlanId || atTalentLimit) && (
+        <Alert className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
+          <Sparkles className="h-5 w-5" />
+          <AlertTitle className="font-semibold text-primary">
+            {atTalentLimit ? "Talent Limit Reached" : "Upgrade Your Plan"}
+          </AlertTitle>
+          <AlertDescription className="text-primary/90">
+             {atTalentLimit 
+               ? `You have reached your limit of ${talentLimit} active talents. Please upgrade to invite more.`
+               : `You are currently on the free plan. Upgrade to an agency plan to manage talent.`
+             }
+          </AlertDescription>
+          <div className="mt-3">
+            <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Link href="/settings">
+                Manage Subscription <ExternalLink className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
             <CardHeader>
@@ -201,10 +234,10 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                     className="pl-10"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    disabled={isInviting}
+                    disabled={isInviting || atTalentLimit}
                 />
                 </div>
-                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim()}>
+                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit}>
                 {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                 Send Invite
                 </Button>
@@ -271,7 +304,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>
-          <CardDescription>View your current roster of creators.</CardDescription>
+          <CardDescription>View your current roster of creators. ({activeTalentCount} / {talentLimit} talents)</CardDescription>
         </CardHeader>
         <CardContent>
            {agency.talent && agency.talent.length > 0 ? (
