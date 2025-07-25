@@ -91,11 +91,17 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     case "individual_yearly":
       priceId = process.env.STRIPE_YEARLY_PRICE_ID;
       break;
-    case "agency_pro":
+    case "agency_pro_monthly":
       priceId = process.env.STRIPE_AGENCY_PRO_PRICE_ID;
       break;
-    case "agency_scale":
+    case "agency_pro_yearly":
+      priceId = process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID;
+      break;
+    case "agency_scale_monthly":
       priceId = process.env.STRIPE_AGENCY_SCALE_PRICE_ID;
+      break;
+    case "agency_scale_yearly":
+      priceId = process.env.STRIPE_AGENCY_SCALE_YEARLY_PRICE_ID;
       break;
     default:
       throw new Error(`Invalid planId: ${planId}`);
@@ -183,7 +189,6 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
 
 // Handle Stripe webhooks
 export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (request, response) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
   // Set CORS headers
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -272,8 +277,8 @@ export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (re
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
         
         let talentLimit = 0;
-        if (planId === 'agency_pro') talentLimit = 5;
-        if (planId === 'agency_scale') talentLimit = 15;
+        if (planId === 'agency_pro_monthly' || planId === 'agency_pro_yearly') talentLimit = 5;
+        if (planId === 'agency_scale_monthly' || planId === 'agency_scale_yearly') talentLimit = 15;
 
 
         await userDocRef.update({
@@ -313,8 +318,8 @@ export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (re
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
       
       let talentLimit = 0;
-      if (planId === 'agency_pro') talentLimit = 5;
-      if (planId === 'agency_scale') talentLimit = 15;
+      if (planId === 'agency_pro_monthly' || planId === 'agency_pro_yearly') talentLimit = 5;
+      if (planId === 'agency_scale_monthly' || planId === 'agency_scale_yearly') talentLimit = 15;
 
       await userDocRef.update({
         stripeSubscriptionId: subscription.id,
