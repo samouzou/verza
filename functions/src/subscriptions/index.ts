@@ -4,10 +4,12 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
-import type { UserProfileFirestoreData } from "../../../src/types";
+import type {UserProfileFirestoreData} from "../../../src/types";
 
 // Define PlanId type matching the frontend for consistency
-type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+type PlanId =
+"individual_monthly" | "individual_yearly" | "agency_start_monthly"
+| "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly";
 
 
 // Initialize Stripe
@@ -54,18 +56,22 @@ try {
   throw error;
 }
 
-// Helper function to map a Stripe Price ID to our internal plan details
+/**
+ * Helper function to map a Stripe Price ID to our internal plan details.
+ * @param {string} priceId - The Stripe Price ID.
+ * @returns {{ planId: PlanId | null, talentLimit: number }} An object containing the internal plan ID and talent limit.
+ */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
-    const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
-      [process.env.STRIPE_PRICE_ID || '']: { planId: 'individual_monthly', talentLimit: 0 },
-      [process.env.STRIPE_YEARLY_PRICE_ID || '']: { planId: 'individual_yearly', talentLimit: 0 },
-      [process.env.STRIPE_AGENCY_START_PRICE_ID || '']: { planId: 'agency_start_monthly', talentLimit: 10 },
-      [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || '']: { planId: 'agency_start_yearly', talentLimit: 10 },
-      [process.env.STRIPE_AGENCY_PRO_PRICE_ID || '']: { planId: 'agency_pro_monthly', talentLimit: 25 },
-      [process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID || '']: { planId: 'agency_pro_yearly', talentLimit: 25 },
-    };
+  const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
+    [process.env.STRIPE_PRICE_ID || ""]: {planId: "individual_monthly", talentLimit: 0},
+    [process.env.STRIPE_YEARLY_PRICE_ID || ""]: {planId: "individual_yearly", talentLimit: 0},
+    [process.env.STRIPE_AGENCY_START_PRICE_ID || ""]: {planId: "agency_start_monthly", talentLimit: 10},
+    [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || ""]: {planId: "agency_start_yearly", talentLimit: 10},
+    [process.env.STRIPE_AGENCY_PRO_PRICE_ID || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
+    [process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID || ""]: {planId: "agency_pro_yearly", talentLimit: 25},
+  };
 
-    return priceIdMap[priceId] || { planId: null, talentLimit: 0 };
+  return priceIdMap[priceId] || {planId: null, talentLimit: 0};
 }
 
 
@@ -294,7 +300,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
         const planId = session.metadata?.planId as PlanId;
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
-        const { talentLimit } = getPlanDetailsFromPriceId(subscription.items.data[0]?.price.id);
+        const {talentLimit} = getPlanDetailsFromPriceId(subscription.items.data[0]?.price.id);
 
         await userDocRef.update({
           stripeSubscriptionId: subscription.id,
@@ -330,7 +336,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       }
 
       const priceId = subscription.items.data[0]?.price.id;
-      const { planId, talentLimit } = getPlanDetailsFromPriceId(priceId);
+      const {planId, talentLimit} = getPlanDetailsFromPriceId(priceId);
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
 
       const updates: Partial<UserProfileFirestoreData> = {
