@@ -314,24 +314,33 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
       }
 
-      const planId = subscription.metadata?.planId;
+      // Metadata might not be present on all subscription updates, but the price object will be.
+      // We can derive the planId from the priceId if needed, or rely on checkout session to set it initially.
+      const priceId = subscription.items.data[0]?.price.id;
+      const planId = subscription.metadata?.planId; // Use metadata if present, it's more direct.
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
 
       let talentLimit = 0;
       if (planId === "agency_pro_monthly" || planId === "agency_pro_yearly") talentLimit = 5;
       if (planId === "agency_scale_monthly" || planId === "agency_scale_yearly") talentLimit = 15;
 
-      await userDocRef.update({
-        stripeSubscriptionId: subscription.id,
-        subscriptionStatus: subscription.status,
-        subscriptionInterval: interval,
-        subscriptionPlanId: planId,
-        talentLimit,
-        subscriptionEndsAt: firestoreSubscriptionEndsAt,
-        trialEndsAt: firestoreTrialEndsAt,
-      });
+      const updates: any = {
+          stripeSubscriptionId: subscription.id,
+          subscriptionStatus: subscription.status,
+          subscriptionInterval: interval,
+          subscriptionEndsAt: firestoreSubscriptionEndsAt,
+          trialEndsAt: firestoreTrialEndsAt,
+          talentLimit: talentLimit,
+      };
+      
+      if(planId){
+          updates.subscriptionPlanId = planId;
+      }
+      
+      await userDocRef.update(updates);
+      
       logger.info(`Updated user subscription from ${event.type}:`,
-        {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId});
+        {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId: planId || `(derived from price ${priceId})`});
       break;
     }
 
