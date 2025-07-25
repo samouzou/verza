@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createstripesubscriptioncheckoutsession-cpmccwbluq-uc.a.run.app";
 
-type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_scale_monthly' | 'agency_scale_yearly';
+type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
 type BillingFrequency = 'monthly' | 'yearly';
 
 export function SubscriptionCard() {
@@ -129,10 +129,10 @@ export function SubscriptionCard() {
   const planDetails: Record<PlanId, { name: string; price: string; talentLimit?: number; icon: React.ElementType; yearlyPrice?: string; yearlySavings?: string }> = {
     'individual_monthly': { name: 'Individual Pro', price: '$25/month', icon: Zap },
     'individual_yearly': { name: 'Individual Pro', price: '$249/year', icon: Zap, yearlySavings: 'Save 17%' },
-    'agency_pro_monthly': { name: 'Agency Pro', price: '$49/month', talentLimit: 5, icon: Crown },
-    'agency_pro_yearly': { name: 'Agency Pro', price: '$488/year', talentLimit: 5, icon: Crown, yearlySavings: 'Save 17%' },
-    'agency_scale_monthly': { name: 'Agency Scale', price: '$99/month', talentLimit: 15, icon: Rocket },
-    'agency_scale_yearly': { name: 'Agency Scale', price: '$986/year', talentLimit: 15, icon: Rocket, yearlySavings: 'Save 17%' },
+    'agency_start_monthly': { name: 'Agency Start', price: '$149/month', talentLimit: 10, icon: Crown },
+    'agency_start_yearly': { name: 'Agency Start', price: '$1484/year', talentLimit: 10, icon: Crown, yearlySavings: 'Save ~17%' },
+    'agency_pro_monthly': { name: 'Agency Pro', price: '$299/month', talentLimit: 25, icon: Rocket },
+    'agency_pro_yearly': { name: 'Agency Pro', price: '$2978/year', talentLimit: 25, icon: Rocket, yearlySavings: 'Save ~17%' },
   };
 
   const getPlanNameFromId = (planId?: string) => {

@@ -164,7 +164,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_scale_monthly' | 'agency_scale_yearly';
+  subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
   talentLimit?: number; // Talent limit for agency plans
   subscriptionInterval?: 'month' | 'year' | null; 
   trialEndsAt?: Timestamp | null;
