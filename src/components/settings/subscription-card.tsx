@@ -130,9 +130,9 @@ export function SubscriptionCard() {
     'individual_monthly': { name: 'Individual Pro', price: '$25/month', icon: Zap },
     'individual_yearly': { name: 'Individual Pro', price: '$249/year', icon: Zap, yearlySavings: 'Save 17%' },
     'agency_pro_monthly': { name: 'Agency Pro', price: '$49/month', talentLimit: 5, icon: Crown },
-    'agency_pro_yearly': { name: 'Agency Pro', price: '$499/year', talentLimit: 5, icon: Crown, yearlySavings: 'Save 15%' },
+    'agency_pro_yearly': { name: 'Agency Pro', price: '$488/year', talentLimit: 5, icon: Crown, yearlySavings: 'Save 17%' },
     'agency_scale_monthly': { name: 'Agency Scale', price: '$99/month', talentLimit: 15, icon: Rocket },
-    'agency_scale_yearly': { name: 'Agency Scale', price: '$999/year', talentLimit: 15, icon: Rocket, yearlySavings: 'Save 16%' },
+    'agency_scale_yearly': { name: 'Agency Scale', price: '$986/year', talentLimit: 15, icon: Rocket, yearlySavings: 'Save 17%' },
   };
 
   const getPlanNameFromId = (planId?: string) => {
