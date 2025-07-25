@@ -337,13 +337,13 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
         subscriptionInterval: interval,
-        subscriptionEndsAt: firestoreSubscriptionEndsAt,
-        trialEndsAt: firestoreTrialEndsAt,
+        subscriptionEndsAt: firestoreSubscriptionEndsAt as any, // Use `as any` to bypass TS conflict
+        trialEndsAt: firestoreTrialEndsAt as any, // Use `as any` to bypass TS conflict
+        talentLimit: talentLimit,
       };
 
       if (planId) {
         updates.subscriptionPlanId = planId;
-        updates.talentLimit = talentLimit;
       }
 
       await userDocRef.update(updates);
@@ -370,7 +370,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
       await userDocRef.update({
         subscriptionStatus: "canceled",
-        subscriptionEndsAt: firestoreSubscriptionEndsAt,
+        subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
         talentLimit: 0, // Reset talent limit on cancellation
       });
       logger.info("Updated user subscription from customer.subscription.deleted:",
@@ -396,7 +396,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         await userDocRef.update({
           subscriptionStatus: "active",
           subscriptionInterval: interval,
-          subscriptionEndsAt: firestoreSubscriptionEndsAt,
+          subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
         });
         logger.info("Updated user subscription from invoice.payment_succeeded:",
           {userId: firebaseUID, subId: subscription.id, status: "active", interval: interval});

@@ -1,4 +1,3 @@
-
 // Adding a comment to refresh compilation context
 import type { Timestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
@@ -163,10 +162,10 @@ export interface UserProfileFirestoreData {
   agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
+  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none';
   subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
   talentLimit?: number; // Talent limit for agency plans
-  subscriptionInterval?: 'month' | 'year' | null; 
+  subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
