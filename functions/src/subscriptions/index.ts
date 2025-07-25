@@ -325,22 +325,23 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       if (planId === "agency_scale_monthly" || planId === "agency_scale_yearly") talentLimit = 15;
 
       const updates: any = {
-          stripeSubscriptionId: subscription.id,
-          subscriptionStatus: subscription.status,
-          subscriptionInterval: interval,
-          subscriptionEndsAt: firestoreSubscriptionEndsAt,
-          trialEndsAt: firestoreTrialEndsAt,
-          talentLimit: talentLimit,
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+        subscriptionInterval: interval,
+        subscriptionEndsAt: firestoreSubscriptionEndsAt,
+        trialEndsAt: firestoreTrialEndsAt,
+        talentLimit: talentLimit,
       };
-      
-      if(planId){
-          updates.subscriptionPlanId = planId;
+
+      if (planId) {
+        updates.subscriptionPlanId = planId;
       }
-      
+
       await userDocRef.update(updates);
-      
+
       logger.info(`Updated user subscription from ${event.type}:`,
-        {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId: planId || `(derived from price ${priceId})`});
+        {userId: firebaseUID, subId: subscription.id, status: subscription.status,
+          interval: interval, planId: planId || `(derived from price ${priceId})`});
       break;
     }
 

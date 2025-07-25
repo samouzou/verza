@@ -20,6 +20,7 @@ import {
   setDoc,
   getDoc,
   Timestamp,
+  onSnapshot, // Import onSnapshot for real-time listening
 } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,12 +35,14 @@ export interface UserProfile {
   tin?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner';
-  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent' }>;
+  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent', status: 'pending' | 'active' }>;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
+  subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_scale_monthly' | 'agency_scale_yearly';
+  talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
@@ -99,6 +102,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.trialEndsAt = trialEndsAtTimestamp;
     updates.subscriptionEndsAt = null;
     updates.trialExtensionUsed = false;
+    updates.talentLimit = 0; // Initialize talent limit
 
     updates.stripeAccountId = null;
     updates.stripeAccountStatus = 'none';
@@ -157,6 +161,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.subscriptionStatus = currentSubscriptionStatus; 
 
     if (existingData.subscriptionInterval === undefined) { updates.subscriptionInterval = null; needsUpdate = true; } // Initialize interval
+    if (existingData.talentLimit === undefined) { updates.talentLimit = 0; needsUpdate = true; } // Initialize talent limit
 
 
     if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing')) {
@@ -199,85 +204,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUserInstance, setFirebaseUserInstance] = useState<FirebaseUser | null>(null);
   const { toast } = useToast();
 
-  const fetchAndSetUser = useCallback(async (currentFirebaseUser: FirebaseUser | null) => {
-    if (currentFirebaseUser) {
-      setFirebaseUserInstance(currentFirebaseUser);
-      await createUserDocument(currentFirebaseUser); // This now also initializes subscriptionInterval if missing
-
-      const userDocRef = doc(db, 'users', currentFirebaseUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (userDocSnap.exists()) {
-        const firestoreUserData = userDocSnap.data() as UserProfile;
-        setUser({
-          uid: currentFirebaseUser.uid,
-          email: currentFirebaseUser.email,
-          displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
-          avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
-          emailVerified: currentFirebaseUser.emailVerified,
-          address: firestoreUserData.address || null, 
-          tin: firestoreUserData.tin || null,
-          createdAt: firestoreUserData.createdAt,
-          role: firestoreUserData.role || 'individual_creator',
-          agencyMemberships: firestoreUserData.agencyMemberships || [],
-          stripeCustomerId: firestoreUserData.stripeCustomerId,
-          stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
-          subscriptionStatus: firestoreUserData.subscriptionStatus,
-          subscriptionInterval: firestoreUserData.subscriptionInterval, // Fetch interval
-          trialEndsAt: firestoreUserData.trialEndsAt,
-          subscriptionEndsAt: firestoreUserData.subscriptionEndsAt,
-          trialExtensionUsed: firestoreUserData.trialExtensionUsed,
-          stripeAccountId: firestoreUserData.stripeAccountId,
-          stripeAccountStatus: firestoreUserData.stripeAccountStatus,
-          stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
-          stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
-        });
-      } else {
-         console.warn(`User document for ${currentFirebaseUser.uid} not found. This might be an initial sync issue.`);
-         setUser({
-          uid: currentFirebaseUser.uid,
-          email: currentFirebaseUser.email,
-          displayName: currentFirebaseUser.displayName,
-          avatarUrl: currentFirebaseUser.photoURL,
-          emailVerified: currentFirebaseUser.emailVerified,
-          address: null, 
-          tin: null,
-          createdAt: Timestamp.now(),
-          role: 'individual_creator',
-          agencyMemberships: [],
-          subscriptionStatus: 'none',
-          subscriptionInterval: null, // Initialize interval
-          stripeAccountStatus: 'none',
-        });
-      }
-    } else {
-      setUser(null);
-      setFirebaseUserInstance(null);
-    }
-    setIsLoading(false);
-  }, []);
-
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentFirebaseUser) => {
-      await fetchAndSetUser(currentFirebaseUser);
+    let unsubscribeFirestore: (() => void) | undefined;
+
+    const authUnsubscribe = onAuthStateChanged(auth, async (currentFirebaseUser) => {
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+
+      if (currentFirebaseUser) {
+        setFirebaseUserInstance(currentFirebaseUser);
+        await createUserDocument(currentFirebaseUser);
+
+        const userDocRef = doc(db, 'users', currentFirebaseUser.uid);
+        
+        unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const firestoreUserData = docSnap.data() as UserProfile;
+            setUser({
+              uid: currentFirebaseUser.uid,
+              email: currentFirebaseUser.email,
+              displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
+              avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
+              emailVerified: currentFirebaseUser.emailVerified,
+              address: firestoreUserData.address || null, 
+              tin: firestoreUserData.tin || null,
+              createdAt: firestoreUserData.createdAt,
+              role: firestoreUserData.role || 'individual_creator',
+              isAgencyOwner: firestoreUserData.isAgencyOwner || false,
+              agencyMemberships: firestoreUserData.agencyMemberships || [],
+              stripeCustomerId: firestoreUserData.stripeCustomerId,
+              stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
+              subscriptionStatus: firestoreUserData.subscriptionStatus,
+              subscriptionPlanId: firestoreUserData.subscriptionPlanId,
+              talentLimit: firestoreUserData.talentLimit,
+              subscriptionInterval: firestoreUserData.subscriptionInterval,
+              trialEndsAt: firestoreUserData.trialEndsAt,
+              subscriptionEndsAt: firestoreUserData.subscriptionEndsAt,
+              trialExtensionUsed: firestoreUserData.trialExtensionUsed,
+              stripeAccountId: firestoreUserData.stripeAccountId,
+              stripeAccountStatus: firestoreUserData.stripeAccountStatus,
+              stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
+              stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
+            });
+          } else {
+             console.warn(`User document for ${currentFirebaseUser.uid} not found during listener setup.`);
+             setUser(null);
+          }
+          setIsLoading(false);
+        }, (error) => {
+          console.error("Error listening to user document:", error);
+          setUser(null);
+          setIsLoading(false);
+        });
+
+      } else {
+        setUser(null);
+        setFirebaseUserInstance(null);
+        setIsLoading(false);
+      }
     });
-    return () => unsubscribe();
-  }, [fetchAndSetUser]);
+
+    return () => {
+      authUnsubscribe();
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
+  }, []);
 
   const refreshAuthUser = useCallback(async () => {
     const currentFbUser = auth.currentUser;
     if (currentFbUser) {
-      setIsLoading(true);
       await currentFbUser.reload();
-      const refreshedFirebaseUser = auth.currentUser;
-      if (refreshedFirebaseUser) {
-        await fetchAndSetUser(refreshedFirebaseUser);
-      } else {
-         setIsLoading(false);
-      }
+      // The onSnapshot listener will handle the update automatically, 
+      // but a manual fetch could be triggered here if needed for immediate feedback.
     }
-  }, [fetchAndSetUser]);
+  }, []);
 
 
   const loginWithGoogle = async () => {
@@ -450,3 +453,5 @@ export function useAuth() {
   }
   return context;
 }
+
+    
