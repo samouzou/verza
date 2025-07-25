@@ -107,6 +107,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
   const talentLimit = user?.talentLimit ?? 0;
   const atTalentLimit = activeTalentCount >= talentLimit;
+  const isNotOnAgencyPlan = !user?.subscriptionPlanId?.startsWith('agency_');
 
   useEffect(() => {
     if (!agency.id) return;
@@ -196,7 +197,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
 
   return (
     <div className="space-y-6">
-      {(!user?.subscriptionPlanId || atTalentLimit) && (
+      {(isNotOnAgencyPlan || atTalentLimit) && (
         <Alert className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
           <Sparkles className="h-5 w-5" />
           <AlertTitle className="font-semibold text-primary">
@@ -205,7 +206,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
           <AlertDescription className="text-primary/90">
              {atTalentLimit 
                ? `You have reached your limit of ${talentLimit} active talents. Please upgrade to invite more.`
-               : `You are currently on the free plan. Upgrade to an agency plan to manage talent.`
+               : `You are not on an agency plan. Please upgrade to manage talent.`
              }
           </AlertDescription>
           <div className="mt-3">
@@ -234,10 +235,10 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                     className="pl-10"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    disabled={isInviting || atTalentLimit}
+                    disabled={isInviting || atTalentLimit || isNotOnAgencyPlan}
                 />
                 </div>
-                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit}>
+                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan}>
                 {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                 Send Invite
                 </Button>
@@ -252,7 +253,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="payout-talent">Talent</Label>
-              <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout}>
+              <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout || isNotOnAgencyPlan}>
                 <SelectTrigger id="payout-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
                 <SelectContent>
                   {agency.talent.filter(t => t.status === 'active').map(t => (
@@ -264,20 +265,20 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
             <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="payout-amount">Amount ($)</Label>
-                  <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout} />
+                  <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
                 </div>
                  <div>
                   <Label htmlFor="payout-date">Payment Date</Label>
-                  <Input id="payout-date" type="date" value={payoutDate} onChange={(e) => setPayoutDate(e.target.value)} disabled={isSendingPayout} />
+                  <Input id="payout-date" type="date" value={payoutDate} onChange={(e) => setPayoutDate(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
                 </div>
             </div>
             <div>
               <Label htmlFor="payout-description">Payment For</Label>
-              <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout} />
+              <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
             </div>
              <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate}>
+                <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate || isNotOnAgencyPlan}>
                   <Send className="mr-2 h-4 w-4" />
                   Send Payment
                 </Button>
