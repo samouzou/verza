@@ -58,8 +58,17 @@ try {
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
- * @param {string} priceId - The Stripe Price ID.
- * @return {{planId: PlanId | null, talentLimit: number}} An object containing the internal plan ID and talent limit.
+ *
+ * This function takes a Stripe Price ID and returns an object containing
+ * the corresponding internal plan ID and the associated talent limit.
+ *
+ * If the provided `priceId` does not match any known plan, it returns an
+ * object with `planId` as `null` and `talentLimit` as `0`.
+ *
+ * @param {string} priceId The Stripe Price ID received from a Stripe event or API call.
+ * @return {{planId: (PlanId | null), talentLimit: number}} An object with 'planId'
+ * (the internal identifier, or `null` if not found)
+ * and 'talentLimit' (the number of talents allowed for that plan).
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
