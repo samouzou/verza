@@ -7,7 +7,42 @@ import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const {uid, email, displayName} = user;
+  const {uid, email, displayName, photoURL, emailVerified} = user;
+
+  // Create the base user document first, regardless of invitation status.
+  const userDocRef = db.collection("users").doc(uid);
+  const createdAt = admin.firestore.Timestamp.now();
+  const trialEndsAt = new admin.firestore.Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds); // 7-day trial
+
+  const newUserDoc: UserProfileFirestoreData = {
+      uid: uid,
+      email: email || null,
+      displayName: displayName || email?.split('@')[0] || 'New User',
+      avatarUrl: photoURL || null,
+      emailVerified: emailVerified,
+      createdAt: createdAt as any, // Cast for compatibility
+      role: 'individual_creator', // Default role
+      isAgencyOwner: false,
+      agencyMemberships: [],
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      subscriptionStatus: 'trialing',
+      subscriptionPlanId: undefined, // No plan initially
+      talentLimit: 0,
+      subscriptionInterval: null,
+      trialEndsAt: trialEndsAt as any,
+      subscriptionEndsAt: null,
+      trialExtensionUsed: false,
+      stripeAccountId: null,
+      stripeAccountStatus: 'none',
+      stripeChargesEnabled: false,
+      stripePayoutsEnabled: false,
+      address: null,
+      tin: null,
+  };
+
+  await userDocRef.set(newUserDoc, {merge: true});
+
 
   if (!email) {
     logger.info(`User ${uid} created without an email, skipping invitation check.`);
@@ -23,7 +58,6 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     const invitationData = invitationDoc.data();
     if (invitationData && invitationData.status === "pending") {
       const {agencyId, agencyName} = invitationData;
-      const userDocRef = db.collection("users").doc(uid);
       const agencyDocRef = db.collection("agencies").doc(agencyId);
 
       const newTalentMember: Talent = {
@@ -47,7 +81,8 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
       const userUpdate: Partial<UserProfileFirestoreData> = {
         agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership) as any,
       };
-      batch.set(userDocRef, userUpdate, {merge: true});
+      // Note: userDocRef already exists from the set() above, so we update
+      batch.update(userDocRef, userUpdate);
 
       // Add the user to the agency's talent array
       batch.update(agencyDocRef, {

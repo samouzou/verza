@@ -4,6 +4,11 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
+import type { UserProfileFirestoreData } from "../../../src/types";
+
+// Define PlanId type matching the frontend for consistency
+type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -47,6 +52,20 @@ try {
 } catch (error) {
   logger.error("Error initializing Stripe:", error);
   throw error;
+}
+
+// Helper function to map a Stripe Price ID to our internal plan details
+function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
+    const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
+      [process.env.STRIPE_PRICE_ID || '']: { planId: 'individual_monthly', talentLimit: 0 },
+      [process.env.STRIPE_YEARLY_PRICE_ID || '']: { planId: 'individual_yearly', talentLimit: 0 },
+      [process.env.STRIPE_AGENCY_START_PRICE_ID || '']: { planId: 'agency_start_monthly', talentLimit: 10 },
+      [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || '']: { planId: 'agency_start_yearly', talentLimit: 10 },
+      [process.env.STRIPE_AGENCY_PRO_PRICE_ID || '']: { planId: 'agency_pro_monthly', talentLimit: 25 },
+      [process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID || '']: { planId: 'agency_pro_yearly', talentLimit: 25 },
+    };
+
+    return priceIdMap[priceId] || { planId: null, talentLimit: 0 };
 }
 
 
@@ -232,7 +251,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
   try {
     // Get Firebase UID from event metadata
-    let firebaseUID: string | string | undefined;
+    let firebaseUID: string | undefined;
     // Use type narrowing to access metadata or customer property safely
     if ("metadata" in event.data.object && event.data.object.metadata?.firebaseUID) {
       firebaseUID = event.data.object.metadata.firebaseUID;
@@ -273,13 +292,9 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
         }
 
-        const planId = session.metadata?.planId;
+        const planId = session.metadata?.planId as PlanId;
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
-
-        let talentLimit = 0;
-        if (planId === "agency_start_monthly" || planId === "agency_start_yearly") talentLimit = 10;
-        if (planId === "agency_pro_monthly" || planId === "agency_pro_yearly") talentLimit = 25;
-
+        const { talentLimit } = getPlanDetailsFromPriceId(subscription.items.data[0]?.price.id);
 
         await userDocRef.update({
           stripeSubscriptionId: subscription.id,
@@ -314,27 +329,21 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
       }
 
-      // Metadata might not be present on all subscription updates, but the price object will be.
-      // We can derive the planId from the priceId if needed, or rely on checkout session to set it initially.
       const priceId = subscription.items.data[0]?.price.id;
-      const planId = subscription.metadata?.planId; // Use metadata if present, it's more direct.
+      const { planId, talentLimit } = getPlanDetailsFromPriceId(priceId);
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
 
-      let talentLimit = 0;
-      if (planId === "agency_start_monthly" || planId === "agency_start_yearly") talentLimit = 10;
-      if (planId === "agency_pro_monthly" || planId === "agency_pro_yearly") talentLimit = 25;
-
-      const updates: any = {
+      const updates: Partial<UserProfileFirestoreData> = {
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
         subscriptionInterval: interval,
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
         trialEndsAt: firestoreTrialEndsAt,
-        talentLimit: talentLimit,
       };
 
       if (planId) {
         updates.subscriptionPlanId = planId;
+        updates.talentLimit = talentLimit;
       }
 
       await userDocRef.update(updates);
