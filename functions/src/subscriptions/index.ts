@@ -59,7 +59,7 @@ try {
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
  * @param {string} priceId - The Stripe Price ID.
- * @returns {{ planId: PlanId | null, talentLimit: number }} An object containing the internal plan ID and talent limit.
+ * @return {{planId: PlanId | null, talentLimit: number}} An object containing the internal plan ID and talent limit.
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
