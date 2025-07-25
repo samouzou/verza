@@ -225,7 +225,7 @@ export function SubscriptionCard() {
                 const isCurrentPlan = user.subscriptionPlanId === planIdKey;
 
                 return (
-                  <div key={id} className={cn("rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
+                  <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
                      {isCurrentPlan && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
                      {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
                       
