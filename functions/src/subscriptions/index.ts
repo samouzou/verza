@@ -188,7 +188,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
 });
 
 // Handle Stripe webhooks
-export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (request, response) => {
+export const stripeSubscriptionWebhookHandler = onRequest(async (request, response) => {
   // Set CORS headers
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -275,10 +275,10 @@ export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (re
 
         const planId = session.metadata?.planId;
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
-        
+
         let talentLimit = 0;
-        if (planId === 'agency_pro_monthly' || planId === 'agency_pro_yearly') talentLimit = 5;
-        if (planId === 'agency_scale_monthly' || planId === 'agency_scale_yearly') talentLimit = 15;
+        if (planId === "agency_pro_monthly" || planId === "agency_pro_yearly") talentLimit = 5;
+        if (planId === "agency_scale_monthly" || planId === "agency_scale_yearly") talentLimit = 15;
 
 
         await userDocRef.update({
@@ -313,13 +313,13 @@ export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (re
       if (typeof subscription.trial_end === "number") {
         firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
       }
-      
+
       const planId = subscription.metadata?.planId;
       const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
-      
+
       let talentLimit = 0;
-      if (planId === 'agency_pro_monthly' || planId === 'agency_pro_yearly') talentLimit = 5;
-      if (planId === 'agency_scale_monthly' || planId === 'agency_scale_yearly') talentLimit = 15;
+      if (planId === "agency_pro_monthly" || planId === "agency_pro_yearly") talentLimit = 5;
+      if (planId === "agency_scale_monthly" || planId === "agency_scale_yearly") talentLimit = 15;
 
       await userDocRef.update({
         stripeSubscriptionId: subscription.id,
@@ -348,7 +348,7 @@ export const stripeSubscriptionWebhookHandler = (0, https_1.onRequest)(async (re
       if (typeof endTimestamp === "number") {
         firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(endTimestamp * 1000);
       }
-      
+
       await userDocRef.update({
         subscriptionStatus: "canceled",
         subscriptionEndsAt: firestoreSubscriptionEndsAt,
