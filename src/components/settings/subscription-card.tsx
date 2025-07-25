@@ -129,10 +129,10 @@ export function SubscriptionCard() {
   const planDetails: Record<PlanId, { name: string; price: string; talentLimit?: number; icon: React.ElementType; yearlyPrice?: string; yearlySavings?: string }> = {
     'individual_monthly': { name: 'Individual Pro', price: '$25/month', icon: Zap },
     'individual_yearly': { name: 'Individual Pro', price: '$249/year', icon: Zap, yearlySavings: 'Save 17%' },
-    'agency_start_monthly': { name: 'Agency Start', price: '$149/month', talentLimit: 10, icon: Crown },
-    'agency_start_yearly': { name: 'Agency Start', price: '$1484/year', talentLimit: 10, icon: Crown, yearlySavings: 'Save ~17%' },
-    'agency_pro_monthly': { name: 'Agency Pro', price: '$299/month', talentLimit: 25, icon: Rocket },
-    'agency_pro_yearly': { name: 'Agency Pro', price: '$2978/year', talentLimit: 25, icon: Rocket, yearlySavings: 'Save ~17%' },
+    'agency_start_monthly': { name: 'Agency Start', price: '$199/month', talentLimit: 10, icon: Crown },
+    'agency_start_yearly': { name: 'Agency Start', price: '$1982/year', talentLimit: 10, icon: Crown, yearlySavings: 'Save ~17%' },
+    'agency_pro_monthly': { name: 'Agency Pro', price: '$349/month', talentLimit: 25, icon: Rocket },
+    'agency_pro_yearly': { name: 'Agency Pro', price: '$3476/year', talentLimit: 25, icon: Rocket, yearlySavings: 'Save ~17%' },
   };
 
   const getPlanNameFromId = (planId?: string) => {
