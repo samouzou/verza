@@ -183,7 +183,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     };
     
     if (isAgencyOwner) {
-        options.ccs = [{ emailAddress: requesterData.email!, roleName: 'Agency Owner' }];
+        options.ccEmailAddresses = [requesterData.email!];
         options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
     }
 
@@ -191,7 +191,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       ...options,
       // Redact emails for logging
       signers: options.signers ? options.signers.map((s: any) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
-      ccs: options.ccs ? options.ccs.map((cc: any) => ({emailAddress: "[REDACTED]", roleName: cc.roleName })) : undefined,
+      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
       fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
     }));
 
