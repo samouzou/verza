@@ -241,58 +241,66 @@ export default function ManageInvoicePage() {
 
         if (!isMounted) return;
 
-        if (contractSnap.exists() && contractSnap.data()?.userId === user.uid) {
+        if (contractSnap.exists()) {
           const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-          setContract(contractData);
-          setInvoiceStatus(contractData.invoiceStatus || 'none');
-          const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
-          setPayUrl(currentPayUrlValue);
-
-          const receiptsCol = collection(db, 'receipts');
-          const qReceipts = query(receiptsCol, where('userId', '==', user.uid), where('linkedContractId', '==', id));
+          const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+          const isOwner = contractData.userId === user.uid;
+          const isAgencyOwner = user.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
           
-          // Initial fetch for receipts to be used if AI generation is needed
-          const initialReceiptSnapshot = await getDocs(qReceipts);
-          const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
-            const receiptData = docSnap.data() as ReceiptType;
-            return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
-          });
-          
-          if (isMounted) {
-            setContractReceipts(initialFetchedReceipts); // Set receipts state first
-          }
+          if (isOwner || isAgencyOwner) {
+              setContract(contractData);
+              setInvoiceStatus(contractData.invoiceStatus || 'none');
+              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+              setPayUrl(currentPayUrlValue);
 
-          // Logic for setting initial HTML content or generating AI
-          if (contractData.invoiceHtmlContent) {
-            setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-            const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-            populateFormFromEditableDetails(detailsToPopulate, contractData, user);
-          } else if (contractData.editableInvoiceDetails) {
-            populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
-            await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
-          } else if (contractData.amount > 0) {
-            // AI generation if no content and amount exists
-            await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
+              const receiptsCol = collection(db, 'receipts');
+              const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
+              
+              // Initial fetch for receipts to be used if AI generation is needed
+              const initialReceiptSnapshot = await getDocs(qReceipts);
+              const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
+                const receiptData = docSnap.data() as ReceiptType;
+                return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+              });
+              
+              if (isMounted) {
+                setContractReceipts(initialFetchedReceipts); // Set receipts state first
+              }
+
+              // Logic for setting initial HTML content or generating AI
+              if (contractData.invoiceHtmlContent) {
+                setInvoiceHtmlContent(contractData.invoiceHtmlContent);
+                const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
+                populateFormFromEditableDetails(detailsToPopulate, contractData, user);
+              } else if (contractData.editableInvoiceDetails) {
+                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
+                await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
+              } else if (contractData.amount > 0) {
+                // AI generation if no content and amount exists
+                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
+              } else {
+                // No content, no details, no amount - just set defaults and empty HTML
+                const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
+                populateFormFromEditableDetails(defaultDetails, contractData, user);
+                setInvoiceHtmlContent("");
+              }
+              
+              // Setup real-time listener for receipts AFTER initial data processing
+              unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
+                if (!isMounted) return;
+                const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
+                  const receiptData = docSnap.data() as ReceiptType;
+                  return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
+                });
+                if(isMounted) setContractReceipts(fetchedReceiptsUpdate);
+              }, (error) => {
+                console.error("Error listening to receipts:", error);
+                if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
+              });
           } else {
-            // No content, no details, no amount - just set defaults and empty HTML
-            const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-            populateFormFromEditableDetails(defaultDetails, contractData, user);
-            setInvoiceHtmlContent("");
+            toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+            router.push('/contracts');
           }
-          
-          // Setup real-time listener for receipts AFTER initial data processing
-          unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-            if (!isMounted) return;
-            const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
-              const receiptData = docSnap.data() as ReceiptType;
-              return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
-            });
-            if(isMounted) setContractReceipts(fetchedReceiptsUpdate);
-          }, (error) => {
-            console.error("Error listening to receipts:", error);
-            if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
-          });
-
         } else {
           toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
           router.push('/contracts');
@@ -310,7 +318,7 @@ export default function ManageInvoicePage() {
       isMounted = false; 
       if (unsubscribeReceipts) unsubscribeReceipts();
     };
-  }, [id, user?.uid, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration]);
+  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration]);
 
   const toggleEditMode = useCallback(async () => {
     if (isEditingDetails) { 
@@ -795,4 +803,5 @@ export default function ManageInvoicePage() {
     
 
     
+
 

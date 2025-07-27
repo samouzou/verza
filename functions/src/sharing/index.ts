@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase";
-import type {Contract, SharedContractVersion} from "../../../src/types"; // Reverted to relative path
+import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "../../../src/types"; // Reverted to relative path
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
@@ -16,7 +16,7 @@ export const createShareableContractVersion = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const userId = request.auth.uid;
+  const requesterId = request.auth.uid;
   // Explicitly get rawNotesForBrand, which could be undefined if not sent
   const {contractId, notesForBrand: rawNotesForBrand} = request.data;
 
@@ -41,19 +41,28 @@ export const createShareableContractVersion = onCall({
     const contractSnap = await contractDocRef.get();
 
     if (!contractSnap.exists) {
-      logger.error(`Contract ${contractId} not found for user ${userId}.`);
+      logger.error(`Contract ${contractId} not found for user ${requesterId}.`);
       throw new HttpsError("not-found", "Contract not found.");
     }
 
     const contractData = contractSnap.data() as Contract;
 
-    if (contractData.userId !== userId) {
-      logger.error(
-        `User ${userId} attempted to share contract ${contractId} ` +
-        "they do not own."
+    // PERMISSION CHECK: User must be direct owner OR agency owner
+    const requesterDoc = await db.collection("users").doc(requesterId).get();
+    const requesterData = requesterDoc.data() as UserProfileFirestoreData;
+    const agencyId = requesterData.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+
+    const isDirectOwner = contractData.userId === requesterId;
+    const isAgencyOwner = requesterData.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
+
+    if (!isDirectOwner && !isAgencyOwner) {
+       logger.error(
+        `User ${requesterId} attempted to share contract ${contractId} ` +
+        "they do not own.", {contractOwner: contractData.userId, contractAgency: contractData.ownerId, requesterAgency: agencyId}
       );
       throw new HttpsError("permission-denied", "You do not have permission to share this contract.");
     }
+
 
     // Prepare the snapshot of contract data to be shared
     const {
@@ -77,7 +86,7 @@ export const createShareableContractVersion = onCall({
 
     const sharedVersionData: Omit<SharedContractVersion, "id"> = {
       originalContractId: contractId,
-      userId: userId,
+      userId: contractData.userId, // Always attribute the share to the original creator
       sharedAt: AdminTimestamp.now() as unknown as ClientTimestamp,
       contractData: relevantContractData,
       notesForBrand: processedNotesForBrand, // Use the explicitly processed value
@@ -96,7 +105,7 @@ export const createShareableContractVersion = onCall({
 
     logger.info(
       `Created shareable version ${result.id} for ` +
-      `contract ${contractId} by user ${userId}.`
+      `contract ${contractId} by user ${requesterId}.`
     );
 
     return {
@@ -106,7 +115,7 @@ export const createShareableContractVersion = onCall({
   } catch (error) {
     logger.error(
       "Error in createShareableContractVersion for user " +
-      `${userId}, contract ${contractId}:`, error
+      `${requesterId}, contract ${contractId}:`, error
     );
 
     if (error instanceof HttpsError) {
