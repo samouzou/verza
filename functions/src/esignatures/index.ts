@@ -64,14 +64,15 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     }
 
     const contractData = contractSnap.data() as Contract;
-    
+
     // PERMISSION CHECK: User must be direct owner OR agency owner
     const requesterDoc = await db.collection("users").doc(requesterId).get();
     const requesterData = requesterDoc.data() as UserProfileFirestoreData;
-    const agencyId = requesterData.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+    const agencyId = requesterData.agencyMemberships?.find((m) => m.role === "owner")?.agencyId;
 
     const isDirectOwner = contractData.userId === requesterId;
-    const isAgencyOwner = requesterData.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
+    const isAgencyOwner = requesterData.role === "agency_owner" &&
+      contractData.ownerType === "agency" && contractData.ownerId === agencyId;
 
     if (!isDirectOwner && !isAgencyOwner) {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
@@ -149,7 +150,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (!creatorUserData) {
       throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
-    
+
 
     const options: DropboxSign.SignatureRequestSendRequest = {
       testMode: true, // Set to true for testing
@@ -181,10 +182,10 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         verza_env: process.env.NODE_ENV || "development",
       },
     };
-    
+
     if (isAgencyOwner) {
-        options.ccEmailAddresses = [requesterData.email!];
-        options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
+      options.ccEmailAddresses = [requesterData.email!];
+      options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
     }
 
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({

@@ -50,13 +50,14 @@ export const createShareableContractVersion = onCall({
     // PERMISSION CHECK: User must be direct owner OR agency owner
     const requesterDoc = await db.collection("users").doc(requesterId).get();
     const requesterData = requesterDoc.data() as UserProfileFirestoreData;
-    const agencyId = requesterData.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+    const agencyId = requesterData.agencyMemberships?.find((m) => m.role === "owner")?.agencyId;
 
     const isDirectOwner = contractData.userId === requesterId;
-    const isAgencyOwner = requesterData.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
+    const isAgencyOwner = requesterData.role === "agency_owner" &&
+      contractData.ownerType === "agency" && contractData.ownerId === agencyId;
 
     if (!isDirectOwner && !isAgencyOwner) {
-       logger.error(
+      logger.error(
         `User ${requesterId} attempted to share contract ${contractId} ` +
         "they do not own.", {contractOwner: contractData.userId, contractAgency: contractData.ownerId, requesterAgency: agencyId}
       );
