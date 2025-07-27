@@ -146,9 +146,10 @@ export default function ContractDetailPage() {
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
-        if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
-          const data = contractSnap.data();
-          
+        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+        const data = contractSnap.data();
+
+        if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
           let createdAt = data.createdAt;
           if (createdAt && !(createdAt instanceof Timestamp)) {
             if (typeof createdAt === 'string') {
