@@ -342,10 +342,12 @@ export const createInternalPayout = onCall(async (request) => {
         "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
-    // Calculate platform fee (e.g., 3% + 30 cents) and total charge amount
+    // Calculate platform fee (Stripe fees + 1% Verza fee) and total charge amount
     const payoutAmountInCents = Math.round(amount * 100);
-    const platformFeeInCents = Math.round(payoutAmountInCents * 0.03) + 30; // 3% + 30 cents
+    // Platform fee is 4% (3% for Stripe + 1% for Verza) + 30 cents
+    const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
     const totalChargeInCents = payoutAmountInCents + platformFeeInCents;
+
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: totalChargeInCents, // Charge the agency the total amount

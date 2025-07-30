@@ -1,3 +1,4 @@
+
 import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -232,11 +233,15 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
     // Convert amount to cents for Stripe (amount is in dollars)
     const amountInCents = Math.round(amount * 100);
+    // Calculate 1% platform fee for Verza
+    const applicationFeeAmount = Math.round(amountInCents * 0.01);
+
 
     // Create payment intent with transfer to creator's account
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency,
+      application_fee_amount: applicationFeeAmount,
       transfer_data: {
         destination: creatorData.stripeAccountId,
       },
