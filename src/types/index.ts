@@ -277,7 +277,6 @@ export interface InternalPayout {
   status: 'pending' | 'processing' | 'paid' | 'failed';
   initiatedAt: ClientTimestamp;
   paidAt?: ClientTimestamp;
-  stripeChargeId?: string; // Replaced transferId with chargeId
+  stripeChargeId?: string;
+  platformFee?: number;
 }
-
-    
