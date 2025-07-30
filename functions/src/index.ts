@@ -36,6 +36,7 @@ import {
 
 import {
   createShareableContractVersion,
+  getPublicContractDetails,
 } from "./sharing";
 
 import {
@@ -70,6 +71,7 @@ export {
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
   createShareableContractVersion,
+  getPublicContractDetails,
   initiateHelloSignRequest,
   helloSignWebhookHandler,
   generateFinicityConnectUrl,

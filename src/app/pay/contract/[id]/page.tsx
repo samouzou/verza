@@ -7,25 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { db, doc, getDoc } from '@/lib/firebase';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
 import type { Contract } from '@/types';
 import { Loader2, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase';
 
-// This URL should point to your deployed createPaymentIntent Cloud Function
-// This function on the backend should be able to handle requests for specific contract IDs
-// *without* requiring frontend user authentication if the payment is from a public link,
-// but by validating the contract itself and fetching its amount.
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
+
+type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'amount' | 'invoiceStatus'>;
 
 export default function ClientPaymentPage() {
   const params = useParams();
   const id = params.id as string;
   const { toast } = useToast();
 
-  const [contract, setContract] = useState<Contract | null>(null);
+  const [contract, setContract] = useState<PublicContractData | null>(null);
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -44,27 +43,23 @@ export default function ClientPaymentPage() {
   useEffect(() => {
     if (id) {
       setIsLoadingContract(true);
-      const fetchContract = async () => {
-        try {
-          const contractDocRef = doc(db, 'contracts', id);
-          const contractSnap = await getDoc(contractDocRef);
-          if (contractSnap.exists()) {
-            const data = contractSnap.data() as Contract;
-            if (data.invoiceStatus === 'paid') {
-              toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
-            }
-            setContract({ ...data, id: contractSnap.id });
-          } else {
-            toast({ title: "Error", description: "Invoice not found or link is invalid.", variant: "destructive" });
+      const getPublicContractDetailsCallable = httpsCallable(functions, 'getPublicContractDetails');
+      
+      getPublicContractDetailsCallable({ contractId: id })
+        .then((result) => {
+          const data = result.data as PublicContractData;
+          if (data.invoiceStatus === 'paid') {
+            toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
           }
-        } catch (error) {
-          console.error("Error fetching contract for payment:", error);
-          toast({ title: "Fetch Error", description: "Could not load invoice details.", variant: "destructive" });
-        } finally {
+          setContract(data);
+        })
+        .catch((error) => {
+          console.error("Error fetching public contract details:", error);
+          toast({ title: "Error", description: error.message || "Could not load invoice details.", variant: "destructive" });
+        })
+        .finally(() => {
           setIsLoadingContract(false);
-        }
-      };
-      fetchContract();
+        });
     }
   }, [id, toast]);
 
@@ -86,13 +81,11 @@ export default function ClientPaymentPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // No Authorization header here for public payments,
-          // backend should verify contractId and fetch amount securely.
         },
         body: JSON.stringify({
           contractId: contract.id,
-          amount: contract.amount, // Send amount in cents
-          currency: 'usd', // Or derive from contract if it has a currency field
+          amount: contract.amount,
+          currency: 'usd',
         }),
       });
 
@@ -212,4 +205,3 @@ export default function ClientPaymentPage() {
     </div>
   );
 }
-
