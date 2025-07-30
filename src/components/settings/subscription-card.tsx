@@ -6,35 +6,36 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
-import { functions } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CreditCard, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, BadgeDollarSign, Zap } from "lucide-react";
+import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { loadStripe } from '@stripe/stripe-js';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createstripesubscriptioncheckoutsession-cpmccwbluq-uc.a.run.app";
 
-type PlanInterval = 'month' | 'year';
+type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+type BillingFrequency = 'monthly' | 'yearly';
 
 export function SubscriptionCard() {
-  const { user, refreshAuthUser } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [isProcessingPortal, setIsProcessingPortal] = useState(false);
-  const [selectedPlanInterval, setSelectedPlanInterval] = useState<PlanInterval>('month');
+  const [billingFrequency, setBillingFrequency] = useState<BillingFrequency>('monthly');
 
   if (!user) return null;
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (planId: PlanId) => {
     setIsProcessingCheckout(true);
     try {
       const firebaseFunctions = getFunctions();
       const createCheckoutSessionCallable = httpsCallableFromURL(firebaseFunctions, CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL);
       
-      const result = await createCheckoutSessionCallable({ interval: selectedPlanInterval });
+      const result = await createCheckoutSessionCallable({ planId });
       const { sessionId } = result.data as { sessionId: string };
       
       if (!sessionId) {
@@ -124,41 +125,44 @@ export function SubscriptionCard() {
       return "Invalid Date";
     }
   };
+  
+  const planDetails: Record<PlanId, { name: string; price: string; talentLimit?: number; icon: React.ElementType; yearlyPrice?: string; yearlySavings?: string }> = {
+    'individual_monthly': { name: 'Individual Pro', price: '$25/month', icon: Zap },
+    'individual_yearly': { name: 'Individual Pro', price: '$249/year', icon: Zap, yearlySavings: 'Save 17%' },
+    'agency_start_monthly': { name: 'Agency Start', price: '$199/month', talentLimit: 10, icon: Crown },
+    'agency_start_yearly': { name: 'Agency Start', price: '$1982/year', talentLimit: 10, icon: Crown, yearlySavings: 'Save ~17%' },
+    'agency_pro_monthly': { name: 'Agency Pro', price: '$349/month', talentLimit: 25, icon: Rocket },
+    'agency_pro_yearly': { name: 'Agency Pro', price: '$3476/year', talentLimit: 25, icon: Rocket, yearlySavings: 'Save ~17%' },
+  };
+
+  const getPlanNameFromId = (planId?: string) => {
+      if (!planId) return 'Pro Plan';
+      return planDetails[planId as PlanId]?.name || 'Unknown Plan';
+  };
 
   const renderStatusBadge = () => {
-    if (!user.subscriptionStatus || user.subscriptionStatus === 'none') {
+    const status = user.subscriptionStatus;
+    const planId = user.subscriptionPlanId;
+    if (!status || status === 'none') {
       return <Badge variant="outline">No Active Subscription</Badge>;
     }
-    let intervalText = "";
-    if (user.subscriptionInterval === 'year') intervalText = " (Yearly)";
-    else if (user.subscriptionInterval === 'month') intervalText = " (Monthly)";
+    
+    const planName = getPlanNameFromId(planId);
 
-
-    switch (user.subscriptionStatus) {
-      case 'trialing':
-        return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Free Trial{intervalText}</Badge>;
-      case 'active':
-        return <Badge className="bg-green-500 text-white hover:bg-green-600">Active{intervalText}</Badge>;
-      case 'past_due':
-        return <Badge variant="destructive">Past Due{intervalText}</Badge>;
-      case 'canceled':
-        return <Badge variant="secondary">Canceled{intervalText}</Badge>;
-      case 'incomplete':
-        return <Badge variant="outline">Incomplete{intervalText}</Badge>;
-      default:
-        return <Badge variant="outline" className="capitalize">{user.subscriptionStatus.replace('_', ' ')}{intervalText}</Badge>;
+    switch (status) {
+      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Free Trial</Badge>;
+      case 'active': return <Badge className="bg-green-500 text-white hover:bg-green-600">{planName}</Badge>;
+      case 'past_due': return <Badge variant="destructive">{planName} - Past Due</Badge>;
+      case 'canceled': return <Badge variant="secondary">{planName} - Canceled</Badge>;
+      default: return <Badge variant="outline" className="capitalize">{planName} - {status.replace('_', ' ')}</Badge>;
     }
   };
   
-  const canSubscribe = !user.stripeSubscriptionId || 
-                       user.subscriptionStatus === 'none' || 
-                       user.subscriptionStatus === 'canceled' ||
-                       (user.subscriptionStatus === 'trialing'); 
-
-  const canManage = !!user.stripeSubscriptionId && 
-                    (user.subscriptionStatus === 'active' || 
-                     user.subscriptionStatus === 'past_due' || 
-                     user.subscriptionStatus === 'trialing');
+  const canManage = !!user.stripeSubscriptionId && (user.subscriptionStatus === 'active' || user.subscriptionStatus === 'past_due' || user.subscriptionStatus === 'trialing' || user.subscriptionStatus === 'canceled');
+  
+  const plansToShow = Object.entries(planDetails)
+    .filter(([id]) => id.endsWith(billingFrequency))
+    .filter(([id]) => user.isAgencyOwner || !id.startsWith('agency'));
 
   return (
     <Card className="shadow-lg">
@@ -200,54 +204,48 @@ export function SubscriptionCard() {
             </div>
           )}
         </div>
-
-        {canSubscribe && (
-          <div className="space-y-4 pt-2">
-            <p className="font-medium">Choose your plan:</p>
-            <RadioGroup value={selectedPlanInterval} onValueChange={(value) => setSelectedPlanInterval(value as PlanInterval)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <RadioGroupItem value="month" id="plan-monthly" className="peer sr-only" />
-                <Label
-                  htmlFor="plan-monthly"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                >
-                  <BadgeDollarSign className="mb-3 h-6 w-6" />
-                  Monthly Plan
-                  <span className="block text-2xl font-bold mt-1">$25/month</span>
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem value="year" id="plan-yearly" className="peer sr-only" />
-                <Label
-                  htmlFor="plan-yearly"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer relative"
-                >
-                  <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">Save 17%</Badge>
-                  <BadgeDollarSign className="mb-3 h-6 w-6" />
-                  Yearly Plan
-                  <span className="block text-2xl font-bold mt-1">$249/year</span>
-                  <span className="text-xs text-muted-foreground">(Equals ~$20.75/month)</span>
-                </Label>
-              </div>
-            </RadioGroup>
-
-            <Button
-              onClick={handleSubscribe}
-              disabled={isProcessingCheckout || isProcessingPortal}
-              className="w-full"
-              size="lg"
+        
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center justify-between">
+            <p className="font-medium text-lg">Available Plans</p>
+            <RadioGroup
+              value={billingFrequency}
+              onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
+              className="flex items-center rounded-md bg-muted p-1"
             >
-              {isProcessingCheckout ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <CreditCard className="mr-2 h-5 w-5" />
-              )}
-              {user.subscriptionStatus === 'trialing' && user.trialEndsAt && user.trialEndsAt.toMillis() > Date.now() 
-                ? `Subscribe to ${selectedPlanInterval === 'month' ? 'Monthly' : 'Yearly'} (End Trial Early)`
-                : `Subscribe to ${selectedPlanInterval === 'month' ? 'Monthly' : 'Yearly'}`}
-            </Button>
+              <RadioGroupItem value="monthly" id="monthly" className="sr-only" />
+              <Label htmlFor="monthly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'monthly' && 'bg-background shadow-sm')}>Monthly</Label>
+              <RadioGroupItem value="yearly" id="yearly" className="sr-only" />
+              <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
+            </RadioGroup>
           </div>
-        )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {plansToShow.map(([id, details]) => {
+                const planIdKey = id as PlanId;
+                const isCurrentPlan = user.subscriptionPlanId === planIdKey;
+
+                return (
+                  <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
+                     {isCurrentPlan && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
+                     {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
+                      
+                      <details.icon className="mb-3 h-8 w-8 text-primary" />
+                      <p className="font-semibold text-lg">{details.name}</p>
+                      <p className="text-2xl font-bold mt-1">{details.price}</p>
+                      {details.talentLimit && <p className="text-sm text-muted-foreground">Up to {details.talentLimit} talents</p>}
+                      <Button 
+                         onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
+                         className="w-full mt-4" 
+                         disabled={isProcessingCheckout || isCurrentPlan}
+                         variant={isCurrentPlan ? 'secondary' : 'default'}
+                       >
+                         {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan ? 'Current Plan' : 'Choose Plan')}
+                       </Button>
+                  </div>
+                );
+            })}
+          </div>
+        </div>
         
         {canManage && (
           <Button

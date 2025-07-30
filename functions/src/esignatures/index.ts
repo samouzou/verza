@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
-import type {Contract} from "../../../src/types";
+import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 import {getStorage} from "firebase-admin/storage";
@@ -48,7 +48,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "E-signature service is not configured.");
   }
 
-  const userId = await verifyAuth(request.auth?.uid);
+  const requesterId = await verifyAuth(request.auth?.uid);
   const {contractId, signerEmailOverride} = request.data;
 
   if (!contractId || typeof contractId !== "string") {
@@ -65,9 +65,19 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     const contractData = contractSnap.data() as Contract;
 
-    if (contractData.userId !== userId) {
+    // PERMISSION CHECK: User must be direct owner OR agency owner
+    const requesterDoc = await db.collection("users").doc(requesterId).get();
+    const requesterData = requesterDoc.data() as UserProfileFirestoreData;
+    const agencyId = requesterData.agencyMemberships?.find((m) => m.role === "owner")?.agencyId;
+
+    const isDirectOwner = contractData.userId === requesterId;
+    const isAgencyOwner = requesterData.role === "agency_owner" &&
+      contractData.ownerType === "agency" && contractData.ownerId === agencyId;
+
+    if (!isDirectOwner && !isAgencyOwner) {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
+
 
     let fileUrlForSignature: string;
 
@@ -128,17 +138,19 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
     }
 
-    const userRecord = await admin.auth().getUser(userId);
-    const creatorEmail = userRecord.email;
+    const creatorUserId = contractData.userId; // The actual talent/creator
+    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
+    const creatorEmail = creatorUserRecord.email;
     if (!creatorEmail) {
-      throw new HttpsError("failed-precondition", "Creator email not found. Cannot send signature request.");
+      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
     }
 
-    const userDoc = await db.collection("users").doc(userId).get();
-    const userData = userDoc.data();
-    if (!userData) {
-      throw new HttpsError("failed-precondition", "Creator display name not found. Cannot send signature request.");
+    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
+    const creatorUserData = creatorUserDoc.data();
+    if (!creatorUserData) {
+      throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
+
 
     const options: DropboxSign.SignatureRequestSendRequest = {
       testMode: true, // Set to true for testing
@@ -149,7 +161,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.
         
         Thank you,
-        ${userData.displayName || "The Contract Sender"}
+        ${creatorUserData.displayName || "The Contract Sender"}
       `,
       signers: [
         { // Client Signer
@@ -157,24 +169,30 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           name: contractData.clientName || "Client Signer",
           // order: 0 // Optional: explicitly set signing order if needed
         },
-        { // Creator Signer
+        { // Creator/Talent Signer
           emailAddress: creatorEmail,
-          name: userData.displayName || "Creator Signer",
+          name: creatorUserData.displayName || "Creator Signer",
           // order: 1 // Optional: explicitly set signing order if needed
         },
       ],
       fileUrls: [fileUrlForSignature],
       metadata: {
         contract_id: contractId,
-        user_id: userId, // Creator's user ID
+        user_id: creatorUserId, // Creator's user ID
         verza_env: process.env.NODE_ENV || "development",
       },
     };
+
+    if (isAgencyOwner) {
+      options.ccEmailAddresses = [requesterData.email!];
+      options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
+    }
 
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
       ...options,
       // Redact emails for logging
       signers: options.signers ? options.signers.map((s: any) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
+      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
       fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
     }));
 

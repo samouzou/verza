@@ -1,6 +1,5 @@
 
-// Adding a comment to refresh compilation context
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
 export interface EditableInvoiceLineItem {
@@ -65,8 +64,8 @@ export interface Contract {
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
-  invoiceHistory?: Array<{ timestamp: Timestamp; action: string; details?: string }>;
-  lastReminderSentAt?: Timestamp | null;
+  invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string }>;
+  lastReminderSentAt?: ClientTimestamp | null;
   
   editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
 
@@ -78,11 +77,11 @@ export interface Contract {
   helloSignRequestId?: string | null;
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
-  lastSignatureEventAt?: Timestamp | null;
+  lastSignatureEventAt?: ClientTimestamp | null;
   lastGeneratedSignatureFilePath?: string | null;
   
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt: ClientTimestamp;
+  updatedAt?: ClientTimestamp;
 }
 
 // Interface for a snapshot of a contract version shared with a brand
@@ -90,12 +89,12 @@ export interface SharedContractVersion {
   id: string; // Document ID (the unique share token)
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
-  sharedAt: Timestamp;
+  sharedAt: ClientTimestamp;
   contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt'>; // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
-  lastViewedByBrandAt?: Timestamp;
+  lastViewedByBrandAt?: ClientTimestamp;
 }
 
 export interface CommentReply {
@@ -103,7 +102,7 @@ export interface CommentReply {
   creatorId: string; // UID of the creator replying
   creatorName: string; // Display name of the creator
   replyText: string;
-  repliedAt: Timestamp;
+  repliedAt: ClientTimestamp;
 }
 
 // Interface for comments made by a brand on a shared contract version
@@ -115,7 +114,7 @@ export interface ContractComment {
   commenterName: string;
   commenterEmail?: string; // Optional
   commentText: string;
-  commentedAt: Timestamp;
+  commentedAt: ClientTimestamp;
   replies?: CommentReply[]; // Array of replies
 }
 
@@ -130,8 +129,8 @@ export interface RedlineProposal {
   proposedText: string; // The suggested replacement text
   comment?: string | null; // Justification or comment for the change
   status: 'proposed' | 'accepted' | 'rejected';
-  proposedAt: Timestamp;
-  reviewedAt?: Timestamp | null;
+  proposedAt: ClientTimestamp;
+  reviewedAt?: ClientTimestamp | null;
 }
 
 
@@ -157,16 +156,18 @@ export interface UserProfileFirestoreData {
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
-  createdAt?: Timestamp;
+  createdAt?: ClientTimestamp;
   role: 'individual_creator' | 'agency_owner';
   isAgencyOwner?: boolean;
   agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionInterval?: 'month' | 'year' | null; 
-  trialEndsAt?: Timestamp | null;
-  subscriptionEndsAt?: Timestamp | null;
+  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
+  subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  talentLimit?: number; // Talent limit for agency plans
+  subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
+  trialEndsAt?: ClientTimestamp | null;
+  subscriptionEndsAt?: ClientTimestamp | null;
   trialExtensionUsed?: boolean;
   stripeAccountId?: string | null;
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
@@ -192,9 +193,9 @@ export interface Receipt {
   
   status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived'; 
   
-  uploadedAt: Timestamp;
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  uploadedAt: ClientTimestamp;
+  createdAt: ClientTimestamp;
+  updatedAt?: ClientTimestamp;
 }
 
 // Banking & Tax Feature Types
@@ -209,8 +210,8 @@ export interface BankAccount {
   subtype: string | null;
   balance: number;
   provider: "Finicity"; // Or other providers in the future
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: ClientTimestamp;
+  updatedAt: ClientTimestamp;
 }
 
 export interface BankTransaction {
@@ -225,8 +226,8 @@ export interface BankTransaction {
   isTaxDeductible?: boolean;
   isBrandSpend?: boolean; 
   linkedReceiptId?: string | null; 
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt: ClientTimestamp;
+  updatedAt?: ClientTimestamp;
 }
 
 export interface TaxEstimation {
@@ -244,15 +245,15 @@ export interface Talent {
   email: string;
   displayName: string | null;
   status: 'pending' | 'active';
-  joinedAt?: Timestamp;
+  joinedAt?: ClientTimestamp;
 }
 
 export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt: ClientTimestamp;
+  updatedAt?: ClientTimestamp;
   talent: Talent[];
 }
 
@@ -272,9 +273,11 @@ export interface InternalPayout {
   talentName: string;
   amount: number;
   description: string;
-  paymentDate?: Timestamp;
+  paymentDate?: ClientTimestamp;
   status: 'pending' | 'processing' | 'paid' | 'failed';
-  initiatedAt: Timestamp;
-  paidAt?: Timestamp;
+  initiatedAt: ClientTimestamp;
+  paidAt?: ClientTimestamp;
   stripeChargeId?: string; // Replaced transferId with chargeId
 }
+
+    

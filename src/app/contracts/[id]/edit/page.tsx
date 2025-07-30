@@ -101,28 +101,37 @@ export default function EditContractPage() {
         try {
           const contractDocRef = doc(db, 'contracts', id);
           const contractSnap = await getDoc(contractDocRef);
-          if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
-            const data = contractSnap.data() as Contract;
-            setContract(data);
-            // Pre-fill form fields
-            setBrand(data.brand || '');
-            setProjectName(data.projectName || '');
-            setAmount(data.amount || '');
-            setDueDate(data.dueDate || '');
-            setContractType(data.contractType || 'other');
-            setClientName(data.clientName || '');
-            setClientEmail(data.clientEmail || '');
-            setClientAddress(data.clientAddress || '');
-            setClientTin(data.clientTin || '');
-            setPaymentInstructions(data.paymentInstructions || '');
-            
-            setOriginalContractText(data.contractText || '');
-            setEditedContractText(data.contractText || '');
-            setCurrentSummary(data.summary);
-            setCurrentNegotiationSuggestions(data.negotiationSuggestions);
-            setCurrentFileName(data.fileName || null);
-            setHasContractTextChanged(false);
 
+          if (contractSnap.exists()) {
+            const data = contractSnap.data() as Contract;
+            const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+            const isOwner = data.userId === user.uid;
+            const isAgencyOwner = user.role === 'agency_owner' && data.ownerType === 'agency' && data.ownerId === agencyId;
+            
+            if (isOwner || isAgencyOwner) {
+                setContract(data);
+                // Pre-fill form fields
+                setBrand(data.brand || '');
+                setProjectName(data.projectName || '');
+                setAmount(data.amount || '');
+                setDueDate(data.dueDate || '');
+                setContractType(data.contractType || 'other');
+                setClientName(data.clientName || '');
+                setClientEmail(data.clientEmail || '');
+                setClientAddress(data.clientAddress || '');
+                setClientTin(data.clientTin || '');
+                setPaymentInstructions(data.paymentInstructions || '');
+                
+                setOriginalContractText(data.contractText || '');
+                setEditedContractText(data.contractText || '');
+                setCurrentSummary(data.summary);
+                setCurrentNegotiationSuggestions(data.negotiationSuggestions);
+                setCurrentFileName(data.fileName || null);
+                setHasContractTextChanged(false);
+            } else {
+                 toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+                 router.push('/contracts');
+            }
           } else {
             toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
             router.push('/contracts');

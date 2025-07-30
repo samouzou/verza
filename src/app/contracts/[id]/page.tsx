@@ -146,9 +146,10 @@ export default function ContractDetailPage() {
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
-        if (contractSnap.exists() && contractSnap.data().userId === user.uid) {
-          const data = contractSnap.data();
-          
+        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+        const data = contractSnap.data();
+
+        if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
           let createdAt = data.createdAt;
           if (createdAt && !(createdAt instanceof Timestamp)) {
             if (typeof createdAt === 'string') {
@@ -421,8 +422,8 @@ export default function ContractDetailPage() {
       toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
       return;
     }
-    if (!contract.fileUrl) {
-      toast({ title: "File Missing", description: "This contract does not have an uploaded file to send for signature.", variant: "destructive" });
+    if (!contract.fileUrl && !contract.contractText) {
+      toast({ title: "File or Text Missing", description: "This contract does not have an uploaded file or text to send for signature.", variant: "destructive" });
       return;
     }
 
@@ -695,6 +696,29 @@ export default function ContractDetailPage() {
                          )}
                       </Dialog>
                   </CardContent>
+              </Card>
+
+              <Card className="shadow-lg hide-on-print">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg"><History className="h-5 w-5 text-blue-500" />Invoice History</CardTitle>
+                    <CardDescription>A log of all invoice-related events.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                    : !contract.invoiceHistory || contract.invoiceHistory.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No invoice history yet.</p>
+                    : <ScrollArea className="h-[200px] pr-3"><div className="space-y-3">
+                        {contract.invoiceHistory.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((event, index) => (
+                          <div key={index} className="flex items-start gap-3 text-xs">
+                            <div className="font-mono text-muted-foreground whitespace-nowrap">{format(event.timestamp.toDate(), "MMM d, HH:mm")}</div>
+                            <div className="flex-1">
+                              <p className="font-medium text-foreground">{event.action}</p>
+                              {event.details && <p className="text-muted-foreground">{event.details}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div></ScrollArea>
+                  }
+                </CardContent>
               </Card>
 
               <Card className="shadow-lg hide-on-print">
