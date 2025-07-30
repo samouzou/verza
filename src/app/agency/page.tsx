@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -108,6 +109,18 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
   const talentLimit = user?.talentLimit ?? 0;
   const atTalentLimit = activeTalentCount >= talentLimit;
   const isNotOnAgencyPlan = !user?.subscriptionPlanId?.startsWith('agency_');
+
+  const { platformFee, totalCharge } = useMemo(() => {
+    const amountNum = parseFloat(payoutAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      return { platformFee: 0, totalCharge: 0 };
+    }
+    const fee = (amountNum * 0.04) + 0.30;
+    return {
+      platformFee: fee,
+      totalCharge: amountNum + fee,
+    };
+  }, [payoutAmount]);
 
   useEffect(() => {
     if (!agency.id) return;
@@ -276,6 +289,14 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
               <Label htmlFor="payout-description">Payment For</Label>
               <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
             </div>
+            {payoutAmount && (
+              <div className="p-3 border rounded-md bg-muted text-sm space-y-2">
+                <div className="flex justify-between"><span>Payout to {selectedTalentForPayout?.displayName || 'Talent'}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Platform & Processing Fee</span><span>${platformFee.toFixed(2)}</span></div>
+                <Separator />
+                <div className="flex justify-between font-bold"><span>Total Charge</span><span>${totalCharge.toFixed(2)}</span></div>
+              </div>
+            )}
              <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate || isNotOnAgencyPlan}>
@@ -287,7 +308,8 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
                   <AlertDialogDescription>
-                    You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. This action will charge your linked payment method and cannot be undone.
+                    You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. 
+                    The total charge to your payment method will be <span className="font-bold">${totalCharge.toFixed(2)}</span>. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -336,7 +358,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
           {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
            : payoutHistory.length > 0 ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Talent</TableHead><TableHead>Payment Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Talent</TableHead><TableHead>Payment Date</TableHead><TableHead>Description</TableHead><TableHead>Status</TableHead><TableHead>Platform Fee</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
               <TableBody>
                 {payoutHistory.map(p => (
                   <TableRow key={p.id}>
@@ -344,6 +366,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                     <TableCell>{p.paymentDate ? new Date(p.paymentDate.seconds * 1000).toLocaleDateString() : (p.initiatedAt as Timestamp).toDate().toLocaleDateString()}</TableCell>
                     <TableCell>{p.description}</TableCell>
                     <TableCell><Badge variant={p.status === 'paid' ? 'default' : 'secondary'} className={`capitalize ${p.status === 'paid' ? 'bg-green-500' : ''}`}>{p.status}</Badge></TableCell>
+                    <TableCell className="font-mono text-muted-foreground">${p.platformFee?.toFixed(2) || '0.00'}</TableCell>
                     <TableCell className="text-right font-mono">${p.amount.toLocaleString()}</TableCell>
                   </TableRow>
                 ))}

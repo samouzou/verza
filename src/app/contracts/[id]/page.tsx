@@ -720,6 +720,17 @@ export default function ContractDetailPage() {
                   }
                 </CardContent>
               </Card>
+              
+              <Card className="shadow-lg hide-on-print">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg"><Info className="h-5 w-5 text-green-500" />Platform Fee Notice</CardTitle>
+                </CardHeader>
+                <CardContent>
+                   <p className="text-xs text-muted-foreground">
+                    Payments received through Verza are subject to a 1% platform fee and standard Stripe processing fees (typically 2.9% + 30¢). These fees are deducted from the total payment amount.
+                  </p>
+                </CardContent>
+              </Card>
 
               <Card className="shadow-lg hide-on-print">
                   <CardHeader>
