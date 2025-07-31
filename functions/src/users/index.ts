@@ -106,4 +106,3 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
 
   return null;
 });
-
