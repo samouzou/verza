@@ -72,8 +72,6 @@ try {
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
-    [process.env.STRIPE_PRICE_ID || ""]: {planId: "individual_monthly", talentLimit: 0},
-    [process.env.STRIPE_YEARLY_PRICE_ID || ""]: {planId: "individual_yearly", talentLimit: 0},
     [process.env.STRIPE_AGENCY_START_PRICE_ID || ""]: {planId: "agency_start_monthly", talentLimit: 10},
     [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || ""]: {planId: "agency_start_yearly", talentLimit: 10},
     [process.env.STRIPE_AGENCY_PRO_PRICE_ID || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
@@ -91,7 +89,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
-  const planId = request.data?.planId || "individual_monthly"; // e.g., 'individual_monthly', 'agency_pro'
+  const planId = request.data?.planId || "agency_start_monthly"; // Default to an agency plan
   logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
 
@@ -119,12 +117,6 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
 
     let priceId;
     switch (planId) {
-    case "individual_monthly":
-      priceId = process.env.STRIPE_PRICE_ID;
-      break;
-    case "individual_yearly":
-      priceId = process.env.STRIPE_YEARLY_PRICE_ID;
-      break;
     case "agency_start_monthly":
       priceId = process.env.STRIPE_AGENCY_START_PRICE_ID;
       break;
@@ -138,7 +130,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       priceId = process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID;
       break;
     default:
-      throw new Error(`Invalid planId: ${planId}`);
+      throw new Error(`Invalid or disallowed planId: ${planId}`);
     }
 
     if (!priceId) {
@@ -154,20 +146,6 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
         planId: planId, // Store planId for webhook
       },
     };
-
-    // Handle trial period
-    if (userData.trialEndsAt && userData.subscriptionStatus === "trialing") {
-      const trialEnd = admin.firestore.Timestamp.fromDate(
-        new Date(userData.trialEndsAt.seconds * 1000)
-      );
-      // Only apply trial_end if it's in the future
-      if (trialEnd.toMillis() > Date.now()) {
-        subscriptionData.trial_end = trialEnd.seconds;
-      } else {
-        logger.info(`Trial period for user ${userId} has ended. Not applying trial_end to Stripe session.`);
-      }
-    }
-
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
