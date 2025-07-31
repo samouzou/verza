@@ -30,16 +30,6 @@ env:
   - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
     secret: VERZA_SUBSCRIPTION_WEBHOOK_SECRET
 
-  - variable: STRIPE_PRICE_ID
-    secret: VERZA_STRIPE_PRICE_ID
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_YEARLY_PRICE_ID # New Yearly Price ID
-    secret: VERZA_STRIPE_YEARLY_PRICE_ID
-    availability:
-      - RUNTIME
-
   - variable: STRIPE_AGENCY_START_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_START_PRICE_ID
     availability:

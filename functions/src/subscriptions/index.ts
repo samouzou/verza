@@ -8,8 +8,7 @@ import type {UserProfileFirestoreData} from "../../../src/types";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
-"individual_monthly" | "individual_yearly" | "agency_start_monthly"
-| "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly";
+"agency_start_monthly" | "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly";
 
 
 // Initialize Stripe

@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createstripesubscriptioncheckoutsession-cpmccwbluq-uc.a.run.app";
+const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createshareablecontractversion-cpmccwbluq-uc.a.run.app";
 
 type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
 type BillingFrequency = 'monthly' | 'yearly';
@@ -33,7 +33,7 @@ export function SubscriptionCard() {
     setIsProcessingCheckout(true);
     try {
       const firebaseFunctions = getFunctions();
-      const createCheckoutSessionCallable = httpsCallableFromURL(firebaseFunctions, CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL);
+      const createCheckoutSessionCallable = httpsCallable(firebaseFunctions, 'createStripeSubscriptionCheckoutSession');
       
       const result = await createCheckoutSessionCallable({ planId });
       const { sessionId } = result.data as { sessionId: string };
@@ -136,13 +136,18 @@ export function SubscriptionCard() {
   };
 
   const getPlanNameFromId = (planId?: string) => {
-      if (!planId) return 'Pro Plan';
+      if (!planId) return 'Free Plan';
+      if (planId === 'individual_free') return 'Free Forever';
       return planDetails[planId as PlanId]?.name || 'Unknown Plan';
   };
 
   const renderStatusBadge = () => {
     const status = user.subscriptionStatus;
     const planId = user.subscriptionPlanId;
+    
+    if (planId === 'individual_free') {
+       return <Badge className="bg-green-500 text-white hover:bg-green-600">Free Forever</Badge>;
+    }
     if (!status || status === 'none') {
       return <Badge variant="outline">No Active Subscription</Badge>;
     }
@@ -150,7 +155,7 @@ export function SubscriptionCard() {
     const planName = getPlanNameFromId(planId);
 
     switch (status) {
-      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Free Trial</Badge>;
+      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Agency Trial</Badge>;
       case 'active': return <Badge className="bg-green-500 text-white hover:bg-green-600">{planName}</Badge>;
       case 'past_due': return <Badge variant="destructive">{planName} - Past Due</Badge>;
       case 'canceled': return <Badge variant="secondary">{planName} - Canceled</Badge>;
@@ -162,16 +167,42 @@ export function SubscriptionCard() {
   
   const plansToShow = Object.entries(planDetails)
     .filter(([id]) => id.endsWith(billingFrequency))
-    .filter(([id]) => user.isAgencyOwner || !id.startsWith('agency'));
+    .filter(([id]) => user.isAgencyOwner && id.startsWith('agency')); // Only show agency plans if user is agency owner
 
+
+  // Render view for individual creators
+  if (!user.isAgencyOwner) {
+    return (
+       <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-6 w-6 text-primary" />
+            Your Subscription
+          </CardTitle>
+          <CardDescription>All core features for individual creators are free.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           <div className="p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-semibold text-lg">Current Plan</p>
+              {renderStatusBadge()}
+            </div>
+            <p className="text-sm text-muted-foreground">You have access to all contract management and invoicing features, powered by a 1% platform fee on payments you receive.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render view for agency owners
   return (
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Zap className="h-6 w-6 text-primary" />
-          Verza Pro Subscription
+          <Crown className="h-6 w-6 text-primary" />
+          Agency Subscription
         </CardTitle>
-        <CardDescription>Unlock all features and manage your creator business seamlessly.</CardDescription>
+        <CardDescription>Manage your agency's subscription plan.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="p-4 border rounded-lg bg-muted/50">
@@ -179,15 +210,7 @@ export function SubscriptionCard() {
             <p className="font-semibold text-lg">Current Plan</p>
             {renderStatusBadge()}
           </div>
-          {user.subscriptionStatus === 'trialing' && user.trialEndsAt && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md my-2">
-              <CalendarClock className="h-5 w-5 text-blue-600 dark:text-blue-400"/>
-              <span>
-                Your free trial {user.trialEndsAt.toMillis() > Date.now() ? `ends on ${formatDateSafe(user.trialEndsAt)}` : `ended on ${formatDateSafe(user.trialEndsAt)}`}.
-              </span>
-            </div>
-          )}
-          {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
+           {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
             <div className={`flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 rounded-md my-2 ${user.subscriptionStatus === 'active' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-destructive bg-red-50 dark:bg-red-900/20'}`}>
               {user.subscriptionStatus === 'active' ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400"/> : <XCircle className="h-5 w-5 text-destructive"/>}
               <span>
@@ -207,7 +230,7 @@ export function SubscriptionCard() {
         
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
-            <p className="font-medium text-lg">Available Plans</p>
+            <p className="font-medium text-lg">Available Agency Plans</p>
             <RadioGroup
               value={billingFrequency}
               onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
@@ -219,7 +242,7 @@ export function SubscriptionCard() {
               <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
             </RadioGroup>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {plansToShow.map(([id, details]) => {
                 const planIdKey = id as PlanId;
                 const isCurrentPlan = user.subscriptionPlanId === planIdKey;
