@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
-import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -39,6 +39,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
@@ -114,6 +115,9 @@ export default function ContractDetailPage() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [contractComments, setContractComments] = useState<ContractComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(true);
+  const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null);
 
   // Redlining State
   const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
@@ -136,6 +140,7 @@ export default function ContractDetailPage() {
     let unsubscribeComments: (() => void) | undefined;
     let unsubscribeProposals: (() => void) | undefined;
     let unsubscribeContract: (() => void) | undefined;
+    let unsubscribeEmailLogs: (() => void) | undefined;
 
 
     if (id && user && !authLoading) {
@@ -143,6 +148,7 @@ export default function ContractDetailPage() {
       setIsLoadingSharedVersions(true);
       setIsLoadingComments(true);
       setIsLoadingProposals(true);
+      setIsLoadingEmailLogs(true);
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
@@ -226,6 +232,21 @@ export default function ContractDetailPage() {
           setIsLoading(false);
       });
 
+      const emailLogsQuery = query(
+        collection(db, "emailLogs"),
+        where("contractId", "==", id),
+        orderBy("timestamp", "desc")
+      );
+      unsubscribeEmailLogs = onSnapshot(emailLogsQuery, (snapshot) => {
+        const logs = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as EmailLog));
+        setEmailLogs(logs);
+        setIsLoadingEmailLogs(false);
+      }, (error) => {
+        console.error("Error fetching email logs:", error);
+        toast({ title: "History Error", description: "Could not load email history.", variant: "destructive" });
+        setIsLoadingEmailLogs(false);
+      });
+
 
       const sharedVersionsQuery = query(
         collection(db, "sharedContractVersions"),
@@ -289,6 +310,7 @@ export default function ContractDetailPage() {
       if (unsubscribeSharedVersions) unsubscribeSharedVersions();
       if (unsubscribeComments) unsubscribeComments();
       if (unsubscribeProposals) unsubscribeProposals();
+      if (unsubscribeEmailLogs) unsubscribeEmailLogs();
     };
   }, [id, user, authLoading, router, toast]);
 
@@ -704,20 +726,42 @@ export default function ContractDetailPage() {
                     <CardDescription>A log of all invoice-related events.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isLoading ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                    : !contract.invoiceHistory || contract.invoiceHistory.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No invoice history yet.</p>
-                    : <ScrollArea className="h-[200px] pr-3"><div className="space-y-3">
-                        {contract.invoiceHistory.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((event, index) => (
-                          <div key={index} className="flex items-start gap-3 text-xs">
-                            <div className="font-mono text-muted-foreground whitespace-nowrap">{format(event.timestamp.toDate(), "MMM d, HH:mm")}</div>
-                            <div className="flex-1">
-                              <p className="font-medium text-foreground">{event.action}</p>
-                              {event.details && <p className="text-muted-foreground">{event.details}</p>}
+                  <Sheet>
+                    {isLoadingEmailLogs ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                      : !contract.invoiceHistory || contract.invoiceHistory.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No invoice history yet.</p>
+                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-3">
+                          {contract.invoiceHistory.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis()).map((event, index) => (
+                            <div key={index} className="flex items-start gap-3 text-xs">
+                              <div className="font-mono text-muted-foreground whitespace-nowrap">{format(event.timestamp.toDate(), "MMM d, HH:mm")}</div>
+                              <div className="flex-1">
+                                {event.emailLogId ? (
+                                  <SheetTrigger asChild>
+                                    <button
+                                      className="text-left font-medium text-primary hover:underline"
+                                      onClick={() => setSelectedEmailLog(emailLogs.find(log => log.id === event.emailLogId) || null)}
+                                    >
+                                      {event.action} <Eye className="inline h-3 w-3 ml-1" />
+                                    </button>
+                                  </SheetTrigger>
+                                ) : (
+                                  <p className="font-medium text-foreground">{event.action}</p>
+                                )}
+                                {event.details && <p className="text-muted-foreground">{event.details}</p>}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div></ScrollArea>
-                  }
+                          ))}
+                        </div></ScrollArea>
+                    }
+                     <SheetContent className="w-full max-w-[50vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl overflow-y-auto">
+                        <SheetHeader>
+                          <SheetTitle>Email Preview</SheetTitle>
+                          <SheetDescription>
+                            This is the content of the email that was sent to {selectedEmailLog?.to} on {selectedEmailLog ? format(selectedEmailLog.timestamp.toDate(), "PPpp") : 'N/A'}.
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="mt-4 prose dark:prose-invert max-w-none p-4 border rounded-md" dangerouslySetInnerHTML={{ __html: selectedEmailLog?.html || "<p>Email content not available.</p>" }} />
+                    </SheetContent>
+                  </Sheet>
                 </CardContent>
               </Card>
               

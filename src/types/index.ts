@@ -64,7 +64,7 @@ export interface Contract {
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
-  invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string }>;
+  invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string, emailLogId?: string }>;
   lastReminderSentAt?: ClientTimestamp | null;
   
   editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
@@ -83,6 +83,20 @@ export interface Contract {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
 }
+
+export interface EmailLog {
+  id: string; // Firestore Document ID
+  userId: string;
+  contractId?: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic';
+  timestamp: ClientTimestamp;
+  status: 'sent' | 'failed';
+}
+
 
 // Interface for a snapshot of a contract version shared with a brand
 export interface SharedContractVersion {
@@ -163,7 +177,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
-  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  subscriptionPlanId?: 'individual_free' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
   talentLimit?: number; // Talent limit for agency plans
   subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;
