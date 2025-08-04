@@ -21,11 +21,11 @@ import {
 
 import {
   sendContractNotification,
-  sendPaymentReminder,
 } from "./notifications";
 
 import {
   sendOverdueInvoiceReminders,
+  sendUpcomingPaymentReminders,
 } from "./scheduler";
 
 import {
@@ -65,8 +65,8 @@ export {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   sendContractNotification,
-  sendPaymentReminder,
   sendOverdueInvoiceReminders,
+  sendUpcomingPaymentReminders,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,

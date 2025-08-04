@@ -97,68 +97,6 @@ export const sendContractNotification = onRequest(async (request, response) => {
   }
 });
 
-
-// Send payment reminder
-export const sendPaymentReminder = onRequest(async (request, response) => {
-  // Set CORS headers
-  response.set("Access-Control-Allow-Origin", "*");
-  response.set("Access-Control-Allow-Methods", "POST");
-  response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  // Handle preflight requests
-  if (request.method === "OPTIONS") {
-    response.status(204).send("");
-    return;
-  }
-
-  try {
-    // Verify authentication
-    const userId = await verifyAuthToken(request.headers.authorization);
-
-    // Validate request body
-    const { to, contractId, dueDate, amount } = request.body;
-    if (!to || !contractId || !dueDate || !amount) {
-      throw new Error("Missing required fields in request body");
-    }
-
-    // Verify user has access to this contract
-    const contractDoc = await db.collection("contracts").doc(contractId).get();
-    if (!contractDoc.exists || contractDoc.data()?.userId !== userId) {
-      throw new Error("Contract not found or access denied");
-    }
-
-    const text = `This is a reminder that your payment of $${amount} for contract ${contractId} is due on ${dueDate}.`;
-    const html = `<h2>Payment Reminder</h2><p>${text}</p><p>Please ensure your payment is made on time to avoid any late fees.</p><p>Thank you,<br>The Verza Team</p>`;
-
-    const msg = { to, from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com", subject: "Payment Reminder", text, html, };
-
-    await sgMail.send(msg);
-
-    // Log the email sending
-    const emailLogRef = db.collection("emailLogs").doc();
-    await emailLogRef.set({
-      userId,
-      contractId,
-      to,
-      subject: "Payment Reminder",
-      text,
-      html,
-      type: "payment_reminder",
-      timestamp: admin.firestore.Timestamp.now(),
-      status: "sent",
-    });
-
-    response.json({ status: "success", emailLogId: emailLogRef.id });
-  } catch (error) {
-    logger.error("Error sending payment reminder:", error);
-    response.status(500).json({
-      error: "Failed to send payment reminder",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-
 /**
  * Sends an invitation email to a talent for an agency.
  * @param {string} talentEmail The email of the talent to invite.
