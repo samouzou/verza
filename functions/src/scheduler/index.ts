@@ -1,3 +1,4 @@
+
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
@@ -56,7 +57,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           lastReminderSentAt: admin.firestore.FieldValue.serverTimestamp(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            action: "Payment Reminder Sent",
+            action: "Overdue Payment Reminder Sent",
             details: `To: ${contract.clientEmail}`,
           }),
         });
@@ -84,39 +85,31 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
 
 /**
- * Sends reminders for invoices that are due in exactly 3 days.
+ * Sends reminders for open invoices on a rolling basis.
  * Runs every 24 hours.
  */
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
   try {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const threeDaysFromNow = new Date(today);
-    threeDaysFromNow.setDate(today.getDate() + 3);
-
-    const threeDaysFromNowEnd = new Date(threeDaysFromNow);
-    threeDaysFromNowEnd.setHours(23, 59, 59, 999);
     
-    // Query for invoices due in 3 days that have not already had a reminder sent in the last few days
-    // to avoid re-sending if the job runs multiple times a day or has overlaps.
+    // Set a threshold for how often to send reminders (e.g., once a week)
     const reminderThreshold = new Date();
-    reminderThreshold.setDate(reminderThreshold.getDate() - 2);
+    reminderThreshold.setDate(reminderThreshold.getDate() - 7);
 
+    // Find all invoices that are open (sent or viewed) and have a due date in the future.
     const contractsSnapshot = await db
       .collection("contracts")
       .where("invoiceStatus", "in", ["sent", "viewed"])
-      .where("dueDate", ">=", threeDaysFromNow)
-      .where("dueDate", "<=", threeDaysFromNowEnd)
+      .where("dueDate", ">=", today)
       .get();
       
-    logger.info(`Found ${contractsSnapshot.size} invoices due in 3 days.`);
+    logger.info(`Found ${contractsSnapshot.size} open invoices to consider for reminders.`);
 
     for (const doc of contractsSnapshot.docs) {
       const contract = doc.data();
       const contractId = doc.id;
       
-      // Additional check to prevent re-sending reminders frequently
+      // Check if a reminder was sent recently
       if (contract.lastReminderSentAt && contract.lastReminderSentAt.toDate() > reminderThreshold) {
           logger.info(`Skipping reminder for contract ${contractId}, already sent recently.`);
           continue;
@@ -148,13 +141,14 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
         await sgMail.send(msg);
 
+        const historyEntry = {
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          action: "Upcoming Payment Reminder Sent",
+          details: `To: ${contract.clientEmail}`,
+        };
         await doc.ref.update({
           lastReminderSentAt: admin.firestore.FieldValue.serverTimestamp(),
-          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            action: "Upcoming Payment Reminder Sent",
-            details: `To: ${contract.clientEmail}`,
-          }),
+          invoiceHistory: admin.firestore.FieldValue.arrayUnion(historyEntry),
         });
 
         await db.collection("emailLogs").add({
