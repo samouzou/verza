@@ -50,15 +50,15 @@ export const sendContractNotification = onRequest(async (request, response) => {
   try {
     // Verify authentication
     const userId = await verifyAuthToken(request.headers.authorization);
-    
+
     // Validate request body
-    const { to, subject, text, html, contractId } = request.body;
+    const {to, subject, text, html, contractId} = request.body;
     if (!to || !subject || !text || !html) {
-      response.status(400).json({ error: "Bad Request", message: "Missing required fields: to, subject, text, html." });
+      response.status(400).json({error: "Bad Request", message: "Missing required fields: to, subject, text, html."});
       return;
     }
 
-    const msg = { to, from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com", subject, text, html };
+    const msg = {to, from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com", subject, text, html};
     await sgMail.send(msg);
 
     // Log the email to Firestore
@@ -87,7 +87,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
       });
     }
 
-    response.json({ status: "success", emailLogId: emailLogRef.id });
+    response.json({status: "success", emailLogId: emailLogRef.id});
   } catch (error) {
     logger.error("Error sending email:", error);
     response.status(500).json({

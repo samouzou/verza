@@ -91,7 +91,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
   try {
     const today = new Date();
-    
+
     // Set a threshold for how often to send reminders (e.g., once a week)
     const reminderThreshold = new Date();
     reminderThreshold.setDate(reminderThreshold.getDate() - 7);
@@ -102,17 +102,17 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
       .where("invoiceStatus", "in", ["sent", "viewed"])
       .where("dueDate", ">=", today)
       .get();
-      
+
     logger.info(`Found ${contractsSnapshot.size} open invoices to consider for reminders.`);
 
     for (const doc of contractsSnapshot.docs) {
       const contract = doc.data();
       const contractId = doc.id;
-      
+
       // Check if a reminder was sent recently
       if (contract.lastReminderSentAt && contract.lastReminderSentAt.toDate() > reminderThreshold) {
-          logger.info(`Skipping reminder for contract ${contractId}, already sent recently.`);
-          continue;
+        logger.info(`Skipping reminder for contract ${contractId}, already sent recently.`);
+        continue;
       }
 
       try {
@@ -120,9 +120,9 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
           logger.warn(`No client email for upcoming reminder on contract ${contractId}`);
           continue;
         }
-        
+
         const dueDateFormatted = new Date(contract.dueDate).toLocaleDateString("en-US", {
-            year: "numeric", month: "long", day: "numeric",
+          year: "numeric", month: "long", day: "numeric",
         });
 
         const msg = {
