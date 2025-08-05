@@ -1,97 +1,113 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isOwnerOfAgency(agencyId) {
-      return request.auth != null &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships[0].agencyId == agencyId;
+    // Helper Functions
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
-    
+
+    function isAgencyOwner() {
+      return request.auth != null && request.auth.token.isAgencyOwner == true;
+    }
+
+    function isOwnerOfAgency(agencyId) {
+      // Note: This assumes an agency owner is part of only one agency as owner.
+      // This logic may need to be expanded for multi-agency owners.
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isAgencyOwner() && userDoc.agencyMemberships[0].agencyId == agencyId;
+    }
+
+    // This comprehensive helper checks if the requesting user owns the contract,
+    // either directly or as the owner of the managing agency.
     function userOwnsContract(contractId) {
       let contract = get(/databases/$(database)/documents/contracts/$(contractId)).data;
-      return request.auth != null && (
-        (contract.ownerType == 'user' && contract.userId == request.auth.uid) ||
-        (contract.ownerType == 'agency' && isOwnerOfAgency(contract.ownerId))
-      );
+      
+      // Check for direct ownership
+      let isDirectOwner = contract.userId == request.auth.uid;
+      
+      // Check for agency ownership
+      let isAgencyContract = contract.ownerType == 'agency';
+      let userIsAgencyOwner = request.auth.token.isAgencyOwner == true;
+      // Ensure agencyId exists in token before trying to access it
+      let agencyIdFromToken = 'agencyId' in request.auth.token ? request.auth.token.agencyId : null;
+      let isManagingAgencyOwner = userIsAgencyOwner && contract.ownerId == agencyIdFromToken;
+
+      return isDirectOwner || isManagingAgencyOwner;
     }
-    
-    // User Profiles
+
+
+    // USER PROFILES
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isOwner(userId);
     }
 
-    // Contracts
+    // CONTRACTS
     match /contracts/{contractId} {
-      // Allow list for personal contracts OR agency contracts
-      allow list: if (request.auth != null &&
-                      (request.query.where.find(w => w.fieldPath == 'userId' && w.op == '==' && w.value == request.auth.uid) != null ||
-                       (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAgencyOwner == true &&
-                        request.query.where.find(w => w.fieldPath == 'ownerId' && w.op == '==' && w.value == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships[0].agencyId) != null)));
-
       allow get, update, delete: if userOwnsContract(contractId);
-      allow create: if request.auth != null;
+      
+      // LIST is tricky. A user can either list their OWN contracts OR an agency owner can list agency's contracts.
+      // Firestore rules don't support OR on different fields in a single query.
+      // The frontend must perform TWO separate queries. These rules allow both queries.
+      allow list: if (request.auth != null && request.query.where.find(w => w.fieldPath == 'userId' && w.op == '==' && w.value == request.auth.uid) != null) ||
+                   (isAgencyOwner() && request.query.where.find(w => w.fieldPath == 'ownerId' && w.op == '==' && w.value == request.auth.token.agencyId) != null);
+
+      allow create: if isOwner(request.resource.data.userId) || isOwnerOfAgency(request.resource.data.ownerId);
     }
 
-    // Agency Data
+    // AGENCIES
     match /agencies/{agencyId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if isOwnerOfAgency(agencyId);
+      allow create, update: if isOwnerOfAgency(agencyId);
     }
 
-    // Shared Contract Versions (Public)
+    // INTERNAL PAYOUTS (Agency to Talent)
+    match /internalPayouts/{payoutId} {
+      allow read: if (isOwnerOfAgency(resource.data.agencyId)) || // Agency owner can read
+                     (isOwner(resource.data.talentId));             // Talent can read their own
+      allow create: if isOwnerOfAgency(request.resource.data.agencyId);
+      // No updates or deletes from client
+    }
+
+    // RECEIPTS
+    match /receipts/{receiptId} {
+      allow read, create, update, delete: if isOwner(request.auth.uid);
+    }
+
+    // EMAIL LOGS (for Invoice History)
+    match /emailLogs/{logId} {
+      allow read: if userOwnsContract(resource.data.contractId); // Use the comprehensive helper
+      allow write: if false; // Only backend can write
+    }
+
+    // PUBLIC SHARING
     match /sharedContractVersions/{versionId} {
       allow read: if true;
-      allow create: if request.auth != null && userOwnsContract(request.resource.data.originalContractId);
-      allow update: if userOwnsContract(get(/databases/$(database)/documents/sharedContractVersions/$(versionId)).data.originalContractId);
-      allow delete: if false;
+      allow create: if request.auth != null;
+      allow update: if isOwner(get(/databases/$(database)/documents/sharedContractVersions/$(versionId)).data.userId);
     }
-
-    // Contract Comments & Replies (Public write, owner delete)
+    
+    // COMMENTS on shared versions
     match /contractComments/{commentId} {
       allow read: if true;
       allow create: if true;
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/contractComments/$(commentId)).data.creatorId == request.auth.uid;
+      allow update, delete: if isOwner(get(/databases/$(database)/documents/contractComments/$(commentId)).data.creatorId);
     }
 
-    // Redline Proposals
+    // REDLINE PROPOSALS on shared versions
     match /redlineProposals/{proposalId} {
-        allow read: if true;
-        allow create: if true;
-        allow update, delete: if request.auth != null && get(/databases/$(database)/documents/redlineProposals/$(proposalId)).data.creatorId == request.auth.uid;
-    }
-
-    // Internal Payouts (Agency)
-    match /internalPayouts/{payoutId} {
-      allow read: if request.auth != null && (
-        isOwnerOfAgency(resource.data.agencyId) ||
-        resource.data.talentId == request.auth.uid
-      );
-      allow create: if request.auth != null && isOwnerOfAgency(request.resource.data.agencyId);
-      allow update, delete: if false; // Should be handled by backend
-    }
-
-    // Email logs
-    match /emailLogs/{logId} {
-      allow read: if request.auth != null && userOwnsContract(resource.data.contractId);
-      allow write: if false; // Only backend via Admin SDK
-    }
-
-    // Receipts
-    match /receipts/{receiptId} {
-      allow read, create, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read: if true;
+      allow create: if true;
+      allow update: if isOwner(get(/databases/$(database)/documents/redlineProposals/$(proposalId)).data.creatorId);
     }
     
-    // Bank Accounts and Transactions
-    match /users/{userId}/bankAccounts/{accountId} {
-      allow read, write, create, delete: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    match /users/{userId}/bankTransactions/{transactionId} {
-      allow read, write, create, delete: if request.auth != null && request.auth.uid == userId;
+    // AGENCY INVITATIONS
+    match /agencyInvitations/{invitationId} {
+      // Backend handles creation/deletion
+      allow read: if request.auth != null;
     }
   }
 }
