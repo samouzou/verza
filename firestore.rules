@@ -1,95 +1,135 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if user owns the contract
-    function isContractOwner(contractId, userId) {
-      let contract = get(/databases/$(database)/documents/contracts/$(contractId)).data;
-      // Check for direct ownership
-      let isDirectOwner = contract.userId == userId;
-      // Check for agency ownership
-      let userProfile = get(/databases/$(database)/documents/users/$(userId)).data;
-      let agencyId = userProfile.agencyMemberships[0].agencyId; // Assuming owner is only in one agency
-      let isAgencyOwner = userProfile.role == 'agency_owner' && contract.ownerType == 'agency' && contract.ownerId == agencyId;
-      
-      return isDirectOwner || isAgencyOwner;
+    // Helper function to check if a user is an authenticated agency owner for a given agency
+    function isAgencyOwner(agencyId) {
+      return request.auth.token.isAgencyOwner == true &&
+             get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
+    // Helper function to check if a user is a member of a given agency
+    function isAgencyMember(agencyId) {
+      // This requires the user's profile to have agency membership info.
+      // This is a simplified check; a more robust one might check roles.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.talent;
+    }
+
+    // Rules for user profiles
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
+      // Users can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Users can create their own profile upon signup and update it
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Rules for contracts
     match /contracts/{contractId} {
-      allow read, update, delete: if request.auth != null && isContractOwner(contractId, request.auth.uid);
-      allow create: if request.auth != null;
+      // Allow read if user is the direct owner OR the owner of the agency that owns the contract
+      allow read: if request.auth != null && 
+                     (resource.data.userId == request.auth.uid || 
+                      (resource.data.ownerType == 'agency' && isAgencyOwner(resource.data.ownerId)));
+      // Allow create if user is authenticated and is the owner being set
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Allow update if user is direct owner OR agency owner
+      allow update: if request.auth != null &&
+                       (resource.data.userId == request.auth.uid ||
+                        (resource.data.ownerType == 'agency' && isAgencyOwner(resource.data.ownerId)));
+      // Allow delete only by the direct user owner
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-    
+
+    // Rules for shared contract versions (public-facing)
     match /sharedContractVersions/{versionId} {
-      allow read: if true; // Publicly accessible by link
-      allow create: if request.auth != null; // Creator must be logged in to create
-      allow update: if resource.data.status == 'revoked' || request.auth.uid == resource.data.userId; // Allow creator to update
-    }
+      // Anyone with the link can read it if it's active
+      allow get: if resource.data.status == 'active';
+      // Only the creator can create or modify (e.g., revoke)
+      allow write: if request.auth != null && get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
 
+      // Public users (brands) can submit comments on a shared version
+      // This requires no authentication, but we validate the data being written.
+      // NOTE: This rule is now part of the `contractComments` collection rules for better security.
+    }
+    
+    // Rules for comments on shared contracts
     match /contractComments/{commentId} {
-      allow read: if true; // Publicly readable on shared page
-      allow create: if true; // Public can create comments
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.creatorId; // Only creator can manage replies/delete
+      // Allow public read for comments associated with an active shared version
+      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active';
+      // Allow public write (create) for new comments
+      allow create: if request.resource.data.commenterName is string &&
+                       request.resource.data.commenterName.size() > 0;
+      // Allow owner of the original contract to update (e.g., to add replies)
+      allow update: if request.auth != null && get(/databases/$(database)/documents/contracts/$(resource.data.originalContractId)).data.userId == request.auth.uid;
+      // Allow owner to delete a comment (or brand to delete their own, if we add that logic)
+      allow delete: if request.auth != null && get(/databases/$(database)/documents/contracts/$(resource.data.originalContractId)).data.userId == request.auth.uid;
     }
 
+    // Rules for redline proposals on shared contracts
     match /redlineProposals/{proposalId} {
-        allow read: if true;
-        allow create: if true; // Publicly submittable
-        allow update: if request.auth.uid == resource.data.creatorId; // Only creator can accept/reject
+        // Public can read proposals if linked to an active shared version
+        allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active';
+        // Public can create proposals
+        allow create: if request.resource.data.proposerName is string && request.resource.data.proposerName.size() > 0;
+        // Only the creator who owns the contract can update (accept/reject) proposals
+        allow update: if request.auth != null && get(/databases/$(database)/documents/contracts/$(resource.data.originalContractId)).data.userId == request.auth.uid;
     }
-
-    // Rules for email logs, allowing authorized reads for history viewing
+    
+    // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
-      // Users can list logs for contracts they own
-      allow list: if request.auth != null && isContractOwner(request.query.where.contractId, request.auth.uid);
-      // Users can read a specific log if they own the associated contract
-      allow get: if request.auth != null && isContractOwner(get(/databases/$(database)/documents/emailLogs/$(logId)).data.contractId, request.auth.uid);
-      
-      // No client-side writes allowed
-      allow write: if false; 
-    }
-    
-    match /receipts/{receiptId} {
-      allow read, create, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false; // Only backend via Admin SDK
     }
 
-    match /bankAccounts/{accountId} {
-        // These are nested under a user, so we need to use `userId` from the path.
-        match /users/{userId}/{path=**} {
-             allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-        }
+    // Rules for Stripe customer data (server-side only access)
+    match /customers/{userId}/checkout_sessions/{sessionId} {
+      allow read, write: if false; // Security managed by backend functions
+    }
+    match /customers/{userId}/subscriptions/{subscriptionId} {
+      allow read, write: if false; // Security managed by backend functions
     }
     
-    match /bankTransactions/{transactionId} {
-       match /users/{userId}/{path=**} {
-             allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-        }
-    }
-
+    // Rules for agency data
     match /agencies/{agencyId} {
-      // Agency owner can do anything
-      allow read, update: if request.auth != null && get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
-      // Creation is handled by a cloud function, not direct client
+      // Allow read if the user is the owner or a member of the agency
+      allow read: if request.auth != null && 
+                     (resource.data.ownerId == request.auth.uid || 
+                      exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                      request.auth.uid in resource.data.talent.*.userId);
+      // Only agency owner can update agency details
+      allow update: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      // Creation is handled by a cloud function which has admin rights.
       allow create: if request.auth != null; 
-      // Talent can read agency data if they are an active member
-      allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.talent.map(t => t.userId);
     }
     
+    // Rules for agency invitations (server-side only)
     match /agencyInvitations/{invitationId} {
-        // Backend handles creation/updates
-        allow read, write: if false; 
+      allow read, write: if false; // Managed by backend functions
     }
     
+    // Rules for internal payouts (between agency and talent)
     match /internalPayouts/{payoutId} {
-        allow read: if request.auth != null && (get(/databases/$(database)/documents/internalPayouts/$(payoutId)).data.agencyOwnerId == request.auth.uid || get(/databases/$(database)/documents/internalPayouts/$(payoutId)).data.talentId == request.auth.uid);
-        allow create, update, delete: if false; // Only backend
+      // Talent can see their own payouts, Agency owner can see all payouts for their agency
+      allow read: if request.auth != null && 
+                     (resource.data.talentId == request.auth.uid || 
+                      isAgencyOwner(resource.data.agencyId));
+      // Creation is handled by a cloud function with security checks
+      allow create: if false; 
+      allow update, delete: if false; // Status updates handled by webhooks/backend
+    }
+
+    // Bank accounts and transactions should be private to the user
+    match /users/{userId}/bankAccounts/{accountId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/bankTransactions/{transactionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Receipts should be private to the user
+    match /receipts/{receiptId} {
+        allow read, write, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }
