@@ -15,7 +15,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
     // Query for overdue invoices that need reminders
     const contractsSnapshot = await db
       .collection("contracts")
-      .where("invoiceStatus", "in", ["sent", "viewed"])
+      .where("invoiceStatus", "in", ["sent", "viewed", "overdue"])
       .where("dueDate", "<", now)
       .where("lastReminderSentAt", "<", threeDaysAgo)
       .get();
@@ -34,18 +34,24 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           continue;
         }
 
+        const paymentLink = `${process.env.APP_URL}/pay/contract/${contractId}`;
+
         // Send reminder email
         const msg = {
           to: contract.clientEmail,
           from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
-          subject: "Payment Reminder - Overdue Invoice",
+          subject: `Payment Reminder - Invoice for ${contract.projectName || contract.brand} is Overdue`,
           text: `This is a reminder that your payment of $${contract.amount} for ` +
-            `contract ${contractId} is overdue. Please process your payment as soon as possible.`,
+            `contract ${contract.projectName || contractId} is overdue. Please process your payment as soon as possible.` +
+            `\n\nPay now: ${paymentLink}`,
           html: `
             <h2>Payment Reminder - Overdue Invoice</h2>
-            <p>This is a reminder that your payment of $${contract.amount} for ` +
-            `contract ${contractId} is overdue.</p>
+            <p>This is a reminder that your payment of <strong>$${contract.amount}</strong> for the project/contract ` +
+            `'${contract.projectName || contract.brand}' is overdue.</p>
             <p>Please process your payment as soon as possible to avoid any late fees.</p>
+            <div style="margin: 2rem 0; text-align: center;">
+              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
+            </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
         };
@@ -91,7 +97,6 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
   try {
     const today = new Date();
-
     // Set a threshold for how often to send reminders (e.g., once a week)
     const reminderThreshold = new Date();
     reminderThreshold.setDate(reminderThreshold.getDate() - 7);
@@ -124,17 +129,23 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
         const dueDateFormatted = new Date(contract.dueDate).toLocaleDateString("en-US", {
           year: "numeric", month: "long", day: "numeric",
         });
+        
+        const paymentLink = `${process.env.APP_URL}/pay/contract/${contractId}`;
 
         const msg = {
           to: contract.clientEmail,
           from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
           subject: `Payment Reminder: Invoice for ${contract.projectName || contract.brand}`,
           text: `This is a reminder that your payment of $${contract.amount} for ` +
-                `contract ${contract.projectName || contractId} is due on ${dueDateFormatted}.`,
+                `contract ${contract.projectName || contractId} is due on ${dueDateFormatted}.`+
+                `\n\nPay here: ${paymentLink}`,
           html: `
             <h2>Payment Reminder</h2>
             <p>This is a friendly reminder that your payment of <strong>$${contract.amount}</strong> for the project/contract `+
             `'${contract.projectName || contract.brand}' is due on <strong>${dueDateFormatted}</strong>.</p>
+             <div style="margin: 2rem 0; text-align: center;">
+              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
+            </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
         };
