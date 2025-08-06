@@ -60,7 +60,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
 
     const msg: sgMail.MailDataRequired = {
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+      from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
       subject,
       text,
       html,
@@ -213,7 +213,7 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
 
   const msg = {
     to: talentEmail,
-    from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+    from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
     subject,
     text,
     html,

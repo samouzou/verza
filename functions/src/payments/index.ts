@@ -351,7 +351,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       if (emailForUserConfirmation) {
         const msg = {
           to: emailForUserConfirmation,
-          from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+          from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
           subject: "Payment Confirmation",
           text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
           html: `

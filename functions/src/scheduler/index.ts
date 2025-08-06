@@ -39,7 +39,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         // Send reminder email
         const msg = {
           to: contract.clientEmail,
-          from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+          from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
           subject: `Payment Reminder - Invoice for ${contract.projectName || contract.brand} is Overdue`,
           text: `This is a reminder that your payment of $${contract.amount} for ` +
             `contract ${contract.projectName || contractId} is overdue. Please process your payment as soon as possible.` +
@@ -135,7 +135,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
         const msg = {
           to: contract.clientEmail,
-          from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+          from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
           subject: `Payment Reminder: Invoice for ${contract.projectName || contract.brand}`,
           text: `This is a reminder that your payment of $${contract.amount} for ` +
                 `contract ${contract.projectName || contractId} is due on ${dueDateFormatted}.`+
