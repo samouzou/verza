@@ -130,7 +130,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
         const dueDateFormatted = new Date(contract.dueDate).toLocaleDateString("en-US", {
           year: "numeric", month: "long", day: "numeric",
         });
-        
+
         const paymentLink = `${process.env.APP_URL}/pay/contract/${contractId}`;
 
         const msg = {
