@@ -50,7 +50,8 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
             `'${contract.projectName || contract.brand}' is overdue.</p>
             <p>Please process your payment as soon as possible to avoid any late fees.</p>
             <div style="margin: 2rem 0; text-align: center;">
-              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
+              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white;
+              padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
             </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
@@ -144,7 +145,8 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
             <p>This is a friendly reminder that your payment of <strong>$${contract.amount}</strong> for the project/contract `+
             `'${contract.projectName || contract.brand}' is due on <strong>${dueDateFormatted}</strong>.</p>
              <div style="margin: 2rem 0; text-align: center;">
-              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
+              <a href="${paymentLink}" target="_blank" rel="noopener noreferrer" style="background-color: #007bff; color: white;
+              padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">Pay Now</a>
             </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
