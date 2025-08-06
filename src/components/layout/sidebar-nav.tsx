@@ -96,12 +96,20 @@ export function SidebarNav() {
   const userInitial = activeUser?.displayName ? activeUser.displayName.charAt(0).toUpperCase() : (activeUser?.email ? activeUser.email.charAt(0).toUpperCase() : 'U');
 
   const getSubscriptionBadge = () => {
-    if (!activeUser || !activeUser.subscriptionStatus || activeUser.subscriptionStatus === 'none') {
+    if (!activeUser || !activeUser.subscriptionStatus) {
       return null;
     }
+    
+    if (activeUser.subscriptionPlanId === 'individual_free') {
+       return <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0.5 group-data-[collapsible=icon]:hidden">Free</Badge>;
+    }
+    
+    const planName = activeUser.subscriptionPlanId?.includes('agency_pro') ? 'Agency Pro' : 
+                     activeUser.subscriptionPlanId?.includes('agency_start') ? 'Agency Start' : 'Agency';
+
     switch (activeUser.subscriptionStatus) {
       case 'active':
-        return <Badge variant="default" className="ml-2 text-xs px-1.5 py-0.5 bg-green-500 hover:bg-green-600 text-white group-data-[collapsible=icon]:hidden">Pro</Badge>;
+        return <Badge variant="default" className="ml-2 text-xs px-1.5 py-0.5 bg-green-500 hover:bg-green-600 text-white group-data-[collapsible=icon]:hidden">{planName}</Badge>;
       case 'trialing':
         return <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0.5 bg-blue-500 hover:bg-blue-600 text-white group-data-[collapsible=icon]:hidden">Trial</Badge>;
       case 'past_due':

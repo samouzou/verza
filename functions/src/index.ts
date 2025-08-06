@@ -21,11 +21,11 @@ import {
 
 import {
   sendContractNotification,
-  sendPaymentReminder,
 } from "./notifications";
 
 import {
   sendOverdueInvoiceReminders,
+  sendUpcomingPaymentReminders,
 } from "./scheduler";
 
 import {
@@ -36,6 +36,7 @@ import {
 
 import {
   createShareableContractVersion,
+  getPublicContractDetails,
 } from "./sharing";
 
 import {
@@ -64,12 +65,13 @@ export {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   sendContractNotification,
-  sendPaymentReminder,
   sendOverdueInvoiceReminders,
+  sendUpcomingPaymentReminders,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
   createShareableContractVersion,
+  getPublicContractDetails,
   initiateHelloSignRequest,
   helloSignWebhookHandler,
   generateFinicityConnectUrl,

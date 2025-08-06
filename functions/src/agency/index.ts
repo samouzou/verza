@@ -342,16 +342,22 @@ export const createInternalPayout = onCall(async (request) => {
         "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
-    const amountInCents = Math.round(amount * 100);
+    // Calculate platform fee (Stripe fees + 1% Verza fee) and total charge amount
+    const payoutAmountInCents = Math.round(amount * 100);
+    // Platform fee is 4% (3% for Stripe + 1% for Verza) + 30 cents
+    const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
+    const totalChargeInCents = payoutAmountInCents + platformFeeInCents;
+
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
+      amount: totalChargeInCents, // Charge the agency the total amount
       currency: "usd",
       customer: agencyOwnerData.stripeCustomerId,
       payment_method: paymentMethodId,
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
       transfer_data: {
         destination: talentUserData.stripeAccountId,
+        amount: payoutAmountInCents, // Specify the exact amount to transfer to the talent
       },
       confirm: true,
       off_session: true,
@@ -360,8 +366,11 @@ export const createInternalPayout = onCall(async (request) => {
         talentId: talentId,
         payout_description: description,
         paymentDate: paymentDate,
+        payout_amount: (amount).toString(),
+        platform_fee: (platformFeeInCents / 100).toString(),
       },
     });
+
 
     const payoutDocRef = db.collection("internalPayouts").doc();
     const newPayout: InternalPayout = {
@@ -371,12 +380,13 @@ export const createInternalPayout = onCall(async (request) => {
       agencyOwnerId,
       talentId,
       talentName: talentInfo.displayName || "N/A",
-      amount,
+      amount, // The amount the talent receives
       description,
-      status: "processing",
+      status: "processing", // This will be updated by a webhook later
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
       stripeChargeId: paymentIntent.id,
+      platformFee: platformFeeInCents / 100,
     };
     await payoutDocRef.set(newPayout);
 

@@ -125,3 +125,39 @@ export const createShareableContractVersion = onCall({
     throw new HttpsError("internal", "An unknown error occurred while creating shareable link.");
   }
 });
+
+
+export const getPublicContractDetails = onCall({
+  enforceAppCheck: false, // Allow public access
+  cors: true,
+}, async (request) => {
+  const {contractId} = request.data;
+  if (!contractId || typeof contractId !== "string") {
+    throw new HttpsError("invalid-argument", "Valid contract ID is required.");
+  }
+
+  try {
+    const contractDocRef = db.collection("contracts").doc(contractId);
+    const contractSnap = await contractDocRef.get();
+
+    if (!contractSnap.exists) {
+      throw new HttpsError("not-found", "The requested contract could not be found.");
+    }
+
+    const contractData = contractSnap.data() as Contract;
+
+    // Return only the data that is safe to be public for the payment page
+    const publicData = {
+      id: contractSnap.id,
+      brand: contractData.brand,
+      projectName: contractData.projectName,
+      amount: contractData.amount,
+      invoiceStatus: contractData.invoiceStatus,
+    };
+
+    return publicData;
+  } catch (error) {
+    logger.error(`Error fetching public details for contract ${contractId}:`, error);
+    throw new HttpsError("internal", "An error occurred while fetching contract details.");
+  }
+});
