@@ -58,7 +58,18 @@ export const sendContractNotification = onRequest(async (request, response) => {
       return;
     }
 
-    const msg = {to, from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com", subject, text, html};
+    const msg: sgMail.MailDataRequired = {
+        to,
+        from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
+        subject,
+        text,
+        html,
+        customArgs: {
+            userId,
+            contractId: contractId || "", // Pass contractId as a custom argument
+        },
+    };
+    
     await sgMail.send(msg);
 
     // Log the email to Firestore
@@ -96,6 +107,67 @@ export const sendContractNotification = onRequest(async (request, response) => {
     });
   }
 });
+
+
+export const handleSendGridEmailWebhook = onRequest(async (request, response) => {
+  if (request.method !== "POST") {
+    response.status(405).send("Method Not Allowed");
+    return;
+  }
+  
+  // SendGrid sends events in an array
+  const events = request.body;
+  if (!Array.isArray(events)) {
+    logger.warn("Received non-array payload for SendGrid webhook:", request.body);
+    response.status(400).send("Bad Request: Expected an array of events.");
+    return;
+  }
+
+  logger.info(`Received ${events.length} event(s) from SendGrid.`);
+
+  // Process events without waiting for Firestore writes to complete
+  for (const event of events) {
+    const { event: eventType, contractId, email } = event;
+    
+    if (eventType === 'open' && contractId) {
+      logger.info(`Processing 'open' event for contract ID: ${contractId}`);
+      try {
+        const contractRef = db.collection('contracts').doc(contractId);
+        
+        // Use a transaction or batched write if you need to perform multiple reads/writes atomically.
+        // For this case, a simple update is sufficient, but we should be careful about race conditions.
+        // We can check if the "viewed" status already exists to avoid duplicate history entries.
+        const contractDoc = await contractRef.get();
+        if (contractDoc.exists) {
+            const contractData = contractDoc.data();
+            const history = contractData?.invoiceHistory || [];
+            const alreadyViewed = history.some((h: any) => h.action === "Invoice Viewed by Client");
+
+            if (!alreadyViewed) {
+                await contractRef.update({
+                    invoiceStatus: 'viewed',
+                    invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+                        timestamp: admin.firestore.Timestamp.now(),
+                        action: "Invoice Viewed by Client",
+                        details: `Email opened by ${email}`,
+                    })
+                });
+                logger.info(`Updated contract ${contractId} to 'viewed'.`);
+            } else {
+                 logger.info(`Contract ${contractId} already marked as viewed. Skipping update.`);
+            }
+        }
+      } catch (error) {
+        logger.error(`Error processing webhook for contract ${contractId}:`, error);
+        // Don't throw error, just log and continue, so SendGrid doesn't retry this event.
+      }
+    }
+  }
+
+  // Respond to SendGrid immediately to acknowledge receipt of the event(s)
+  response.status(200).send("Webhook received");
+});
+
 
 /**
  * Sends an invitation email to a talent for an agency.
