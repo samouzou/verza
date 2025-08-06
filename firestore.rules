@@ -13,6 +13,23 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
+    // Helper functions to allow user to access email logs
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Helper to check direct user ownership or agency ownership of a contract
+    function userOwnsContract(contractId) {
+      let contractData = get(/databases/$(database)/documents/contracts/$(contractId)).data;
+      // Direct user owns the contract OR
+      // Contract is owned by an agency and the requester is the owner of that specific agency
+      return isUser(contractData.userId) || (contractData.ownerType == 'agency' && isOwnerOfAgency(contractData.ownerId));
+    }
+
     // Rules for the users collection
     match /users/{userId} {
       // Users can read and update their own profile
@@ -123,7 +140,7 @@ service cloud.firestore {
     
     // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read: if userOwnsContract(resource.data.contractId); // User can read logs for their own contracts
       allow write: if false; // Only backend via Admin SDK
     }
     

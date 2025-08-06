@@ -52,123 +52,46 @@ export const sendContractNotification = onRequest(async (request, response) => {
     const userId = await verifyAuthToken(request.headers.authorization);
 
     // Validate request body
-    const {to, subject, text, html} = request.body;
+    const {to, subject, text, html, contractId} = request.body;
     if (!to || !subject || !text || !html) {
-      throw new Error("Missing required fields in request body");
+      response.status(400).json({error: "Bad Request", message: "Missing required fields: to, subject, text, html."});
+      return;
     }
 
-    // Optional: Verify user has permission to send to this email
-    // This could be based on your business logic, e.g., checking if the email
-    // is associated with a contract the user has access to
-    const userDoc = await db.collection("users").doc(userId).get();
-    if (!userDoc.exists) {
-      throw new Error("User not found");
-    }
+    const msg = {to, from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com", subject, text, html};
+    await sgMail.send(msg);
 
-    const msg = {
+    // Log the email to Firestore
+    const emailLogRef = db.collection("emailLogs").doc();
+    await emailLogRef.set({
+      userId,
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
       subject,
       text,
-      html,
-    };
-
-    await sgMail.send(msg);
-
-    // Log the email sending
-    await db.collection("emailLogs").add({
-      userId,
-      to,
-      subject,
+      html, // Storing the HTML content
+      contractId: contractId || null,
+      type: subject.toLowerCase().includes("invoice") ? "invoice" : "generic",
       timestamp: admin.firestore.Timestamp.now(),
       status: "sent",
     });
 
-    // Add invoice history entry if this is an invoice email
-    if (subject.toLowerCase().includes("invoice")) {
-      const contractId = request.body.contractId;
-      if (contractId) {
-        await db.collection("contracts").doc(contractId).update({
-          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.Timestamp.now(),
-            action: "Invoice Sent to Client",
-            details: `To: ${to}`,
-          }),
-        });
-      }
+    // Update contract history with the emailLogId
+    if (contractId) {
+      await db.collection("contracts").doc(contractId).update({
+        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+          timestamp: admin.firestore.Timestamp.now(),
+          action: "Invoice Sent to Client",
+          details: `To: ${to}`,
+          emailLogId: emailLogRef.id, // Link to the log entry
+        }),
+      });
     }
 
-    response.json({status: "success"});
+    response.json({status: "success", emailLogId: emailLogRef.id});
   } catch (error) {
     logger.error("Error sending email:", error);
-    response.status(401).json({
+    response.status(500).json({
       error: "Failed to send email",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-// Send payment reminder
-export const sendPaymentReminder = onRequest(async (request, response) => {
-  // Set CORS headers
-  response.set("Access-Control-Allow-Origin", "*");
-  response.set("Access-Control-Allow-Methods", "POST");
-  response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  // Handle preflight requests
-  if (request.method === "OPTIONS") {
-    response.status(204).send("");
-    return;
-  }
-
-  try {
-    // Verify authentication
-    const userId = await verifyAuthToken(request.headers.authorization);
-
-    // Validate request body
-    const {to, contractId, dueDate, amount} = request.body;
-    if (!to || !contractId || !dueDate || !amount) {
-      throw new Error("Missing required fields in request body");
-    }
-
-    // Verify user has access to this contract
-    const contractDoc = await db.collection("contracts").doc(contractId).get();
-    if (!contractDoc.exists || contractDoc.data()?.userId !== userId) {
-      throw new Error("Contract not found or access denied");
-    }
-
-    const msg = {
-      to,
-      from: process.env.SENDGRID_FROM_EMAIL || "serge@tryverza.com",
-      subject: "Payment Reminder",
-      text: `This is a reminder that your payment of $${amount} for ` +
-        `contract ${contractId} is due on ${dueDate}.`,
-      html: `
-        <h2>Payment Reminder</h2>
-        <p>This is a reminder that your payment of $${amount} for ` +
-        `contract ${contractId} is due on ${dueDate}.</p>
-        <p>Please ensure your payment is made on time to avoid any late fees.</p>
-        <p>Thank you,<br>The Verza Team</p>
-      `,
-    };
-
-    await sgMail.send(msg);
-
-    // Log the email sending
-    await db.collection("emailLogs").add({
-      userId,
-      to,
-      contractId,
-      type: "payment_reminder",
-      timestamp: admin.firestore.Timestamp.now(),
-      status: "sent",
-    });
-
-    response.json({status: "success"});
-  } catch (error) {
-    logger.error("Error sending payment reminder:", error);
-    response.status(401).json({
-      error: "Failed to send payment reminder",
       message: error instanceof Error ? error.message : "Unknown error",
     });
   }
