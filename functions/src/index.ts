@@ -21,6 +21,7 @@ import {
 
 import {
   sendContractNotification,
+  handleSendGridEmailWebhook, // Added SendGrid webhook handler
 } from "./notifications";
 
 import {
@@ -65,6 +66,7 @@ export {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   sendContractNotification,
+  handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   createStripeSubscriptionCheckoutSession,

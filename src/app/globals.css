@@ -9,120 +9,136 @@ body {
 
 @layer base {
   :root {
-    /* Verza Theme HSL Variables (Keep these definitions) */
-    --verza-blue-h: 214;
-    --verza-blue-s: 100%;
-    --verza-blue-l: 62%;
+    /* New Verza Theme HSL Variables */
+    --verza-purple-h: 255;
+    --verza-purple-s: 100%;
+    --verza-purple-l: 61%; /* #6B37FF */
   
-    --verza-midnight-h: 224;
-    --verza-midnight-s: 47%;
-    --verza-midnight-l: 8.4%; /* #0B0F1C */
+    --verza-magenta-h: 331;
+    --verza-magenta-s: 86%;
+    --verza-magenta-l: 64%; /* #EE488E */
   
-    --electric-coral-h: 0;
-    --electric-coral-s: 100%;
-    --electric-coral-l: 71%;
+    --verza-midnight-h: 264;
+    --verza-midnight-s: 30%;
+    --verza-midnight-l: 8%; /* #120E19 */
+
+    --verza-accent-gray-h: 215;
+    --verza-accent-gray-s: 16%;
+    --verza-accent-gray-l: 65%; /* #94A3B8 */
+
+    --verza-success-h: 142;
+    --verza-success-s: 63%;
+    --verza-success-l: 45%; /* #22C55E */
+
+    --verza-warning-h: 38;
+    --verza-warning-s: 92%;
+    --verza-warning-l: 53%; /* #F59E0B */
+  
+    --verza-destructive-h: 0;
+    --verza-destructive-s: 84%;
+    --verza-destructive-l: 60%; /* #EF4444 */
   
     /* Verza Light Theme */
-    --background: 220 20% 98%; /* Verza Ash — soft off-white */
-    --foreground: 222 15% 15%; /* Deep charcoal */
+    --background: 0 0% 100%; /* White */
+    --foreground: 224 71.4% 4.1%; /* Near Black */
   
-    --card: 0 0% 100%; /* White for card base */
-    --card-foreground: 222 15% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
   
     --popover: 0 0% 100%;
-    --popover-foreground: 222 15% 15%;
+    --popover-foreground: 224 71.4% 4.1%;
   
-    --primary: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
     --primary-foreground: 0 0% 100%;
   
-    --secondary: 220 14% 95%; /* Light blue-gray */
-    --secondary-foreground: 222 10% 30%;
+    --secondary: 220 14.3% 95.9%; /* Light Gray */
+    --secondary-foreground: 220 14.3% 34.1%;
   
-    --muted: 220 13% 91%; /* Softer muted background */
-    --muted-foreground: 220 8% 45%;
+    --muted: var(--verza-accent-gray-h) 25% 95%; /* Lighter version of accent gray */
+    --muted-foreground: var(--verza-accent-gray-h) 10% 45%;
   
-    --accent: var(--electric-coral-h) var(--electric-coral-s) var(--electric-coral-l);
+    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
     --accent-foreground: 0 0% 100%;
   
-    --destructive: 0 70% 50%;
+    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
     --destructive-foreground: 0 0% 100%;
   
     --border: 220 13% 91%;
-    --input: 0 0% 100%;
-    --ring: var(--verza-blue-h) var(--verza-blue-s) calc(var(--verza-blue-l) - 10%);
+    --input: 220 13% 91%;
+    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
   
     --radius: 0.5rem;
   
     /* Chart colors */
-    --chart-1: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
-    --chart-2: var(--electric-coral-h) var(--electric-coral-s) var(--electric-coral-l);
-    --chart-3: 220 10% 80%;
-    --chart-4: 43 90% 65%;
-    --chart-5: 180 50% 60%;
+    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
+    --chart-3: var(--verza-accent-gray-h) var(--verza-accent-gray-s) var(--verza-accent-gray-l);
+    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
+    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
   
-    /* Sidebar (Verza Light) */
+    /* Sidebar (Light) */
     --sidebar-background: 220 20% 97%;
     --sidebar-foreground: 222 10% 25%;
     --sidebar-border: 220 14% 92%;
   
-    --sidebar-primary: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
     --sidebar-primary-foreground: 0 0% 100%;
   
-    --sidebar-accent: 220 12% 92%;
-    --sidebar-accent-foreground: 222 15% 15%;
+    --sidebar-accent: var(--verza-purple-h) 95% 96%; /* Very light purple */
+    --sidebar-accent-foreground: var(--verza-purple-h) 100% 50%;
   
-    --sidebar-ring: var(--verza-blue-h) var(--verza-blue-s) calc(var(--verza-blue-l) - 10%);
+    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
   }
   
   .dark {
     /* Dark Theme based on Verza Midnight */
     --background: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
-    --foreground: 0 0% 98%;
+    --foreground: 210 20% 98%; /* #E2E8F0 */
   
-    --card: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 4%);
-    --card-foreground: 0 0% 95%;
+    --card: 264 25% 10%;
+    --card-foreground: 210 20% 98%;
   
-    --popover: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 4%);
-    --popover-foreground: 0 0% 95%;
+    --popover: 264 30% 8%;
+    --popover-foreground: 210 20% 98%;
   
-    --primary: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
     --primary-foreground: 0 0% 100%;
   
-    --secondary: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 8%);
-    --secondary-foreground: 0 0% 85%;
+    --secondary: 264 20% 14%;
+    --secondary-foreground: 210 20% 85%;
   
-    --muted: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 12%);
-    --muted-foreground: 0 0% 60%;
+    --muted: var(--verza-accent-gray-h) 10% 30%;
+    --muted-foreground: var(--verza-accent-gray-h) 10% 60%;
   
-    --accent: var(--electric-coral-h) var(--electric-coral-s) var(--electric-coral-l);
-    --accent-foreground: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
+    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
+    --accent-foreground: 0 0% 100%;
   
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
+    --destructive-foreground: 0 0% 100%;
   
-    --border: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 6%);
-    --input: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) + 6%);
-    --ring: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --border: 264 20% 14%;
+    --input: 264 20% 14%;
+    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
   
     /* Chart colors for dark theme */
-    --chart-1: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
-    --chart-2: var(--electric-coral-h) var(--electric-coral-s) var(--electric-coral-l);
-    --chart-3: 220 15% 35%;
-    --chart-4: 43 90% 70%;
-    --chart-5: 180 50% 65%;
+    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
+    --chart-3: var(--verza-accent-gray-h) 10% 50%;
+    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
+    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
   
     /* Sidebar (Dark theme) */
-    --sidebar-background: var(--verza-midnight-h) var(--verza-midnight-s) calc(var(--verza-midnight-l) - 2%);
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-border: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
+    --sidebar-background: 264 30% 6%; /* Slightly darker than main bg */
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-border: 264 30% 10%;
   
-    --sidebar-primary: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
     --sidebar-primary-foreground: 0 0% 100%;
   
-    --sidebar-accent: var(--verza-blue-h) var(--verza-blue-s) calc(var(--verza-blue-l) - 10%);
-    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-accent: var(--verza-purple-h) 50% 20%;
+    --sidebar-accent-foreground: 210 20% 98%;
   
-    --sidebar-ring: var(--verza-blue-h) var(--verza-blue-s) var(--verza-blue-l);
+    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
   }
 }
 
