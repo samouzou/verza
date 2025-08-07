@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   LayoutDashboard,
   FileText,
@@ -127,13 +128,9 @@ export function SidebarNav() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-           <svg width="180" height="50" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-data-[collapsible=icon]:hidden">
-             <text x="0" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
-           </svg>
-            <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
-             <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
-           </svg>
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
+            <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
+            <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -147,11 +144,7 @@ export function SidebarNav() {
                       setOpenMobile(false);
                     }
                   }}
-                  className={cn(
-                    pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  )}
+                  className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
                   isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
                   tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                 >
