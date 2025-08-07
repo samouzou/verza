@@ -55,6 +55,9 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
             </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
+          customArgs: {
+            contractId: contractId,
+          },
         };
 
         await sgMail.send(msg);
@@ -150,6 +153,9 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
             </div>
             <p>Thank you,<br>The Verza Team</p>
           `,
+          customArgs: {
+            contractId: contractId,
+          },
         };
 
         await sgMail.send(msg);
