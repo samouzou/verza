@@ -343,7 +343,7 @@ export const createInternalPayout = onCall(async (request) => {
     }
 
     const payoutDocRef = db.collection("internalPayouts").doc();
-    const newPayout: InternalPayout = {
+    const newPayout: Omit<InternalPayout, 'stripeChargeId'> = {
       id: payoutDocRef.id,
       agencyId,
       agencyName: agencyData.name,
@@ -355,7 +355,6 @@ export const createInternalPayout = onCall(async (request) => {
       status: "processing", // This will be updated by a webhook later
       initiatedAt: admin.firestore.Timestamp.now() as any,
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      stripeChargeId: null, // Will be set after paymentIntent creation
       platformFee: 0, // Will be calculated next
     };
 
@@ -389,8 +388,12 @@ export const createInternalPayout = onCall(async (request) => {
       },
     });
 
-    newPayout.stripeChargeId = paymentIntent.id;
-    await payoutDocRef.set(newPayout);
+    const finalPayout: InternalPayout = {
+        ...newPayout,
+        stripeChargeId: paymentIntent.id
+    };
+
+    await payoutDocRef.set(finalPayout);
 
     logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
     return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
