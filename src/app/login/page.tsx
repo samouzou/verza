@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from 'next/image';
 
 export default function LoginPage() {
   const { 
@@ -214,9 +215,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
-            <svg width="48" height="48" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
-             <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="38" fontWeight="bold" fill="currentColor">V</text>
-            </svg>
+            <Image src="/verza-icon.svg" alt="Verza Icon" width={48} height={48} />
           </div>
           <CardTitle className="text-3xl font-bold">
             {isPasswordResetView ? "Reset Password" : isSignUpView ? "Create Account" : "Welcome to Verza"}

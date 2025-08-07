@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea'; 
 import { Separator } from "@/components/ui/separator";
 import { diffChars } from 'diff';
+import Image from 'next/image';
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | Date | undefined | null): string => {
@@ -286,9 +287,7 @@ export default function ShareContractPage() {
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
       <header className="max-w-7xl mx-auto mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
-             <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="38" fontWeight="bold" fill="currentColor">V</text>
-          </svg>
+          <Image src="/verza-icon.svg" alt="Verza Icon" width={40} height={40} />
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Contract Review</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">
