@@ -148,6 +148,7 @@ export function SidebarNav() {
                     }
                   }}
                   className={cn(
+                    "group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center",
                     pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
