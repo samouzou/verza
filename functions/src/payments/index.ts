@@ -300,9 +300,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const { metadata, amount, currency, customer } = paymentIntent;
-      const { contractId, userId, clientEmail, paymentType, internalPayoutId } = metadata;
-      
+      const {metadata, amount, currency, customer} = paymentIntent;
+      const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
+
       // Handle Internal Agency Payout
       if (internalPayoutId) {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
@@ -311,7 +311,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           paidAt: admin.firestore.Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
-      
+
       // Handle standard Contract Payment
       } else if (contractId && userId) {
         await db.collection("contracts").doc(contractId).update({
@@ -374,10 +374,11 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           timestamp: new Date(),
         });
       } else {
-         logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.", metadata);
+        logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.",
+          metadata);
       }
     }
-    response.json({ received: true });
+    response.json({received: true});
   } catch (error) {
     logger.error("Webhook error:", error);
     response.status(400).send("Webhook error");

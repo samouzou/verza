@@ -343,7 +343,7 @@ export const createInternalPayout = onCall(async (request) => {
     }
 
     const payoutDocRef = db.collection("internalPayouts").doc();
-    const newPayout: Omit<InternalPayout, 'stripeChargeId'> = {
+    const newPayout: Omit<InternalPayout, "stripeChargeId"> = {
       id: payoutDocRef.id,
       agencyId,
       agencyName: agencyData.name,
@@ -389,8 +389,8 @@ export const createInternalPayout = onCall(async (request) => {
     });
 
     const finalPayout: InternalPayout = {
-        ...newPayout,
-        stripeChargeId: paymentIntent.id
+      ...newPayout,
+      stripeChargeId: paymentIntent.id,
     };
 
     await payoutDocRef.set(finalPayout);
