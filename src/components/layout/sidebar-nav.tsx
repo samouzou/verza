@@ -131,9 +131,15 @@ export function SidebarNav() {
            <svg width="180" height="50" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-data-[collapsible=icon]:hidden">
              <text x="0" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
            </svg>
-            <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
-             <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
-           </svg>
+            <svg width="24" height="18" viewBox="0 0 304 219" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
+              <path d="M24 24L152 194.666L280 24" stroke="url(#paint0_linear_9861_1707)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs>
+              <linearGradient id="paint0_linear_9861_1707" x1="24" y1="24" x2="280" y2="24.333" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6B37FF"/>
+              <stop offset="1" stop-color="#EE488E"/>
+              </linearGradient>
+              </defs>
+            </svg>
         </div>
       </SidebarHeader>
       <SidebarContent>
