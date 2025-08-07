@@ -342,12 +342,29 @@ export const createInternalPayout = onCall(async (request) => {
         "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
+    const payoutDocRef = db.collection("internalPayouts").doc();
+    const newPayout: InternalPayout = {
+      id: payoutDocRef.id,
+      agencyId,
+      agencyName: agencyData.name,
+      agencyOwnerId,
+      talentId,
+      talentName: talentInfo.displayName || "N/A",
+      amount, // The amount the talent receives
+      description,
+      status: "processing", // This will be updated by a webhook later
+      initiatedAt: admin.firestore.Timestamp.now() as any,
+      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
+      stripeChargeId: null, // Will be set after paymentIntent creation
+      platformFee: 0, // Will be calculated next
+    };
+
     // Calculate platform fee (Stripe fees + 1% Verza fee) and total charge amount
     const payoutAmountInCents = Math.round(amount * 100);
     // Platform fee is 4% (3% for Stripe + 1% for Verza) + 30 cents
     const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
     const totalChargeInCents = payoutAmountInCents + platformFeeInCents;
-
+    newPayout.platformFee = platformFeeInCents / 100;
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: totalChargeInCents, // Charge the agency the total amount
@@ -367,27 +384,12 @@ export const createInternalPayout = onCall(async (request) => {
         payout_description: description,
         paymentDate: paymentDate,
         payout_amount: (amount).toString(),
-        platform_fee: (platformFeeInCents / 100).toString(),
+        platform_fee: (newPayout.platformFee).toString(),
+        internalPayoutId: newPayout.id, // Add this crucial piece of metadata
       },
     });
 
-
-    const payoutDocRef = db.collection("internalPayouts").doc();
-    const newPayout: InternalPayout = {
-      id: payoutDocRef.id,
-      agencyId,
-      agencyName: agencyData.name,
-      agencyOwnerId,
-      talentId,
-      talentName: talentInfo.displayName || "N/A",
-      amount, // The amount the talent receives
-      description,
-      status: "processing", // This will be updated by a webhook later
-      initiatedAt: admin.firestore.Timestamp.now() as any,
-      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      stripeChargeId: paymentIntent.id,
-      platformFee: platformFeeInCents / 100,
-    };
+    newPayout.stripeChargeId = paymentIntent.id;
     await payoutDocRef.set(newPayout);
 
     logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);

@@ -290,100 +290,94 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     return;
   }
 
-  // let event: Stripe.Event;
-
   try {
-    // Get the raw request body as a string
     const rawBody = request.rawBody;
     if (!rawBody) {
       throw new Error("No raw body found in request");
     }
 
-    // Verify the event using the raw body and signature
-    const event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      endpointSecret
-    );
+    const event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
 
-    // Handle the event
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {amount, currency, customer, metadata} = paymentIntent;
-      const {contractId, userId, clientEmail, paymentType} = metadata;
+      const { metadata, amount, currency, customer } = paymentIntent;
+      const { contractId, userId, clientEmail, paymentType, internalPayoutId } = metadata;
+      
+      // Handle Internal Agency Payout
+      if (internalPayoutId) {
+        const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
+        await payoutDocRef.update({
+          status: "paid",
+          paidAt: admin.firestore.Timestamp.now(),
+        });
+        logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
+      
+      // Handle standard Contract Payment
+      } else if (contractId && userId) {
+        await db.collection("contracts").doc(contractId).update({
+          invoiceStatus: "paid",
+          updatedAt: new Date(),
+          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            action: "Invoice Paid",
+            details: `PaymentIntent ID: ${paymentIntent.id}`,
+          }),
+        });
 
-      if (!contractId || !userId) {
-        logger.error("Missing contractId or userId in payment intent metadata");
-        response.status(400).send("Invalid payment intent metadata");
-        return;
-      }
-
-      // Update contract status
-      await db.collection("contracts").doc(contractId).update({
-        invoiceStatus: "paid",
-        updatedAt: new Date(),
-        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          action: "Invoice Paid",
-          details: `PaymentIntent ID: ${paymentIntent.id}`,
-        }),
-      });
-
-      // Get customer email from Stripe
-      let emailForUserConfirmation = "";
-      if (clientEmail) {
-        emailForUserConfirmation = clientEmail;
-      } else if (paymentType === "creator_payment" && userId) {
-        try {
-          const userRecord = await admin.auth().getUser(userId);
-          emailForUserConfirmation = userRecord.email || "";
-        } catch {
-          logger.error("Could not fetch creator email for confirmation");
+        let emailForUserConfirmation = "";
+        if (clientEmail) {
+          emailForUserConfirmation = clientEmail;
+        } else if (paymentType === "creator_payment" && userId) {
+          try {
+            const userRecord = await admin.auth().getUser(userId);
+            emailForUserConfirmation = userRecord.email || "";
+          } catch {
+            logger.error("Could not fetch creator email for confirmation");
+          }
+        } else if (customer) {
+          const customerData = await stripe.customers.retrieve(customer as string);
+          if (!customerData.deleted) {
+            emailForUserConfirmation = (customerData as Stripe.Customer).email || "";
+          }
         }
-      } else if (customer) {
-        const customerData = await stripe.customers.retrieve(customer as string);
-        if (!customerData.deleted) {
-          emailForUserConfirmation = (customerData as Stripe.Customer).email || "";
+
+        if (emailForUserConfirmation) {
+          const msg = {
+            to: emailForUserConfirmation,
+            from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+            subject: "Payment Confirmation",
+            text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
+            html: `
+              <h2>Payment Confirmation</h2>
+              <p>Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.</p>
+              <p>Thank you for your business!</p>
+              <p>The Verza Team</p>
+            `,
+          };
+          try {
+            await sgMail.send(msg);
+            logger.info("Payment confirmation email sent successfully");
+          } catch (emailError) {
+            logger.error("Failed to send payment confirmation email:", emailError);
+          }
         }
+
+        await db.collection("payments").add({
+          paymentIntentId: paymentIntent.id,
+          contractId,
+          userId,
+          amount,
+          currency,
+          customerId: customer,
+          emailForUserConfirmation,
+          status: "succeeded",
+          timestamp: new Date(),
+        });
+      } else {
+         logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.", metadata);
       }
-
-      // Send confirmation email
-      if (emailForUserConfirmation) {
-        const msg = {
-          to: emailForUserConfirmation,
-          from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
-          subject: "Payment Confirmation",
-          text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
-          html: `
-            <h2>Payment Confirmation</h2>
-            <p>Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.</p>
-            <p>Thank you for your business!</p>
-            <p>The Verza Team</p>
-          `,
-        };
-
-        try {
-          await sgMail.send(msg);
-          logger.info("Payment confirmation email sent successfully");
-        } catch (emailError) {
-          logger.error("Failed to send payment confirmation email:", emailError);
-        }
-      }
-
-      // Log the successful payment
-      await db.collection("payments").add({
-        paymentIntentId: paymentIntent.id,
-        contractId,
-        userId,
-        amount,
-        currency,
-        customerId: customer,
-        emailForUserConfirmation,
-        status: "succeeded",
-        timestamp: new Date(),
-      });
     }
-    response.json({received: true});
+    response.json({ received: true });
   } catch (error) {
     logger.error("Webhook error:", error);
     response.status(400).send("Webhook error");
