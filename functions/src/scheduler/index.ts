@@ -10,14 +10,18 @@ import * as sgMail from "@sendgrid/mail";
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
   try {
     const now = new Date();
+    // Format "now" to a "YYYY-MM-DD" string for direct comparison with the `dueDate` field.
+    const todayYYYYMMDD = now.toISOString().split("T")[0];
+    
+    // Get a date 3 days ago to check against lastReminderSentAt (which is a Timestamp)
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
     // Query for overdue invoices that need reminders
     const contractsSnapshot = await db
       .collection("contracts")
       .where("invoiceStatus", "in", ["sent", "viewed", "overdue"])
-      .where("dueDate", "<", now)
-      .where("lastReminderSentAt", "<", threeDaysAgo)
+      .where("dueDate", "<", todayYYYYMMDD) // Compare string with string
+      .where("lastReminderSentAt", "<", threeDaysAgo) // Compare Timestamp with Date
       .get();
 
     logger.info(`Found ${contractsSnapshot.size} overdue invoices that need reminders`);
@@ -100,7 +104,10 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
  */
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
   try {
-    const today = new Date();
+    const now = new Date();
+    // Format "now" to a "YYYY-MM-DD" string for direct comparison with the `dueDate` field.
+    const todayYYYYMMDD = now.toISOString().split("T")[0];
+    
     // Set a threshold for how often to send reminders (e.g., once a week)
     const reminderThreshold = new Date();
     reminderThreshold.setDate(reminderThreshold.getDate() - 7);
@@ -109,7 +116,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
     const contractsSnapshot = await db
       .collection("contracts")
       .where("invoiceStatus", "in", ["sent", "viewed"])
-      .where("dueDate", ">=", today)
+      .where("dueDate", ">=", todayYYYYMMDD) // Compare string with string
       .get();
 
     logger.info(`Found ${contractsSnapshot.size} open invoices to consider for reminders.`);
