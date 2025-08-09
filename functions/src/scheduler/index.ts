@@ -64,7 +64,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
                 .button-container { text-align: center; margin: 30px 0; }
                 .button { background-color: #EF4444; color: #ffffff; padding: 14px 28px; text-decoration: none;
                 border-radius: 5px; font-size: 16px; font-weight: 500; }
-                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: left; font-size: 12px; }
+                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: center; font-size: 12px; }
                 .footer img { vertical-align: middle; height: 16px; margin-left: 5px; }
               </style>
             </head>
@@ -203,7 +203,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                 .button-container { text-align: center; margin: 30px 0; }
                 .button { background-color: #6B37FF; color: #ffffff; padding: 14px 28px;
                 text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: 500; }
-                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: left; font-size: 12px; }
+                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: center; font-size: 12px; }
                 .footer img { vertical-align: middle; height: 16px; margin-left: 5px; }
               </style>
             </head>
