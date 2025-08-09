@@ -70,7 +70,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         await doc.ref.update({
           lastReminderSentAt: admin.firestore.FieldValue.serverTimestamp(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: admin.firestore.Timestamp.now(),
             action: "Overdue Payment Reminder Sent",
             details: `To: ${contract.clientEmail}`,
           }),
@@ -168,7 +168,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
         await sgMail.send(msg);
 
         const historyEntry = {
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: admin.firestore.Timestamp.now(),
           action: "Upcoming Payment Reminder Sent",
           details: `To: ${contract.clientEmail}`,
         };
