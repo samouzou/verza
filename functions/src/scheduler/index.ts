@@ -196,12 +196,12 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                 .container { max-width: 600px; margin: auto; background-color: #ffffff;
                 border: 1px solid #e2e2e2; border-radius: 8px; overflow: hidden; }
                 .header { background-color: #f8f8f8; padding: 40px; text-align: center; }
-                .header h1 { margin: 0; color: #3b82f6; font-size: 24px; }
+                .header h1 { margin: 0; color: #6B37FF; font-size: 24px; }
                 .content { padding: 30px; }
                 .content p { line-height: 1.6; margin: 0 0 15px; }
                 .bold { font-weight: 600; }
                 .button-container { text-align: center; margin: 30px 0; }
-                .button { background-color: #3b82f6; color: #ffffff; padding: 14px 28px;
+                .button { background-color: #6B37FF; color: #ffffff; padding: 14px 28px;
                 text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: 500; }
                 .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: center; font-size: 12px; }
                 .footer img { vertical-align: middle; height: 16px; margin-left: 5px; }
