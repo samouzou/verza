@@ -3,7 +3,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
-import * as sgMail from "@sendgrid/mail";
+import sgMail from "@sendgrid/mail";
 
 
 // Send reminders for overdue invoices
