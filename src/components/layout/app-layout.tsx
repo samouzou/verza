@@ -3,6 +3,7 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
+import Image from "next/image";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,9 +31,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center">
              <SidebarTrigger className="mr-2" />
              <div className="flex items-center gap-2">
-                <svg width="24" height="24" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
-                    <text x="5" y="38" fontFamily="Space Grotesk, sans-serif" fontSize="42" fontWeight="bold" fill="currentColor">V</text>
-                </svg>
+                <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={24} />
                 <span className="font-semibold text-lg">Verza</span>
               </div>
           </div>
