@@ -82,9 +82,6 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
                   </div>
                   <p>Thank you,<br/><span class="bold">${creatorName}</span></p>
                 </div>
-                <div class="footer">
-                  <span>Powered by Verza</span>
-                </div>
               </div>
             </body>
             </html>
@@ -218,9 +215,6 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                     <a href="${paymentLink}" class="button" target="_blank" rel="noopener noreferrer">Pay Invoice Now</a>
                   </div>
                   <p>Thank you,<br/><span class="bold">${creatorName}</span></p>
-                </div>
-                <div class="footer">
-                  <span>Powered by Verza</span>
                 </div>
               </div>
             </body>
