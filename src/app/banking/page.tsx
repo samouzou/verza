@@ -16,12 +16,12 @@ import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { useToast } from '@/hooks/use-toast';
 import { db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
+import { useQuiltt } from '@quiltt/react';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  const [isConnecting, setIsConnecting] = useState(false);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [userReceipts, setUserReceipts] = useState<Receipt[]>([]);
@@ -37,6 +37,36 @@ export default function BankingPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
+  // Quiltt Connector Hook
+  const { open, isReady, error } = useQuiltt({
+    connectorId: process.env.NEXT_PUBLIC_QUILTT_CONNECTOR_ID || "",
+    onEvent: (event, metadata) => {
+      console.log("Quiltt Event:", event, metadata);
+       if (event === 'oauth:redirect') {
+        // Handle OAuth redirect if necessary, e.g. show a loading state
+      }
+    },
+    onSuccess: (metadata) => {
+      console.log("Quiltt Connection Success:", metadata);
+      toast({ title: "Connection Successful", description: `Account ${metadata.connectionId} linked.` });
+      // Here you would typically trigger a server-side process to fetch accounts/transactions
+    },
+    onExit: (metadata) => {
+       if (metadata.error) {
+        console.error("Quiltt Exit with Error:", metadata.error);
+        toast({ title: "Connection Error", description: "Failed to connect account.", variant: "destructive" });
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (error) {
+       console.error("Quiltt Connector Hook Error:", error);
+       toast({ title: "Connector Error", description: "An error occurred with the banking connector.", variant: "destructive"});
+    }
+  }, [error, toast]);
+
+
   // Real-time listener for Bank Accounts
   useEffect(() => {
     if (!user) return;
@@ -138,19 +168,7 @@ export default function BankingPage() {
     };
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
-
-  const handleConnectQuiltt = async () => {
-    if (!user) {
-      toast({ title: "Authentication Error", description: "You must be logged in to connect a bank account.", variant: "destructive" });
-      return;
-    }
-    setIsConnecting(true);
-    toast({ title: "Connection Coming Soon", description: "Quiltt integration is being finalized.", variant: "default" });
-    // Placeholder for Quiltt connection logic
-    // e.g., const quiltt = Quiltt.open({ connectorId: '...', ... })
-    setTimeout(() => setIsConnecting(false), 1500);
-  };
-
+  
   const handleTransactionUpdate = async (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
     if (!user) return;
     const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txnId);
@@ -224,8 +242,8 @@ export default function BankingPage() {
                   ) : (
                       <p className="text-sm text-muted-foreground text-center py-4">No bank accounts connected yet.</p>
                   )}
-                  <Button onClick={handleConnectQuiltt} className="w-full sm:w-auto" disabled={isConnecting}>
-                    {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting...</> : <><PlusCircle className="mr-2 h-4 w-4" />Connect with Quiltt</>}
+                  <Button onClick={() => open()} className="w-full sm:w-auto" disabled={!isReady}>
+                    {!isReady ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading Connector...</> : <><PlusCircle className="mr-2 h-4 w-4" />Connect with Quiltt</>}
                   </Button>
                   <p className="text-xs text-muted-foreground">Verza uses Quiltt to securely link your accounts. Your credentials are never stored by Verza.</p>
               </CardContent>

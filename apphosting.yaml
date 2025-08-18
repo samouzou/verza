@@ -78,3 +78,10 @@ env:
     secret: VERZA_HELLOSIGN_API_KEY
     availability:
       - RUNTIME # Needed by Firebase Functions, which are part of the backend for App Hosting
+      
+  # Quiltt
+  - variable: NEXT_PUBLIC_QUILTT_CONNECTOR_ID
+    secret: QUILTT_CONNECTOR_ID
+    availability:
+      - BUILD
+      - RUNTIME
