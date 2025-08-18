@@ -14,9 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
-import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import { functions as firebaseFunctionsInstance, db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
+import { db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -140,31 +139,16 @@ export default function BankingPage() {
     runTaxEstimation();
   }, [transactions, isLoadingTransactions]);
 
-  const handleConnectFinicity = async () => {
+  const handleConnectQuiltt = async () => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be logged in to connect a bank account.", variant: "destructive" });
       return;
     }
     setIsConnecting(true);
-    try {
-      const generateUrlCallable = httpsCallable(firebaseFunctionsInstance, 'generateFinicityConnectUrl');
-      const result = await generateUrlCallable();
-      const { connectUrl } = result.data as { connectUrl: string };
-
-      if (!connectUrl) {
-          throw new Error("Connect URL not returned from server. Please try again.");
-      }
-      window.open(connectUrl, '_blank', 'noopener,noreferrer');
-    } catch (error: any) {
-      console.error("Error launching Finicity Connect:", error);
-      toast({
-        title: "Connection Setup Failed",
-        description: error.message || "Could not start the bank connection process.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnecting(false);
-    }
+    toast({ title: "Connection Coming Soon", description: "Quiltt integration is being finalized.", variant: "default" });
+    // Placeholder for Quiltt connection logic
+    // e.g., const quiltt = Quiltt.open({ connectorId: '...', ... })
+    setTimeout(() => setIsConnecting(false), 1500);
   };
 
   const handleTransactionUpdate = async (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
@@ -240,10 +224,10 @@ export default function BankingPage() {
                   ) : (
                       <p className="text-sm text-muted-foreground text-center py-4">No bank accounts connected yet.</p>
                   )}
-                  <Button onClick={handleConnectFinicity} className="w-full sm:w-auto" disabled={isConnecting}>
-                    {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting...</> : <><PlusCircle className="mr-2 h-4 w-4" />Connect New Account</>}
+                  <Button onClick={handleConnectQuiltt} className="w-full sm:w-auto" disabled={isConnecting}>
+                    {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting...</> : <><PlusCircle className="mr-2 h-4 w-4" />Connect with Quiltt</>}
                   </Button>
-                  <p className="text-xs text-muted-foreground">Verza uses secure partners like Finicity to link your accounts. Your credentials are never stored by Verza.</p>
+                  <p className="text-xs text-muted-foreground">Verza uses Quiltt to securely link your accounts. Your credentials are never stored by Verza.</p>
               </CardContent>
             </Card>
 

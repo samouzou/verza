@@ -46,11 +46,6 @@ import {
 } from "./esignatures";
 
 import {
-  generateFinicityConnectUrl,
-  finicityWebhookHandler,
-} from "./finicity";
-
-import {
   createAgency,
   inviteTalentToAgency,
   acceptAgencyInvitation,
@@ -76,8 +71,6 @@ export {
   getPublicContractDetails,
   initiateHelloSignRequest,
   helloSignWebhookHandler,
-  generateFinicityConnectUrl,
-  finicityWebhookHandler,
   createAgency,
   inviteTalentToAgency,
   acceptAgencyInvitation,
