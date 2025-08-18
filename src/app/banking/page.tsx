@@ -17,6 +17,7 @@ import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { useToast } from '@/hooks/use-toast';
 import { db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
 import { useQuilttConnector } from '@quiltt/react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -32,6 +33,8 @@ export default function BankingPage() {
   
   const [taxEstimation, setTaxEstimation] = useState<TaxEstimation | null>(null);
   const [isLoadingTaxEstimation, setIsLoadingTaxEstimation] = useState(true);
+
+  const [hasOldFinicityData, setHasOldFinicityData] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,7 +78,17 @@ export default function BankingPage() {
     const unsubscribe = onSnapshot(accountsQuery, 
       (snapshot) => {
         const fetchedAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankAccount));
-        setAccounts(fetchedAccounts);
+        
+        // Detect old data and prompt for re-connection if necessary
+        if (fetchedAccounts.some(acc => acc.provider === 'Finicity')) {
+            setHasOldFinicityData(true);
+        } else {
+            setHasOldFinicityData(false);
+        }
+
+        // Filter out old Finicity accounts from being displayed
+        setAccounts(fetchedAccounts.filter(acc => acc.provider !== 'Finicity'));
+
         setIsLoadingAccounts(false);
       },
       (error) => {
@@ -96,7 +109,13 @@ export default function BankingPage() {
       async (snapshot) => {
         const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankTransaction));
         
-        const transactionsToClassify = fetchedTransactions.filter(txn => !txn.category && txn.amount < 0);
+        // Filter out transactions from the old provider to prevent processing errors
+        const newProviderTransactions = fetchedTransactions.filter(txn => {
+            const associatedAccount = accounts.find(acc => acc.providerAccountId === txn.accountId);
+            return !associatedAccount || associatedAccount.provider !== 'Finicity';
+        });
+
+        const transactionsToClassify = newProviderTransactions.filter(txn => !txn.category && txn.amount < 0);
         
         if (transactionsToClassify.length > 0) {
             setIsClassifying(true);
@@ -108,7 +127,6 @@ export default function BankingPage() {
                     return { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible };
                 } catch (aiError) {
                     console.error(`AI classification failed for "${txn.description}":`, aiError);
-                    // Return original transaction so it's not lost from state
                     return { ...txn, isTaxDeductible: false, category: 'Other' };
                 }
             });
@@ -116,7 +134,8 @@ export default function BankingPage() {
             setIsClassifying(false);
         }
 
-        setTransactions(fetchedTransactions.map(txn => txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn));
+        const updatedTransactions = newProviderTransactions.map(txn => txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn);
+        setTransactions(updatedTransactions);
         setIsLoadingTransactions(false);
       },
       (error) => {
@@ -127,7 +146,7 @@ export default function BankingPage() {
       }
     );
     return () => unsubscribe();
-  }, [user, toast]);
+  }, [user, toast, accounts]); // Re-run when accounts list (and providers) are known
 
   // Tax Estimation Effect
   useEffect(() => {
@@ -140,7 +159,6 @@ export default function BankingPage() {
       try {
         const grossIncome = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
         
-        // Convert Timestamps to plain objects for Server Action
         const serializableTransactions = transactions.map(txn => ({
           ...txn,
           createdAt: txn.createdAt instanceof Timestamp 
@@ -171,23 +189,18 @@ export default function BankingPage() {
   const handleTransactionUpdate = async (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
     if (!user) return;
     
-    // Update local state immediately for better UX
     setTransactions(currentTxns => 
       currentTxns.map(txn => 
         txn.id === txnId ? { ...txn, [field]: value } : txn
       )
     );
     
-    // Asynchronously update Firestore
     const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txnId);
     try {
         await updateDoc(txnDocRef, { [field]: value, updatedAt: Timestamp.now() });
     } catch (error) {
         console.error("Failed to update transaction in Firestore:", error);
         toast({ title: "Update Failed", description: "Could not save transaction change. Reverting.", variant: "destructive" });
-        // Optional: Revert local state on failure
-        // This is complex and depends on how you want to handle errors.
-        // For simplicity, we're not reverting here but you could refetch or store previous state.
     }
   };
   
@@ -205,12 +218,10 @@ export default function BankingPage() {
     );
   }
 
-  // Pagination logic
   const lastItemIndex = currentPage * itemsPerPage;
   const firstItemIndex = lastItemIndex - itemsPerPage;
   const currentTransactions = transactions.slice(firstItemIndex, lastItemIndex);
   const totalPages = Math.ceil(transactions.length / itemsPerPage);
-
   const transactionCategories = [ "Client Payment", "Software", "Travel", "Meals & Entertainment", "Office Supplies", "Marketing", "Other" ];
 
   return (
@@ -219,6 +230,15 @@ export default function BankingPage() {
         title="Banking & Taxes"
         description="Connect bank accounts, categorize transactions, and estimate your taxes."
       />
+       {hasOldFinicityData && (
+          <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30">
+            <Landmark className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <AlertTitle className="font-semibold text-blue-700 dark:text-blue-300">Upgrade Your Bank Connection</AlertTitle>
+            <AlertDescription className="text-blue-600 dark:text-blue-400">
+              We've upgraded our banking provider to Quiltt for a better experience. Please reconnect your accounts to see your latest transactions. Your old connection will be removed.
+            </AlertDescription>
+          </Alert>
+        )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
             <Card>
