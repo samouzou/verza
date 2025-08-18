@@ -16,7 +16,7 @@ import { estimateTaxes } from '@/ai/flows/tax-estimation-flow';
 import { classifyTransaction } from '@/ai/flows/classify-transaction-flow';
 import { useToast } from '@/hooks/use-toast';
 import { db, collection, onSnapshot, query, where, doc, updateDoc, Timestamp } from '@/lib/firebase';
-import { useQuiltt } from '@quiltt/react';
+import { useQuilttConnector } from '@quiltt/react';
 
 export default function BankingPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -38,7 +38,7 @@ export default function BankingPage() {
   const itemsPerPage = 10;
   
   // Quiltt Connector Hook
-  const { open, isReady, error } = useQuiltt({
+  const { open, isReady, error } = useQuilttConnector({
     connectorId: process.env.NEXT_PUBLIC_QUILTT_CONNECTOR_ID || "",
     onEvent: (event, metadata) => {
       console.log("Quiltt Event:", event, metadata);
