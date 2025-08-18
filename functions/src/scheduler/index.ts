@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
-import type {UserProfileFirestoreData} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract} from "../../../src/types";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
@@ -267,5 +267,75 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
     }
   } catch (error) {
     logger.error("Error in sendUpcomingPaymentReminders:", error);
+  }
+});
+
+
+export const processRecurringContracts = onSchedule("every 24 hours", async () => {
+  logger.info("Starting processRecurringContracts function.");
+  const now = new Date();
+
+  try {
+    const q = db.collection("contracts").where("isRecurring", "==", true);
+    const snapshot = await q.get();
+
+    if (snapshot.empty) {
+      logger.info("No recurring contracts found.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const doc of snapshot.docs) {
+      const contract = doc.data() as Contract;
+      const dueDate = new Date(contract.dueDate + "T00:00:00Z"); // Treat date as UTC
+      const interval = contract.recurrenceInterval;
+
+      if (!interval || dueDate > now) {
+        continue; // Skip if no interval or not due yet
+      }
+
+      let nextDueDate = new Date(dueDate);
+      if (interval === "monthly") {
+        nextDueDate.setUTCMonth(nextDueDate.getUTCMonth() + 1);
+      } else if (interval === "quarterly") {
+        nextDueDate.setUTCMonth(nextDueDate.getUTCMonth() + 3);
+      } else if (interval === "annually") {
+        nextDueDate.setUTCFullYear(nextDueDate.getUTCFullYear() + 1);
+      } else {
+        continue; // Skip for unknown intervals
+      }
+
+      // Only create new contract if the next due date is in the past, meaning we should have created it already.
+      // This handles the function running and catching up on missed recurrences.
+      if (nextDueDate <= now) {
+        const newDueDateStr = nextDueDate.toISOString().split("T")[0];
+
+        // Clone contract data
+        const newContractData: Omit<Contract, "id"> = {
+          ...contract,
+          dueDate: newDueDateStr,
+          status: "pending", // Reset status for the new period
+          invoiceStatus: "none",
+          invoiceHistory: [],
+          lastReminderSentAt: null,
+          isRecurring: false, // The new instance is a one-time fulfillment of the recurring parent
+        };
+
+        const newContractRef = db.collection("contracts").doc();
+        batch.set(newContractRef, newContractData);
+
+        // Update the original contract's due date to the newly created one's due date
+        // so it serves as the basis for the *next* recurrence.
+        batch.update(doc.ref, {dueDate: newDueDateStr});
+
+        logger.info(`Scheduled new contract instance for original contract ${doc.id}. New due date: ${newDueDateStr}`);
+      }
+    }
+
+    await batch.commit();
+    logger.info("Recurring contract processing finished.");
+  } catch (error) {
+    logger.error("Error processing recurring contracts:", error);
   }
 });
