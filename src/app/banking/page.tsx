@@ -96,28 +96,27 @@ export default function BankingPage() {
       async (snapshot) => {
         const fetchedTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankTransaction));
         
-        setIsClassifying(true);
-        const processedTransactions = await Promise.all(
-          fetchedTransactions.map(async (txn) => {
-            if (txn.category || txn.amount > 0) {
-              return txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn;
-            }
-            try {
-              const classification = await classifyTransaction({ description: txn.description });
-              const updatedTxn = { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible };
-              
-              const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txn.id);
-              updateDoc(txnDocRef, { category: classification.category, isTaxDeductible: !!classification.isTaxDeductible }).catch(e => console.warn("Failed to update transaction in Firestore:", e));
-              
-              return updatedTxn;
-            } catch (aiError) {
-              console.error(`AI classification failed for "${txn.description}":`, aiError);
-              return { ...txn, isTaxDeductible: false, category: 'Other' };
-            }
-          })
-        );
-        setTransactions(processedTransactions);
-        setIsClassifying(false);
+        const transactionsToClassify = fetchedTransactions.filter(txn => !txn.category && txn.amount < 0);
+        
+        if (transactionsToClassify.length > 0) {
+            setIsClassifying(true);
+            const classificationPromises = transactionsToClassify.map(async (txn) => {
+                try {
+                    const classification = await classifyTransaction({ description: txn.description });
+                    const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txn.id);
+                    await updateDoc(txnDocRef, { category: classification.category, isTaxDeductible: !!classification.isTaxDeductible });
+                    return { ...txn, ...classification, isTaxDeductible: !!classification.isTaxDeductible };
+                } catch (aiError) {
+                    console.error(`AI classification failed for "${txn.description}":`, aiError);
+                    // Return original transaction so it's not lost from state
+                    return { ...txn, isTaxDeductible: false, category: 'Other' };
+                }
+            });
+            await Promise.all(classificationPromises);
+            setIsClassifying(false);
+        }
+
+        setTransactions(fetchedTransactions.map(txn => txn.amount > 0 ? { ...txn, isTaxDeductible: false, category: 'Client Payment' } : txn));
         setIsLoadingTransactions(false);
       },
       (error) => {
@@ -171,17 +170,24 @@ export default function BankingPage() {
   
   const handleTransactionUpdate = async (txnId: string, field: keyof BankTransaction, value: string | boolean | null) => {
     if (!user) return;
+    
+    // Update local state immediately for better UX
+    setTransactions(currentTxns => 
+      currentTxns.map(txn => 
+        txn.id === txnId ? { ...txn, [field]: value } : txn
+      )
+    );
+    
+    // Asynchronously update Firestore
     const txnDocRef = doc(db, `users/${user.uid}/bankTransactions`, txnId);
     try {
-        await updateDoc(txnDocRef, { [field]: value });
-        setTransactions(currentTxns => 
-          currentTxns.map(txn => 
-            txn.id === txnId ? { ...txn, [field]: value } : txn
-          )
-        );
+        await updateDoc(txnDocRef, { [field]: value, updatedAt: Timestamp.now() });
     } catch (error) {
         console.error("Failed to update transaction in Firestore:", error);
-        toast({ title: "Update Failed", description: "Could not save transaction change.", variant: "destructive" });
+        toast({ title: "Update Failed", description: "Could not save transaction change. Reverting.", variant: "destructive" });
+        // Optional: Revert local state on failure
+        // This is complex and depends on how you want to handle errors.
+        // For simplicity, we're not reverting here but you could refetch or store previous state.
     }
   };
   
