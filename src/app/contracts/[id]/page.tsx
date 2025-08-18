@@ -837,7 +837,7 @@ export default function ContractDetailPage() {
                               {comment.replies && comment.replies.length > 0 && (
                                 <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
                                   <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                    <div className="flex items-center justify-between mb-0.5"><p className="font-semibold text-primary text-xs flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5"/>{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                                    <div className="flex items-center justify-between mb-0.5"><p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
                                     <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
                                   </div>
                                 ))}</div>
