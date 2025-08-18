@@ -61,9 +61,9 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
                 .content p { line-height: 1.6; margin: 0 0 15px; }
                 .bold { font-weight: 600; }
                 .button-container { text-align: center; margin: 30px 0; }
-                .button { background-color: #EF4444; color: #ffffff; padding: 14px 28px; text-decoration: none;
+                .button { background-color: #EF4444; color: #ffffff !important; text-decoration: none; padding: 14px 28px;
                 border-radius: 5px; font-size: 16px; font-weight: 500; }
-                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: center; font-size: 12px; }
+                .footer { padding: 20px; text-align: center; font-size: 12px; }
               </style>
             </head>
             <body>
@@ -73,17 +73,14 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
                 </div>
                 <div class="content">
                   <p>Hello,</p>
-                  <p>This is a reminder that your payment of <span class="bold">$${contract.amount.toLocaleString()}</span>
+                  <p>This is a reminder that the payment of <span class="bold">$${contract.amount.toLocaleString()}</span>
                   for the project <span class="bold">'${contract.projectName || contract.brand}'</span> is now overdue.</p>
                   <p>To keep things on track, please process your payment at your earliest convenience.
                   You can pay securely via the link below:</p>
                   <div class="button-container">
                     <a href="${paymentLink}" class="button" target="_blank" rel="noopener noreferrer">Pay Invoice Now</a>
                   </div>
-                  <p>Thank you,<br/><span class="bold">${creatorName}</span></p>
-                </div>
-                <div class="footer">
-                  <span>Powered by Verza</span>
+                  <p>Thank you,<br/><span class="bold">The Verza Team</span></p>
                 </div>
               </div>
             </body>
@@ -197,9 +194,9 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                 .content p { line-height: 1.6; margin: 0 0 15px; }
                 .bold { font-weight: 600; }
                 .button-container { text-align: center; margin: 30px 0; }
-                .button { background-color: #6B37FF; color: #ffffff; padding: 14px 28px;
+                .button { background-color: #6B37FF; color: #ffffff !important; padding: 14px 28px;
                 text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: 500; }
-                .footer { background-color: #f8f8f8; color: #777; padding: 20px; text-align: center; font-size: 12px; }
+                .footer { padding: 20px; text-align: center; font-size: 12px; }
               </style>
             </head>
             <body>
@@ -217,10 +214,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                   <div class="button-container">
                     <a href="${paymentLink}" class="button" target="_blank" rel="noopener noreferrer">Pay Invoice Now</a>
                   </div>
-                  <p>Thank you,<br/><span class="bold">${creatorName}</span></p>
-                </div>
-                <div class="footer">
-                  <span>Powered by Verza</span>
+                  <p>Thank you,<br/><span class="bold">The Verza Team</span></p>
                 </div>
               </div>
             </body>
