@@ -295,7 +295,7 @@ export const processRecurringContracts = onSchedule("every 24 hours", async () =
         continue; // Skip if no interval or not due yet
       }
 
-      let nextDueDate = new Date(dueDate);
+      const nextDueDate = new Date(dueDate);
       if (interval === "monthly") {
         nextDueDate.setUTCMonth(nextDueDate.getUTCMonth() + 1);
       } else if (interval === "quarterly") {
