@@ -18,7 +18,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
       .where("invoiceStatus", "in", ["sent", "viewed", "overdue"])
       .where("dueDate", "<", todayYYYYMMDD)
       .get();
-      
+
     // Initial coarse filter
     const contractsToConsider = contractsSnapshot.docs.filter((doc) => {
       const data = doc.data() as Contract;
@@ -45,7 +45,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
             logger.info(`Skipping contract ${contractId}, reminder sent recently.`);
             return;
           }
-          
+
           if (!contract.clientEmail) {
             logger.warn(`No client email found for contract ${contractId}`);
             return;
@@ -162,7 +162,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
       .where("invoiceStatus", "in", ["sent", "viewed"])
       .where("dueDate", ">=", todayYYYYMMDD)
       .get();
-      
+
     // Initial coarse filter
     const contractsToConsider = contractsSnapshot.docs.filter((doc) => {
       const data = doc.data() as Contract;
@@ -175,12 +175,12 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
     for (const doc of contractsToConsider) {
       const contractId = doc.id;
       const contractDocRef = doc.ref;
-      
+
       try {
         await db.runTransaction(async (transaction) => {
           const freshDoc = await transaction.get(contractDocRef);
           if (!freshDoc.exists) return;
-          
+
           const contract = freshDoc.data() as Contract;
           const lastReminder = contract.lastReminderSentAt?.toDate();
 
@@ -281,12 +281,12 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
             details: `To: ${contract.clientEmail}`,
             emailLogId: emailLogRef.id,
           };
-          
+
           transaction.update(contractDocRef, {
             lastReminderSentAt: admin.firestore.Timestamp.now(),
             invoiceHistory: admin.firestore.FieldValue.arrayUnion(historyEntry),
           });
-          
+
           logger.info(`Sent upcoming payment reminder for contract ${contractId} to ${contract.clientEmail}`);
         });
       } catch (error) {
