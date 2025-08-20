@@ -235,7 +235,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         clientEmail: emailForReceiptAndMetadata,
         paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
       },
-      receipt_email: emailForReceiptAndMetadata,
+      receipt_email: emailForReceiptAndMetadata || undefined,
     };
     
     // If it's NOT an agency contract, create a direct transfer
