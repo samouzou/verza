@@ -260,6 +260,7 @@ export interface Talent {
   displayName: string | null;
   status: 'pending' | 'active';
   joinedAt?: ClientTimestamp;
+  commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
 export interface Agency {
