@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type { UserProfileFirestoreData, Contract, Agency } from "../../../src/types";
+import type {UserProfileFirestoreData, Contract, Agency} from "../../../src/types";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -200,7 +200,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     }
 
     if (!isAuthenticatedCreator && amount !== contractData.amount) {
-      logger.error("Amount mismatch:", { provided: amount, expected: contractData.amount });
+      logger.error("Amount mismatch:", {provided: amount, expected: contractData.amount});
       throw new Error("Invalid payment amount");
     }
 
@@ -211,11 +211,11 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
       throw new Error("Creator does not have a valid Stripe account");
     }
-    
+
     // START: Commission Split Logic
     let transferGroup = null;
-    if (contractData.ownerType === 'agency' && contractData.ownerId) {
-        transferGroup = `contract_${contractId}`;
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      transferGroup = `contract_${contractId}`;
     }
     // END: Commission Split Logic
 
@@ -235,16 +235,17 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         clientEmail: emailForReceiptAndMetadata,
         paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
       },
-      receipt_email: emailForReceiptAndMetadata,
+      receipt_email: emailForReceiptAndMetadata || undefined,
     };
-    
+
     // If it's NOT an agency contract, create a direct transfer
-    if (contractData.ownerType !== 'agency') {
-       paymentIntentParams.transfer_data = { destination: creatorData.stripeAccountId };
+    if (contractData.ownerType !== "agency") {
+      paymentIntentParams.transfer_data = {destination: creatorData.stripeAccountId};
     } else if (transferGroup) {
       // For agency contracts, use a transfer group to handle splits later
-       paymentIntentParams.transfer_group = transferGroup;
-       // We don't set transfer_data here; splits happen on success webhook
+      // eslint-disable-next-line camelcase
+      paymentIntentParams.transfer_group = transferGroup;
+      // We don't set transfer_data here; splits happen on success webhook
     }
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
@@ -292,6 +293,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      // eslint-disable-next-line camelcase
       const {metadata, amount, currency, customer, transfer_group} = paymentIntent;
       const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
 
@@ -315,57 +317,60 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
         });
-        
+
         // START: Commission Split Logic on Success
+        // eslint-disable-next-line camelcase
         if (transfer_group && transfer_group === `contract_${contractId}`) {
-            const contractDoc = await db.collection("contracts").doc(contractId).get();
-            const contractData = contractDoc.data() as Contract;
+          const contractDoc = await db.collection("contracts").doc(contractId).get();
+          const contractData = contractDoc.data() as Contract;
 
-            if (contractData && contractData.ownerType === 'agency' && contractData.ownerId) {
-                const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
-                const agencyData = agencyDoc.data() as Agency;
-                const talentInfo = agencyData.talent.find(t => t.userId === contractData.userId);
-                
-                if (agencyData && talentInfo && typeof talentInfo.commissionRate === 'number') {
-                    const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-                    const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-                    
-                    const talentUserDoc = await db.collection("users").doc(talentInfo.userId).get();
-                    const talentData = talentUserDoc.data() as UserProfileFirestoreData;
+          if (contractData && contractData.ownerType === "agency" && contractData.ownerId) {
+            const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+            const agencyData = agencyDoc.data() as Agency;
+            const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
 
-                    if (agencyOwnerData.stripeAccountId && talentData.stripeAccountId) {
-                        const netAmount = amount - (paymentIntent.application_fee_amount || 0);
-                        const agencyCommission = Math.round(netAmount * (talentInfo.commissionRate / 100));
-                        const creatorShare = netAmount - agencyCommission;
-                        
-                        // Transfer to Agency
-                        await stripe.transfers.create({
-                            amount: agencyCommission,
-                            currency: 'usd',
-                            destination: agencyOwnerData.stripeAccountId,
-                            transfer_group: transfer_group,
-                            description: `Commission for contract ${contractId}`,
-                        });
+            if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
+              const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+              const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
 
-                        // Transfer to Talent
-                        await stripe.transfers.create({
-                            amount: creatorShare,
-                            currency: 'usd',
-                            destination: talentData.stripeAccountId,
-                            transfer_group: transfer_group,
-                            description: `Payout for contract ${contractId}`,
-                        });
-                        
-                        logger.info(`Split payment processed for contract ${contractId}.
+              const talentUserDoc = await db.collection("users").doc(talentInfo.userId).get();
+              const talentData = talentUserDoc.data() as UserProfileFirestoreData;
+
+              if (agencyOwnerData.stripeAccountId && talentData.stripeAccountId) {
+                const netAmount = amount - (paymentIntent.application_fee_amount || 0);
+                const agencyCommission = Math.round(netAmount * (talentInfo.commissionRate / 100));
+                const creatorShare = netAmount - agencyCommission;
+
+                // Transfer to Agency
+                await stripe.transfers.create({
+                  amount: agencyCommission,
+                  currency: "usd",
+                  destination: agencyOwnerData.stripeAccountId,
+                  // eslint-disable-next-line camelcase
+                  transfer_group: transfer_group,
+                  description: `Commission for contract ${contractId}`,
+                });
+
+                // Transfer to Talent
+                await stripe.transfers.create({
+                  amount: creatorShare,
+                  currency: "usd",
+                  destination: talentData.stripeAccountId,
+                  // eslint-disable-next-line camelcase
+                  transfer_group: transfer_group,
+                  description: `Payout for contract ${contractId}`,
+                });
+
+                logger.info(`Split payment processed for contract ${contractId}.
                           Agency: ${agencyCommission}, Talent: ${creatorShare}`);
-                    } else {
-                        logger.error("Missing Stripe Account ID for agency or talent for commission split.",
-                          {agencyId: agencyData.id, talentId: talentInfo.userId});
-                    }
-                } else {
-                    logger.error("Could not find agency or talent info for commission split.", {contractId});
-                }
+              } else {
+                logger.error("Missing Stripe Account ID for agency or talent for commission split.",
+                  {agencyId: agencyData.id, talentId: talentInfo.userId});
+              }
+            } else {
+              logger.error("Could not find agency or talent info for commission split.", {contractId});
             }
+          }
         }
         // END: Commission Split Logic on Success
 
