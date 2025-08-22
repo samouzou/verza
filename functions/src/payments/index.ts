@@ -207,23 +207,23 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     // Determine the destination account for the payment
     let destinationAccountId: string;
     let finalRecipientId: string; // The user who will ultimately receive the net funds
-    
-    if (contractData.ownerType === 'agency' && contractData.ownerId) {
-        const agencyOwnerUserDoc = await db.collection('users').doc(contractData.ownerId).get();
-        const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-        if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripeChargesEnabled) {
-            throw new Error("Agency does not have a valid, active Stripe account to receive payments.");
-        }
-        destinationAccountId = agencyOwnerData.stripeAccountId;
-        finalRecipientId = contractData.userId; // The talent is the final recipient
+
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      const agencyOwnerUserDoc = await db.collection("users").doc(contractData.ownerId).get();
+      const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+      if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripeChargesEnabled) {
+        throw new Error("Agency does not have a valid, active Stripe account to receive payments.");
+      }
+      destinationAccountId = agencyOwnerData.stripeAccountId;
+      finalRecipientId = contractData.userId; // The talent is the final recipient
     } else {
-        const creatorDoc = await db.collection("users").doc(contractData.userId).get();
-        const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-        if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-            throw new Error("Creator does not have a valid Stripe account");
-        }
-        destinationAccountId = creatorData.stripeAccountId;
-        finalRecipientId = contractData.userId;
+      const creatorDoc = await db.collection("users").doc(contractData.userId).get();
+      const creatorData = creatorDoc.data() as UserProfileFirestoreData;
+      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
+        throw new Error("Creator does not have a valid Stripe account");
+      }
+      destinationAccountId = creatorData.stripeAccountId;
+      finalRecipientId = contractData.userId;
     }
 
     const amountInCents = Math.round(amount * 100);
@@ -294,7 +294,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       // eslint-disable-next-line camelcase
-      const {metadata, amount, currency, customer } = paymentIntent;
+      const {metadata, amount, currency, customer} = paymentIntent;
       const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
 
       // Handle Internal Agency Payout
@@ -323,32 +323,32 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractData = contractDoc.data() as Contract;
 
         if (contractData && contractData.ownerType === "agency" && contractData.ownerId) {
-            const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
-            const agencyData = agencyDoc.data() as Agency;
-            const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
-            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+          const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+          const agencyData = agencyDoc.data() as Agency;
+          const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
+          const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+          const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
-            if (agencyData && talentInfo && talentUserData.stripeAccountId && typeof talentInfo.commissionRate === "number") {
-                const netAmount = amount - (paymentIntent.application_fee_amount || 0);
-                const talentShare = netAmount * (1 - (talentInfo.commissionRate / 100));
-                
-                await stripe.transfers.create({
-                    amount: Math.round(talentShare),
-                    currency: "usd",
-                    destination: talentUserData.stripeAccountId,
-                    description: `Payout for contract ${contractId}`,
-                    source_transaction: paymentIntent.id, // This is incorrect, should be charge ID. We will use transfer_group instead.
-                    metadata: {
-                        contractId: contractId,
-                        agencyId: agencyData.id,
-                        talentId: contractData.userId,
-                    }
-                });
-                logger.info(`Talent payout processed for contract ${contractId}. Talent: ${Math.round(talentShare)/100}`);
-            } else {
-                logger.error("Could not process talent payout due to missing info.", { contractId });
-            }
+          if (agencyData && talentInfo && talentUserData.stripeAccountId && typeof talentInfo.commissionRate === "number") {
+            const netAmount = amount - (paymentIntent.application_fee_amount || 0);
+            const talentShare = netAmount * (1 - (talentInfo.commissionRate / 100));
+
+            await stripe.transfers.create({
+              amount: Math.round(talentShare),
+              currency: "usd",
+              destination: talentUserData.stripeAccountId,
+              description: `Payout for contract ${contractId}`,
+              source_transaction: paymentIntent.id, // This is incorrect, should be charge ID. We will use transfer_group instead.
+              metadata: {
+                contractId: contractId,
+                agencyId: agencyData.id,
+                talentId: contractData.userId,
+              },
+            });
+            logger.info(`Talent payout processed for contract ${contractId}. Talent: ${Math.round(talentShare)/100}`);
+          } else {
+            logger.error("Could not process talent payout due to missing info.", {contractId});
+          }
         }
         // END: Commission Split Logic
 
