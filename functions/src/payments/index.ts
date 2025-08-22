@@ -212,13 +212,6 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       throw new Error("Creator does not have a valid Stripe account");
     }
 
-    // START: Commission Split Logic
-    let transferGroup = null;
-    if (contractData.ownerType === "agency" && contractData.ownerId) {
-      transferGroup = `contract_${contractId}`;
-    }
-    // END: Commission Split Logic
-
     const amountInCents = Math.round(amount * 100);
     const platformFee = Math.round(amountInCents * 0.01);
     const stripeFee = Math.round(amountInCents * 0.029) + 30;
@@ -236,16 +229,14 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
       },
       receipt_email: emailForReceiptAndMetadata || undefined,
+      transfer_data: { // This is now always set
+        destination: creatorData.stripeAccountId,
+      },
     };
 
-    // If it's NOT an agency contract, create a direct transfer
-    if (contractData.ownerType !== "agency") {
-      paymentIntentParams.transfer_data = {destination: creatorData.stripeAccountId};
-    } else if (transferGroup) {
-      // For agency contracts, use a transfer group to handle splits later
-      // eslint-disable-next-line camelcase
-      paymentIntentParams.transfer_group = transferGroup;
-      // We don't set transfer_data here; splits happen on success webhook
+    // For agency contracts, set the transfer_group for post-payment splitting.
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      paymentIntentParams.transfer_group = `contract_${contractId}`;
     }
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
