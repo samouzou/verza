@@ -358,9 +358,11 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 description: `Payout for contract ${contractId}`,
               });
 
-              logger.info(`Agency payment split processed for contract ${contractId}. Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
+              logger.info(`Agency payment split processed for contract ${contractId}.
+                Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
             } else {
-              logger.error("Stripe account ID missing for agency owner or talent, cannot split funds.", {agencyId, talentId: contractData.userId});
+              logger.error("Stripe account ID missing for agency owner or talent, cannot split funds.",
+                {agencyId, talentId: contractData.userId});
             }
           }
         }
