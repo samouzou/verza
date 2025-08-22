@@ -195,15 +195,9 @@ export const createPaymentIntent = onCall(async (request) => {
   const amountInCents = Math.round(amount * 100);
 
   if (contractData.ownerType === "agency" && contractData.ownerId) {
-    // Agency contract - charge platform, then transfer out
+    // Agency contract - direct charge to platform
     const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
     const agencyData = agencyDoc.data() as Agency;
-    const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-    const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-
-    if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-      throw new Error("Agency owner does not have a valid, active Stripe account for payouts.");
-    }
 
     paymentIntentParams = {
         amount: amountInCents,
@@ -331,9 +325,16 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
             if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-              const netAmount = amount - (paymentIntent.application_fee_amount || 0);
-              const agencyCommissionAmount = Math.round(netAmount * (talentInfo.commissionRate / 100));
-              const talentShareAmount = netAmount - agencyCommissionAmount;
+                // Calculate the platform's total cut
+                const stripeFeeInCents = Math.round(amount * 0.029) + 30;
+                const platformFeeInCents = Math.round(amount * 0.01);
+                const totalPlatformCutInCents = stripeFeeInCents + platformFeeInCents;
+
+                // This is the amount available for distribution to agency & talent
+                const netForDistribution = amount - totalPlatformCutInCents;
+
+                const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                const talentShareAmount = netForDistribution - agencyCommissionAmount;
 
               // 1. Transfer Agency Commission
               await stripe.transfers.create({
