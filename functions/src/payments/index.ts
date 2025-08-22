@@ -301,7 +301,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       // eslint-disable-next-line camelcase
-      const {metadata, amount, currency, customer, id: paymentIntentId, latest_charge} = paymentIntent;
+      const {metadata, amount, currency, customer, latest_charge} = paymentIntent;
       const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
 
       // Handle Internal Agency Payout
