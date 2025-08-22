@@ -205,24 +205,19 @@ export const createPaymentIntent = onCall(async (request) => {
       throw new Error("Agency owner does not have a valid, active Stripe account for payouts.");
     }
 
-    const platformFee = Math.round(amountInCents * 0.01);
-    const stripeFee = Math.round(amountInCents * 0.029) + 30;
-    const totalApplicationFee = platformFee + stripeFee;
-
     paymentIntentParams = {
-      amount: amountInCents,
-      currency,
-      application_fee_amount: totalApplicationFee,
-      metadata: {
-        contractId,
-        userId: userId || "",
-        creatorId: contractData.userId,
-        agencyId: contractData.ownerId,
-        agencyOwnerId: agencyData.ownerId,
-        clientEmail: emailForReceiptAndMetadata,
-        paymentType: "agency_payment",
-      },
-      receipt_email: emailForReceiptAndMetadata || undefined,
+        amount: amountInCents,
+        currency,
+        metadata: {
+            contractId,
+            userId: userId || "",
+            creatorId: contractData.userId, // The talent's ID
+            agencyId: contractData.ownerId,
+            agencyOwnerId: agencyData.ownerId,
+            clientEmail: emailForReceiptAndMetadata,
+            paymentType: "agency_payment",
+        },
+        receipt_email: emailForReceiptAndMetadata || undefined,
     };
   } else {
     // Direct contract - charge with destination transfer
