@@ -212,7 +212,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       const agencyDocRef = db.collection("agencies").doc(contractData.ownerId);
       const agencyDoc = await agencyDocRef.get();
       if (!agencyDoc.exists) {
-          throw new Error("Agency not found for this contract.");
+        throw new Error("Agency not found for this contract.");
       }
       const agencyData = agencyDoc.data() as Agency;
       const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
@@ -340,18 +340,19 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           if (agencyData && talentInfo && talentUserData.stripeAccountId && typeof talentInfo.commissionRate === "number") {
             const netAmount = amount - (paymentIntent.application_fee_amount || 0);
             const talentShare = netAmount * (1 - (talentInfo.commissionRate / 100));
-            const chargeId = typeof latest_charge === 'string' ? latest_charge : latest_charge?.id;
+            // eslint-disable-next-line camelcase
+            const chargeId = typeof latest_charge === "string" ? latest_charge : latest_charge?.id;
 
             if (!chargeId) {
-                logger.error("Could not find charge ID to use for source_transaction in agency payout.");
-                throw new Error("Missing charge ID for agency payout.");
+              logger.error("Could not find charge ID to use for source_transaction in agency payout.");
+              throw new Error("Missing charge ID for agency payout.");
             }
 
             await stripe.transfers.create({
               amount: Math.round(talentShare),
               currency: "usd",
               destination: talentUserData.stripeAccountId,
-              source_transaction: chargeId, 
+              source_transaction: chargeId,
               description: `Payout for contract ${contractId}`,
               metadata: {
                 contractId: contractId,
