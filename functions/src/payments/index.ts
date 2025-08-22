@@ -209,8 +209,15 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     let finalRecipientId: string; // The user who will ultimately receive the net funds
 
     if (contractData.ownerType === "agency" && contractData.ownerId) {
-      const agencyOwnerUserDoc = await db.collection("users").doc(contractData.ownerId).get();
+      const agencyDocRef = db.collection("agencies").doc(contractData.ownerId);
+      const agencyDoc = await agencyDocRef.get();
+      if (!agencyDoc.exists) {
+          throw new Error("Agency not found for this contract.");
+      }
+      const agencyData = agencyDoc.data() as Agency;
+      const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
       const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+
       if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripeChargesEnabled) {
         throw new Error("Agency does not have a valid, active Stripe account to receive payments.");
       }
@@ -294,7 +301,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       // eslint-disable-next-line camelcase
-      const {metadata, amount, currency, customer} = paymentIntent;
+      const {metadata, amount, currency, customer, id: paymentIntentId, latest_charge} = paymentIntent;
       const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
 
       // Handle Internal Agency Payout
@@ -308,7 +315,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
       // Handle standard Contract Payment
       } else if (contractId) {
-        await db.collection("contracts").doc(contractId).update({
+        const contractDocRef = db.collection("contracts").doc(contractId);
+        await contractDocRef.update({
           invoiceStatus: "paid",
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
@@ -319,7 +327,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         });
 
         // START: Commission Split Logic for Agency Contracts
-        const contractDoc = await db.collection("contracts").doc(contractId).get();
+        const contractDoc = await contractDocRef.get();
         const contractData = contractDoc.data() as Contract;
 
         if (contractData && contractData.ownerType === "agency" && contractData.ownerId) {
@@ -332,13 +340,19 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           if (agencyData && talentInfo && talentUserData.stripeAccountId && typeof talentInfo.commissionRate === "number") {
             const netAmount = amount - (paymentIntent.application_fee_amount || 0);
             const talentShare = netAmount * (1 - (talentInfo.commissionRate / 100));
+            const chargeId = typeof latest_charge === 'string' ? latest_charge : latest_charge?.id;
+
+            if (!chargeId) {
+                logger.error("Could not find charge ID to use for source_transaction in agency payout.");
+                throw new Error("Missing charge ID for agency payout.");
+            }
 
             await stripe.transfers.create({
               amount: Math.round(talentShare),
               currency: "usd",
               destination: talentUserData.stripeAccountId,
+              source_transaction: chargeId, 
               description: `Payout for contract ${contractId}`,
-              source_transaction: paymentIntent.id, // This is incorrect, should be charge ID. We will use transfer_group instead.
               metadata: {
                 contractId: contractId,
                 agencyId: agencyData.id,
@@ -399,7 +413,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           customerId: customer,
           emailForUserConfirmation,
           status: "succeeded",
-          timestamp: new Date(),
+          timestamp: admin.firestore.Timestamp.now(),
         });
       } else {
         logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.",
