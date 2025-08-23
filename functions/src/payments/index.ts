@@ -200,18 +200,18 @@ export const createPaymentIntent = onCall(async (request) => {
     const agencyData = agencyDoc.data() as Agency;
 
     paymentIntentParams = {
-        amount: amountInCents,
-        currency,
-        metadata: {
-            contractId,
-            userId: userId || "",
-            creatorId: contractData.userId, // The talent's ID
-            agencyId: contractData.ownerId,
-            agencyOwnerId: agencyData.ownerId,
-            clientEmail: emailForReceiptAndMetadata,
-            paymentType: "agency_payment",
-        },
-        receipt_email: emailForReceiptAndMetadata || undefined,
+      amount: amountInCents,
+      currency,
+      metadata: {
+        contractId,
+        userId: userId || "",
+        creatorId: contractData.userId, // The talent's ID
+        agencyId: contractData.ownerId,
+        agencyOwnerId: agencyData.ownerId,
+        clientEmail: emailForReceiptAndMetadata,
+        paymentType: "agency_payment",
+      },
+      receipt_email: emailForReceiptAndMetadata || undefined,
     };
   } else {
     // Direct contract - charge with destination transfer
@@ -317,7 +317,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const agencyDoc = await db.collection("agencies").doc(agencyId).get();
           const agencyData = agencyDoc.data() as Agency;
           const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
-          
+
           if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
             const agencyOwnerUserDoc = await db.collection("users").doc(agencyOwnerId).get();
             const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
@@ -325,16 +325,16 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
             if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-                // Calculate the platform's total cut
-                const stripeFeeInCents = Math.round(amount * 0.029) + 30;
-                const platformFeeInCents = Math.round(amount * 0.01);
-                const totalPlatformCutInCents = stripeFeeInCents + platformFeeInCents;
+              // Calculate the platform's total cut
+              const stripeFeeInCents = Math.round(amount * 0.029) + 30;
+              const platformFeeInCents = Math.round(amount * 0.01);
+              const totalPlatformCutInCents = stripeFeeInCents + platformFeeInCents;
 
-                // This is the amount available for distribution to agency & talent
-                const netForDistribution = amount - totalPlatformCutInCents;
+              // This is the amount available for distribution to agency & talent
+              const netForDistribution = amount - totalPlatformCutInCents;
 
-                const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-                const talentShareAmount = netForDistribution - agencyCommissionAmount;
+              const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+              const talentShareAmount = netForDistribution - agencyCommissionAmount;
 
               // 1. Transfer Agency Commission
               await stripe.transfers.create({
