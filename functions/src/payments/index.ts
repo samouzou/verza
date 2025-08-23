@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
+import type {UserProfileFirestoreData, Contract, Agency} from "../../../src/types";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -33,14 +34,6 @@ if (sendgridKey) {
   sgMail.setApiKey(sendgridKey);
 } else {
   logger.warn("SENDGRID_API_KEY is not set. Emails will not be sent.");
-}
-
-interface UserData {
-  stripeAccountId?: string;
-  stripeAccountStatus?: string;
-  stripeChargesEnabled?: boolean;
-  stripePayoutsEnabled?: boolean;
-  email?: string;
 }
 
 /**
@@ -81,7 +74,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
 
     // Check if user already has a Stripe account
     const userDoc = await userRef.get();
-    const userData = userDoc.data() as UserData;
+    const userData = userDoc.data() as UserProfileFirestoreData;
 
     if (userData?.stripeAccountId) {
       response.json({stripeAccountId: userData.stripeAccountId});
@@ -140,7 +133,7 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
     const userRef = db.collection("users").doc(userId);
 
     const userDoc = await userRef.get();
-    const userData = userDoc.data() as UserData;
+    const userData = userDoc.data() as UserProfileFirestoreData;
 
     if (!userData?.stripeAccountId) {
       throw new Error("No Stripe account found");
@@ -163,16 +156,19 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
   }
 });
 
-// Create payment intent
+// Create payment intent - CHANGED TO onRequest
 export const createPaymentIntent = onRequest(async (request, response) => {
-  // Set CORS headers
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST");
   response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  // Handle preflight requests
   if (request.method === "OPTIONS") {
     response.status(204).send("");
+    return;
+  }
+
+  if (request.method !== "POST") {
+    response.status(405).send("Method Not Allowed");
     return;
   }
 
@@ -185,83 +181,81 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
     // Get contract data
     const contractDoc = await db.collection("contracts").doc(contractId).get();
-    const contractData = contractDoc.data();
+    const contractData = contractDoc.data() as Contract | undefined;
 
     if (!contractDoc.exists || !contractData) {
       throw new Error("Contract not found");
     }
 
-    // Determine if this is an authenticated creator payment or public client payment
-    let isAuthenticatedCreator = false;
     let userId: string | null = null;
+    let isAuthenticatedCreator = false;
     const emailForReceiptAndMetadata = contractData.clientEmail || null;
 
-
-    try {
-      // Try to verify auth token if present
-      if (request.headers.authorization) {
+    if (request.headers.authorization) {
+      try {
         userId = await verifyAuthToken(request.headers.authorization);
-        // Check if the authenticated user is the creator
         isAuthenticatedCreator = userId === contractData.userId;
+      } catch {
+        logger.info("No valid auth token, treating as public payment");
       }
-    } catch {
-      // If auth fails, treat as unauthenticated public payment
-      logger.info("No valid auth token, treating as public payment");
     }
 
-    // For public payments, verify the amount matches the contract
-    if (!isAuthenticatedCreator) {
-      if (amount !== contractData.amount) {
-        logger.error("Amount mismatch:", {
-          provided: amount,
-          expected: contractData.amount,
-        });
-        throw new Error("Invalid payment amount");
-      }
-      // For public payments, the payer is the contract's userId
-      userId = contractData.userId;
+    if (!isAuthenticatedCreator && amount !== contractData.amount) {
+      logger.error("Amount mismatch:", {provided: amount, expected: contractData.amount});
+      throw new Error("Invalid payment amount");
     }
 
-    // Get creator's Stripe account information
-    const creatorUserId = contractData.userId;
-    const creatorDoc = await db.collection("users").doc(creatorUserId).get();
-    const creatorData = creatorDoc.data();
-
-    if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-      throw new Error("Creator does not have a valid Stripe account");
-    }
-
-    // Convert amount to cents for Stripe (amount is in dollars)
+    let paymentIntentParams: Stripe.PaymentIntentCreateParams;
     const amountInCents = Math.round(amount * 100);
-    // Calculate total fees: 1% Verza platform fee + ~2.9% + 30 cents Stripe fee
-    const platformFee = Math.round(amountInCents * 0.01);
-    const stripeFee = Math.round(amountInCents * 0.029) + 30;
-    const totalApplicationFee = platformFee + stripeFee;
 
-    // Create payment intent with transfer to creator's account
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
-      currency,
-      application_fee_amount: totalApplicationFee,
-      transfer_data: {
-        destination: creatorData.stripeAccountId,
-      },
-      metadata: {
-        contractId,
-        userId: userId || "",
-        creatorId: creatorUserId,
-        clientEmail: emailForReceiptAndMetadata,
-        paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
-      },
-      receipt_email: emailForReceiptAndMetadata,
-    });
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      paymentIntentParams = {
+        amount: amountInCents,
+        currency,
+        metadata: {
+          contractId,
+          userId: userId || "",
+          creatorId: contractData.userId, // The talent's ID
+          agencyId: contractData.ownerId,
+          paymentType: "agency_payment",
+        },
+        receipt_email: emailForReceiptAndMetadata || undefined,
+      };
+    } else {
+      const creatorDoc = await db.collection("users").doc(contractData.userId).get();
+      const creatorData = creatorDoc.data() as UserProfileFirestoreData;
+      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
+        throw new Error("Creator does not have a valid Stripe account");
+      }
+      const platformFee = Math.round(amountInCents * 0.01);
+      const stripeFee = Math.round(amountInCents * 0.029) + 30;
+      const totalApplicationFee = platformFee + stripeFee;
 
-    // Log the payment intent creation
+      paymentIntentParams = {
+        amount: amountInCents,
+        currency,
+        application_fee_amount: totalApplicationFee,
+        metadata: {
+          contractId,
+          userId: userId || "",
+          creatorId: contractData.userId,
+          clientEmail: emailForReceiptAndMetadata,
+          paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
+        },
+        receipt_email: emailForReceiptAndMetadata || undefined,
+        transfer_data: {
+          destination: creatorData.stripeAccountId,
+        },
+      };
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+
     await db.collection("paymentIntents").add({
       paymentIntentId: paymentIntent.id,
       contractId,
       userId: userId || "",
-      creatorId: creatorUserId,
+      creatorId: contractData.userId,
       amount: amountInCents,
       currency,
       status: paymentIntent.status,
@@ -270,14 +264,12 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     });
 
     response.json({clientSecret: paymentIntent.client_secret});
-  } catch (error) {
-    logger.error("Error creating payment intent:", error);
-    response.status(401).json({
-      error: "Failed to create payment intent",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch (error: any) {
+    logger.error("Payment intent creation error:", error);
+    response.status(400).json({error: "Invalid request", message: error.message});
   }
 });
+
 
 // Handle successful payment
 export const handlePaymentSuccess = onRequest(async (request, response) => {
@@ -300,10 +292,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, customer} = paymentIntent;
-      const {contractId, userId, clientEmail, paymentType, internalPayoutId} = metadata;
+      const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
+      const {contractId, userId, clientEmail, paymentType, internalPayoutId, agencyId} = metadata;
 
-      // Handle Internal Agency Payout
       if (internalPayoutId) {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
         await payoutDocRef.update({
@@ -311,18 +302,76 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           paidAt: admin.firestore.Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
-
-      // Handle standard Contract Payment
-      } else if (contractId && userId) {
-        await db.collection("contracts").doc(contractId).update({
+      } else if (contractId) {
+        const contractDocRef = db.collection("contracts").doc(contractId);
+        await contractDocRef.update({
           invoiceStatus: "paid",
-          updatedAt: new Date(),
+          updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: admin.firestore.Timestamp.now(),
             action: "Invoice Paid",
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
         });
+
+        if (paymentType === "agency_payment" && agencyId) {
+          const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
+          if (!chargeId) {
+            throw new Error("Missing charge ID for agency payment split.");
+          }
+
+          const contractDoc = await contractDocRef.get();
+          const contractData = contractDoc.data() as Contract;
+
+          const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+          const agencyData = agencyDoc.data() as Agency;
+
+          const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
+
+          if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
+            const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+            const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+
+            if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
+              const stripeFeeInCents = Math.round(amount * 0.029) + 30;
+              const platformFeeInCents = Math.round(amount * 0.01);
+              const netForDistribution = amount - stripeFeeInCents - platformFeeInCents;
+
+              const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+              const talentShareAmount = netForDistribution - agencyCommissionAmount;
+
+              // 1. Transfer Agency Commission
+              if (agencyCommissionAmount > 0) {
+                await stripe.transfers.create({
+                  amount: agencyCommissionAmount,
+                  currency: "usd",
+                  destination: agencyOwnerData.stripeAccountId,
+                  source_transaction: chargeId,
+                  description: `Commission for contract ${contractId}`,
+                });
+              }
+
+              // 2. Transfer Talent Share
+              if (talentShareAmount > 0) {
+                await stripe.transfers.create({
+                  amount: talentShareAmount,
+                  currency: "usd",
+                  destination: talentUserData.stripeAccountId,
+                  source_transaction: chargeId,
+                  description: `Payout for contract ${contractId}`,
+                });
+              }
+
+              logger.info(`Agency payment split processed for contract ${contractId}.
+                      Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
+            } else {
+              logger.error("Stripe account ID missing for agency owner or talent, cannot split funds.",
+                {agencyId, talentId: contractData.userId});
+            }
+          }
+        }
 
         let emailForUserConfirmation = "";
         if (clientEmail) {
@@ -365,13 +414,13 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await db.collection("payments").add({
           paymentIntentId: paymentIntent.id,
           contractId,
-          userId,
+          userId: userId || "",
           amount,
           currency,
           customerId: customer,
           emailForUserConfirmation,
           status: "succeeded",
-          timestamp: new Date(),
+          timestamp: admin.firestore.Timestamp.now(),
         });
       } else {
         logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.",
@@ -385,6 +434,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
   }
 });
 
+
 // Handle Stripe Connected Account webhook
 export const handleStripeAccountWebhook = onRequest(async (request, response) => {
   const sig = request.headers["stripe-signature"];
@@ -397,13 +447,11 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
   }
 
   try {
-    // Get the raw request body as a string
     const rawBody = request.rawBody;
     if (!rawBody) {
       throw new Error("No raw body found in request");
     }
 
-    // Verify the event using the raw body and signature
     const event = stripe.webhooks.constructEvent(
       rawBody,
       sig,
@@ -414,7 +462,6 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
       const account = event.data.object as Stripe.Account;
       const db = admin.firestore();
 
-      // Find user with this Stripe account ID
       const usersRef = db.collection("users");
       const snapshot = await usersRef
         .where("stripeAccountId", "==", account.id)
@@ -427,7 +474,7 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
       }
 
       const userDoc = snapshot.docs[0];
-      const updates: Partial<UserData> = {
+      const updates: Partial<UserProfileFirestoreData> = {
         stripeChargesEnabled: account.charges_enabled,
         stripePayoutsEnabled: account.payouts_enabled,
         stripeAccountStatus: account.details_submitted ?

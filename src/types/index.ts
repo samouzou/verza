@@ -72,7 +72,7 @@ export interface Contract {
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
-
+  
   // E-Signature fields (HelloSign/Dropbox Sign)
   helloSignRequestId?: string | null;
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
@@ -260,6 +260,7 @@ export interface Talent {
   displayName: string | null;
   status: 'pending' | 'active';
   joinedAt?: ClientTimestamp;
+  commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
 export interface Agency {

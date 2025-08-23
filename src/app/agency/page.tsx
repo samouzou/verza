@@ -9,12 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency, AgencyMembership, InternalPayout } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, documentId, orderBy, Timestamp } from 'firebase/firestore';
+import type { Agency, AgencyMembership, InternalPayout, Talent } from '@/types';
+import { onSnapshot, collection, query, where, getDocs, documentId, orderBy, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -85,21 +85,22 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
   );
 }
 
-function AgencyDashboard({ agency }: { agency: Agency }) {
+function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyUpdate: (updatedAgency: Partial<Agency>) => Promise<void> }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
+  const [newCommissionRate, setNewCommissionRate] = useState<number>(0);
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
   
-  // Payout form state
   const [payoutTalentId, setPayoutTalentId] = useState("");
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutDate, setPayoutDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
   const [payoutDescription, setPayoutDescription] = useState("");
   const [isSendingPayout, setIsSendingPayout] = useState(false);
   
-  // Payout history state
   const [payoutHistory, setPayoutHistory] = useState<InternalPayout[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
@@ -197,13 +198,29 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
         setPayoutTalentId("");
         setPayoutAmount("");
         setPayoutDescription("");
-        setPayoutDate(new Date().toISOString().split('T')[0]); // Reset to today
+        setPayoutDate(new Date().toISOString().split('T')[0]);
     } catch (error: any) {
         console.error("Error sending payout:", error);
         toast({ title: "Payout Failed", description: error.message || "Could not initiate the payout.", variant: "destructive" });
     } finally {
         setIsSendingPayout(false);
     }
+  };
+  
+  const handleUpdateCommission = async () => {
+    if (!editingTalent) return;
+    const rate = Number(newCommissionRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast({ title: "Invalid Rate", description: "Commission must be between 0 and 100.", variant: "destructive" });
+      return;
+    }
+    
+    const updatedTalentArray = agency.talent.map(t => 
+      t.userId === editingTalent.userId ? { ...t, commissionRate: rate } : t
+    );
+    await onAgencyUpdate({ talent: updatedTalentArray });
+    toast({ title: "Commission Updated", description: `Commission for ${editingTalent.displayName} set to ${rate}%.`});
+    setEditingTalent(null);
   };
   
   const selectedTalentForPayout = agency.talent.find(t => t.userId === payoutTalentId);
@@ -332,7 +349,7 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
         <CardContent>
            {agency.talent && agency.talent.length > 0 ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead>Commission</TableHead></TableRow></TableHeader>
               <TableBody>
                 {agency.talent.map(t => (
                   <TableRow key={t.userId}>
@@ -342,6 +359,25 @@ function AgencyDashboard({ agency }: { agency: Agency }) {
                     </TableCell>
                     <TableCell>{t.email}</TableCell>
                     <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${t.status === 'active' ? 'bg-green-500' : ''}`}>{t.status}</Badge></TableCell>
+                    <TableCell>
+                      {editingTalent?.userId === t.userId ? (
+                        <div className="flex items-center gap-2">
+                           <div className="relative">
+                            <Input type="number" value={newCommissionRate} onChange={(e) => setNewCommissionRate(Number(e.target.value))} className="w-20 pl-2 pr-6"/>
+                            <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <Button size="icon" className="h-8 w-8" onClick={handleUpdateCommission}><Check className="h-4 w-4"/></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingTalent(null)}><X className="h-4 w-4"/></Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{t.commissionRate ?? 0}%</span>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingTalent(t); setNewCommissionRate(t.commissionRate ?? 0); }}>
+                            <Percent className="h-4 w-4"/>
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -464,6 +500,19 @@ export default function AgencyPage() {
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
 
+  const handleUpdateAgency = async (agencyUpdates: Partial<Agency>) => {
+    if (!ownedAgencies[0]) return;
+    const agencyDocRef = doc(db, "agencies", ownedAgencies[0].id);
+    try {
+      await updateDoc(agencyDocRef, agencyUpdates);
+      // Data will refresh automatically via onSnapshot
+    } catch (error) {
+      console.error("Error updating agency:", error);
+      toast({title: "Update Failed", description: "Could not save agency changes.", variant: "destructive"});
+    }
+  };
+
+
   useEffect(() => {
     if (!user || authLoading) {
       if (!authLoading) setIsLoadingAgencies(false);
@@ -472,7 +521,6 @@ export default function AgencyPage() {
 
     setIsLoadingAgencies(true);
 
-    // Listener for agencies the user owns
     const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
     const unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
       const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
@@ -485,7 +533,6 @@ export default function AgencyPage() {
       setIsLoadingAgencies(false);
     });
 
-    // Fetch agencies the user is a member of (both pending and active)
     const fetchMemberAgencies = async () => {
       const memberAgencyIds = user.agencyMemberships
         ?.map(mem => mem.agencyId)
@@ -493,7 +540,6 @@ export default function AgencyPage() {
 
       if (memberAgencyIds.length > 0) {
         try {
-          // Firestore 'in' query can take up to 30 elements
           const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", memberAgencyIds));
           const snapshot = await getDocs(memberQuery);
           const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
@@ -554,7 +600,7 @@ export default function AgencyPage() {
       />
       <div className="space-y-6">
         {userOwnsAnAgency ? (
-          <AgencyDashboard agency={ownedAgencies[0]} />
+          <AgencyDashboard agency={ownedAgencies[0]} onAgencyUpdate={handleUpdateAgency} />
         ) : isMemberOfAnyAgency ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (

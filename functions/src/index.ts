@@ -27,6 +27,7 @@ import {
 import {
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
+  processRecurringContracts,
 } from "./scheduler";
 
 import {
@@ -69,6 +70,7 @@ export {
   handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
+  processRecurringContracts,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,

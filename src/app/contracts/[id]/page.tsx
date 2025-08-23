@@ -641,6 +641,27 @@ export default function ContractDetailPage() {
                     <ContractStatusBadge status={effectiveDisplayStatus} />
                 </CardHeader>
                 <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                        <h3 className="font-semibold text-lg">Key Information</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-md bg-muted/30">
+                            <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
+                            <DetailItem icon={FileText} label="Project" value={contract.projectName} />
+                            <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
+                            <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
+                        </div>
+                    </div>
+                     {contract.extractedTerms && (Object.values(contract.extractedTerms).some(v => v)) && (
+                        <div className="space-y-4">
+                            <h3 className="font-semibold text-lg">AI Extracted Terms</h3>
+                            <div className="p-4 border rounded-md bg-muted/30 text-sm space-y-3">
+                                {contract.extractedTerms.paymentMethod && <p><strong className="font-medium text-foreground">Payment Method:</strong> <span className="text-muted-foreground">{contract.extractedTerms.paymentMethod}</span></p>}
+                                {contract.extractedTerms.deliverables && contract.extractedTerms.deliverables.length > 0 && <p><strong className="font-medium text-foreground">Deliverables:</strong> <span className="text-muted-foreground">{contract.extractedTerms.deliverables.join(', ')}</span></p>}
+                                {contract.extractedTerms.usageRights && <p><strong className="font-medium text-foreground">Usage Rights:</strong> <span className="text-muted-foreground">{contract.extractedTerms.usageRights}</span></p>}
+                                {contract.extractedTerms.terminationClauses && <p><strong className="font-medium text-foreground">Termination:</strong> <span className="text-muted-foreground">{contract.extractedTerms.terminationClauses}</span></p>}
+                                {contract.extractedTerms.lateFeePenalty && <p><strong className="font-medium text-foreground">Late Fee/Penalty:</strong> <span className="text-muted-foreground">{contract.extractedTerms.lateFeePenalty}</span></p>}
+                            </div>
+                        </div>
+                     )}
                      {contract.summary && (
                         <div>
                             <h3 className="font-semibold text-lg mb-2">AI Generated Summary</h3>
@@ -816,7 +837,7 @@ export default function ContractDetailPage() {
                               {comment.replies && comment.replies.length > 0 && (
                                 <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
                                   <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                    <div className="flex items-center justify-between mb-0.5"><p className="font-semibold text-primary text-xs flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5"/>{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                                    <div className="flex items-center justify-between mb-0.5"><p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
                                     <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
                                   </div>
                                 ))}</div>
