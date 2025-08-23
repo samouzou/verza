@@ -3,31 +3,25 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, PlusCircle, ArrowDownCircle, Banknote, Users } from "lucide-react";
-import { useState, useEffect } from 'react';
-import type { InternalPayout } from '@/types';
+import { DollarSign, PlusCircle, ArrowDownCircle, Banknote, Users, Loader2 } from "lucide-react";
+import type { Stripe } from 'stripe';
 
 interface WalletOverviewProps {
-  payouts: InternalPayout[];
+  balance: { available: Stripe.Balance.Available[], pending: Stripe.Balance.Available[] } | null;
+  isLoading: boolean;
 }
 
-export function WalletOverview({ payouts }: WalletOverviewProps) {
-  const [balance, setBalance] = useState(0);
-  const [upcomingPayouts, setUpcomingPayouts] = useState(0);
+export function WalletOverview({ balance, isLoading }: WalletOverviewProps) {
+  const formatBalance = (balanceArray: Stripe.Balance.Available[] | undefined) => {
+    if (!balanceArray || balanceArray.length === 0) {
+      return '0.00';
+    }
+    // Assuming a single currency (e.g., USD) for simplicity.
+    // A more robust implementation would handle multiple currencies.
+    const amount = balanceArray[0].amount / 100;
+    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
-  useEffect(() => {
-    const paidBalance = payouts
-      .filter(p => p.status === 'paid')
-      .reduce((acc, p) => acc + p.amount, 0);
-    setBalance(paidBalance);
-
-    const pendingAmount = payouts
-      .filter(p => p.status === 'pending')
-      .reduce((acc, p) => acc + p.amount, 0);
-    setUpcomingPayouts(pendingAmount);
-
-  }, [payouts]);
-  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card className="shadow-lg lg:col-span-2">
@@ -35,14 +29,21 @@ export function WalletOverview({ payouts }: WalletOverviewProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-6 w-6 text-primary" />
-              Available Balance
+              Stripe Balance
             </CardTitle>
-            <span className="text-xs text-muted-foreground">Powered by Stripe</span>
+            <span className="text-xs text-muted-foreground">Live Data from Stripe</span>
           </div>
-          <CardDescription>Funds available for immediate withdrawal.</CardDescription>
+          <CardDescription>Funds available for immediate withdrawal from your connected Stripe account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-5xl font-bold mb-6">${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          {isLoading ? (
+            <div className="flex items-center gap-4 h-24">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Syncing with Stripe...</p>
+            </div>
+          ) : (
+            <div className="text-5xl font-bold mb-6">${formatBalance(balance?.available)}</div>
+          )}
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
             <Button className="flex-1" disabled>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Funds (Disabled)
@@ -59,12 +60,16 @@ export function WalletOverview({ payouts }: WalletOverviewProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Banknote className="h-5 w-5 text-muted-foreground" />
-              Upcoming Payouts
+              Pending Balance
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">${upcomingPayouts.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-            <p className="text-xs text-muted-foreground">{payouts.filter(p=>p.status === 'pending').length} pending payouts from your agency.</p>
+            {isLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            ) : (
+              <p className="text-2xl font-bold">${formatBalance(balance?.pending)}</p>
+            )}
+            <p className="text-xs text-muted-foreground">Funds currently processing in Stripe.</p>
           </CardContent>
         </Card>
         <Card className="shadow-lg">

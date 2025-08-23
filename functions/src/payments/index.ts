@@ -1,5 +1,5 @@
 
-import {onRequest} from "firebase-functions/v2/https";
+import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
@@ -156,10 +156,46 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
   }
 });
 
-// Create payment intent - CHANGED TO onRequest
+export const getStripeAccountBalance = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  const userId = request.auth.uid;
+
+  try {
+    const userDocRef = db.collection("users").doc(userId);
+    const userDoc = await userDocRef.get();
+    const userData = userDoc.data() as UserProfileFirestoreData | undefined;
+
+    if (!userData || !userData.stripeAccountId) {
+      logger.info(`User ${userId} has no Stripe account connected.`);
+      return {available: [], pending: []};
+    }
+
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: userData.stripeAccountId,
+    });
+
+    return {
+      available: balance.available,
+      pending: balance.pending,
+    };
+  } catch (error) {
+    logger.error(`Error retrieving Stripe balance for user ${userId}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    // Don't throw a generic internal error, which could crash client.
+    // Return a structured error instead.
+    return {error: "Could not retrieve balance from Stripe."};
+  }
+});
+
+
+// Create payment intent
 export const createPaymentIntent = onRequest(async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*");
-  response.set("Access-Control-Allow-Methods", "POST");
+  response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (request.method === "OPTIONS") {
@@ -173,16 +209,13 @@ export const createPaymentIntent = onRequest(async (request, response) => {
   }
 
   try {
-    // Validate request body
     const {amount, currency = "usd", contractId} = request.body;
     if (!amount || !contractId) {
       throw new Error("Amount and contractId are required");
     }
 
-    // Get contract data
     const contractDoc = await db.collection("contracts").doc(contractId).get();
     const contractData = contractDoc.data() as Contract | undefined;
-
     if (!contractDoc.exists || !contractData) {
       throw new Error("Contract not found");
     }
@@ -215,7 +248,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         metadata: {
           contractId,
           userId: userId || "",
-          creatorId: contractData.userId, // The talent's ID
+          creatorId: contractData.userId,
           agencyId: contractData.ownerId,
           paymentType: "agency_payment",
         },
@@ -227,6 +260,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
         throw new Error("Creator does not have a valid Stripe account");
       }
+
       const platformFee = Math.round(amountInCents * 0.01);
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
@@ -337,12 +371,12 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
               const stripeFeeInCents = Math.round(amount * 0.029) + 30;
               const platformFeeInCents = Math.round(amount * 0.01);
-              const netForDistribution = amount - stripeFeeInCents - platformFeeInCents;
+              const totalPlatformCut = stripeFeeInCents + platformFeeInCents;
+              const netForDistribution = amount - totalPlatformCut;
 
               const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
               const talentShareAmount = netForDistribution - agencyCommissionAmount;
 
-              // 1. Transfer Agency Commission
               if (agencyCommissionAmount > 0) {
                 await stripe.transfers.create({
                   amount: agencyCommissionAmount,
@@ -353,7 +387,6 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 });
               }
 
-              // 2. Transfer Talent Share
               if (talentShareAmount > 0) {
                 await stripe.transfers.create({
                   amount: talentShareAmount,
@@ -364,8 +397,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 });
               }
 
-              logger.info(`Agency payment split processed for contract ${contractId}.
-                      Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
+              logger.info(`Agency payment split processed for contract ${contractId}. Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
             } else {
               logger.error("Stripe account ID missing for agency owner or talent, cannot split funds.",
                 {agencyId, talentId: contractData.userId});
