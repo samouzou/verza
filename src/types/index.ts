@@ -177,7 +177,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
-  subscriptionPlanId?: 'individual_free' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
   talentLimit?: number; // Talent limit for agency plans
   subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;
