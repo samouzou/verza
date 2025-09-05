@@ -28,11 +28,11 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     subscriptionStatus: "trialing", // Start with a 7-day free trial
-    subscriptionPlanId: "individual_monthly", // Default trial to monthly plan
+    subscriptionPlanId: undefined, // User hasn't chosen a specific plan yet
     talentLimit: 0, // No talent limit for individuals
     subscriptionInterval: null,
     trialEndsAt: trialEndsAt as any,
-    subscriptionEndsAt: null, // No end date for the free plan
+    subscriptionEndsAt: null, 
     trialExtensionUsed: false,
     stripeAccountId: null,
     stripeAccountStatus: "none",
@@ -108,3 +108,4 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
 
   return null;
 });
+

@@ -136,7 +136,7 @@ export function SubscriptionCard() {
   };
 
   const getPlanNameFromId = (planId?: string) => {
-      if (!planId) return 'Free Plan';
+      if (!planId) return 'Pro Trial'; // Default to Pro Trial name if no plan ID during trial
       if (planId === 'individual_free') return 'Free Forever';
       return planDetails[planId as PlanId]?.name || 'Unknown Plan';
   };
@@ -155,7 +155,7 @@ export function SubscriptionCard() {
     const planName = getPlanNameFromId(planId);
 
     switch (status) {
-      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Pro Trial</Badge>;
+      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">{planName}</Badge>;
       case 'active': return <Badge className="bg-green-500 text-white hover:bg-green-600">{planName}</Badge>;
       case 'past_due': return <Badge variant="destructive">{planName} - Past Due</Badge>;
       case 'canceled': return <Badge variant="secondary">{planName} - Canceled</Badge>;
@@ -329,11 +329,11 @@ export function SubscriptionCard() {
                 {plansToShow.map(([id, details]) => {
                     const planIdKey = id as PlanId;
                     const isCurrentPlan = user.subscriptionPlanId === planIdKey;
-                    const isSubscribedOrTrialing = user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing';
+                    const isSubscribed = user.subscriptionStatus === 'active';
 
                     return (
-                        <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan && isSubscribedOrTrialing ? 'border-primary' : 'border-muted hover:border-primary/50')}>
-                            {isCurrentPlan && isSubscribedOrTrialing && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
+                        <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan && isSubscribed ? 'border-primary' : 'border-muted hover:border-primary/50')}>
+                            {isCurrentPlan && isSubscribed && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
                             {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
                             
                             <details.icon className="mb-3 h-8 w-8 text-primary" />
@@ -347,10 +347,10 @@ export function SubscriptionCard() {
                             <Button 
                                 onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
                                 className="w-full mt-4" 
-                                disabled={isProcessingCheckout || (isCurrentPlan && isSubscribedOrTrialing)}
-                                variant={isCurrentPlan && isSubscribedOrTrialing ? 'secondary' : 'default'}
+                                disabled={isProcessingCheckout || (isCurrentPlan && isSubscribed)}
+                                variant={isCurrentPlan && isSubscribed ? 'secondary' : 'default'}
                             >
-                                {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan && isSubscribedOrTrialing ? 'Current Plan' : 'Choose Plan')}
+                                {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan && isSubscribed ? 'Current Plan' : 'Choose Plan')}
                             </Button>
                         </div>
                     );
