@@ -8,7 +8,8 @@ import type {UserProfileFirestoreData} from "../../../src/types";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
-"individual_monthly" | "individual_yearly" | "agency_start_monthly" | "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly";
+"individual_monthly" | "individual_yearly" | "agency_start_monthly" | "agency_start_yearly"
+| "agency_pro_monthly" | "agency_pro_yearly";
 
 
 // Initialize Stripe
@@ -155,9 +156,9 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     };
 
     // Add trial period if user is not currently subscribed and has no subscription history
-    const hasActiveSubscription = userData.stripeSubscriptionId && userData.subscriptionStatus === 'active';
+    const hasActiveSubscription = userData.stripeSubscriptionId && userData.subscriptionStatus === "active";
     if (!hasActiveSubscription) {
-        subscriptionData.trial_period_days = 7;
+      subscriptionData.trial_period_days = 7;
     }
 
     // Create checkout session
