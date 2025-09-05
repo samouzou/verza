@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { ocrDocument } from "@/ai/flows/ocr-flow";
+import { ocrDocument } from "@/ai/flows/ocr-document";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
 import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -385,7 +385,7 @@ export function UploadContractDialog() {
             <Input
               id="contractFile"
               type="file"
-              accept=".pdf,image/*"
+              accept=".pdf,.doc,.docx,image/*"
               className="mt-1"
               onChange={handleFileChange}
             />

@@ -225,6 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const firestoreUserData = docSnap.data() as UserProfile;
+             let status = firestoreUserData.subscriptionStatus;
+             // Check if trial has expired
+            if (status === 'trialing' && firestoreUserData.trialEndsAt && firestoreUserData.trialEndsAt.toMillis() < Date.now()) {
+                status = 'none'; // Treat expired trial as no active subscription
+            }
             setUser({
               uid: currentFirebaseUser.uid,
               email: currentFirebaseUser.email,
@@ -239,7 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               agencyMemberships: firestoreUserData.agencyMemberships || [],
               stripeCustomerId: firestoreUserData.stripeCustomerId,
               stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
-              subscriptionStatus: firestoreUserData.subscriptionStatus,
+              subscriptionStatus: status,
               subscriptionPlanId: firestoreUserData.subscriptionPlanId,
               talentLimit: firestoreUserData.talentLimit,
               subscriptionInterval: firestoreUserData.subscriptionInterval,

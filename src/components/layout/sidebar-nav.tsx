@@ -106,7 +106,7 @@ export function SidebarNav() {
     }
     
     const planName = activeUser.subscriptionPlanId?.includes('agency_pro') ? 'Agency Pro' : 
-                     activeUser.subscriptionPlanId?.includes('agency_start') ? 'Agency Start' : 'Agency';
+                     activeUser.subscriptionPlanId?.includes('agency_start') ? 'Agency Start' : 'Pro';
 
     switch (activeUser.subscriptionStatus) {
       case 'active':
