@@ -128,10 +128,10 @@ export function SidebarNav() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
+        <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
             <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
             <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
