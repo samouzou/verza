@@ -107,10 +107,16 @@ export default function EditContractPage() {
                 setClientTin(data.clientTin || '');
                 setPaymentInstructions(data.paymentInstructions || '');
                 
-                setEditedContractText(data.contractText || '');
-                if (editorRef.current) {
-                  editorRef.current.documentEditor.open(JSON.stringify({ sfdt: data.contractText || '' }));
+                if (editorRef.current && data.contractText) {
+                  try {
+                    editorRef.current.documentEditor.open(data.contractText);
+                  } catch (e) {
+                     console.error("Failed to load SFDT content:", e);
+                     editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
+                  }
                 }
+                setEditedContractText(data.contractText || ''); // Keep for fallback
+                
                 setCurrentSummary(data.summary);
                 setCurrentNegotiationSuggestions(data.negotiationSuggestions);
                 setCurrentFileName(data.fileName || null);
@@ -137,11 +143,9 @@ export default function EditContractPage() {
 
   const handleAiReparse = async () => {
     if (!editorRef.current) return;
-    const sfdt = await editorRef.current.documentEditor.serialize();
-    const textToAnalyze = sfdt; // This is a JSON string. We might need to extract plain text from it.
-                                  // For now, let's assume the AI can handle it or we find a way to get text.
-                                  // This is a simplification. A real implementation would need a server-side component
-                                  // to convert SFDT to plain text if the editor can't provide it.
+    
+    // Get plain text from the editor for AI analysis
+    const textToAnalyze = await editorRef.current.documentEditor.getText();
 
     if (!textToAnalyze.trim()) {
       toast({ title: "Cannot Parse", description: "Contract text is empty.", variant: "destructive" });
@@ -149,15 +153,10 @@ export default function EditContractPage() {
     }
     setIsReparsingAi(true);
     try {
-      // NOTE: This part is simplified. The AI flows expect plain text.
-      // We are passing the SFDT JSON string. This will likely NOT produce good results.
-      // A proper implementation would convert SFDT to plain text first.
-      const plainTextForAI = "This is a placeholder for plain text extracted from SFDT. The SFDT is: " + textToAnalyze;
-
       const [details, summaryOutput, suggestions] = await Promise.all([
-        extractContractDetails({ contractText: plainTextForAI }),
-        summarizeContractTerms({ contractText: plainTextForAI }),
-        getNegotiationSuggestions({ contractText: plainTextForAI }),
+        extractContractDetails({ contractText: textToAnalyze }),
+        summarizeContractTerms({ contractText: textToAnalyze }),
+        getNegotiationSuggestions({ contractText: textToAnalyze }),
       ]);
 
       // Update form fields with AI extracted details
