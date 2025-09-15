@@ -17,6 +17,7 @@ import {
   createPaymentIntent,
   handlePaymentSuccess,
   handleStripeAccountWebhook,
+  getStripeAccountBalance,
 } from "./payments";
 
 import {
@@ -66,6 +67,7 @@ export {
   createPaymentIntent,
   handlePaymentSuccess,
   handleStripeAccountWebhook,
+  getStripeAccountBalance,
   sendContractNotification,
   handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,

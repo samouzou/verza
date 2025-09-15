@@ -15,11 +15,13 @@ import { DashboardFilters, type DashboardFilterState } from "@/components/dashbo
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp } from "lucide-react"; 
+import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
+
 
 const addDays = (date: Date, days: number): Date => {
   const result = new Date(date);
@@ -318,6 +320,8 @@ export default function DashboardPage() {
   if (!stats) return null; 
 
   const showSubscriptionCTA = user && user.subscriptionStatus !== 'active' && user.subscriptionStatus !== 'trialing';
+  const showTrialBanner = user && user.subscriptionStatus === 'trialing' && user.trialEndsAt;
+  const trialTimeLeft = showTrialBanner ? formatDistanceToNow(user.trialEndsAt!.toDate(), { addSuffix: true }) : '';
 
   return (
     <>
@@ -326,6 +330,23 @@ export default function DashboardPage() {
         description="Overview of your earnings, contracts, and payment timelines."
       />
 
+      {showTrialBanner && (
+        <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400">
+          <CalendarClock className="h-5 w-5" />
+          <AlertTitle className="font-semibold">Free Trial Active</AlertTitle>
+          <AlertDescription>
+            Your free trial ends {trialTimeLeft}. Upgrade to Verza Pro to keep access to all features.
+          </AlertDescription>
+          <div className="mt-3">
+            <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Link href="/settings">
+                Upgrade to Pro <ExternalLink className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       {showSubscriptionCTA && (
         <Alert className="mb-6 border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
           <Sparkles className="h-5 w-5" />
@@ -333,7 +354,7 @@ export default function DashboardPage() {
           <AlertDescription className="text-primary/90">
             {user.subscriptionStatus === 'canceled' ? 'Your Verza Pro subscription is canceled.' : 
              user.subscriptionStatus === 'past_due' ? 'Your Verza Pro subscription payment is past due.' :
-             'You are currently on the free plan.'}
+             'Your free trial has ended.'}
             {' '}Upgrade to Verza Pro to access all features and manage your creator business seamlessly.
           </AlertDescription>
           <div className="mt-3">

@@ -35,13 +35,14 @@ export interface UserProfile {
   tin?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner';
+  isAgencyOwner?: boolean;
   agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent', status: 'pending' | 'active' }>;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionPlanId?: 'individual_monthly' | 'individual_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_scale_monthly' | 'agency_scale_yearly';
+  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
   talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;
@@ -93,11 +94,13 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.tin = null;
     updates.createdAt = createdAt;
     updates.role = 'individual_creator'; // Default role
+    updates.isAgencyOwner = false;
     updates.agencyMemberships = [];
 
     updates.stripeCustomerId = null;
     updates.stripeSubscriptionId = null;
     updates.subscriptionStatus = 'trialing';
+    updates.subscriptionPlanId = 'individual_monthly';
     updates.subscriptionInterval = null; // Initialize interval
     updates.trialEndsAt = trialEndsAtTimestamp;
     updates.subscriptionEndsAt = null;
@@ -169,6 +172,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.trialEndsAt = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
       if (currentSubscriptionStatus === 'none') {
          updates.subscriptionStatus = 'trialing';
+         updates.subscriptionPlanId = 'individual_monthly';
       }
       needsUpdate = true;
     } else if (existingData.trialEndsAt && existingData.trialEndsAt.toMillis() < Date.now() && currentSubscriptionStatus === 'trialing') {
@@ -221,6 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const firestoreUserData = docSnap.data() as UserProfile;
+             let status = firestoreUserData.subscriptionStatus;
+             // Check if trial has expired
+            if (status === 'trialing' && firestoreUserData.trialEndsAt && firestoreUserData.trialEndsAt.toMillis() < Date.now()) {
+                status = 'none'; // Treat expired trial as no active subscription
+            }
             setUser({
               uid: currentFirebaseUser.uid,
               email: currentFirebaseUser.email,
@@ -235,7 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               agencyMemberships: firestoreUserData.agencyMemberships || [],
               stripeCustomerId: firestoreUserData.stripeCustomerId,
               stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
-              subscriptionStatus: firestoreUserData.subscriptionStatus,
+              subscriptionStatus: status,
               subscriptionPlanId: firestoreUserData.subscriptionPlanId,
               talentLimit: firestoreUserData.talentLimit,
               subscriptionInterval: firestoreUserData.subscriptionInterval,
@@ -453,5 +462,3 @@ export function useAuth() {
   }
   return context;
 }
-
-    

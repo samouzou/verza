@@ -184,10 +184,10 @@ export function StripeConnectCard() {
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <svg viewBox="0 0 42 28" width="32" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary dark:text-primary">
-            <path d="M15.007 27.416c8.284 0 15-6.716 15-15 0-8.284-6.716-15-15-15s-15 6.716-15 15c0 8.284 6.716 15 15 15Z" fill="url(#stripe_connect_gradient)"></path>
-            <path d="M27.65 10.716c0-2.339-1.045-3.532-3.865-3.532-1.818 0-3.03.66-3.825 1.602V7.45H16.26v12.96h3.6V14.7c0-1.11.446-1.683 1.338-1.683.852 0 1.338.572 1.338 1.683v5.71h3.704v-5.45c0-1.11.405-1.683 1.257-1.683.893 0 1.339.572 1.339 1.683v5.45h3.704V13.34c0-2.219-.962-3.492-3.532-3.492-.961 0-1.836.32-2.553.884v-.018Z" fill="hsl(var(--primary-foreground))"></path>
-            <defs><linearGradient id="stripe_connect_gradient" x1="15.007" y1="-.584" x2="15.007" y2="27.416" gradientUnits="userSpaceOnUse"><stop stopColor="hsl(var(--primary))"></stop><stop offset="1" stopColor="hsl(var(--primary))"></stop></linearGradient></defs>
+          <svg width="42" height="28" viewBox="0 0 42 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-auto">
+            <path d="M2.36667 25.1333C1.06667 25.1333 0 24.0667 0 22.7667C0 21.4667 1.06667 20.4 2.36667 20.4H19.5333C20.8333 20.4 21.9 21.4667 21.9 22.7667C21.9 24.0667 20.8333 25.1333 19.5333 25.1333H2.36667Z" fill="#635BFF"></path>
+            <path d="M5.13333 2.86667C3.83333 2.86667 2.76667 3.93333 2.76667 5.23333V17.6C2.76667 18.9 3.83333 20 5.13333 20H16.7667C18.0667 20 19.1333 18.9 19.1333 17.6V5.23333C19.1333 3.93333 18.0667 2.86667 16.7667 2.86667H5.13333ZM11.1 14.8333C8.63333 14.8333 6.63333 12.8333 6.63333 10.3667C6.63333 7.9 8.63333 5.9 11.1 5.9C13.5667 5.9 15.5667 7.9 15.5667 10.3667C15.5667 12.8333 13.5667 14.8333 11.1 14.8333Z" fill="#635BFF"></path>
+            <path d="M39.6333 2.86667H25.0667C24.4667 2.86667 23.9667 3.23333 23.7667 3.8L22.1 8.5C22.0333 8.66667 22 8.86667 22 9.03333V17.6C22 18.9 23.0667 20 24.3667 20H38.9333C39.5333 20 40.0333 19.6333 40.2333 19.1L41.9 14.4333C41.9667 14.2667 42 14.0667 42 13.9V5.23333C42 3.93333 40.9333 2.86667 39.6333 2.86667Z" fill="#635BFF"></path>
           </svg>
           Connect with Stripe
         </CardTitle>

@@ -8,7 +8,8 @@ import type {UserProfileFirestoreData} from "../../../src/types";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
-"agency_start_monthly" | "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly";
+"individual_monthly" | "individual_yearly" | "agency_start_monthly" | "agency_start_yearly"
+| "agency_pro_monthly" | "agency_pro_yearly";
 
 
 // Initialize Stripe
@@ -71,6 +72,8 @@ try {
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
+    [process.env.STRIPE_INDIVIDUAL_PRO_PRICE_ID || ""]: {planId: "individual_monthly", talentLimit: 0},
+    [process.env.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID || ""]: {planId: "individual_yearly", talentLimit: 0},
     [process.env.STRIPE_AGENCY_START_PRICE_ID || ""]: {planId: "agency_start_monthly", talentLimit: 10},
     [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || ""]: {planId: "agency_start_yearly", talentLimit: 10},
     [process.env.STRIPE_AGENCY_PRO_PRICE_ID || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
@@ -88,7 +91,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
-  const planId = request.data?.planId || "agency_start_monthly"; // Default to an agency plan
+  const planId = request.data?.planId;
   logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
 
@@ -116,6 +119,12 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
 
     let priceId;
     switch (planId) {
+    case "individual_monthly":
+      priceId = process.env.STRIPE_INDIVIDUAL_PRO_PRICE_ID;
+      break;
+    case "individual_yearly":
+      priceId = process.env.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID;
+      break;
     case "agency_start_monthly":
       priceId = process.env.STRIPE_AGENCY_START_PRICE_ID;
       break;
@@ -145,6 +154,12 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
         planId: planId, // Store planId for webhook
       },
     };
+
+    // Add trial period if user is not currently subscribed and has no subscription history
+    const hasActiveSubscription = userData.stripeSubscriptionId && userData.subscriptionStatus === "active";
+    if (!hasActiveSubscription) {
+      subscriptionData.trial_period_days = 7;
+    }
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({

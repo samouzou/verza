@@ -385,7 +385,7 @@ export function UploadContractDialog() {
             <Input
               id="contractFile"
               type="file"
-              accept=".pdf,image/*"
+              accept=".pdf,.doc,.docx,image/*"
               className="mt-1"
               onChange={handleFileChange}
             />

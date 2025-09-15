@@ -12,6 +12,8 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
   const createdAt = admin.firestore.Timestamp.now();
+  const trialEndsAt = new admin.firestore.Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
+
 
   const newUserDoc: UserProfileFirestoreData = {
     uid: uid,
@@ -25,12 +27,12 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     agencyMemberships: [],
     stripeCustomerId: null,
     stripeSubscriptionId: null,
-    subscriptionStatus: "active", // Individuals are on a permanent free plan
-    subscriptionPlanId: "individual_free", // Identifier for the free plan
+    subscriptionStatus: "trialing", // Start with a 7-day free trial
+    subscriptionPlanId: undefined, // User hasn't chosen a specific plan yet
     talentLimit: 0, // No talent limit for individuals
     subscriptionInterval: null,
-    trialEndsAt: null, // No trial period
-    subscriptionEndsAt: null, // No end date for the free plan
+    trialEndsAt: trialEndsAt as any,
+    subscriptionEndsAt: null, 
     trialExtensionUsed: false,
     stripeAccountId: null,
     stripeAccountStatus: "none",
@@ -106,3 +108,4 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
 
   return null;
 });
+

@@ -136,7 +136,7 @@ export function SubscriptionCard() {
   };
 
   const getPlanNameFromId = (planId?: string) => {
-      if (!planId) return 'Free Plan';
+      if (!planId) return 'Pro Trial'; // Default to Pro Trial name if no plan ID during trial
       if (planId === 'individual_free') return 'Free Forever';
       return planDetails[planId as PlanId]?.name || 'Unknown Plan';
   };
@@ -155,7 +155,7 @@ export function SubscriptionCard() {
     const planName = getPlanNameFromId(planId);
 
     switch (status) {
-      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">Agency Trial</Badge>;
+      case 'trialing': return <Badge className="bg-blue-500 text-white hover:bg-blue-600">{planName}</Badge>;
       case 'active': return <Badge className="bg-green-500 text-white hover:bg-green-600">{planName}</Badge>;
       case 'past_due': return <Badge variant="destructive">{planName} - Past Due</Badge>;
       case 'canceled': return <Badge variant="secondary">{planName} - Canceled</Badge>;
@@ -167,129 +167,213 @@ export function SubscriptionCard() {
   
   const plansToShow = Object.entries(planDetails)
     .filter(([id]) => id.endsWith(billingFrequency))
-    .filter(([id]) => user.isAgencyOwner && id.startsWith('agency')); // Only show agency plans if user is agency owner
+    .filter(([id]) => user.isAgencyOwner ? id.startsWith('agency') : id.startsWith('individual'));
 
 
-  // Render view for individual creators
-  if (!user.isAgencyOwner) {
+  // Render view for agency owners
+  if (user.isAgencyOwner) {
     return (
-       <Card className="shadow-lg">
+        <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-primary" />
-            Your Subscription
-          </CardTitle>
-          <CardDescription>All core features for individual creators are free.</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+            <Crown className="h-6 w-6 text-primary" />
+            Agency Subscription
+            </CardTitle>
+            <CardDescription>Manage your agency's subscription plan.</CardDescription>
         </CardHeader>
-        <CardContent>
-           <div className="p-4 border rounded-lg bg-muted/50">
+        <CardContent className="space-y-6">
+            <div className="p-4 border rounded-lg bg-muted/50">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-semibold text-lg">Current Plan</p>
-              {renderStatusBadge()}
+                <p className="font-semibold text-lg">Current Plan</p>
+                {renderStatusBadge()}
             </div>
-            <p className="text-sm text-muted-foreground">You have access to all contract management and invoicing features, powered by a 1% platform fee on payments you receive.</p>
-          </div>
+            {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
+                <div className={`flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 rounded-md my-2 ${user.subscriptionStatus === 'active' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-destructive bg-red-50 dark:bg-red-900/20'}`}>
+                {user.subscriptionStatus === 'active' ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400"/> : <XCircle className="h-5 w-5 text-destructive"/>}
+                <span>
+                    {user.subscriptionStatus === 'active' ? 'Subscription renews on' : 'Access ends on'} {formatDateSafe(user.subscriptionEndsAt)}.
+                </span>
+                </div>
+            )}
+            {user.subscriptionStatus === 'past_due' && (
+                <div className="flex items-center gap-2 text-sm text-destructive p-3 border-l-4 border-destructive bg-red-50 dark:bg-red-900/20 rounded-md my-2">
+                <AlertCircle className="h-5 w-5"/>
+                <span>
+                    Your payment is past due. Please update your payment method via "Manage Subscription".
+                </span>
+                </div>
+            )}
+            </div>
+            
+            <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between">
+                <p className="font-medium text-lg">Available Agency Plans</p>
+                <RadioGroup
+                value={billingFrequency}
+                onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
+                className="flex items-center rounded-md bg-muted p-1"
+                >
+                <RadioGroupItem value="monthly" id="monthly" className="sr-only" />
+                <Label htmlFor="monthly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'monthly' && 'bg-background shadow-sm')}>Monthly</Label>
+                <RadioGroupItem value="yearly" id="yearly" className="sr-only" />
+                <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
+                </RadioGroup>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {plansToShow.map(([id, details]) => {
+                    const planIdKey = id as PlanId;
+                    const isCurrentPlan = user.subscriptionPlanId === planIdKey;
+
+                    return (
+                    <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
+                        {isCurrentPlan && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
+                        {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
+                        
+                        <details.icon className="mb-3 h-8 w-8 text-primary" />
+                        <p className="font-semibold text-lg">{details.name}</p>
+                        <p className="text-2xl font-bold mt-1">{details.price}</p>
+                        {details.talentLimit && <p className="text-sm text-muted-foreground">Up to {details.talentLimit} talents</p>}
+                        <Button 
+                            onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
+                            className="w-full mt-4" 
+                            disabled={isProcessingCheckout || isCurrentPlan}
+                            variant={isCurrentPlan ? 'secondary' : 'default'}
+                        >
+                            {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan ? 'Current Plan' : 'Choose Plan')}
+                        </Button>
+                    </div>
+                    );
+                })}
+            </div>
+            </div>
+            
+            {canManage && (
+            <Button
+                onClick={handleManageSubscription}
+                disabled={isProcessingCheckout || isProcessingPortal || !user.stripeCustomerId}
+                variant="outline"
+                className="w-full"
+            >
+                {isProcessingPortal ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                <Settings2 className="mr-2 h-4 w-4" />
+                )}
+                Manage Subscription & Billing
+            </Button>
+            )}
+
+            <p className="text-xs text-muted-foreground text-center pt-2">
+                Subscription management and payments are securely handled by Stripe.
+            </p>
         </CardContent>
-      </Card>
+        </Card>
     );
   }
 
-  // Render view for agency owners
+  // Render view for individual creators
   return (
-    <Card className="shadow-lg">
+      <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Crown className="h-6 w-6 text-primary" />
-          Agency Subscription
-        </CardTitle>
-        <CardDescription>Manage your agency's subscription plan.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+          <Zap className="h-6 w-6 text-primary" />
+          Creator Subscription
+          </CardTitle>
+          <CardDescription>Manage your subscription plan.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="p-4 border rounded-lg bg-muted/50">
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-lg">Current Plan</p>
-            {renderStatusBadge()}
-          </div>
-           {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
-            <div className={`flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 rounded-md my-2 ${user.subscriptionStatus === 'active' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-destructive bg-red-50 dark:bg-red-900/20'}`}>
-              {user.subscriptionStatus === 'active' ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400"/> : <XCircle className="h-5 w-5 text-destructive"/>}
-              <span>
-                  {user.subscriptionStatus === 'active' ? 'Subscription renews on' : 'Access ends on'} {formatDateSafe(user.subscriptionEndsAt)}.
-              </span>
+          <div className="p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center justify-between mb-2">
+                <p className="font-semibold text-lg">Current Plan</p>
+                {renderStatusBadge()}
             </div>
-          )}
-          {user.subscriptionStatus === 'past_due' && (
-             <div className="flex items-center gap-2 text-sm text-destructive p-3 border-l-4 border-destructive bg-red-50 dark:bg-red-900/20 rounded-md my-2">
-              <AlertCircle className="h-5 w-5"/>
-              <span>
-                  Your payment is past due. Please update your payment method via "Manage Subscription".
-              </span>
-            </div>
-          )}
-        </div>
-        
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-lg">Available Agency Plans</p>
-            <RadioGroup
-              value={billingFrequency}
-              onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
-              className="flex items-center rounded-md bg-muted p-1"
-            >
-              <RadioGroupItem value="monthly" id="monthly" className="sr-only" />
-              <Label htmlFor="monthly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'monthly' && 'bg-background shadow-sm')}>Monthly</Label>
-              <RadioGroupItem value="yearly" id="yearly" className="sr-only" />
-              <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
-            </RadioGroup>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             {plansToShow.map(([id, details]) => {
-                const planIdKey = id as PlanId;
-                const isCurrentPlan = user.subscriptionPlanId === planIdKey;
-
-                return (
-                  <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
-                     {isCurrentPlan && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
-                     {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
-                      
-                      <details.icon className="mb-3 h-8 w-8 text-primary" />
-                      <p className="font-semibold text-lg">{details.name}</p>
-                      <p className="text-2xl font-bold mt-1">{details.price}</p>
-                      {details.talentLimit && <p className="text-sm text-muted-foreground">Up to {details.talentLimit} talents</p>}
-                      <Button 
-                         onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
-                         className="w-full mt-4" 
-                         disabled={isProcessingCheckout || isCurrentPlan}
-                         variant={isCurrentPlan ? 'secondary' : 'default'}
-                       >
-                         {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan ? 'Current Plan' : 'Choose Plan')}
-                       </Button>
-                  </div>
-                );
-            })}
-          </div>
-        </div>
-        
-        {canManage && (
-          <Button
-            onClick={handleManageSubscription}
-            disabled={isProcessingCheckout || isProcessingPortal || !user.stripeCustomerId}
-            variant="outline"
-            className="w-full"
-          >
-            {isProcessingPortal ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Settings2 className="mr-2 h-4 w-4" />
+             {(user.subscriptionStatus === 'trialing') && user.trialEndsAt && (
+                <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-300 p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md my-2">
+                    <CalendarClock className="h-5 w-5"/>
+                    <span>Your free trial ends on {formatDateSafe(user.trialEndsAt)}.</span>
+                </div>
             )}
-            Manage Subscription & Billing
-          </Button>
-        )}
+            {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
+                <div className={`flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 rounded-md my-2 ${user.subscriptionStatus === 'active' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-destructive bg-red-50 dark:bg-red-900/20'}`}>
+                {user.subscriptionStatus === 'active' ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400"/> : <XCircle className="h-5 w-5 text-destructive"/>}
+                <span>
+                    {user.subscriptionStatus === 'active' ? 'Subscription renews on' : 'Access ends on'} {formatDateSafe(user.subscriptionEndsAt)}.
+                </span>
+                </div>
+            )}
+            {user.subscriptionStatus === 'past_due' && (
+                <div className="flex items-center gap-2 text-sm text-destructive p-3 border-l-4 border-destructive bg-red-50 dark:bg-red-900/20 rounded-md my-2">
+                <AlertCircle className="h-5 w-5"/>
+                <span>
+                    Your payment is past due. Please update your payment method.
+                </span>
+                </div>
+            )}
+          </div>
+          
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between">
+                <p className="font-medium text-lg">Individual Pro Plan</p>
+                <RadioGroup
+                value={billingFrequency}
+                onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
+                className="flex items-center rounded-md bg-muted p-1"
+                >
+                <RadioGroupItem value="monthly" id="monthly" className="sr-only" />
+                <Label htmlFor="monthly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'monthly' && 'bg-background shadow-sm')}>Monthly</Label>
+                <RadioGroupItem value="yearly" id="yearly" className="sr-only" />
+                <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
+                </RadioGroup>
+            </div>
+             <div className="grid grid-cols-1">
+                {plansToShow.map(([id, details]) => {
+                    const planIdKey = id as PlanId;
+                    const isCurrentPlan = user.subscriptionPlanId === planIdKey;
+                    const isSubscribed = user.subscriptionStatus === 'active';
 
-         <p className="text-xs text-muted-foreground text-center pt-2">
+                    return (
+                        <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan && isSubscribed ? 'border-primary' : 'border-muted hover:border-primary/50')}>
+                            {isCurrentPlan && isSubscribed && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
+                            {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
+                            
+                            <details.icon className="mb-3 h-8 w-8 text-primary" />
+                            <p className="font-semibold text-lg">{details.name}</p>
+                            <p className="text-2xl font-bold mt-1">{details.price}</p>
+                            <ul className="text-sm text-muted-foreground list-disc list-inside mt-2 text-center">
+                                <li>All Core Features</li>
+                                <li>AI Contract Analysis</li>
+                                <li>Secure Payments</li>
+                            </ul>
+                            <Button 
+                                onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
+                                className="w-full mt-4" 
+                                disabled={isProcessingCheckout || (isCurrentPlan && isSubscribed)}
+                                variant={isCurrentPlan && isSubscribed ? 'secondary' : 'default'}
+                            >
+                                {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan && isSubscribed ? 'Current Plan' : 'Choose Plan')}
+                            </Button>
+                        </div>
+                    );
+                })}
+            </div>
+          </div>
+          
+          {canManage && (
+            <Button
+                onClick={handleManageSubscription}
+                disabled={isProcessingCheckout || isProcessingPortal || !user.stripeCustomerId}
+                variant="outline"
+                className="w-full"
+            >
+                {isProcessingPortal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings2 className="mr-2 h-4 w-4" />}
+                Manage Subscription & Billing
+            </Button>
+          )}
+
+          <p className="text-xs text-muted-foreground text-center pt-2">
             Subscription management and payments are securely handled by Stripe.
           </p>
       </CardContent>
-    </Card>
+      </Card>
   );
 }
