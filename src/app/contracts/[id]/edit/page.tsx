@@ -15,12 +15,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject } from '@/lib/firebase';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Eye } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { diffChars } from 'diff';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
@@ -260,6 +261,149 @@ export default function EditContractPage() {
     }
   };
 
+  const renderSidebarContent = () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400"/> AI Negotiation Assistant</CardTitle>
+          <CardDescription>AI-generated summary and negotiation points.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[350px] pr-3">
+            <div className="space-y-4 text-sm">
+              <div>
+                <h4 className="font-semibold mb-1">AI Summary</h4>
+                <p className="text-muted-foreground whitespace-pre-wrap">{currentSummary || "No summary available. Process text with AI to generate one."}</p>
+              </div>
+              {(currentNegotiationSuggestions?.paymentTerms || currentNegotiationSuggestions?.exclusivity || currentNegotiationSuggestions?.ipRights) && (
+                <div className="space-y-3 pt-2">
+                   <h4 className="font-semibold mb-1">Negotiation Points</h4>
+                   {currentNegotiationSuggestions.paymentTerms && (
+                      <div className="p-2 bg-muted/50 rounded-md">
+                        <p className="font-medium text-foreground">Payment Terms</p>
+                        <p className="text-muted-foreground">{currentNegotiationSuggestions.paymentTerms}</p>
+                        <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.paymentTerms)}>
+                          {copiedSuggestion === currentNegotiationSuggestions.paymentTerms ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                          <span className="ml-1">Copy Suggestion</span>
+                        </Button>
+                      </div>
+                   )}
+                   {currentNegotiationSuggestions.exclusivity && (
+                      <div className="p-2 bg-muted/50 rounded-md">
+                        <p className="font-medium text-foreground">Exclusivity</p>
+                        <p className="text-muted-foreground">{currentNegotiationSuggestions.exclusivity}</p>
+                        <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.exclusivity)}>
+                          {copiedSuggestion === currentNegotiationSuggestions.exclusivity ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                          <span className="ml-1">Copy Suggestion</span>
+                        </Button>
+                      </div>
+                   )}
+                   {currentNegotiationSuggestions.ipRights && (
+                      <div className="p-2 bg-muted/50 rounded-md">
+                        <p className="font-medium text-foreground">IP Rights</p>
+                        <p className="text-muted-foreground">{currentNegotiationSuggestions.ipRights}</p>
+                         <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.ipRights)}>
+                          {copiedSuggestion === currentNegotiationSuggestions.ipRights ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                          <span className="ml-1">Copy Suggestion</span>
+                        </Button>
+                      </div>
+                   )}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+      
+      <Accordion type="multiple" className="w-full space-y-6" defaultValue={['core-details']}>
+        <AccordionItem value="core-details" className="border-b-0">
+          <Card>
+            <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+              <CardHeader className="flex-1 text-left">
+                <CardTitle>Core Details</CardTitle>
+                <CardDescription>Essential information for this contract.</CardDescription>
+              </CardHeader>
+            </AccordionTrigger>
+            <AccordionContent>
+              <CardContent className="pt-0 space-y-4">
+                <div>
+                  <Label htmlFor="brand">Brand Name</Label>
+                  <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="projectName">Project Name (Optional)</Label>
+                  <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="amount">Amount ($)</Label>
+                  <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="contractType">Contract Type</Label>
+                  <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
+                    <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sponsorship">Sponsorship</SelectItem>
+                      <SelectItem value="consulting">Consulting</SelectItem>
+                      <SelectItem value="affiliate">Affiliate</SelectItem>
+                      <SelectItem value="retainer">Retainer</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </AccordionContent>
+          </Card>
+        </AccordionItem>
+
+        <AccordionItem value="client-file" className="border-b-0">
+          <Card>
+            <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+              <CardHeader className="flex-1 text-left">
+                <CardTitle>Client & File</CardTitle>
+                <CardDescription>Details for invoicing and the original file.</CardDescription>
+              </CardHeader>
+            </AccordionTrigger>
+            <AccordionContent>
+              <CardContent className="pt-0 space-y-4">
+                <div>
+                  <Label htmlFor="clientName">Client Name</Label>
+                  <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="clientEmail">Client Email</Label>
+                  <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label>
+                  <Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="clientAddress">Client Address</Label>
+                  <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} />
+                </div>
+                <div>
+                  <Label htmlFor="paymentInstructions">Payment Instructions</Label>
+                  <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/>
+                </div>
+                <div>
+                  <Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>
+                  {currentFileName && !newSelectedFile && <div className="text-xs text-muted-foreground flex items-center mt-1"><FileIcon className="mr-1 h-3 w-3" /> {currentFileName}</div>}
+                  {newSelectedFile && <div className="text-xs text-green-600 flex items-center mt-1"><UploadCloud className="mr-1 h-3 w-3" /> {newSelectedFile.name}</div>}
+                  <Input id="newContractFile" type="file" className="mt-1" onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)} />
+                </div>
+              </CardContent>
+            </AccordionContent>
+          </Card>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
+
   if (isLoadingContract || authLoading) {
     return (
       <div className="space-y-4 p-4">
@@ -288,6 +432,25 @@ export default function EditContractPage() {
         description="Modify the contract text and details. Your changes will be saved to a new version."
         actions={
           <div className="flex items-center gap-2">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline">
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Details & AI
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-[450px] sm:max-w-xl overflow-y-auto">
+                 <SheetHeader>
+                  <SheetTitle>Contract Intelligence</SheetTitle>
+                  <SheetDescription>
+                    Review AI insights and edit core contract details.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="py-4">
+                  {renderSidebarContent()}
+                </div>
+              </SheetContent>
+            </Sheet>
             <Button type="button" variant="outline" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
               Cancel
             </Button>
@@ -298,180 +461,36 @@ export default function EditContractPage() {
           </div>
         }
       />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
-        {/* Main Editor Column */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="h-full">
-             <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Contract Editor</CardTitle>
-                  <CardDescription>Make changes to the full text of the contract below.</CardDescription>
-                </div>
-                 <Button
-                  type="button"
-                  onClick={handleAiReparse}
-                  disabled={isReparsingAi || isSaving}
-                  variant="outline"
-                  size="sm"
-                >
-                  {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                  Re-process with AI
-                </Button>
-            </CardHeader>
-            <CardContent>
-               <DocumentEditorContainerComponent 
-                ref={editorRef} 
-                height={'1100px'} 
-                enableToolbar={true}
-                serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                inject={[Toolbar]}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar Column */}
-        <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400"/> AI Negotiation Assistant</CardTitle>
-              <CardDescription>AI-generated summary and negotiation points.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[350px] pr-3">
-                <div className="space-y-4 text-sm">
-                  <div>
-                    <h4 className="font-semibold mb-1">AI Summary</h4>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{currentSummary || "No summary available. Process text with AI to generate one."}</p>
-                  </div>
-                  {(currentNegotiationSuggestions?.paymentTerms || currentNegotiationSuggestions?.exclusivity || currentNegotiationSuggestions?.ipRights) && (
-                    <div className="space-y-3 pt-2">
-                       <h4 className="font-semibold mb-1">Negotiation Points</h4>
-                       {currentNegotiationSuggestions.paymentTerms && (
-                          <div className="p-2 bg-muted/50 rounded-md">
-                            <p className="font-medium text-foreground">Payment Terms</p>
-                            <p className="text-muted-foreground">{currentNegotiationSuggestions.paymentTerms}</p>
-                            <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.paymentTerms)}>
-                              {copiedSuggestion === currentNegotiationSuggestions.paymentTerms ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
-                              <span className="ml-1">Copy Suggestion</span>
-                            </Button>
-                          </div>
-                       )}
-                       {currentNegotiationSuggestions.exclusivity && (
-                          <div className="p-2 bg-muted/50 rounded-md">
-                            <p className="font-medium text-foreground">Exclusivity</p>
-                            <p className="text-muted-foreground">{currentNegotiationSuggestions.exclusivity}</p>
-                            <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.exclusivity)}>
-                              {copiedSuggestion === currentNegotiationSuggestions.exclusivity ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
-                              <span className="ml-1">Copy Suggestion</span>
-                            </Button>
-                          </div>
-                       )}
-                       {currentNegotiationSuggestions.ipRights && (
-                          <div className="p-2 bg-muted/50 rounded-md">
-                            <p className="font-medium text-foreground">IP Rights</p>
-                            <p className="text-muted-foreground">{currentNegotiationSuggestions.ipRights}</p>
-                             <Button type="button" size="sm" variant="ghost" className="h-7 mt-1" onClick={() => handleCopySuggestion(currentNegotiationSuggestions.ipRights)}>
-                              {copiedSuggestion === currentNegotiationSuggestions.ipRights ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
-                              <span className="ml-1">Copy Suggestion</span>
-                            </Button>
-                          </div>
-                       )}
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-          
-          <Accordion type="multiple" className="w-full space-y-6">
-            <AccordionItem value="core-details" className="border-b-0">
-              <Card>
-                <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
-                  <CardHeader className="flex-1 text-left">
-                    <CardTitle>Core Details</CardTitle>
-                    <CardDescription>Essential information for this contract.</CardDescription>
-                  </CardHeader>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <CardContent className="pt-0 space-y-4">
-                    <div>
-                      <Label htmlFor="brand">Brand Name</Label>
-                      <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="projectName">Project Name (Optional)</Label>
-                      <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="amount">Amount ($)</Label>
-                      <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="dueDate">Due Date</Label>
-                      <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="contractType">Contract Type</Label>
-                      <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
-                        <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sponsorship">Sponsorship</SelectItem>
-                          <SelectItem value="consulting">Consulting</SelectItem>
-                          <SelectItem value="affiliate">Affiliate</SelectItem>
-                          <SelectItem value="retainer">Retainer</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </AccordionContent>
-              </Card>
-            </AccordionItem>
-
-            <AccordionItem value="client-file" className="border-b-0">
-              <Card>
-                <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
-                  <CardHeader className="flex-1 text-left">
-                    <CardTitle>Client & File</CardTitle>
-                    <CardDescription>Details for invoicing and the original file.</CardDescription>
-                  </CardHeader>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <CardContent className="pt-0 space-y-4">
-                    <div>
-                      <Label htmlFor="clientName">Client Name</Label>
-                      <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientEmail">Client Email</Label>
-                      <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label>
-                      <Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label htmlFor="clientAddress">Client Address</Label>
-                      <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} />
-                    </div>
-                    <div>
-                      <Label htmlFor="paymentInstructions">Payment Instructions</Label>
-                      <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/>
-                    </div>
-                    <div>
-                      <Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>
-                      {currentFileName && !newSelectedFile && <div className="text-xs text-muted-foreground flex items-center mt-1"><FileIcon className="mr-1 h-3 w-3" /> {currentFileName}</div>}
-                      {newSelectedFile && <div className="text-xs text-green-600 flex items-center mt-1"><UploadCloud className="mr-1 h-3 w-3" /> {newSelectedFile.name}</div>}
-                      <Input id="newContractFile" type="file" className="mt-1" onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)} />
-                    </div>
-                  </CardContent>
-                </AccordionContent>
-              </Card>
-            </AccordionItem>
-          </Accordion>
-        </div>
+      <div className="mt-4">
+        <Card className="h-full">
+           <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Contract Editor</CardTitle>
+                <CardDescription>Make changes to the full text of the contract below.</CardDescription>
+              </div>
+               <Button
+                type="button"
+                onClick={handleAiReparse}
+                disabled={isReparsingAi || isSaving}
+                variant="outline"
+                size="sm"
+              >
+                {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                Re-process with AI
+              </Button>
+          </CardHeader>
+          <CardContent>
+             <DocumentEditorContainerComponent 
+              ref={editorRef} 
+              height={'1100px'} 
+              enableToolbar={true}
+              serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+              inject={[Toolbar]}
+            />
+          </CardContent>
+        </Card>
       </div>
     </form>
   );
 }
+
