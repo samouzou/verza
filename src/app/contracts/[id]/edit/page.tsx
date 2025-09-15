@@ -325,6 +325,7 @@ export default function EditContractPage() {
                 height={'1100px'} 
                 enableToolbar={true}
                 serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                inject={[Toolbar]}
               />
             </CardContent>
           </Card>
