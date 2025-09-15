@@ -88,3 +88,10 @@ env:
     secret: VERZA_HELLOSIGN_API_KEY
     availability:
       - RUNTIME # Needed by Firebase Functions, which are part of the backend for App Hosting
+
+  # Syncfusion License Key
+  - variable: NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY
+    secret: VERZA_SYNCFUSION_LICENSE_KEY
+    availability:
+      - BUILD
+      - RUNTIME
