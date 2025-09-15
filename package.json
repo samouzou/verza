@@ -37,7 +37,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@stripe/react-stripe-js": "^2.8.0",
     "@stripe/stripe-js": "^4.1.0",
-    "@syncfusion/ej2-react-documenteditor": "^26.2.4",
+    "@syncfusion/ej2-react-documenteditor": "31.1.18",
     "@tanstack-query-firebase/react": "^1.0.5",
     "@tanstack/react-query": "^5.66.0",
     "canvas-confetti": "^1.9.3",
