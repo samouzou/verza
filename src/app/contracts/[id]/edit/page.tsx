@@ -61,7 +61,6 @@ export default function EditContractPage() {
   const [contractType, setContractType] = useState<Contract['contractType']>('other');
   
   // State for editable contract text and its AI-derived data
-  const [editedContractText, setEditedContractText] = useState('');
   const [currentSummary, setCurrentSummary] = useState<string | undefined>(undefined);
   const [currentNegotiationSuggestions, setCurrentNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null | undefined>(null);
 
@@ -110,13 +109,14 @@ export default function EditContractPage() {
                 
                 if (editorRef.current && data.contractText) {
                   try {
+                    // The contractText should be in SFDT format (a JSON string)
                     editorRef.current.documentEditor.open(data.contractText);
                   } catch (e) {
-                     console.error("Failed to load SFDT content:", e);
+                     console.error("Failed to load SFDT content, opening empty document:", e);
+                     // Fallback for invalid format
                      editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
                   }
                 }
-                setEditedContractText(data.contractText || ''); // Keep for fallback
                 
                 setCurrentSummary(data.summary);
                 setCurrentNegotiationSuggestions(data.negotiationSuggestions);
