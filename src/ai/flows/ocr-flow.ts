@@ -1,40 +1,52 @@
 'use server';
 /**
- * @fileOverview Performs Optical Character Recognition (OCR) on a document image.
+ * @fileOverview Performs Optical Character Recognition (OCR) and converts it to Syncfusion's SFDT format.
  *
- * - ocrDocument - A function that extracts text from an image or PDF file.
- * - OcrDocumentInput - The input type for the function.
- * - OcrDocumentOutput - The return type for the function.
+ * - convertDocumentToSfdt - A function that extracts text and returns SFDT.
+ * - ConvertDocumentToSfdtInput - The input type for the function.
+ * - ConvertDocumentToSfdtOutput - The return type for the function.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-const OcrDocumentInputSchema = z.object({
+const ConvertDocumentToSfdtInputSchema = z.object({
   documentDataUri: z
     .string()
     .describe(
       "An image or PDF document, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
-export type OcrDocumentInput = z.infer<typeof OcrDocumentInputSchema>;
+export type ConvertDocumentToSfdtInput = z.infer<typeof ConvertDocumentToSfdtInputSchema>;
 
-const OcrDocumentOutputSchema = z.object({
-  extractedText: z.string().describe('The full text extracted from the document.'),
+const ConvertDocumentToSfdtOutputSchema = z.object({
+  sfdt: z.string().describe('The document content as a Syncfusion SFDT (Syncfusion Document Format) JSON string.'),
 });
-export type OcrDocumentOutput = z.infer<typeof OcrDocumentOutputSchema>;
+export type ConvertDocumentToSfdtOutput = z.infer<typeof ConvertDocumentToSfdtOutputSchema>;
 
-export async function ocrDocument(input: OcrDocumentInput): Promise<OcrDocumentOutput> {
-  return ocrDocumentFlow(input);
+export async function convertDocumentToSfdt(input: ConvertDocumentToSfdtInput): Promise<ConvertDocumentToSfdtOutput> {
+  return convertDocumentToSfdtFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'ocrDocumentPrompt',
-  input: { schema: OcrDocumentInputSchema },
-  output: { schema: OcrDocumentOutputSchema },
-  prompt: `You are an expert Optical Character Recognition (OCR) AI.
-  Your task is to accurately extract all text from the provided document.
-  Preserve the original formatting, including line breaks and spacing, as much as possible.
+  name: 'convertDocumentToSfdtPrompt',
+  input: { schema: ConvertDocumentToSfdtInputSchema },
+  output: { schema: ConvertDocumentToSfdtOutputSchema },
+  prompt: `You are an expert Optical Character Recognition (OCR) AI that specializes in converting document images into Syncfusion's SFDT (Syncfusion Document Text Format) JSON format.
+
+  Your task is to accurately extract all text from the provided document and structure it as a valid SFDT JSON string.
+
+  - The JSON must contain a single root key "sfdt".
+  - The value of "sfdt" must be a JSON string containing a "sections" array.
+  - Each section should contain "blocks" which are paragraphs.
+  - Each paragraph block should contain "inlines" which are the text runs.
+  
+  Example of a simple SFDT output structure:
+  {
+    "sfdt": "{\\"sections\\":[{\\"blocks\\":[{\\"inlines\\":[{\\"text\\":\\"Here is the first paragraph.\\"},{\\"text\\":\\" Here is the second sentence of the same paragraph.\\"}]}]}]}"
+  }
+  
+  Preserve original line breaks as separate paragraph blocks.
 
   Document to process:
   {{media url=documentDataUri}}
@@ -43,11 +55,11 @@ const prompt = ai.definePrompt({
   model: 'googleai/gemini-2.0-flash',
 });
 
-const ocrDocumentFlow = ai.defineFlow(
+const convertDocumentToSfdtFlow = ai.defineFlow(
   {
-    name: 'ocrDocumentFlow',
-    inputSchema: OcrDocumentInputSchema,
-    outputSchema: OcrDocumentOutputSchema,
+    name: 'convertDocumentToSfdtFlow',
+    inputSchema: ConvertDocumentToSfdtInputSchema,
+    outputSchema: ConvertDocumentToSfdtOutputSchema,
   },
   async (input) => {
     const { output } = await prompt(input);
