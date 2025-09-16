@@ -698,7 +698,7 @@ export default function ContractDetailPage() {
                                 height="100%" 
                                 serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                                 enableToolbar={false}
-                                isReadOnly={true}
+                                readOnly={true}
                                 showPropertiesPane={false}
                               />
                             </div>
