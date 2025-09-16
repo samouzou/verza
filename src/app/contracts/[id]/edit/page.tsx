@@ -106,17 +106,6 @@ export default function EditContractPage() {
                 setClientTin(data.clientTin || '');
                 setPaymentInstructions(data.paymentInstructions || '');
                 
-                if (editorRef.current && data.contractText) {
-                  try {
-                    // The contractText should be in SFDT format (a JSON string)
-                    editorRef.current.documentEditor.open(data.contractText);
-                  } catch (e) {
-                     console.error("Failed to load SFDT content, opening empty document:", e);
-                     // Fallback for invalid format
-                     editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
-                  }
-                }
-                
                 setCurrentSummary(data.summary);
                 setCurrentNegotiationSuggestions(data.negotiationSuggestions);
                 setCurrentFileName(data.fileName || null);
@@ -140,6 +129,19 @@ export default function EditContractPage() {
       router.push('/login');
     }
   }, [id, user, authLoading, router, toast]);
+
+  const onEditorCreated = () => {
+    if (editorRef.current && contract?.contractText) {
+        try {
+            // The contractText should be in SFDT format (a JSON string)
+            editorRef.current.documentEditor.open(contract.contractText);
+        } catch (e) {
+            console.error("Failed to load SFDT content, opening empty document:", e);
+            // Fallback for invalid format
+            editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
+        }
+    }
+  };
 
   const handleAiReparse = async () => {
     if (!editorRef.current) return;
@@ -464,11 +466,11 @@ export default function EditContractPage() {
                  <DocumentEditorContainerComponent 
                   id="container"
                   ref={editorRef} 
+                  created={onEditorCreated}
                   style={{ display: "block" }}
                   height={'1100px'} 
                   serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                   enableToolbar={true}
-                  inject={[Toolbar]}
                   toolbarMode={"Ribbon"}
                   showPropertiesPane={false}
                   enableTrackChanges={false}
