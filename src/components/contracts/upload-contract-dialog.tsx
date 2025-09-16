@@ -332,7 +332,7 @@ export function UploadContractDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent 
-        className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh]"
+        className="w-[95vw] max-w-[95vw] max-h-[90vh]"
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -566,5 +566,3 @@ export function UploadContractDialog() {
     </Dialog>
   );
 }
-
-    
