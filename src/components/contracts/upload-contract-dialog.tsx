@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DocumentEditorContainerComponent } from '@syncfusion/ej2-react-documenteditor';
 
 
 export function UploadContractDialog() {
@@ -58,6 +59,8 @@ export function UploadContractDialog() {
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval'] | undefined>(undefined);
+  
+  const tempEditorRef = useRef<DocumentEditorContainerComponent | null>(null);
 
 
   const now = Date.now();
@@ -162,6 +165,11 @@ export function UploadContractDialog() {
       }
       setContractText(ocrResult.extractedText);
       
+      // Load plain text into hidden editor to convert to SFDT
+      if (tempEditorRef.current) {
+        tempEditorRef.current.documentEditor.open(ocrResult.extractedText);
+      }
+      
       await handleFullAnalysis(ocrResult.extractedText);
 
     } catch (error) {
@@ -178,6 +186,15 @@ export function UploadContractDialog() {
       setIsProcessingAi(false);
     }
   };
+  
+  const handlePastedText = async (pastedText: string) => {
+    setContractText(pastedText);
+    if (tempEditorRef.current) {
+        tempEditorRef.current.documentEditor.open(pastedText);
+    }
+    await handleFullAnalysis(pastedText);
+  };
+
 
   const handleSaveContract = async () => {
     if (!user) {
@@ -188,8 +205,8 @@ export function UploadContractDialog() {
       toast({ title: "Upgrade Required", description: "Please upgrade to Verza Pro to add new contracts.", variant: "destructive" });
       return;
     }
-    if (!parsedDetails && !selectedFile && !contractText.trim()) {
-      toast({ title: "Cannot Save", description: "No contract details available (AI parse, file, or pasted text).", variant: "destructive" });
+    if (!tempEditorRef.current) {
+      toast({ title: "Editor Not Ready", description: "The document processor is not ready. Please wait a moment and try again.", variant: "destructive"});
       return;
     }
 
@@ -216,6 +233,9 @@ export function UploadContractDialog() {
         const uploadResult = await uploadBytes(fileStorageRef, selectedFile);
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
+      
+      const sfdt = await tempEditorRef.current.documentEditor.serialize();
+      const sfdtString = sfdt; // It's already a string
 
       const currentParsedDetails = parsedDetails || {
         brand: "Unknown Brand",
@@ -244,7 +264,7 @@ export function UploadContractDialog() {
         dueDate: currentParsedDetails.dueDate || new Date().toISOString().split('T')[0],
         status: 'pending' as Contract['status'],
         contractType: 'other' as Contract['contractType'],
-        contractText: contractText,
+        contractText: sfdtString, // Save the SFDT format
         fileName: fileName.trim() || (selectedFile ? selectedFile.name : (contractText.trim() ? "Pasted Contract" : "Untitled Contract")),
         fileUrl: fileUrlToSave || null,
         summary: currentSummary.summary,
@@ -321,6 +341,10 @@ export function UploadContractDialog() {
             Upload a contract file to automatically extract text and analyze with AI.
           </DialogDescription>
         </DialogHeader>
+        
+        <div style={{ display: 'none', height: 0, overflow: 'hidden' }}>
+            <DocumentEditorContainerComponent ref={tempEditorRef} height="1" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" enableToolbar={false}/>
+        </div>
         
         {!canPerformProAction && (
           <Alert variant="default" className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
@@ -456,8 +480,8 @@ export function UploadContractDialog() {
             <Textarea
               id="contractText"
               value={contractText}
-              onChange={(e) => setContractText(e.target.value)}
-              placeholder="Upload a file to automatically extract text here..."
+              onChange={(e) => handlePastedText(e.target.value)}
+              placeholder="Upload a file to automatically extract text, or paste the text here."
               rows={8}
               className="mt-1"
               disabled={isProcessingAi}

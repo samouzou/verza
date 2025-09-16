@@ -133,11 +133,9 @@ export default function EditContractPage() {
   const onEditorCreated = () => {
     if (editorRef.current && contract?.contractText) {
         try {
-            // The contractText should be in SFDT format (a JSON string)
             editorRef.current.documentEditor.open(contract.contractText);
         } catch (e) {
             console.error("Failed to load SFDT content, opening empty document:", e);
-            // Fallback for invalid format
             editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
         }
     }
@@ -155,6 +153,9 @@ export default function EditContractPage() {
     }
     setIsReparsingAi(true);
     try {
+      // Load the plain text back into the editor. This converts it to SFDT internally.
+      editorRef.current.documentEditor.open(textToAnalyze);
+
       const [details, summaryOutput, suggestions] = await Promise.all([
         extractContractDetails({ contractText: textToAnalyze }),
         summarizeContractTerms({ contractText: textToAnalyze }),
@@ -187,8 +188,7 @@ export default function EditContractPage() {
     }
     setIsSaving(true);
 
-    const sfdt = await editorRef.current.documentEditor.serialize();
-    const newContractText = sfdt;
+    const newContractText = await editorRef.current.documentEditor.serialize();
 
     const contractAmount = parseFloat(amount as string);
     if (isNaN(contractAmount) || contractAmount < 0) {
