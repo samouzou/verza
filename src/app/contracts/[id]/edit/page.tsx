@@ -466,7 +466,7 @@ export default function EditContractPage() {
                   ref={editorRef} 
                   style={{ display: "block" }}
                   height={'1100px'} 
-                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                  serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                   enableToolbar={true}
                   inject={[Toolbar]}
                   toolbarMode={"Ribbon"}
