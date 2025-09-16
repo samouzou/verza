@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extracts contract details (brand, amount, due date, and common terms) from contract documents using an LLM.

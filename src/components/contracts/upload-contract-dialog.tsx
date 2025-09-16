@@ -535,42 +535,44 @@ export function UploadContractDialog() {
                   <p className="text-xs text-muted-foreground">Paste text into the editor below and click to analyze.</p>
               </div>
             </div>
-            {isProcessingAi && (
-              <div className="flex-grow flex items-center justify-center bg-muted/50 rounded-md">
-                <div className="text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-                  <p className="mt-2 text-muted-foreground">AI processing... Please wait.</p>
-                </div>
-              </div>
-            )}
-            {parseError && (
-               <div className="flex-grow flex items-center justify-center bg-destructive/10 rounded-md p-4">
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>AI Processing Error</AlertTitle>
-                    <AlertDescription>{parseError}</AlertDescription>
-                  </Alert>
-               </div>
-            )}
             
             <div className="flex-grow min-h-0 relative">
-              <div style={{ display: (isProcessingAi || parseError) ? 'none' : 'block', height: '100%' }}>
-                <DocumentEditorContainerComponent 
-                  id="upload-editor"
-                  ref={editorRef} 
-                  style={{ display: "block" }}
-                  height="100%"
-                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                  enableToolbar={true}
-                  showPropertiesPane={false}
-                >
-                  <Inject services={[Toolbar]} />
-                </DocumentEditorContainerComponent>
+              <div style={{ display: (isProcessingAi || parseError) ? 'flex' : 'none', height: '100%', alignItems: 'center', justifyContent: 'center' }} className="bg-muted/50 rounded-md">
+                {isProcessingAi && (
+                    <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                    <p className="mt-2 text-muted-foreground">AI processing... Please wait.</p>
+                    </div>
+                )}
+                {parseError && (
+                    <div className="p-4">
+                    <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>AI Processing Error</AlertTitle>
+                        <AlertDescription>{parseError}</AlertDescription>
+                    </Alert>
+                    </div>
+                )}
               </div>
-              <div style={{ display: (isProcessingAi || parseError || !parsedDetails) ? 'none' : 'block', height: '100%' }}>
-                <ScrollArea className="h-full">
-                  <div className="space-y-4 pr-4">{parsedDetails && renderAiAnalysis()}</div>
-                </ScrollArea>
+              
+              <div style={{ display: !(isProcessingAi || parseError) ? 'block' : 'none', height: '100%' }}>
+                {!parsedDetails ? (
+                  <DocumentEditorContainerComponent 
+                    id="upload-editor"
+                    ref={editorRef} 
+                    style={{ display: "block" }}
+                    height="100%"
+                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                    enableToolbar={true}
+                    showPropertiesPane={false}
+                  >
+                    <Inject services={[Toolbar]} />
+                  </DocumentEditorContainerComponent>
+                ) : (
+                  <ScrollArea className="h-full">
+                    <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
+                  </ScrollArea>
+                )}
               </div>
             </div>
 
@@ -590,5 +592,3 @@ export function UploadContractDialog() {
     </Dialog>
   );
 }
-
-    
