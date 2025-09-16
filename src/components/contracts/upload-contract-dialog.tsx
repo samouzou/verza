@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { ocrDocument } from "@/ai/flows/ocr-flow";
+import { ocrDocument } from "@/ai/flows/ocr-document";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
 import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -511,24 +511,6 @@ export function UploadContractDialog() {
                   )}
                 </CardContent>
               </Card>
-
-              {isProcessingAi && (
-                <div className="flex items-center gap-2 text-primary">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>AI processing... This may take a moment.</span>
-                </div>
-              )}
-              {parseError && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>AI Processing Error</AlertTitle>
-                  <AlertDescription>{parseError}</AlertDescription>
-                </Alert>
-              )}
-              {parsedDetails && !isProcessingAi && (
-                <div className="space-y-4">{renderAiAnalysis()}</div>
-              )}
-
             </div>
           </ScrollArea>
 
@@ -543,30 +525,57 @@ export function UploadContractDialog() {
                   <p className="text-xs text-muted-foreground">Paste text into the editor below and click to analyze.</p>
               </div>
             </div>
-            
-            <div className="flex-grow min-h-0">
-               <DocumentEditorContainerComponent 
-                  id="upload-editor"
-                  ref={editorRef} 
-                  style={{ display: "block" }}
-                  height="100%"
-                  serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
-                  enableToolbar={true}
-                  showPropertiesPane={false}
-                  enableTrackChanges={false}
-                  currentUser={user?.displayName || "Guest"}
-                  locale="en-US"
-                  documentEditorSettings={{
-                    enableOpenAi: true,
-                    openAiSettings: {
-                      apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                      model: 'gemini-1.5-flash',
-                    }
-                  }}
-                >
-                  <Inject services={[Toolbar]} />
-                </DocumentEditorContainerComponent>
-            </div>
+            {isProcessingAi && (
+              <div className="flex-grow flex items-center justify-center bg-muted/50 rounded-md">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                  <p className="mt-2 text-muted-foreground">AI processing... Please wait.</p>
+                </div>
+              </div>
+            )}
+            {parseError && (
+               <div className="flex-grow flex items-center justify-center bg-destructive/10 rounded-md p-4">
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>AI Processing Error</AlertTitle>
+                    <AlertDescription>{parseError}</AlertDescription>
+                  </Alert>
+               </div>
+            )}
+            {!isProcessingAi && !parseError && (
+              <div className="flex-grow min-h-0">
+                {parsedDetails ? (
+                  <ScrollArea className="h-full">
+                    <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
+                  </ScrollArea>
+                ) : (
+                  <div className="h-full flex flex-col">
+                     <DocumentEditorContainerComponent 
+                      id="upload-editor"
+                      ref={editorRef} 
+                      style={{ display: "block" }}
+                      height="100%"
+                      serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
+                      enableToolbar={true}
+                      toolbarMode={"Ribbon"}
+                      showPropertiesPane={false}
+                      enableTrackChanges={false}
+                      currentUser={user?.displayName || "Guest"}
+                      locale="en-US"
+                      documentEditorSettings={{
+                        enableOpenAi: true,
+                        openAiSettings: {
+                          apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
+                          model: 'gemini-1.5-flash',
+                        }
+                      }}
+                    >
+                      <Inject services={[Toolbar]} />
+                    </DocumentEditorContainerComponent>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter className="pt-4 border-t">
@@ -583,4 +592,3 @@ export function UploadContractDialog() {
     </Dialog>
   );
 }
-
