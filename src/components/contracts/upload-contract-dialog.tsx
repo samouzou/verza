@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Inject, Toolbar, OpenAi } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -556,8 +556,13 @@ export function UploadContractDialog() {
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
+                  enableOpenAi={true}
+                  openAiSettings={{
+                    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
+                    model: 'gemini-1.5-flash',
+                  }}
                 >
-                  <Inject services={[Toolbar]} />
+                  <Inject services={[Toolbar, OpenAi]} />
                 </DocumentEditorContainerComponent>
             </div>
           </div>

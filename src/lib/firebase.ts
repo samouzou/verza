@@ -31,7 +31,8 @@ import {
   writeBatch,
   onSnapshot,
   arrayUnion,
-  arrayRemove // Added arrayRemove
+  arrayRemove, // Added arrayRemove
+  documentId
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
@@ -106,6 +107,6 @@ export {
   getDownloadURL,
   deleteObject,
   arrayUnion,
-  arrayRemove // Export arrayRemove
+  arrayRemove, // Export arrayRemove
+  documentId
 };
-
