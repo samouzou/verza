@@ -25,7 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
-import { DocumentEditorContainerComponent, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Toolbar, Inject } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -471,12 +471,13 @@ export default function EditContractPage() {
                   height={'1100px'} 
                   serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                   enableToolbar={true}
-                  toolbarMode={"Ribbon"}
                   showPropertiesPane={false}
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
-                />
+                >
+                  <Inject services={[Toolbar]} />
+                </DocumentEditorContainerComponent>
               </CardContent>
             </Card>
         </div>
