@@ -105,6 +105,12 @@ export function UploadContractDialog() {
       });
     }
   }, [isOpen, user]);
+
+  useEffect(() => {
+    if (contractText && tempEditorRef.current) {
+        tempEditorRef.current.documentEditor.open(contractText);
+    }
+  }, [contractText]);
   
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -169,12 +175,7 @@ export function UploadContractDialog() {
         throw new Error("OCR process failed to extract text.");
       }
       setContractText(ocrResult.extractedText);
-      
-      // Load plain text into hidden editor to convert to SFDT
-      if (tempEditorRef.current) {
-        tempEditorRef.current.documentEditor.open(ocrResult.extractedText);
-      }
-      
+            
       await handleFullAnalysis(ocrResult.extractedText);
 
     } catch (error) {
@@ -194,9 +195,6 @@ export function UploadContractDialog() {
   
   const handlePastedText = async (pastedText: string) => {
     setContractText(pastedText);
-    if (tempEditorRef.current) {
-        tempEditorRef.current.documentEditor.open(pastedText);
-    }
     await handleFullAnalysis(pastedText);
   };
 
@@ -239,8 +237,9 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
-      const sfdt = await tempEditorRef.current.documentEditor.serialize();
-      const sfdtString = sfdt; // It's already a string
+      // Explicitly load and serialize to ensure data is correct
+      tempEditorRef.current.documentEditor.open(contractText);
+      const sfdtString = await tempEditorRef.current.documentEditor.serialize();
 
       const currentParsedDetails = parsedDetails || {
         brand: "Unknown Brand",
@@ -569,3 +568,4 @@ export function UploadContractDialog() {
     </Dialog>
   );
 }
+
