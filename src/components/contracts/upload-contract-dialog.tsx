@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useTransition, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +30,11 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DocumentEditorContainerComponent } from '@syncfusion/ej2-react-documenteditor';
+import { registerLicense } from '@syncfusion/ej2-base';
+
+if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
+  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
+}
 
 
 export function UploadContractDialog() {
