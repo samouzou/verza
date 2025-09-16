@@ -366,7 +366,7 @@ export function UploadContractDialog() {
           </Alert>
         )}
 
-        <ScrollArea className="max-h-[calc(80vh-250px-50px)]">
+        <ScrollArea className="max-h-[calc(80vh - 120px)]">
         <div className="grid gap-6 p-1 pr-4">
            {user?.role === 'agency_owner' && agency && (
             <div>
