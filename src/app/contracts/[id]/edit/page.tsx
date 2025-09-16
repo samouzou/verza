@@ -462,11 +462,18 @@ export default function EditContractPage() {
               </CardHeader>
               <CardContent>
                  <DocumentEditorContainerComponent 
+                  id="container"
                   ref={editorRef} 
+                  style={{ display: "block" }}
                   height={'1100px'} 
                   enableToolbar={true}
                   serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                   inject={[Toolbar]}
+                  toolbarMode={"Ribbon"}
+                  showPropertiesPane={false}
+                  enableTrackChanges={true}
+                  currentUser={user?.displayName || "Guest"}
+                  locale="en-US"
                 />
               </CardContent>
             </Card>
@@ -478,5 +485,3 @@ export default function EditContractPage() {
     </form>
   );
 }
-
-    
