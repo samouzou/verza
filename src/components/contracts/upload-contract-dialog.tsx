@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useTransition, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -346,7 +347,7 @@ export function UploadContractDialog() {
           </DialogDescription>
         </DialogHeader>
         
-        <div style={{ display: 'none', height: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', height: '1px', width: '1px', overflow: 'hidden' }}>
             <DocumentEditorContainerComponent ref={tempEditorRef} height="1" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" enableToolbar={false}/>
         </div>
         
