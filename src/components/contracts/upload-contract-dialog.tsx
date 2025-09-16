@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DocumentEditorContainerComponent } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -107,7 +107,7 @@ export function UploadContractDialog() {
   }, [isOpen, user]);
 
   useEffect(() => {
-    if (contractText && tempEditorRef.current) {
+    if (tempEditorRef.current && contractText) {
         tempEditorRef.current.documentEditor.open(contractText);
     }
   }, [contractText]);
@@ -174,9 +174,9 @@ export function UploadContractDialog() {
       if (!ocrResult || !ocrResult.extractedText) {
         throw new Error("OCR process failed to extract text.");
       }
-      setContractText(ocrResult.extractedText);
-            
+      
       await handleFullAnalysis(ocrResult.extractedText);
+      setContractText(ocrResult.extractedText);
 
     } catch (error) {
       console.error("Error during file processing and OCR:", error);
@@ -194,8 +194,8 @@ export function UploadContractDialog() {
   };
   
   const handlePastedText = async (pastedText: string) => {
-    setContractText(pastedText);
     await handleFullAnalysis(pastedText);
+    setContractText(pastedText);
   };
 
 
@@ -237,6 +237,10 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
+      // Explicitly load final text and serialize
+      if (tempEditorRef.current.documentEditor) {
+        tempEditorRef.current.documentEditor.open(contractText);
+      }
       const sfdtString = await tempEditorRef.current.documentEditor.serialize();
 
       const currentParsedDetails = parsedDetails || {
@@ -332,7 +336,7 @@ export function UploadContractDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent 
-        className="w-[95vw] max-w-[95vw] max-h-[90vh]"
+        className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -366,192 +370,194 @@ export function UploadContractDialog() {
           </Alert>
         )}
 
-        <ScrollArea className="max-h-[calc(80vh - 120px)]">
-        <div className="grid gap-6 p-1 pr-4">
-           {user?.role === 'agency_owner' && agency && (
-            <div>
-              <Label htmlFor="contractOwner">Contract For</Label>
-              <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select who this contract is for..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
-                  {agency.talent?.filter(t => t.status === 'active').map(t => (
-                    <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-           <div>
-            <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
-            <Input
-              id="fileName"
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="e.g., BrandX_Sponsorship_Q4.pdf"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="projectName">Project Name (Optional)</Label>
-            <Input
-              id="projectName"
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="e.g., Q3 YouTube Campaign"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="contractFile">Upload Contract File</Label>
-            <Input
-              id="contractFile"
-              type="file"
-              accept=".pdf,.doc,.docx,image/*"
-              className="mt-1"
-              onChange={handleFileChange}
-            />
-             <p className="text-xs text-muted-foreground mt-1">
-              Uploading will automatically extract text and run AI analysis.
-            </p>
-          </div>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="clientName">Client Name</Label>
-                <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} />
-              </div>
-              <div>
-                <Label htmlFor="clientEmail">Client Email</Label>
-                <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="clientAddress">Client Address</Label>
-                <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/>
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="paymentInstructions">Payment Instructions (Bank details, PayPal, etc.)</Label>
-                <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="isRecurring"
-                  checked={isRecurring}
-                  onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
-                />
-                <Label htmlFor="isRecurring" className="font-normal">
-                  Is this a recurring contract?
-                </Label>
-              </div>
-              {isRecurring && (
+        <div className="flex-grow overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="grid gap-6 p-1 pr-4">
+              {user?.role === 'agency_owner' && agency && (
                 <div>
-                  <Label htmlFor="recurrenceInterval">Recurrence Interval</Label>
-                  <Select
-                    value={recurrenceInterval}
-                    onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
-                  >
-                    <SelectTrigger id="recurrenceInterval" className="mt-1">
-                      <SelectValue placeholder="Select interval" />
+                  <Label htmlFor="contractOwner">Contract For</Label>
+                  <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select who this contract is for..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="annually">Annually</SelectItem>
+                      <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
+                      {agency.talent?.filter(t => t.status === 'active').map(t => (
+                        <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-
-          <div>
-            <Label htmlFor="contractText">Extracted Contract Text</Label>
-            <Textarea
-              id="contractText"
-              value={contractText}
-              onChange={(e) => handlePastedText(e.target.value)}
-              placeholder="Upload a file to automatically extract text, or paste the text here."
-              rows={8}
-              className="mt-1"
-              disabled={isProcessingAi}
-            />
-          </div>
-
-          {isProcessingAi && (
-            <div className="flex items-center gap-2 text-primary">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>AI is analyzing your document...</span>
-            </div>
-          )}
-
-          {parseError && (
-            <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
               <div>
-                <p className="font-semibold">AI Processing Error</p>
-                <p className="text-sm">{parseError}</p>
+                <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
+                <Input
+                  id="fileName"
+                  type="text"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="e.g., BrandX_Sponsorship_Q4.pdf"
+                  className="mt-1"
+                />
               </div>
-            </div>
-          )}
+              <div>
+                <Label htmlFor="projectName">Project Name (Optional)</Label>
+                <Input
+                  id="projectName"
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="e.g., Q3 YouTube Campaign"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="contractFile">Upload Contract File</Label>
+                <Input
+                  id="contractFile"
+                  type="file"
+                  accept=".pdf,.doc,.docx,image/*"
+                  className="mt-1"
+                  onChange={handleFileChange}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Uploading will automatically extract text and run AI analysis.
+                </p>
+              </div>
 
-          {(parsedDetails || summary || negotiationSuggestions) && !parseError && !isProcessingAi && (
-            <div className="mt-2 space-y-4">
-              <h3 className="text-lg font-semibold text-foreground">AI Analysis Results</h3>
-              {parsedDetails && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-md">Extracted Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p><strong>Brand:</strong> {parsedDetails.brand || 'N/A'}</p>
-                    <p><strong>Amount:</strong> {parsedDetails.amount ? `$${parsedDetails.amount.toLocaleString()}` : 'N/A'}</p>
-                    <p><strong>Due Date:</strong> {parsedDetails.dueDate ? new Date(parsedDetails.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</p>
-                    {parsedDetails.extractedTerms?.paymentMethod && <p><strong>Payment Method:</strong> {parsedDetails.extractedTerms.paymentMethod}</p>}
-                    {parsedDetails.extractedTerms?.deliverables && parsedDetails.extractedTerms.deliverables.length > 0 && (
-                        <p><strong>Deliverables:</strong> {parsedDetails.extractedTerms.deliverables.join(', ')}</p>
-                    )}
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="clientName">Client Name</Label>
+                    <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} />
+                  </div>
+                  <div>
+                    <Label htmlFor="clientEmail">Client Email</Label>
+                    <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="clientAddress">Client Address</Label>
+                    <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="paymentInstructions">Payment Instructions (Bank details, PayPal, etc.)</Label>
+                    <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isRecurring"
+                      checked={isRecurring}
+                      onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
+                    />
+                    <Label htmlFor="isRecurring" className="font-normal">
+                      Is this a recurring contract?
+                    </Label>
+                  </div>
+                  {isRecurring && (
+                    <div>
+                      <Label htmlFor="recurrenceInterval">Recurrence Interval</Label>
+                      <Select
+                        value={recurrenceInterval}
+                        onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
+                      >
+                        <SelectTrigger id="recurrenceInterval" className="mt-1">
+                          <SelectValue placeholder="Select interval" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                          <SelectItem value="annually">Annually</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+
+              <div>
+                <Label htmlFor="contractText">Extracted Contract Text</Label>
+                <Textarea
+                  id="contractText"
+                  value={contractText}
+                  onChange={(e) => handlePastedText(e.target.value)}
+                  placeholder="Upload a file to automatically extract text, or paste the text here."
+                  rows={8}
+                  className="mt-1"
+                  disabled={isProcessingAi}
+                />
+              </div>
+
+              {isProcessingAi && (
+                <div className="flex items-center gap-2 text-primary">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>AI is analyzing your document...</span>
+                </div>
               )}
-              {summary && (
-                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-md">Contract Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary || 'No summary generated.'}</p>
-                  </CardContent>
-                </Card>
+
+              {parseError && (
+                <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">AI Processing Error</p>
+                    <p className="text-sm">{parseError}</p>
+                  </div>
+                </div>
               )}
-              {negotiationSuggestions && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-md">Negotiation Suggestions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    {negotiationSuggestions.paymentTerms && <p><strong>Payment Terms:</strong> {negotiationSuggestions.paymentTerms}</p>}
-                    {negotiationSuggestions.exclusivity && <p><strong>Exclusivity:</strong> {negotiationSuggestions.exclusivity}</p>}
-                    {negotiationSuggestions.ipRights && <p><strong>IP Rights:</strong> {negotiationSuggestions.ipRights}</p>}
-                  </CardContent>
-                </Card>
+
+              {(parsedDetails || summary || negotiationSuggestions) && !parseError && !isProcessingAi && (
+                <div className="mt-2 space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">AI Analysis Results</h3>
+                  {parsedDetails && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-md">Extracted Details</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <p><strong>Brand:</strong> {parsedDetails.brand || 'N/A'}</p>
+                        <p><strong>Amount:</strong> {parsedDetails.amount ? `$${parsedDetails.amount.toLocaleString()}` : 'N/A'}</p>
+                        <p><strong>Due Date:</strong> {parsedDetails.dueDate ? new Date(parsedDetails.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</p>
+                        {parsedDetails.extractedTerms?.paymentMethod && <p><strong>Payment Method:</strong> {parsedDetails.extractedTerms.paymentMethod}</p>}
+                        {parsedDetails.extractedTerms?.deliverables && parsedDetails.extractedTerms.deliverables.length > 0 && (
+                            <p><strong>Deliverables:</strong> {parsedDetails.extractedTerms.deliverables.join(', ')}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                  {summary && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-md">Contract Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary.summary || 'No summary generated.'}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {negotiationSuggestions && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-md">Negotiation Suggestions</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        {negotiationSuggestions.paymentTerms && <p><strong>Payment Terms:</strong> {negotiationSuggestions.paymentTerms}</p>}
+                        {negotiationSuggestions.exclusivity && <p><strong>Exclusivity:</strong> {negotiationSuggestions.exclusivity}</p>}
+                        {negotiationSuggestions.ipRights && <p><strong>IP Rights:</strong> {negotiationSuggestions.ipRights}</p>}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </ScrollArea>
         </div>
-        </ScrollArea>
         <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
           <Button 
