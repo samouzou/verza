@@ -466,8 +466,8 @@ export default function EditContractPage() {
                   ref={editorRef} 
                   style={{ display: "block" }}
                   height={'1100px'} 
-                  enableToolbar={true}
                   serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                  enableToolbar={true}
                   inject={[Toolbar]}
                   toolbarMode={"Ribbon"}
                   showPropertiesPane={false}
