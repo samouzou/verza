@@ -20,7 +20,7 @@ export interface EditableInvoiceDetails {
   invoiceDate: string; // YYYY-MM-DD
   dueDate: string;     // YYYY-MM-DD
   projectName?: string;
-  deliverables: EditableInvoiceLineItem[];
+  deliverables?: EditableInvoiceLineItem[];
   // totalAmount will be calculated from deliverables
   paymentInstructions?: string;
   // payInvoiceLink is generated, not edited by user directly here.
