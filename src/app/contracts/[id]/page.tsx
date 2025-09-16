@@ -704,7 +704,7 @@ export default function ContractDetailPage() {
                               />
                             </div>
                             <div className="hidden print:block">
-                               <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.contractText}</p>
+                               <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.summary || 'Summary not available.'}</p>
                             </div>
                         </div>
                      ) : (
