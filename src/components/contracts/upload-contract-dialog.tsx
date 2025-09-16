@@ -237,8 +237,6 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
-      // Explicitly load and serialize to ensure data is correct
-      tempEditorRef.current.documentEditor.open(contractText);
       const sfdtString = await tempEditorRef.current.documentEditor.serialize();
 
       const currentParsedDetails = parsedDetails || {
@@ -569,3 +567,4 @@ export function UploadContractDialog() {
   );
 }
 
+    
