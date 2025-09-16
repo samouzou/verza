@@ -475,10 +475,12 @@ export default function EditContractPage() {
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
-                  enableOpenAi={true}
-                  openAiSettings={{
-                    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                    model: 'gemini-1.5-flash',
+                  documentEditorSettings={{
+                    enableOpenAi: true,
+                    openAiSettings: {
+                      apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
+                      model: 'gemini-1.5-flash',
+                    }
                   }}
                 >
                   <Inject services={[Toolbar]} />
@@ -493,5 +495,3 @@ export default function EditContractPage() {
     </form>
   );
 }
-
-    

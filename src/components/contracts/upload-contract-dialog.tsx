@@ -371,7 +371,7 @@ export function UploadContractDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent 
-        className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col"
+        className="w-[95vw] max-w-[95vw] max-h-[90vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -556,10 +556,12 @@ export function UploadContractDialog() {
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
-                  enableOpenAi={true}
-                  openAiSettings={{
-                    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                    model: 'gemini-1.5-flash',
+                  documentEditorSettings={{
+                    enableOpenAi: true,
+                    openAiSettings: {
+                      apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
+                      model: 'gemini-1.5-flash',
+                    }
                   }}
                 >
                   <Inject services={[Toolbar]} />
@@ -582,4 +584,3 @@ export function UploadContractDialog() {
   );
 }
 
-    
