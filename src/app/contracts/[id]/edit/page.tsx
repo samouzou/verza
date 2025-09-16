@@ -471,7 +471,7 @@ export default function EditContractPage() {
                   inject={[Toolbar]}
                   toolbarMode={"Ribbon"}
                   showPropertiesPane={false}
-                  enableTrackChanges={true}
+                  enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
                 />
