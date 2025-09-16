@@ -145,7 +145,7 @@ export default function EditContractPage() {
     if (!editorRef.current) return;
     
     // Get plain text from the editor for AI analysis
-    const textToAnalyze = await editorRef.current.documentEditor.getText();
+    const textToAnalyze = editorRef.current.documentEditor.text;
 
     if (!textToAnalyze.trim()) {
       toast({ title: "Cannot Parse", description: "Contract text is empty.", variant: "destructive" });
@@ -188,7 +188,10 @@ export default function EditContractPage() {
     }
     setIsSaving(true);
 
-    const newContractText = await editorRef.current.documentEditor.serialize();
+    const newContractPlainText = editorRef.current.documentEditor.text;
+    editorRef.current.documentEditor.open(newContractPlainText);
+    const newContractText = editorRef.current.documentEditor.serialize();
+
 
     const contractAmount = parseFloat(amount as string);
     if (isNaN(contractAmount) || contractAmount < 0) {
