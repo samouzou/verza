@@ -231,7 +231,7 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
-      const contractTextForSave = await editorRef.current.documentEditor.getText();
+      const contractTextForSave = editorRef.current.getText();
       editorRef.current.documentEditor.open(contractTextForSave); // Load plain text to convert it
       const sfdtString = await editorRef.current.documentEditor.serialize(); // Serialize to SFDT
 
@@ -537,30 +537,28 @@ export function UploadContractDialog() {
                </div>
             )}
             
-            {!isProcessingAi && !parseError && (
-              <div className="flex-grow min-h-0 relative">
-                <div style={{ display: parsedDetails ? 'none' : 'block', height: '100%' }}>
-                  <DocumentEditorContainerComponent 
-                    id="upload-editor"
-                    ref={editorRef} 
-                    style={{ display: "block" }}
-                    height="100%"
-                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                    enableToolbar={true}
-                    showPropertiesPane={false}
-                  >
-                    <Inject services={[Toolbar]} />
-                  </DocumentEditorContainerComponent>
-                </div>
-                {parsedDetails && (
-                  <div className="absolute inset-0">
-                    <ScrollArea className="h-full">
-                      <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
-                    </ScrollArea>
-                  </div>
-                )}
+            <div className="flex-grow min-h-0 relative">
+              <div style={{ display: (isProcessingAi || parseError) ? 'none' : (parsedDetails ? 'none' : 'block'), height: '100%' }}>
+                <DocumentEditorContainerComponent 
+                  id="upload-editor"
+                  ref={editorRef} 
+                  style={{ display: "block" }}
+                  height="100%"
+                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                  enableToolbar={true}
+                  showPropertiesPane={false}
+                >
+                  <Inject services={[Toolbar]} />
+                </DocumentEditorContainerComponent>
               </div>
-            )}
+              {parsedDetails && !isProcessingAi && !parseError && (
+                <div className="absolute inset-0">
+                  <ScrollArea className="h-full">
+                    <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
+                  </ScrollArea>
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
