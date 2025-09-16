@@ -557,13 +557,11 @@ export function UploadContractDialog() {
                       height="100%"
                       serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                       enableToolbar={true}
-                      toolbarMode={"Ribbon"}
                       showPropertiesPane={false}
                       enableTrackChanges={false}
                       currentUser={user?.displayName || "Guest"}
                       locale="en-US"
                       documentEditorSettings={{
-                        enableOpenAi: true,
                         openAiSettings: {
                           apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
                           model: 'gemini-1.5-flash',
