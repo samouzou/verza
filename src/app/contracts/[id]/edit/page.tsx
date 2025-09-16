@@ -15,13 +15,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject } from '@/lib/firebase';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { diffChars } from 'diff';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
@@ -432,25 +431,6 @@ export default function EditContractPage() {
         description="Modify the contract text and details. Your changes will be saved to a new version."
         actions={
           <div className="flex items-center gap-2">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline">
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Details & AI
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="w-[450px] sm:max-w-xl overflow-y-auto">
-                 <SheetHeader>
-                  <SheetTitle>Contract Intelligence</SheetTitle>
-                  <SheetDescription>
-                    Review AI insights and edit core contract details.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="py-4">
-                  {renderSidebarContent()}
-                </div>
-              </SheetContent>
-            </Sheet>
             <Button type="button" variant="outline" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
               Cancel
             </Button>
@@ -461,35 +441,42 @@ export default function EditContractPage() {
           </div>
         }
       />
-      <div className="mt-4">
-        <Card className="h-full">
-           <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Contract Editor</CardTitle>
-                <CardDescription>Make changes to the full text of the contract below.</CardDescription>
-              </div>
-               <Button
-                type="button"
-                onClick={handleAiReparse}
-                disabled={isReparsingAi || isSaving}
-                variant="outline"
-                size="sm"
-              >
-                {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                Re-process with AI
-              </Button>
-          </CardHeader>
-          <CardContent>
-             <DocumentEditorContainerComponent 
-              ref={editorRef} 
-              height={'1100px'} 
-              enableToolbar={true}
-              serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-              inject={[Toolbar]}
-            />
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
+        <div className="lg:col-span-2">
+            <Card className="h-full">
+               <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Contract Editor</CardTitle>
+                    <CardDescription>Make changes to the full text of the contract below.</CardDescription>
+                  </div>
+                   <Button
+                    type="button"
+                    onClick={handleAiReparse}
+                    disabled={isReparsingAi || isSaving}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    Re-process with AI
+                  </Button>
+              </CardHeader>
+              <CardContent>
+                 <DocumentEditorContainerComponent 
+                  ref={editorRef} 
+                  height={'1100px'} 
+                  enableToolbar={true}
+                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                  inject={[Toolbar]}
+                />
+              </CardContent>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-6">
+            {renderSidebarContent()}
+        </div>
       </div>
     </form>
   );
 }
+
+    
