@@ -31,6 +31,11 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { registerLicense } from '@syncfusion/ej2-base';
+
+if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
+  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
+}
 
 export function UploadContractDialog() {
   const [isOpen, setIsOpen] = useState(false);
@@ -183,7 +188,7 @@ export function UploadContractDialog() {
   
   const handlePastedText = async () => {
     if (!editorRef.current) return;
-    const textToAnalyze = await editorRef.current.documentEditor.getText();
+    const textToAnalyze = editorRef.current.documentEditor.text;
     await handleFullAnalysis(textToAnalyze);
   };
   
@@ -231,9 +236,9 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
-      const contractTextForSave = editorRef.current.getText();
+      const contractTextForSave = editorRef.current.documentEditor.text;
       editorRef.current.documentEditor.open(contractTextForSave); // Load plain text to convert it
-      const sfdtString = await editorRef.current.documentEditor.serialize(); // Serialize to SFDT
+      const sfdtString = editorRef.current.documentEditor.serialize(); // Serialize to SFDT
 
       const currentParsedDetails = parsedDetails || {
         brand: "Unknown Brand",
@@ -551,13 +556,11 @@ export function UploadContractDialog() {
                   <Inject services={[Toolbar]} />
                 </DocumentEditorContainerComponent>
               </div>
-              {parsedDetails && !isProcessingAi && !parseError && (
-                <div className="absolute inset-0">
-                  <ScrollArea className="h-full">
-                    <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
-                  </ScrollArea>
-                </div>
-              )}
+              <div style={{ display: (isProcessingAi || parseError || !parsedDetails) ? 'none' : 'block', height: '100%' }}>
+                <ScrollArea className="h-full">
+                  <div className="space-y-4 pr-4">{parsedDetails && renderAiAnalysis()}</div>
+                </ScrollArea>
+              </div>
             </div>
 
           </div>
