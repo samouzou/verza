@@ -322,7 +322,7 @@ export default function ContractDetailPage() {
     };
   }, [id, user, authLoading, router, toast]);
   
-  useEffect(() => {
+  const onEditorCreated = () => {
     if (editorRef.current && contract?.contractText) {
       try {
         editorRef.current.documentEditor.open(contract.contractText);
@@ -330,7 +330,7 @@ export default function ContractDetailPage() {
         console.error("Failed to load SFDT content in viewer:", e);
       }
     }
-  }, [contract?.contractText]);
+  };
 
   useEffect(() => {
     if (isSignatureDialogOpen && contract) {
@@ -694,6 +694,7 @@ export default function ContractDetailPage() {
                               <DocumentEditorContainerComponent 
                                 id="contract-viewer" 
                                 ref={editorRef}
+                                created={onEditorCreated}
                                 style={{ display: 'block' }} 
                                 height="100%" 
                                 serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
