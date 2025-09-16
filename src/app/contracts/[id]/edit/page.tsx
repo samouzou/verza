@@ -25,7 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
-import { DocumentEditorContainerComponent, Toolbar, Inject, OpenAi } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Toolbar, Inject } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -481,7 +481,7 @@ export default function EditContractPage() {
                     model: 'gemini-1.5-flash',
                   }}
                 >
-                  <Inject services={[Toolbar, OpenAi]} />
+                  <Inject services={[Toolbar]} />
                 </DocumentEditorContainerComponent>
               </CardContent>
             </Card>
@@ -493,3 +493,5 @@ export default function EditContractPage() {
     </form>
   );
 }
+
+    
