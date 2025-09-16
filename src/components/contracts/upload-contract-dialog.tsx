@@ -31,12 +31,6 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
-import { registerLicense } from '@syncfusion/ej2-base';
-
-if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
-  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
-}
-
 
 export function UploadContractDialog() {
   const [isOpen, setIsOpen] = useState(false);
@@ -542,38 +536,32 @@ export function UploadContractDialog() {
                   </Alert>
                </div>
             )}
+            
             {!isProcessingAi && !parseError && (
-              <div className="flex-grow min-h-0">
-                {parsedDetails ? (
-                  <ScrollArea className="h-full">
-                    <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
-                  </ScrollArea>
-                ) : (
-                  <div className="h-full flex flex-col">
-                     <DocumentEditorContainerComponent 
-                      id="upload-editor"
-                      ref={editorRef} 
-                      style={{ display: "block" }}
-                      height="100%"
-                      serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
-                      enableToolbar={true}
-                      showPropertiesPane={false}
-                      enableTrackChanges={false}
-                      currentUser={user?.displayName || "Guest"}
-                      locale="en-US"
-                      documentEditorSettings={{
-                        openAiSettings: {
-                          apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                          model: 'gemini-1.5-flash',
-                        }
-                      }}
-                    >
-                      <Inject services={[Toolbar]} />
-                    </DocumentEditorContainerComponent>
+              <div className="flex-grow min-h-0 relative">
+                <div style={{ display: parsedDetails ? 'none' : 'block', height: '100%' }}>
+                  <DocumentEditorContainerComponent 
+                    id="upload-editor"
+                    ref={editorRef} 
+                    style={{ display: "block" }}
+                    height="100%"
+                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                    enableToolbar={true}
+                    showPropertiesPane={false}
+                  >
+                    <Inject services={[Toolbar]} />
+                  </DocumentEditorContainerComponent>
+                </div>
+                {parsedDetails && (
+                  <div className="absolute inset-0">
+                    <ScrollArea className="h-full">
+                      <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
+                    </ScrollArea>
                   </div>
                 )}
               </div>
             )}
+
           </div>
         </div>
         <DialogFooter className="pt-4 border-t">
