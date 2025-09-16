@@ -47,6 +47,13 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DocumentEditorContainerComponent, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { registerLicense } from '@syncfusion/ej2-base';
+
+if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
+  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
+}
+
 
 const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
 
@@ -134,6 +141,7 @@ export default function ContractDetailPage() {
   const [signerEmailOverride, setSignerEmailOverride] = useState("");
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
@@ -313,6 +321,16 @@ export default function ContractDetailPage() {
       if (unsubscribeEmailLogs) unsubscribeEmailLogs();
     };
   }, [id, user, authLoading, router, toast]);
+  
+  useEffect(() => {
+    if (editorRef.current && contract?.contractText) {
+      try {
+        editorRef.current.documentEditor.open(contract.contractText);
+      } catch (e) {
+        console.error("Failed to load SFDT content in viewer:", e);
+      }
+    }
+  }, [contract?.contractText]);
 
   useEffect(() => {
     if (isSignatureDialogOpen && contract) {
@@ -669,19 +687,26 @@ export default function ContractDetailPage() {
                         </div>
                      )}
 
-                     {contract.contractText && (
+                     {contract.contractText ? (
                         <div className="contract-text-card-for-print">
                             <h3 className="font-semibold text-lg mb-2 hide-on-print">Full Contract Text</h3>
-                             <ScrollArea className="h-[500px] pr-3 border rounded-md p-3 bg-muted/30 hide-on-print">
-                                <p className="text-sm text-foreground whitespace-pre-wrap">{contract.contractText}</p>
-                            </ScrollArea>
-                            {/* This is for printing only */}
+                            <div className="h-[800px] border rounded-md overflow-hidden hide-on-print">
+                              <DocumentEditorContainerComponent 
+                                id="contract-viewer" 
+                                ref={editorRef}
+                                style={{ display: 'block' }} 
+                                height="100%" 
+                                serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
+                                enableToolbar={false}
+                                isReadOnly={true}
+                                showPropertiesPane={false}
+                              />
+                            </div>
                             <div className="hidden print:block">
                                <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.contractText}</p>
                             </div>
                         </div>
-                     )}
-                     {!contract.contractText && (
+                     ) : (
                         <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
                           <p>No contract text available.</p>
                           <p className="text-sm">Edit the contract to paste the text for AI analysis.</p>
@@ -831,16 +856,20 @@ export default function ContractDetailPage() {
                       : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
                       : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
                           {contractComments.map(comment => (
-                            <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
-                              <div className="flex items-center justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                            <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
+                              <div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
                               <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
                               {comment.replies && comment.replies.length > 0 && (
-                                <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
-                                  <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                    <div className="flex items-center justify-between mb-0.5"><p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                                    <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                                  </div>
-                                ))}</div>
+                                <div className="mt-3 ml-8 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
+                                    {comment.replies.map(reply => (
+                                        <div key={reply.replyId}>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName} (Creator)</p>
+                                            </div>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{reply.replyText}</p>
+                                        </div>
+                                    ))}
+                                </div>
                               )}
                               <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
                             </div>
