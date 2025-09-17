@@ -490,7 +490,6 @@ export default function EditContractPage() {
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     showPropertiesPane={false}
                     toolbarMode={'Ribbon'}
-                    documentEditorSettings={{ enableSfdtExport: true }}
                     currentUser={user?.displayName || "Guest"}
                     locale="en-US"
                   />
