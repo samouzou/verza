@@ -235,7 +235,7 @@ export function UploadContractDialog() {
         fileUrlToSave = await getDownloadURL(uploadResult.ref);
       }
       
-      const sfdtString = editorRef.current.documentEditor.serialize();
+      const sfdtString = await editorRef.current.documentEditor.serialize();
 
       const currentParsedDetails = parsedDetails || {
         brand: "Unknown Brand",
@@ -549,13 +549,8 @@ export function UploadContractDialog() {
                     height="100%"
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     enableToolbar={true}
+                    enableSfdtExport={true}
                     showPropertiesPane={false}
-                    documentEditorSettings={{
-                      openAiSettings: {
-                        apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                        model: 'gemini-1.5-flash',
-                      }
-                    }}
                   >
                     <Inject services={[Toolbar]} />
                   </DocumentEditorContainerComponent>

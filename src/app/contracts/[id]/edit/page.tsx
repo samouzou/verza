@@ -479,16 +479,11 @@ export default function EditContractPage() {
                   height={'1100px'} 
                   serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                   enableToolbar={true}
+                  enableSfdtExport={true}
                   showPropertiesPane={false}
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
-                  documentEditorSettings={{
-                    openAiSettings: {
-                      apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
-                      model: 'gemini-1.5-flash',
-                    }
-                  }}
                 >
                   <Inject services={[Toolbar]} />
                 </DocumentEditorContainerComponent>
