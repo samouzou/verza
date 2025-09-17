@@ -442,7 +442,7 @@ export default function EditContractPage() {
   }
   
   return (
-    <form onSubmit={handleSaveChanges}>
+    <form onSubmit={(e) => handleSaveChanges(e)}>
       <PageHeader
         title={`Edit: ${contract.brand || 'Contract'}`}
         description="Modify the contract text and details. Your changes will be saved to a new version."
@@ -504,3 +504,4 @@ export default function EditContractPage() {
     </form>
   );
 }
+
