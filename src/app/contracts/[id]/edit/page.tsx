@@ -195,8 +195,8 @@ export default function EditContractPage() {
     }
   };
   
-  const handleSaveChanges = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSaveChanges = async (e?: FormEvent) => {
+    if(e) e.preventDefault();
     if (!contract || !user || !editorRef.current) {
       toast({ title: "Error", description: "Contract, user, or editor data missing.", variant: "destructive" });
       return;
@@ -380,7 +380,7 @@ export default function EditContractPage() {
           <Card>
             <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
               <CardHeader className="flex-1 text-left">
-                <CardTitle>Client & File</CardTitle>
+                <CardTitle>Client &amp; File</CardTitle>
                 <CardDescription>Details for invoicing and the original file.</CardDescription>
               </CardHeader>
             </AccordionTrigger>
@@ -442,7 +442,7 @@ export default function EditContractPage() {
   }
   
   return (
-    <form onSubmit={(e) => handleSaveChanges(e)}>
+    <>
       <PageHeader
         title={`Edit: ${contract.brand || 'Contract'}`}
         description="Modify the contract text and details. Your changes will be saved to a new version."
@@ -454,7 +454,7 @@ export default function EditContractPage() {
             <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
               <Download className="mr-2 h-4 w-4" /> Export as .docx
             </Button>
-            <Button type="submit" disabled={isSaving || isReparsingAi}>
+            <Button onClick={() => handleSaveChanges()} disabled={isSaving || isReparsingAi}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
@@ -501,7 +501,6 @@ export default function EditContractPage() {
             {renderSidebarContent()}
         </div>
       </div>
-    </form>
+    </>
   );
 }
-
