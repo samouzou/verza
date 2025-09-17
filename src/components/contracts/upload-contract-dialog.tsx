@@ -173,7 +173,9 @@ export function UploadContractDialog() {
       const plainText = ocrResult.extractedText;
 
       if (editorRef.current) {
-        editorRef.current.documentEditor.open(plainText);
+        // Use insertText to put the OCR'd content into the editor
+        editorRef.current.documentEditor.editor.insertText(plainText);
+        
         // The text is loaded. Now we can serialize it and pass it to analysis.
         const sfdtString = editorRef.current.documentEditor.serialize();
         await handleFullAnalysis(sfdtString);
