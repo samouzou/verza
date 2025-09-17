@@ -491,7 +491,7 @@ export default function EditContractPage() {
                     showPropertiesPane={false}
                     enableToolbar={true}
                     toolbarMode={'Ribbon'}
-                    ribbonLayout={'Simplified'}
+                    ribbonLayout="Simplified"
                     currentUser={user?.displayName || "Guest"}
                     locale="en-US"
                   />
