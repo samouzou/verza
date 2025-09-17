@@ -544,19 +544,16 @@ export function UploadContractDialog() {
                 )}
               </div>
               
-              <div style={{ display: 'block', height: '100%' }} className="border rounded-md">
+              <div id="container" style={{ height: '100%' }} className="border rounded-md">
                   <DocumentEditorContainerComponent 
-                    id="upload-editor"
+                    id="editor"
                     ref={editorRef} 
-                    style={{ display: "block" }}
-                    height="100%"
+                    height="100%" 
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     showPropertiesPane={false}
-                    enableToolbar={true}
                     toolbarMode={'Ribbon'}
-                  >
-                    <Inject services={[Toolbar]} />
-                  </DocumentEditorContainerComponent>
+                    documentEditorSettings={{ enableSfdtExport: true }}
+                  />
               </div>
 
               {parsedDetails && (

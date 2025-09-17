@@ -25,7 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
-import { DocumentEditorContainerComponent, Toolbar, Inject, Ribbon } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -474,21 +474,20 @@ export default function EditContractPage() {
                   </Button>
               </CardHeader>
               <CardContent>
-                 <DocumentEditorContainerComponent 
-                  id="container"
-                  ref={editorRef} 
-                  created={onEditorCreated}
-                  style={{ display: "block" }}
-                  height={'1100px'} 
-                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                  showPropertiesPane={false}
-                  enableToolbar={true}
-                  toolbarMode={'Ribbon'}
-                  currentUser={user?.displayName || "Guest"}
-                  locale="en-US"
-                >
-                  <Inject services={[Toolbar]} />
-                </DocumentEditorContainerComponent>
+                <div id="container" style={{ height: '1100px' }}>
+                  <DocumentEditorContainerComponent 
+                    id="editor"
+                    ref={editorRef} 
+                    created={onEditorCreated}
+                    height={'100%'} 
+                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                    showPropertiesPane={false}
+                    toolbarMode={'Ribbon'}
+                    documentEditorSettings={{ enableSfdtExport: true }}
+                    currentUser={user?.displayName || "Guest"}
+                    locale="en-US"
+                  />
+                </div>
               </CardContent>
             </Card>
         </div>
