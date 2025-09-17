@@ -85,6 +85,32 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (contractData.contractText) {
       logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
 
+      // Safely parse the SFDT string
+      let plainTextContent = "";
+      try {
+        const sfdtData = JSON.parse(contractData.contractText);
+        if (sfdtData && sfdtData.sections) {
+          for (const section of sfdtData.sections) {
+            if (section.blocks) {
+              for (const block of section.blocks) {
+                if (block.inlines) {
+                  for (const inline of block.inlines) {
+                    if (inline.text) {
+                      plainTextContent += inline.text;
+                    }
+                  }
+                }
+                plainTextContent += "\n\n"; // Add paragraph breaks
+              }
+            }
+          }
+        }
+      } catch (e) {
+        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text.`, e);
+        plainTextContent = contractData.contractText; // Fallback to raw text
+      }
+
+
       const htmlContent = `
         <!DOCTYPE html>
         <html lang="en">
@@ -98,7 +124,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </style>
         </head>
         <body>
-          <pre>${contractData.contractText}</pre>
+          <pre>${plainTextContent.trim()}</pre>
         </body>
         </html>
       `;
