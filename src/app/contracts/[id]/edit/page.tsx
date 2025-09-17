@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject } from '@/lib/firebase';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Download } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -176,6 +176,15 @@ export default function EditContractPage() {
     }
   };
 
+  const handleExportDocx = () => {
+    if (editorRef.current) {
+      const docName = projectName || brand || "contract";
+      editorRef.current.documentEditor.save(`${docName}.docx`, 'Docx');
+    } else {
+      toast({ title: "Export Error", description: "Editor not ready. Please wait a moment.", variant: "destructive" });
+    }
+  };
+  
   const handleSaveChanges = async (e: FormEvent) => {
     e.preventDefault();
     if (!contract || !user || !editorRef.current) {
@@ -432,6 +441,9 @@ export default function EditContractPage() {
             <Button type="button" variant="outline" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
               Cancel
             </Button>
+            <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
+              <Download className="mr-2 h-4 w-4" /> Export as .docx
+            </Button>
             <Button type="submit" disabled={isSaving || isReparsingAi}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
@@ -490,7 +502,5 @@ export default function EditContractPage() {
     </form>
   );
 }
-
-    
 
     
