@@ -47,8 +47,9 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DocumentEditorContainerComponent, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
+import { useSidebar } from '@/components/ui/sidebar';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -142,6 +143,12 @@ export default function ContractDetailPage() {
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
+  const { setOpen } = useSidebar();
+
+  useEffect(() => {
+    // Collapse sidebar by default on this page
+    setOpen(false);
+  }, [setOpen]);
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;

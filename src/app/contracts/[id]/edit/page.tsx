@@ -27,6 +27,7 @@ import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
+import { useSidebar } from '@/components/ui/sidebar';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -71,6 +72,12 @@ export default function EditContractPage() {
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   const [copiedSuggestion, setCopiedSuggestion] = useState<string | null>(null);
+  const { setOpen } = useSidebar();
+
+  useEffect(() => {
+    // Collapse sidebar by default on this page
+    setOpen(false);
+  }, [setOpen]);
 
 
   const handleCopySuggestion = (text: string | undefined) => {
