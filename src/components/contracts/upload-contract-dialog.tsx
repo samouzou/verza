@@ -548,8 +548,8 @@ export function UploadContractDialog() {
                     style={{ display: "block" }}
                     height="100%"
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                    enableToolbar={true}
                     showPropertiesPane={false}
+                    documentEditorSettings={{ enableSfdtExport: true }}
                   >
                     <Inject services={[Toolbar]} />
                   </DocumentEditorContainerComponent>

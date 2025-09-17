@@ -478,11 +478,11 @@ export default function EditContractPage() {
                   style={{ display: "block" }}
                   height={'1100px'} 
                   serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                  enableToolbar={true}
                   showPropertiesPane={false}
                   enableTrackChanges={false}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
+                  documentEditorSettings={{ enableSfdtExport: true }}
                 >
                   <Inject services={[Toolbar]} />
                 </DocumentEditorContainerComponent>
