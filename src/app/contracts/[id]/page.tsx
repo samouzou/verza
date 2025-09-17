@@ -13,9 +13,8 @@ import { ContractStatusBadge } from '@/components/contracts/contract-status-badg
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
-import { storage, functions as firebaseAppFunctions } from '@/lib/firebase'; // Import initialized functions
+import { storage } from '@/lib/firebase'; // Import initialized functions
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
-import { getFunctions, httpsCallableFromURL } from 'firebase/functions'; // Keep these for callable
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -30,13 +29,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
@@ -45,8 +37,6 @@ import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -54,9 +44,6 @@ import { useSidebar } from '@/components/ui/sidebar';
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
-
-
-const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
 
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
@@ -114,7 +101,7 @@ export default function ContractDetailPage() {
   const id = params.id as string;
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
@@ -135,11 +122,6 @@ export default function ContractDetailPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'comment'; id: string } | { type: 'reply'; commentId: string; replyId: string } | null>(null);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
-
-  // E-Signature State
-  const [isSendingForSignature, setIsSendingForSignature] = useState(false);
-  const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
-  const [signerEmailOverride, setSignerEmailOverride] = useState("");
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
@@ -339,12 +321,6 @@ export default function ContractDetailPage() {
     }
   };
 
-  useEffect(() => {
-    if (isSignatureDialogOpen && contract) {
-      setSignerEmailOverride(contract.clientEmail || "");
-    }
-  }, [isSignatureDialogOpen, contract]);
-
   const handleDeleteContract = async () => {
     if (!contract) return;
     setIsDeletingContract(true);
@@ -459,74 +435,6 @@ export default function ContractDetailPage() {
       setIsDeletingCommentOrReply(false);
     }
   };
-  
-  const handleInitiateSignatureRequest = async () => {
-    if (!contract || !user) {
-      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
-      return;
-    }
-    if (!signerEmailOverride.trim()) {
-      toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
-      return;
-    }
-    if (!contract.fileUrl && !contract.contractText) {
-      toast({ title: "File or Text Missing", description: "This contract does not have an uploaded file or text to send for signature.", variant: "destructive" });
-      return;
-    }
-
-    setIsSendingForSignature(true);
-    try {
-      const idToken = await getUserIdToken();
-      if (!idToken) {
-        throw new Error("Authentication token is not available.");
-      }
-      
-      const initiateRequestCallable = httpsCallableFromURL(
-        firebaseAppFunctions, 
-        INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL
-      );
-
-      const result = await initiateRequestCallable({
-        contractId: contract.id,
-        signerEmailOverride: signerEmailOverride.trim(),
-      });
-
-      const data = result.data as { success: boolean; message: string; helloSignRequestId?: string };
-
-      if (data.success) {
-        toast({ title: "E-Signature Request Sent", description: data.message });
-        setIsSignatureDialogOpen(false); 
-      } else {
-        throw new Error(data.message || "Failed to send e-signature request.");
-      }
-    } catch (error: any) {
-      console.error("Error initiating Dropbox Sign request:", error);
-      toast({
-        title: "E-Signature Error",
-        description: error.message || "Could not initiate e-signature request.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingForSignature(false);
-    }
-  };
-
-  const getSignatureButtonText = () => {
-    if (!contract?.signatureStatus || contract.signatureStatus === 'none') return "Send for E-Signature";
-    if (contract.signatureStatus === 'sent') return "Signature Request Sent";
-    if (contract.signatureStatus === 'signed') return "Document Signed";
-    if (contract.signatureStatus === 'viewed_by_signer') return "Viewed by Signer";
-    if (contract.signatureStatus === 'declined') return "Signature Declined - Resend?";
-    if (contract.signatureStatus === 'canceled') return "Request Canceled - Resend?";
-    if (contract.signatureStatus === 'error') return "Error Sending - Retry?";
-    return "Manage E-Signature";
-  };
-  
-  const canSendSignatureRequest = !contract?.signatureStatus || 
-                                 contract.signatureStatus === 'none' || 
-                                 contract.signatureStatus === 'error' || 
-                                 contract.signatureStatus === 'declined' ||
-                                 contract.signatureStatus === 'canceled';
 
   const handleUpdateProposalStatus = async (proposal: RedlineProposal, newStatus: 'accepted' | 'rejected') => {
     if (!contract || !user) return;
@@ -733,44 +641,7 @@ export default function ContractDetailPage() {
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Edit3 className="mr-2 h-4 w-4"/>Edit</Link></Button>
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
                       <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
-                      <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
-                            {getSignatureButtonText()}
-                          </Button>
-                        </DialogTrigger>
-                         {canSendSignatureRequest && (
-                           <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Send for E-Signature</DialogTitle>
-                                <DialogDescription>
-                                  Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4 py-2">
-                                <div>
-                                  <Label htmlFor="signer-email">Client's Email</Label>
-                                  <Input 
-                                    id="signer-email"
-                                    type="email"
-                                    value={signerEmailOverride}
-                                    onChange={(e) => setSignerEmailOverride(e.target.value)}
-                                    placeholder="client@example.com"
-                                    disabled={isSendingForSignature}
-                                  />
-                                  <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
-                                </div>
-                              </div>
-                              <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
-                                <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
-                                  {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIconComponent className="mr-2 h-4 w-4" />}
-                                  Send Request
-                                </Button>
-                              </DialogFooter>
-                           </DialogContent>
-                         )}
-                      </Dialog>
+                      <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
                   </CardContent>
               </Card>
 
@@ -940,3 +811,5 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
+    

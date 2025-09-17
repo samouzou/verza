@@ -13,9 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject } from '@/lib/firebase';
+import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject, functions as firebaseAppFunctions } from '@/lib/firebase';
+import { httpsCallableFromURL } from 'firebase/functions';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Download } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Download, Send as SendIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -28,6 +29,10 @@ import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-fl
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { useSidebar } from '@/components/ui/sidebar';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
+const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
+
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -41,7 +46,7 @@ export default function EditContractPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
   let editorRef = useRef<DocumentEditorContainerComponent | null>(null);
@@ -50,6 +55,11 @@ export default function EditContractPage() {
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isReparsingAi, setIsReparsingAi] = useState(false);
+
+  // E-Signature State
+  const [isSendingForSignature, setIsSendingForSignature] = useState(false);
+  const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
+  const [signerEmailOverride, setSignerEmailOverride] = useState("");
 
   // Form state
   const [brand, setBrand] = useState('');
@@ -139,6 +149,12 @@ export default function EditContractPage() {
       router.push('/login');
     }
   }, [id, user, authLoading, router, toast]);
+
+  useEffect(() => {
+    if (isSignatureDialogOpen && contract) {
+      setSignerEmailOverride(contract.clientEmail || "");
+    }
+  }, [isSignatureDialogOpen, contract]);
 
   const onEditorCreated = () => {
     if (editorRef.current && contract?.contractText) {
@@ -277,6 +293,75 @@ export default function EditContractPage() {
     }
   };
 
+  const handleInitiateSignatureRequest = async () => {
+    if (!contract || !user) {
+      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
+      return;
+    }
+    if (!signerEmailOverride.trim()) {
+      toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
+      return;
+    }
+    if (!contract.fileUrl && !contract.contractText) {
+      toast({ title: "File or Text Missing", description: "This contract does not have an uploaded file or text to send for signature.", variant: "destructive" });
+      return;
+    }
+  
+    setIsSendingForSignature(true);
+    try {
+      const idToken = await getUserIdToken();
+      if (!idToken) {
+        throw new Error("Authentication token is not available.");
+      }
+      
+      const initiateRequestCallable = httpsCallableFromURL(
+        firebaseAppFunctions, 
+        INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL
+      );
+  
+      const result = await initiateRequestCallable({
+        contractId: contract.id,
+        signerEmailOverride: signerEmailOverride.trim(),
+      });
+  
+      const data = result.data as { success: boolean; message: string; helloSignRequestId?: string };
+  
+      if (data.success) {
+        toast({ title: "E-Signature Request Sent", description: data.message });
+        setIsSignatureDialogOpen(false); 
+      } else {
+        throw new Error(data.message || "Failed to send e-signature request.");
+      }
+    } catch (error: any) {
+      console.error("Error initiating Dropbox Sign request:", error);
+      toast({
+        title: "E-Signature Error",
+        description: error.message || "Could not initiate e-signature request.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingForSignature(false);
+    }
+  };
+  
+  const canSendSignatureRequest = !contract?.signatureStatus || 
+                                   contract.signatureStatus === 'none' || 
+                                   contract.signatureStatus === 'error' || 
+                                   contract.signatureStatus === 'declined' ||
+                                   contract.signatureStatus === 'canceled';
+
+
+  const getSignatureButtonText = () => {
+    if (!contract?.signatureStatus || contract.signatureStatus === 'none') return "Send for E-Signature";
+    if (contract.signatureStatus === 'sent') return "Signature Request Sent";
+    if (contract.signatureStatus === 'signed') return "Document Signed";
+    if (contract.signatureStatus === 'viewed_by_signer') return "Viewed by Signer";
+    if (contract.signatureStatus === 'declined') return "Signature Declined - Resend?";
+    if (contract.signatureStatus === 'canceled') return "Request Canceled - Resend?";
+    if (contract.signatureStatus === 'error') return "Error Sending - Retry?";
+    return "Manage E-Signature";
+  };
+  
   const renderSidebarContent = () => (
     <div className="space-y-6">
       <Card>
@@ -448,9 +533,44 @@ export default function EditContractPage() {
         description="Modify the contract text and details. Your changes will be saved to a new version."
         actions={
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
-              Cancel
-            </Button>
+            <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
+                  {getSignatureButtonText()}
+                </Button>
+              </DialogTrigger>
+              {canSendSignatureRequest && (
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Send for E-Signature</DialogTitle>
+                    <DialogDescription>
+                      Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div>
+                      <Label htmlFor="signer-email">Client's Email</Label>
+                      <Input 
+                        id="signer-email"
+                        type="email"
+                        value={signerEmailOverride}
+                        onChange={(e) => setSignerEmailOverride(e.target.value)}
+                        placeholder="client@example.com"
+                        disabled={isSendingForSignature}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
+                      {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIcon className="mr-2 h-4 w-4" />}
+                      Send Request
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              )}
+            </Dialog>
             <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
               <Download className="mr-2 h-4 w-4" /> Export as .docx
             </Button>
@@ -506,3 +626,5 @@ export default function EditContractPage() {
     </>
   );
 }
+
+    
