@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
 import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,9 +170,8 @@ export function UploadContractDialog() {
       const plainText = ocrResult.extractedText;
 
       if (editorRef.current) {
-        // The 'open' method can handle plain text and will convert it to SFDT internally.
         editorRef.current.documentEditor.open(plainText);
-        // Now that the text is in the editor, we can serialize it to SFDT and run analysis.
+        // The text is loaded. Now we can serialize it and pass it to analysis.
         const sfdtString = editorRef.current.documentEditor.serialize();
         await handleFullAnalysis(sfdtString);
       } else {

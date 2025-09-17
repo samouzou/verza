@@ -193,7 +193,7 @@ export default function EditContractPage() {
     }
     setIsSaving(true);
 
-    const newContractText = editorRef.current.documentEditor.serialize();
+    const newContractText = await editorRef.current.documentEditor.serialize();
 
     const contractAmount = parseFloat(amount as string);
     if (isNaN(contractAmount) || contractAmount < 0) {
