@@ -113,7 +113,8 @@ export default function EditContractPage() {
             const isAgencyOwner = user.role === 'agency_owner' && data.ownerType === 'agency' && data.ownerId === agencyId;
             
             if (isOwner || isAgencyOwner) {
-                setContract(data);
+                const contractWithId = { ...data, id: contractSnap.id };
+                setContract(contractWithId);
                 // Pre-fill form fields
                 setBrand(data.brand || '');
                 setProjectName(data.projectName || '');
@@ -528,103 +529,103 @@ export default function EditContractPage() {
   
   return (
     <>
-      <PageHeader
-        title={`Edit: ${contract.brand || 'Contract'}`}
-        description="Modify the contract text and details. Your changes will be saved to a new version."
-        actions={
-          <div className="flex items-center gap-2">
-            <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
-                  {getSignatureButtonText()}
-                </Button>
-              </DialogTrigger>
-              {canSendSignatureRequest && (
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Send for E-Signature</DialogTitle>
-                    <DialogDescription>
-                      Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <div>
-                      <Label htmlFor="signer-email">Client's Email</Label>
-                      <Input 
-                        id="signer-email"
-                        type="email"
-                        value={signerEmailOverride}
-                        onChange={(e) => setSignerEmailOverride(e.target.value)}
-                        placeholder="client@example.com"
-                        disabled={isSendingForSignature}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
-                      {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIcon className="mr-2 h-4 w-4" />}
-                      Send Request
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              )}
-            </Dialog>
-            <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
-              <Download className="mr-2 h-4 w-4" /> Export as .docx
-            </Button>
-            <Button onClick={() => handleSaveChanges()} disabled={isSaving || isReparsingAi}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Save Changes
-            </Button>
-          </div>
-        }
-      />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
-        <div className="lg:col-span-2">
-            <Card className="h-full">
-               <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Contract Editor</CardTitle>
-                    <CardDescription>Make changes to the full text of the contract below.</CardDescription>
-                  </div>
-                   <Button
-                    type="button"
-                    onClick={handleAiReparse}
-                    disabled={isReparsingAi || isSaving}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    Re-process with AI
+      <form onSubmit={handleSaveChanges} className="h-full flex flex-col">
+        <PageHeader
+          title={`Edit: ${contract.brand || 'Contract'}`}
+          description="Modify the contract text and details. Your changes will be saved to a new version."
+          actions={
+            <div className="flex items-center gap-2">
+              <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
+                    {getSignatureButtonText()}
                   </Button>
-              </CardHeader>
-              <CardContent>
-                <div id="container" style={{ height: '1100px' }}>
-                  <DocumentEditorContainerComponent 
-                    id="editor"
-                    ref={editorRef} 
-                    created={onEditorCreated}
-                    height={'100%'} 
-                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                    showPropertiesPane={false}
-                    enableToolbar={true}
-                    toolbarMode={'Ribbon'}
-                    ribbonLayout={'Simplified'}
-                    currentUser={user?.displayName || "Guest"}
-                    locale="en-US"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                </DialogTrigger>
+                {canSendSignatureRequest && (
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Send for E-Signature</DialogTitle>
+                      <DialogDescription>
+                        Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                      <div>
+                        <Label htmlFor="signer-email">Client's Email</Label>
+                        <Input 
+                          id="signer-email"
+                          type="email"
+                          value={signerEmailOverride}
+                          onChange={(e) => setSignerEmailOverride(e.target.value)}
+                          placeholder="client@example.com"
+                          disabled={isSendingForSignature}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
+                      <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
+                        {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIcon className="mr-2 h-4 w-4" />}
+                        Send Request
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                )}
+              </Dialog>
+              <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
+                <Download className="mr-2 h-4 w-4" /> Export as .docx
+              </Button>
+              <Button type="submit" disabled={isSaving || isReparsingAi}>
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+            </div>
+          }
+        />
+        <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4 min-h-0">
+          <div className="lg:col-span-2 min-h-0">
+              <Card className="h-full flex flex-col">
+                 <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Contract Editor</CardTitle>
+                      <CardDescription>Make changes to the full text of the contract below.</CardDescription>
+                    </div>
+                     <Button
+                      type="button"
+                      onClick={handleAiReparse}
+                      disabled={isReparsingAi || isSaving}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {isReparsingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                      Re-process with AI
+                    </Button>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <div id="container" style={{ height: '100%' }}>
+                    <DocumentEditorContainerComponent 
+                      id="editor"
+                      ref={editorRef} 
+                      created={onEditorCreated}
+                      height={'100%'} 
+                      serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                      showPropertiesPane={false}
+                      enableToolbar={true}
+                      toolbarMode={'Ribbon'}
+                      ribbonLayout={'Simplified'}
+                      currentUser={user?.displayName || "Guest"}
+                      locale="en-US"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+          </div>
+          <div className="lg:col-span-1 space-y-6">
+              {renderSidebarContent()}
+          </div>
         </div>
-        <div className="lg:col-span-1 space-y-6">
-            {renderSidebarContent()}
-        </div>
-      </div>
+      </form>
     </>
   );
 }
-
-    

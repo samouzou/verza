@@ -203,8 +203,8 @@ export default function ContractDetailPage() {
 
 
           setContract({
-            id: contractSnap.id,
             ...data,
+            id: contractSnap.id,
             createdAt: createdAt,
             updatedAt: updatedAt,
             lastReminderSentAt: lastReminderSentAt || null,
@@ -811,5 +811,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
-    
