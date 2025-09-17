@@ -30,12 +30,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
+
+// Inject the required modules for the Document Editor
+DocumentEditorContainerComponent.Inject(Toolbar, Ribbon);
 
 export function UploadContractDialog() {
   const [isOpen, setIsOpen] = useState(false);
@@ -549,7 +552,8 @@ export function UploadContractDialog() {
                     height="100%"
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     showPropertiesPane={false}
-                    documentEditorSettings={{ enableSfdtExport: true }}
+                    enableToolbar={true}
+                    toolbarMode={'Ribbon'}
                   >
                     <Inject services={[Toolbar]} />
                   </DocumentEditorContainerComponent>

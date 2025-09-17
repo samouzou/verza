@@ -25,12 +25,15 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-flow";
-import { DocumentEditorContainerComponent, Toolbar, Inject } from '@syncfusion/ej2-react-documenteditor';
+import { DocumentEditorContainerComponent, Toolbar, Inject, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
+
+// Inject the required modules for the Document Editor
+DocumentEditorContainerComponent.Inject(Toolbar, Ribbon);
 
 
 export default function EditContractPage() {
@@ -479,10 +482,10 @@ export default function EditContractPage() {
                   height={'1100px'} 
                   serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                   showPropertiesPane={false}
-                  enableTrackChanges={false}
+                  enableToolbar={true}
+                  toolbarMode={'Ribbon'}
                   currentUser={user?.displayName || "Guest"}
                   locale="en-US"
-                  documentEditorSettings={{ enableSfdtExport: true }}
                 >
                   <Inject services={[Toolbar]} />
                 </DocumentEditorContainerComponent>
