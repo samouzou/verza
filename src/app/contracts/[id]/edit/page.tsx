@@ -266,7 +266,7 @@ export default function EditContractPage() {
           <CardDescription>AI-generated summary and negotiation points.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[350px] pr-3">
+          <ScrollArea className="h-[450px] pr-3">
             <div className="space-y-4 text-sm">
               <div>
                 <h4 className="font-semibold mb-1">AI Summary</h4>
@@ -312,7 +312,7 @@ export default function EditContractPage() {
         </CardContent>
       </Card>
       
-      <Accordion type="multiple" className="w-full space-y-6" defaultValue={['core-details']}>
+      <Accordion type="multiple" className="w-full space-y-6">
         <AccordionItem value="core-details" className="border-b-0">
           <Card>
             <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
