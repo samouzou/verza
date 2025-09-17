@@ -550,6 +550,12 @@ export function UploadContractDialog() {
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     enableToolbar={true}
                     showPropertiesPane={false}
+                    documentEditorSettings={{
+                      openAiSettings: {
+                        apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || "",
+                        model: 'gemini-1.5-flash',
+                      }
+                    }}
                   >
                     <Inject services={[Toolbar]} />
                   </DocumentEditorContainerComponent>
