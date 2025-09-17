@@ -20,6 +20,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from "@/components/ui/separator";
 import { diffChars } from 'diff';
 import Image from 'next/image';
+import { DocumentEditorContainerComponent, Inject, Toolbar } from '@syncfusion/ej2-react-documenteditor';
+import { registerLicense } from '@syncfusion/ej2-base';
+
+if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
+  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
+}
+
 
 // Helper function to format date or return N/A
 const formatDateDisplay = (dateInput: string | Timestamp | Date | undefined | null): string => {
@@ -81,6 +88,8 @@ export default function ShareContractPage() {
   // State for text selection
   const [selectedText, setSelectedText] = useState("");
   const redlineFormRef = useRef<HTMLFormElement>(null);
+  const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
+
 
   useEffect(() => {
     if (!sharedVersionId) {
@@ -164,6 +173,17 @@ export default function ShareContractPage() {
       if (unsubscribeProposals) unsubscribeProposals();
     };
   }, [sharedVersionId, toast]);
+  
+  const onEditorCreated = () => {
+    if (editorRef.current && sharedVersion?.contractData.contractText) {
+      try {
+        editorRef.current.documentEditor.open(sharedVersion.contractData.contractText);
+      } catch (e) {
+        console.error("Failed to load SFDT content in viewer:", e);
+      }
+    }
+  };
+
 
   const handleAddComment = async (e: FormEvent) => {
     e.preventDefault();
@@ -227,7 +247,7 @@ export default function ShareContractPage() {
   };
 
   const handleTextSelection = () => {
-    const text = window.getSelection()?.toString().trim();
+    const text = editorRef.current?.documentEditor.selection.text.trim();
     if (text) {
       setSelectedText(text);
     } else {
@@ -281,7 +301,6 @@ export default function ShareContractPage() {
 
   const contract = sharedVersion.contractData;
   const hasChangesToShow = !!contract.previousContractText && contract.previousContractText !== contract.contractText;
-  const changes = hasChangesToShow ? diffChars(contract.previousContractText!, contract.contractText || '') : [];
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
@@ -322,27 +341,23 @@ export default function ShareContractPage() {
                         <div><strong className="text-slate-600 dark:text-slate-300">Due Date:</strong> <span className="text-slate-800 dark:text-slate-100">{formatDateDisplay(contract.dueDate)}</span></div>
                         {contract.projectName && <div><strong className="text-slate-600 dark:text-slate-300">Project:</strong> <span className="text-slate-800 dark:text-slate-100">{contract.projectName}</span></div>}
                      </div>
-                     {contract.contractText && (
+                     {contract.contractText ? (
                       <div className="relative">
                         <h3 className="font-semibold text-lg mb-2 text-slate-700 dark:text-slate-200">Full Contract Text</h3>
                         <p className="text-xs text-muted-foreground mb-2">Select text below to propose an edit.</p>
-                        <ScrollArea onMouseUp={handleTextSelection} className="h-[1100px] border rounded-md p-4 bg-slate-50 dark:bg-slate-800">
-                          <pre className="whitespace-pre-wrap font-mono text-sm">
-                            {hasChangesToShow ? (
-                              changes.map((part, index) => {
-                                  if (part.added) {
-                                    return <ins key={index} className="diff-ins">{part.value}</ins>;
-                                  }
-                                  if (part.removed) {
-                                    return <del key={index} className="diff-del">{part.value}</del>;
-                                  }
-                                  return <span key={index}>{part.value}</span>;
-                              })
-                            ) : (
-                              <span>{contract.contractText || "No contract text available."}</span>
-                            )}
-                          </pre>
-                        </ScrollArea>
+                        <div className="h-[1100px] border rounded-md" onMouseUp={handleTextSelection}>
+                           <DocumentEditorContainerComponent 
+                            id="share-contract-viewer" 
+                            ref={editorRef}
+                            created={onEditorCreated}
+                            style={{ display: 'block' }} 
+                            height="100%" 
+                            serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                            enableToolbar={false}
+                            isReadOnly={true}
+                            showPropertiesPane={false}
+                          />
+                        </div>
                         {selectedText && (
                             <div className="absolute top-10 right-4 z-10">
                                 <Button onClick={handleProposeEditForSelection} size="sm" variant="default" className="shadow-lg">
@@ -350,6 +365,10 @@ export default function ShareContractPage() {
                                 </Button>
                             </div>
                         )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                        <p>Contract text not available for viewing.</p>
                       </div>
                     )}
                 </CardContent>
