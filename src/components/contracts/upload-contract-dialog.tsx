@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { convertDocumentToSfdt } from "@/ai/flows/ocr-flow";
+import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
 import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,8 +54,7 @@ export function UploadContractDialog() {
   const [summary, setSummary] = useState<SummarizeContractTermsOutput | null>(null);
   const [negotiationSuggestions, setNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [contractText, setContractText] = useState('');
-
+  
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
@@ -152,8 +151,7 @@ export function UploadContractDialog() {
 
     setIsProcessingAi(true);
     setParseError(null);
-    setContractText(''); // Clear text
-    toast({ title: "File Uploaded", description: "Extracting text with OCR and converting to document..." });
+    toast({ title: "File Uploaded", description: "Extracting text with OCR..." });
 
     try {
       const reader = new FileReader();
@@ -164,16 +162,18 @@ export function UploadContractDialog() {
       });
       const documentDataUri = await dataUriPromise;
 
-      const ocrResult = await convertDocumentToSfdt({ documentDataUri });
-      if (!ocrResult || !ocrResult.sfdt) {
-        throw new Error("OCR process failed to extract text or convert to SFDT.");
+      const ocrResult = await ocrDocument({ documentDataUri });
+      if (!ocrResult || typeof ocrResult.extractedText !== 'string') {
+        throw new Error("OCR process failed to return valid text.");
       }
       
-      const sfdtString = ocrResult.sfdt;
-      setContractText(sfdtString);
+      const plainText = ocrResult.extractedText;
 
       if (editorRef.current) {
-        editorRef.current.documentEditor.open(sfdtString);
+        // The 'open' method can handle plain text and will convert it to SFDT internally.
+        editorRef.current.documentEditor.open(plainText);
+        // Now that the text is in the editor, we can serialize it to SFDT and run analysis.
+        const sfdtString = editorRef.current.documentEditor.serialize();
         await handleFullAnalysis(sfdtString);
       } else {
         throw new Error("Editor is not available to process the document text.");
@@ -198,18 +198,6 @@ export function UploadContractDialog() {
     const sfdtString = editorRef.current.documentEditor.serialize();
     await handleFullAnalysis(sfdtString);
   };
-  
-  useEffect(() => {
-    if (editorRef.current && contractText) {
-        try {
-            editorRef.current.documentEditor.open(contractText);
-        } catch (e) {
-            console.error("Failed to open SFDT content:", e);
-            editorRef.current.documentEditor.open(JSON.stringify({ "sfdt": `{"sections":[{"blocks":[{"inlines":[{"text":"${contractText.replace(/"/g, '\\"')}"}]}]}]}` }));
-        }
-    }
-  }, [contractText]);
-
 
   const handleSaveContract = async () => {
     if (!user) {
@@ -554,7 +542,7 @@ export function UploadContractDialog() {
                 )}
               </div>
               
-              <div style={{ display: !parsedDetails ? 'block' : 'none', height: '100%' }} className="border rounded-md">
+              <div style={{ display: 'block', height: '100%' }} className="border rounded-md">
                   <DocumentEditorContainerComponent 
                     id="upload-editor"
                     ref={editorRef} 
@@ -569,7 +557,7 @@ export function UploadContractDialog() {
               </div>
 
               {parsedDetails && (
-                  <div style={{ display: parsedDetails ? 'block' : 'none', height: '100%' }}>
+                  <div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}>
                     <ScrollArea className="h-full">
                         <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
                     </ScrollArea>
