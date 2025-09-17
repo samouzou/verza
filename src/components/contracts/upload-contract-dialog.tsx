@@ -553,9 +553,11 @@ export function UploadContractDialog() {
                     height="100%" 
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     showPropertiesPane={false}
+                    enableToolbar={true}
                     toolbarMode={'Ribbon'}
                     ribbonLayout={'Simplified'}
-                    documentEditorSettings={{ enableSfdtExport: true }}
+                    currentUser={user?.displayName || "Guest"}
+                    locale="en-US"
                   />
               </div>
 

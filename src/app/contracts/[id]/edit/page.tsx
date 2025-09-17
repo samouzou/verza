@@ -489,6 +489,7 @@ export default function EditContractPage() {
                     height={'100%'} 
                     serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                     showPropertiesPane={false}
+                    enableToolbar={true}
                     toolbarMode={'Ribbon'}
                     ribbonLayout={'Simplified'}
                     currentUser={user?.displayName || "Guest"}
