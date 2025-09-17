@@ -266,7 +266,7 @@ export default function EditContractPage() {
           <CardDescription>AI-generated summary and negotiation points.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[450px] pr-3">
+          <ScrollArea className="h-[1100px] pr-3">
             <div className="space-y-4 text-sm">
               <div>
                 <h4 className="font-semibold mb-1">AI Summary</h4>
@@ -490,5 +490,7 @@ export default function EditContractPage() {
     </form>
   );
 }
+
+    
 
     
