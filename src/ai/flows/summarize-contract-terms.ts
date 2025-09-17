@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Summarizes contract terms using AI.
@@ -13,7 +14,7 @@ import {z} from 'genkit';
 const SummarizeContractTermsInputSchema = z.object({
   contractText: z
     .string()
-    .describe('The full text of the contract to be summarized.'),
+    .describe('The SFDT JSON string of the contract to be summarized.'),
 });
 export type SummarizeContractTermsInput = z.infer<
   typeof SummarizeContractTermsInputSchema
@@ -36,9 +37,11 @@ const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
-  prompt: `You are an AI assistant that specializes in summarizing legal contracts.
+  prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.
 
-  Please provide a concise and easy-to-understand summary of the key terms in the following contract:
+  First, parse the SFDT JSON string to extract the plain text. The text is located in \`JSON.parse(sfdtString).sections[0].blocks[...].inlines[...].text\`. Concatenate all text parts.
+  
+  Then, please provide a concise and easy-to-understand summary of the key terms in the following contract:
 
   {{contractText}}
   `,
@@ -55,3 +58,5 @@ const summarizeContractTermsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

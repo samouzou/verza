@@ -144,22 +144,18 @@ export default function EditContractPage() {
   const handleAiReparse = async () => {
     if (!editorRef.current) return;
     
-    // Get plain text from the editor for AI analysis
-    const textToAnalyze = editorRef.current.documentEditor.text;
+    const sfdtString = editorRef.current.documentEditor.serialize();
 
-    if (!textToAnalyze.trim()) {
+    if (!sfdtString.trim()) {
       toast({ title: "Cannot Parse", description: "Contract text is empty.", variant: "destructive" });
       return;
     }
     setIsReparsingAi(true);
     try {
-      // Load the plain text back into the editor. This converts it to SFDT internally.
-      editorRef.current.documentEditor.open(textToAnalyze);
-
       const [details, summaryOutput, suggestions] = await Promise.all([
-        extractContractDetails({ contractText: textToAnalyze }),
-        summarizeContractTerms({ contractText: textToAnalyze }),
-        getNegotiationSuggestions({ contractText: textToAnalyze }),
+        extractContractDetails({ contractText: sfdtString }),
+        summarizeContractTerms({ contractText: sfdtString }),
+        getNegotiationSuggestions({ contractText: sfdtString }),
       ]);
 
       // Update form fields with AI extracted details
@@ -188,10 +184,7 @@ export default function EditContractPage() {
     }
     setIsSaving(true);
 
-    const newContractPlainText = editorRef.current.documentEditor.text;
-    editorRef.current.documentEditor.open(newContractPlainText);
     const newContractText = editorRef.current.documentEditor.serialize();
-
 
     const contractAmount = parseFloat(amount as string);
     if (isNaN(contractAmount) || contractAmount < 0) {
@@ -472,7 +465,7 @@ export default function EditContractPage() {
                   created={onEditorCreated}
                   style={{ display: "block" }}
                   height={'1100px'} 
-                  serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
+                  serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                   enableToolbar={true}
                   showPropertiesPane={false}
                   enableTrackChanges={false}
@@ -497,3 +490,5 @@ export default function EditContractPage() {
     </form>
   );
 }
+
+    

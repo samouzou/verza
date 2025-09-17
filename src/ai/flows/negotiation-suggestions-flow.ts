@@ -15,7 +15,7 @@ import {z} from 'genkit';
 const NegotiationSuggestionsInputSchema = z.object({
   contractText: z
     .string()
-    .describe('The full text of the contract for which negotiation suggestions are sought.'),
+    .describe('The SFDT JSON string of the contract for which negotiation suggestions are sought.'),
 });
 export type NegotiationSuggestionsInput = z.infer<typeof NegotiationSuggestionsInputSchema>;
 
@@ -36,9 +36,11 @@ const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
-  prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract and suggest alternative phrasing for key clauses that would be more favorable to the creator.
+  prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract from its SFDT JSON string format and suggest alternative phrasing for key clauses that would be more favorable to the creator.
 
-  Based on the following contract text, provide alternative clauses that can be directly copied and pasted into the document. The language and tone of your suggestions should match the existing contract.
+  First, you must parse the SFDT JSON to get the plain text. The text is in \`JSON.parse(sfdtString).sections[0].blocks[...].inlines[...].text\`. Concatenate all text parts to form the full contract text.
+
+  Based on the full text, provide alternative clauses that can be directly copied and pasted into the document. The language and tone of your suggestions should match the existing contract.
 
   Focus on these key areas:
   1.  **Payment Terms**: If the payment terms are unfavorable (e.g., Net-60 or longer), suggest a clause for a shorter payment cycle (e.g., Net-30) or upfront payment. For example, "Payment will be due within thirty (30) days of receipt of invoice."
@@ -48,7 +50,7 @@ const prompt = ai.definePrompt({
   Provide the full, ready-to-use legal text for each suggested clause. If a category is not relevant or the existing clause is already favorable, you can omit it.
   Do not provide advice or explanations, only the replacement legal text itself.
 
-  Contract Text:
+  SFDT Contract Text:
   {{{contractText}}}
   `,
 });
@@ -64,3 +66,5 @@ const negotiationSuggestionsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

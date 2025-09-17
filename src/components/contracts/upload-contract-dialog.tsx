@@ -169,12 +169,13 @@ export function UploadContractDialog() {
         throw new Error("OCR process failed to extract text or convert to SFDT.");
       }
       
-      setContractText(ocrResult.sfdt); // This is now an SFDT string
+      const sfdtString = ocrResult.sfdt;
+      setContractText(sfdtString);
 
       if (editorRef.current) {
-        editorRef.current.documentEditor.open(ocrResult.sfdt);
-        const plainText = editorRef.current.documentEditor.text;
-        await handleFullAnalysis(plainText);
+        editorRef.current.documentEditor.open(sfdtString);
+        // The text needs to be passed to AI as the SFDT string, which the AI flow now handles.
+        await handleFullAnalysis(sfdtString);
       } else {
         throw new Error("Editor is not available to process the document text.");
       }
@@ -195,8 +196,8 @@ export function UploadContractDialog() {
   
   const handlePastedText = async () => {
     if (!editorRef.current) return;
-    const textToAnalyze = editorRef.current.documentEditor.text;
-    await handleFullAnalysis(textToAnalyze);
+    const sfdtString = editorRef.current.documentEditor.serialize();
+    await handleFullAnalysis(sfdtString);
   };
   
   useEffect(() => {
@@ -555,19 +556,21 @@ export function UploadContractDialog() {
                 )}
               </div>
               
-              <div style={{ display: !(isProcessingAi || parseError) ? 'block' : 'none', height: '100%' }}>
+               <div style={{ display: !(isProcessingAi || parseError) ? 'block' : 'none', height: '100%' }}>
                 {!parsedDetails ? (
-                  <DocumentEditorContainerComponent 
-                    id="upload-editor"
-                    ref={editorRef} 
-                    style={{ display: "block" }}
-                    height="100%"
-                    serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-                    enableToolbar={true}
-                    showPropertiesPane={false}
-                  >
-                    <Inject services={[Toolbar]} />
-                  </DocumentEditorContainerComponent>
+                   <div className="h-full border rounded-md">
+                      <DocumentEditorContainerComponent 
+                        id="upload-editor"
+                        ref={editorRef} 
+                        style={{ display: "block" }}
+                        height="100%"
+                        serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
+                        enableToolbar={true}
+                        showPropertiesPane={false}
+                      >
+                        <Inject services={[Toolbar]} />
+                      </DocumentEditorContainerComponent>
+                   </div>
                 ) : (
                   <ScrollArea className="h-full">
                     <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
@@ -592,3 +595,5 @@ export function UploadContractDialog() {
     </Dialog>
   );
 }
+
+    

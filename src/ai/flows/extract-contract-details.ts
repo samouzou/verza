@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ExtractContractDetailsInputSchema = z.object({
-  contractText: z.string().describe('The text content of the contract document.'),
+  contractText: z.string().describe('The SFDT JSON string content of the contract document.'),
 });
 export type ExtractContractDetailsInput = z.infer<typeof ExtractContractDetailsInputSchema>;
 
@@ -41,9 +41,11 @@ const prompt = ai.definePrompt({
   name: 'extractContractDetailsPrompt',
   input: {schema: ExtractContractDetailsInputSchema},
   output: {schema: ExtractContractDetailsOutputSchema},
-  prompt: `You are an expert contract analyst. Your task is to extract key details from the provided contract text.
+  prompt: `You are an expert contract analyst. Your task is to extract key details from the provided contract text, which is in SFDT JSON format. You need to parse this JSON to find the plain text.
 
-  Specifically, extract the following information:
+  The plain text is located within a nested structure: \`JSON.parse(sfdtString).sections[0].blocks\`. Each block is a paragraph, and its text is in the \`inlines\` array. Concatenate the 'text' fields from the 'inlines' array of all blocks to get the full contract text.
+
+  Based on the full text, extract the following information:
   - brand: The name of the brand or counterparty involved in the contract. If no brand name is explicitly mentioned, output "Unknown Brand".
   - amount: The payment amount specified in the contract (as a number). If no amount is specified, output 0.
   - dueDate: The payment due date in ISO 8601 format (YYYY-MM-DD). If no due date is specified, use the current date in YYYY-MM-DD format.
@@ -57,7 +59,7 @@ const prompt = ai.definePrompt({
 
   Ensure that the extracted information is accurate and follows the specified format. Prioritize finding the brand, amount, and due date.
 
-  Contract Text: {{{contractText}}}
+  SFDT Contract Text: {{{contractText}}}
   `,
 });
 
@@ -79,3 +81,5 @@ const extractContractDetailsFlow = ai.defineFlow(
     return result;
   }
 );
+
+    
