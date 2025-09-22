@@ -603,12 +603,11 @@ export default function EditContractPage() {
                     </Button>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                  <div id="container" style={{ height: '1100px', display: 'flex' }}>
+                  <div id="container" style={{ height: '1100px' }}>
                     <DocumentEditorContainerComponent 
                       id="editor"
                       ref={editorRef} 
                       created={onEditorCreated}
-                      style={{ display: "inline-flex" }}
                       height={'100%'} 
                       serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                       showPropertiesPane={false}

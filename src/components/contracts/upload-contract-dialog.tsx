@@ -546,7 +546,7 @@ export function UploadContractDialog() {
                 )}
               </div>
               
-              <div id="container" style={{ height: '100%', display: 'flex' }} className="border rounded-md">
+              <div id="container" style={{ height: '100%' }} className="border rounded-md">
                   <DocumentEditorContainerComponent 
                     id="editor"
                     ref={editorRef} 

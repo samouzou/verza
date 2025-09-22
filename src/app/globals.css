@@ -255,13 +255,10 @@ del.diff-del {
 }
 
 .e-ribbon.e-rbn .e-ribbon-tab-item {
-  display: -ms-inline-flexbox;
   display: inline-flex;
 }
 
 .e-ribbon.e-rbn.e-ribbon-collapsible .e-content {
   width: calc(100% - 20px);
 }
-
-
     
