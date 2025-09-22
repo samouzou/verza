@@ -603,7 +603,7 @@ export default function EditContractPage() {
                     </Button>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                  <div id="container" style={{ height: '100%' }}>
+                  <div id="container" style={{ height: '100%', display: 'flex' }}>
                     <DocumentEditorContainerComponent 
                       id="editor"
                       ref={editorRef} 
