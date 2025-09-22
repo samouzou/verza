@@ -253,3 +253,98 @@ del.diff-del {
 .dark del.diff-del {
   background-color: hsl(0 50% 30%);
 }
+
+/* Syncfusion Document Editor Styles - MS Word Like */
+
+/* Main container and page background */
+#documenteditor_container_panel {
+    width: 100% !important;
+    height: 100% !important;
+    background-color: #f0f0f0 !important; /* Light gray background like Word */
+}
+.dark #documenteditor_container_panel {
+    background-color: #2a2a2a !important;
+}
+
+/* The actual document page */
+.e-de-page-div {
+    box-shadow: 0 0 10px rgba(0,0,0,0.15);
+    border: 1px solid #d3d3d3;
+    margin-bottom: 20px !important;
+}
+
+/* Ribbon / Toolbar styles */
+.e-de-ctnr-toolbar, .e-ribbon.e-rbn {
+    background-color: #2b579a !important; /* Word's classic blue */
+    color: white !important;
+    border-bottom: 2px solid #1e3a6e;
+}
+.dark .e-de-ctnr-toolbar, .dark .e-ribbon.e-rbn {
+    background-color: #3a3a3a !important;
+    border-bottom: 2px solid #2a2a2a;
+}
+
+/* Toolbar buttons */
+.e-de-ctnr-toolbar .e-btn, .e-ribbon .e-btn {
+    color: white !important;
+}
+.e-de-ctnr-toolbar .e-btn:hover, .e-ribbon .e-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+.e-de-ctnr-toolbar .e-btn.e-active, .e-ribbon .e-btn.e-active {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dropdown icons on the toolbar */
+.e-de-ctnr-toolbar .e-ddb-icon, .e-ribbon .e-ddb-icon {
+    color: white !important;
+}
+
+/* Ribbon tabs (File, Home, Insert...) */
+.e-ribbon .e-tab .e-tab-header .e-tab-item {
+    background-color: #2b579a !important;
+    color: white !important;
+    border-color: transparent !important;
+}
+.dark .e-ribbon .e-tab .e-tab-header .e-tab-item {
+    background-color: #3a3a3a !important;
+}
+
+.e-ribbon .e-tab .e-tab-header .e-tab-item.e-active {
+    background-color: #f0f0f0 !important; /* Match editor background */
+    color: #2b579a !important;
+}
+.dark .e-ribbon .e-tab .e-tab-header .e-tab-item.e-active {
+    background-color: #2a2a2a !important; /* Match dark editor background */
+    color: white !important;
+}
+
+/* Content area of the ribbon tabs */
+.e-ribbon .e-tab .e-content {
+    background-color: #f0f0f0 !important;
+    border-top: 1px solid #ccc;
+    padding-top: 5px;
+}
+.dark .e-ribbon .e-tab .e-content {
+    background-color: #2a2a2a !important;
+    border-top: 1px solid #444;
+}
+
+/* Group titles within the ribbon (e.g., Font, Paragraph) */
+.e-ribbon .e-ribbon-group .e-ribbon-group-content > .e-ribbon-group-title {
+    color: #666;
+}
+.dark .e-ribbon .e-ribbon-group .e-ribbon-group-content > .e-ribbon-group-title {
+    color: #aaa;
+}
+
+/* Status bar at the bottom */
+.e-de-statusbar {
+    background-color: #2b579a !important;
+    color: white !important;
+    border-top: 1px solid #1e3a6e;
+}
+.dark .e-de-statusbar {
+    background-color: #3a3a3a !important;
+    border-top: 1px solid #2a2a2a;
+}

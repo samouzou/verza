@@ -608,6 +608,7 @@ export default function EditContractPage() {
                       id="editor"
                       ref={editorRef} 
                       created={onEditorCreated}
+                      style={{ display: "inline-flex" }}
                       height={'100%'} 
                       serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
                       showPropertiesPane={false}
