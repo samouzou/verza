@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2 } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -638,10 +638,8 @@ export default function ContractDetailPage() {
               <Card className="shadow-lg hide-on-print">
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="grid grid-cols-2 gap-2">
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Edit3 className="mr-2 h-4 w-4"/>Edit</Link></Button>
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>AI Contract Negotiator</Link></Button>
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
-                      <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
-                      <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print</Button>
                   </CardContent>
               </Card>
 
