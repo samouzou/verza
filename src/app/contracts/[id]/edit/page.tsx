@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject, functions as firebaseAppFunctions } from '@/lib/firebase';
 import { httpsCallableFromURL } from 'firebase/functions';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Download, Send as SendIcon } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Send as SendIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -200,15 +200,6 @@ export default function EditContractPage() {
       toast({ title: "AI Error", description: "Could not re-process contract text.", variant: "destructive" });
     } finally {
       setIsReparsingAi(false);
-    }
-  };
-
-  const handleExportDocx = () => {
-    if (editorRef.current) {
-      const docName = projectName || brand || "contract";
-      editorRef.current.documentEditor.save(`${docName}.docx`, 'Docx');
-    } else {
-      toast({ title: "Export Error", description: "Editor not ready. Please wait a moment.", variant: "destructive" });
     }
   };
   
@@ -573,8 +564,8 @@ export default function EditContractPage() {
                   </DialogContent>
                 )}
               </Dialog>
-              <Button type="button" variant="secondary" onClick={handleExportDocx} disabled={isSaving || isReparsingAi}>
-                <Download className="mr-2 h-4 w-4" /> Export as .docx
+              <Button variant="outline" type="button" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
+                Cancel
               </Button>
               <Button type="submit" disabled={isSaving || isReparsingAi}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -629,3 +620,5 @@ export default function EditContractPage() {
     </>
   );
 }
+
+    
