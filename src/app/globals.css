@@ -253,3 +253,83 @@ del.diff-del {
 .dark del.diff-del {
   background-color: hsl(0 50% 30%);
 }
+
+/* Syncfusion Styles */
+.e-ribbon.e-rbn .e-ribbon-tab-item {
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+}
+
+.e-ribbon.e-rbn.e-ribbon-simplified-mode .e-ribbon-group {
+  padding-top: 1px;
+  height: auto;
+}
+
+.e-ribbon.e-rbn .e-ribbon-group {
+  position: relative;
+  padding-top: 6px;
+  height: 120px;
+}
+
+.e-ribbon.e-rbn.e-ribbon-simplified-mode .e-ribbon-group-container {
+  padding: 0 5px 0 4px;
+}
+
+.e-ribbon.e-rbn.e-ribbon-overflow .e-ribbon-group-container {
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+}
+
+.e-ribbon.e-rbn.e-ribbon-simplified-mode .e-ribbon-group-content {
+  padding: 0;
+  height: 32px;
+  -ms-flex-align: center;
+  align-items: center;
+}
+
+.e-ribbon.e-rbn .e-ribbon-column, .e-ribbon-group-overflow-ddb .e-ribbon-column {
+  display: -ms-inline-flexbox;
+  display: inline-flex;
+  -ms-flex-direction: row;
+  flex-direction: row;
+}
+
+.e-ribbon.e-rbn .e-ribbon-group-content, .e-ribbon-group-overflow-ddb .e-ribbon-group-content {
+  padding: 0 8px;
+}
+
+.e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)), .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) {
+  min-height: 33%;
+  padding: 2px;
+}
+
+.e-ribbon.e-rbn .e-ribbon-group-overflow, .e-ribbon.e-rbn .e-ribbon-item, .e-ribbon-group-overflow-ddb .e-ribbon-group-overflow, .e-ribbon-group-overflow-ddb .e-ribbon-item {
+  display: -ms-flexbox;
+  display: flex;
+  padding: 1px;
+  vertical-align: middle;
+}
+
+.e-ribbon.e-rbn .e-disabled, .e-ribbon-group-overflow-ddb .e-disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+
+.e-ribbon.e-rbn:not(.e-rtl) .e-ribbon-collapse-btn, .e-ribbon.e-rbn:not(.e-rtl) .e-ribbon-help-template, .e-ribbon.e-rbn:not(.e-rtl) .e-ribbon-group::after {
+  right: 0;
+}
+
+.e-ribbon.e-rbn .e-ribbon-collapse-btn {
+  background: var(--color-sf-transparent);
+  color: var(--color-sf-icon-color);
+  border-color: rgba(0, 0, 0, 0);
+}
+
+.e-ribbon.e-rbn .e-ribbon-collapse-btn {
+  bottom: 0;
+  cursor: pointer;
+  position: absolute;
+  line-height: 12px;
+  padding: 2px;
+  border: none;
+}
