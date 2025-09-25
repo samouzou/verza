@@ -203,7 +203,7 @@ export default function EditContractPage() {
     }
   };
   
-  const handleSaveChanges = async (e?: FormEvent) => {
+  const handleSaveChanges = async (e?: FormEvent | React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     if(e) e.preventDefault();
     if (!contract || !user || !editorRef.current) {
       toast({ title: "Error", description: "Contract, user, or editor data missing.", variant: "destructive" });
@@ -520,7 +520,7 @@ export default function EditContractPage() {
   
   return (
     <>
-      <form onSubmit={handleSaveChanges} className="h-full flex flex-col">
+      <form className="h-full flex flex-col">
         <PageHeader
           title={`Edit: ${contract.brand || 'Contract'}`}
           description="Modify the contract text and details. Your changes will be saved to a new version."
@@ -567,7 +567,7 @@ export default function EditContractPage() {
               <Button variant="outline" type="button" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving || isReparsingAi}>
+              <Button type="button" onClick={handleSaveChanges} disabled={isSaving || isReparsingAi}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>
