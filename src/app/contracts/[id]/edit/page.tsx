@@ -620,5 +620,3 @@ export default function EditContractPage() {
     </>
   );
 }
-
-    
