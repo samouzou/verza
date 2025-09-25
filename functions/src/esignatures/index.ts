@@ -85,31 +85,35 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (contractData.contractText) {
       logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
 
-      // Safely parse the SFDT string
-      let plainTextContent = "";
+      let paragraphs: string[] = [];
       try {
         const sfdtData = JSON.parse(contractData.contractText);
         if (sfdtData && sfdtData.sections) {
-          for (const section of sfdtData.sections) {
+          sfdtData.sections.forEach((section: any) => {
             if (section.blocks) {
-              for (const block of section.blocks) {
+              section.blocks.forEach((block: any) => {
+                let paragraphText = "";
                 if (block.inlines) {
-                  for (const inline of block.inlines) {
+                  block.inlines.forEach((inline: any) => {
                     if (inline.text) {
-                      plainTextContent += inline.text;
+                      paragraphText += inline.text;
                     }
-                  }
+                  });
                 }
-                plainTextContent += "\n\n"; // Add paragraph breaks
-              }
+                paragraphs.push(paragraphText.trim());
+              });
             }
-          }
+          });
         }
       } catch (e) {
-        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text.`, e);
-        plainTextContent = contractData.contractText; // Fallback to raw text
+        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
+        paragraphs = [contractData.contractText]; // Fallback to raw text
       }
 
+
+      const htmlBody = paragraphs
+        .map(p => p ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '<br>')
+        .join('');
 
       const htmlContent = `
         <!DOCTYPE html>
@@ -120,14 +124,15 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           <title>Contract: ${contractData.projectName || contractData.brand}</title>
           <style>
             body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
-            pre { white-space: pre-wrap; font-family: inherit; }
+            p { margin-bottom: 1em; }
           </style>
         </head>
         <body>
-          <pre>${plainTextContent.trim()}</pre>
+          ${htmlBody}
         </body>
         </html>
       `;
+
 
       const bucket = getStorage().bucket(); // Get default bucket
       const fileName = `generated-contracts/${contractId}/${Date.now()}.html`;
