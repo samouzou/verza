@@ -112,8 +112,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
 
       const htmlBody = paragraphs
-        .map(p => p ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '<br>')
-        .join('');
+        .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
+        .join("");
 
       const htmlContent = `
         <!DOCTYPE html>

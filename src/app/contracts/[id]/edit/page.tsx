@@ -203,10 +203,11 @@ export default function EditContractPage() {
     }
   };
   
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = async (event?: FormEvent) => {
+    event?.preventDefault(); 
     if (!contract || !user || !editorRef.current) {
       toast({ title: "Error", description: "Contract, user, or editor data missing.", variant: "destructive" });
-      return;
+      return false;
     }
     setIsSaving(true);
 
@@ -216,7 +217,7 @@ export default function EditContractPage() {
     if (isNaN(contractAmount) || contractAmount < 0) {
         toast({ title: "Invalid Amount", description: "Please enter a valid positive number for the amount.", variant: "destructive" });
         setIsSaving(false);
-        return;
+        return false;
     }
 
     try {
@@ -275,12 +276,14 @@ export default function EditContractPage() {
 
       await updateDoc(contractDocRef, finalUpdates);
       toast({ title: "Contract Updated", description: "Changes saved successfully." });
-      router.push(`/contracts/${id}`);
+      setContract(prev => prev ? { ...prev, ...finalUpdates } as Contract : null);
+      setIsSaving(false);
+      return true;
     } catch (error) {
       console.error("Error updating contract:", error);
       toast({ title: "Update Failed", description: "Could not save changes.", variant: "destructive" });
-    } finally {
       setIsSaving(false);
+      return false;
     }
   };
 
@@ -289,6 +292,15 @@ export default function EditContractPage() {
       toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
       return;
     }
+    
+    // First, save any pending changes to ensure the latest version is used.
+    toast({ title: "Saving...", description: "Ensuring latest version is saved before sending." });
+    const isSaveSuccessful = await handleSaveChanges();
+    if (!isSaveSuccessful) {
+        toast({ title: "E-Signature Canceled", description: "Could not send for signature because changes could not be saved.", variant: "destructive" });
+        return;
+    }
+    
     if (!signerEmailOverride.trim()) {
       toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
       return;
@@ -320,6 +332,7 @@ export default function EditContractPage() {
       if (data.success) {
         toast({ title: "E-Signature Request Sent", description: data.message });
         setIsSignatureDialogOpen(false); 
+        router.push(`/contracts/${id}`); // Navigate back to details page after successful send
       } else {
         throw new Error(data.message || "Failed to send e-signature request.");
       }
@@ -538,7 +551,7 @@ export default function EditContractPage() {
                     <DialogHeader>
                       <DialogTitle>Send for E-Signature</DialogTitle>
                       <DialogDescription>
-                        Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
+                        This will first save any unsaved changes, then send the updated contract to the client for signature via Dropbox Sign. You will also be required to sign.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
@@ -557,9 +570,9 @@ export default function EditContractPage() {
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
-                      <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
+                      <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || isSaving || !signerEmailOverride.trim()}>
                         {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIcon className="mr-2 h-4 w-4" />}
-                        Send Request
+                        Save & Send Request
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -568,7 +581,7 @@ export default function EditContractPage() {
               <Button variant="outline" type="button" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={handleSaveChanges} disabled={isSaving || isReparsingAi}>
+              <Button type="button" onClick={() => handleSaveChanges()} disabled={isSaving || isReparsingAi}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>
@@ -621,5 +634,3 @@ export default function EditContractPage() {
     </>
   );
 }
-
-    
