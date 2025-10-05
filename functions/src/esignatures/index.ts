@@ -103,8 +103,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       },
     };
 
-    if (isAgencyOwner) {
-      requestData.ccEmailAddresses = [requesterData.email!];
+    if (isAgencyOwner && requesterData.email) {
+      requestData.ccEmailAddresses = [requesterData.email];
       requestData.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
     }
 
@@ -146,11 +146,12 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         <style>body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }</style>
         </head><body>${htmlBody}</body></html>`;
 
-      requestData.files = [{
-        name: `${contractData.brand}_contract.html`,
-        file: Buffer.from(htmlContent, "utf8"),
-      }];
-
+      requestData.files = [
+        {
+          filename: `${contractData.brand}_contract.html`,
+          data: Buffer.from(htmlContent, "utf8"),
+        },
+      ];
     } else if (contractData.fileUrl) {
       logger.warn(`Using fileUrl for contract ${contractId}. This might fail if permissions are incorrect.`);
       requestData.fileUrls = [contractData.fileUrl];
@@ -434,3 +435,4 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
+    
