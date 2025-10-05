@@ -6,7 +6,6 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
-import {getStorage} from "firebase-admin/storage";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -74,7 +73,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    let fileUrlForSignature: string | undefined = undefined;
+    let filesPayload: DropboxSign.SignatureRequestSendRequest["files"];
 
     // NEW LOGIC: Generate file from text if available
     if (contractData.contractText) {
@@ -127,30 +126,16 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </html>
         `;
 
-      const bucket = getStorage().bucket(); // Get default bucket
-      const fileName = `generated-contracts/${contractId}/${Date.now()}.html`;
-      const file = bucket.file(fileName);
-
-      await file.save(Buffer.from(htmlContent, "utf8"), {
-        contentType: "text/html",
-      });
-
-      // Generate a short-lived signed URL for Dropbox Sign to access the file
-      const [signedUrl] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + 60 * 60 * 1000, // 1 hour validity
-      });
-
-      fileUrlForSignature = signedUrl;
-      // Optionally, update the contract with the PATH of the generated file for tracking
-      await contractDocRef.update({
-        lastGeneratedSignatureFilePath: file.name,
-      });
+      const htmlBuffer = Buffer.from(htmlContent, "utf8");
+      filesPayload = [{
+        filename: "contract.html",
+        data: htmlBuffer,
+      }];
 
     } else if (contractData.fileUrl) {
       // FALLBACK LOGIC: Use existing fileUrl if no contractText
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      fileUrlForSignature = contractData.fileUrl;
+      filesPayload = [{ fileUrl: contractData.fileUrl }];
     } else {
       // No text and no file, cannot proceed
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
@@ -174,7 +159,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (!creatorUserData) {
       throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
-    
+
     const options: DropboxSign.SignatureRequestSendRequest = {
       testMode: true, // Set to true for testing
       title: contractData.projectName || `Contract with ${contractData.brand}`,
@@ -198,7 +183,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           // order: 1 // Optional: explicitly set signing order if needed
         },
       ],
-      fileUrls: [fileUrlForSignature], // Use the generated or existing URL
+      files: filesPayload,
       metadata: {
         contract_id: contractId,
         user_id: creatorUserId, // Creator's user ID
@@ -214,11 +199,11 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
       ...options,
       // Redact emails for logging
-      signers: options.signers ? options.signers.map((s) => ({ name: s.name, emailAddress: "[REDACTED]" })) : undefined,
+      signers: options.signers ? options.signers.map((s) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
       ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
-      fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
+      files: options.files ? "[REDACTED]" : undefined,
     }));
-    
+
     const response = await signatureRequestApi.signatureRequestSend(options);
     const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
 
