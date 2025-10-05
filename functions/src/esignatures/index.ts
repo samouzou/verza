@@ -6,6 +6,7 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
+import { getStorage } from "firebase-admin/storage";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -141,7 +142,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       // Add the generated HTML as a file buffer to the request
       options.files = [
           {
-            name: `${contractData.brand}_contract.html`,
+            filename: `${contractData.brand}_contract.html`,
             data: Buffer.from(htmlContent, "utf8"),
           },
         ];
@@ -481,5 +482,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
