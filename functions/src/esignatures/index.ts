@@ -142,8 +142,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       // Add the generated HTML as a file buffer to the request
       options.files = [
           {
-            filename: `${contractData.brand}_contract.html`,
-            data: Buffer.from(htmlContent, "utf8"),
+            name: `${contractData.brand}_contract.html`,
+            file: Buffer.from(htmlContent, "utf8"),
           },
         ];
 
