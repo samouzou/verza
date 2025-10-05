@@ -6,7 +6,6 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
-import {Readable} from "stream";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -102,7 +101,6 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         user_id: creatorUserId,
         verza_env: process.env.NODE_ENV || "development",
       },
-      files: [],
     };
 
     if (isAgencyOwner) {
@@ -148,16 +146,10 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         <style>body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }</style>
         </head><body>${htmlBody}</body></html>`;
 
-      const buffer = Buffer.from(htmlContent, "utf8");
-      const readable = new Readable();
-      readable._read = () => {}; // _read is required
-      readable.push(buffer);
-      readable.push(null);
-      
-      // The SDK expects a `name` property on the stream for the filename.
-      (readable as any).name = `${contractData.brand}_contract.html`;
-      
-      requestData.files = [readable];
+      requestData.files = [{
+        name: `${contractData.brand}_contract.html`,
+        file: Buffer.from(htmlContent, "utf8"),
+      }];
 
     } else if (contractData.fileUrl) {
       logger.warn(`Using fileUrl for contract ${contractId}. This might fail if permissions are incorrect.`);
@@ -442,5 +434,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
