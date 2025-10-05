@@ -1,5 +1,5 @@
 
-import {onCall, HttpsError, onRequest} from "firebase-functions/v2/httpshttps";
+import {onCall, HttpsError, onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
@@ -442,5 +442,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
