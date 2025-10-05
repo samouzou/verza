@@ -146,45 +146,47 @@ export function UploadContractDialog() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+  
     setSelectedFile(file);
     if (!fileName.trim()) {
       setFileName(file.name);
     }
-
+  
     setIsProcessingAi(true);
     setParseError(null);
-    toast({ title: "File Uploaded", description: "Extracting text with OCR..." });
-
+    toast({ title: "File Uploaded", description: "Processing document..." });
+  
     try {
-      const reader = new FileReader();
-      const dataUriPromise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
+      if (editorRef.current && editorRef.current.documentEditor) {
+        // The editor can open .docx files directly.
+        // It needs the file content as a base64 string.
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const base64Content = (e.target?.result as string).split(',')[1];
+            editorRef.current!.documentEditor.open(base64Content);
+            
+            // Wait a moment for the editor to process the file, then serialize and analyze.
+            setTimeout(async () => {
+              const sfdtString = editorRef.current!.documentEditor.serialize();
+              await handleFullAnalysis(sfdtString);
+            }, 1000); 
+
+          } catch (editorError) {
+             console.error("Error opening document in editor:", editorError);
+             throw new Error("The editor could not process this file type.");
+          }
+        };
+        reader.onerror = (error) => {
+            throw new Error("Failed to read file.");
+        };
         reader.readAsDataURL(file);
-      });
-      const documentDataUri = await dataUriPromise;
 
-      const ocrResult = await ocrDocument({ documentDataUri });
-      if (!ocrResult || typeof ocrResult.extractedText !== 'string') {
-        throw new Error("OCR process failed to return valid text.");
-      }
-      
-      const plainText = ocrResult.extractedText;
-
-      if (editorRef.current) {
-        // Use insertText to put the OCR'd content into the editor
-        editorRef.current.documentEditor.editor.insertText(plainText);
-        
-        // The text is loaded. Now we can serialize it and pass it to analysis.
-        const sfdtString = editorRef.current.documentEditor.serialize();
-        await handleFullAnalysis(sfdtString);
       } else {
-        throw new Error("Editor is not available to process the document text.");
+        throw new Error("Editor is not available to process the document.");
       }
-
     } catch (error) {
-      console.error("Error during file processing and OCR:", error);
+      console.error("Error during file processing:", error);
       const errorMessage = error instanceof Error ? error.message : "Could not process file.";
       setParseError(errorMessage);
       toast({
@@ -192,9 +194,9 @@ export function UploadContractDialog() {
         description: errorMessage,
         variant: "destructive",
       });
-    } finally {
       setIsProcessingAi(false);
     }
+    // Note: setIsProcessingAi(false) is now handled within handleFullAnalysis
   };
   
   const handlePastedText = async () => {
