@@ -145,7 +145,7 @@ export function UploadContractDialog() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !editorRef.current) return;
   
     setSelectedFile(file);
     if (!fileName.trim()) {
@@ -157,33 +157,57 @@ export function UploadContractDialog() {
     toast({ title: "File Uploaded", description: "Processing document..." });
   
     try {
-      if (editorRef.current && editorRef.current.documentEditor) {
-        // The editor can open .docx files directly.
-        // It needs the file content as a base64 string.
+      const isWordDoc = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith('.docx');
+      const isPdfOrImage = file.type.startsWith('application/pdf') || file.type.startsWith('image/');
+
+      if (isWordDoc) {
         const reader = new FileReader();
-        reader.onload = async (e) => {
+        reader.onload = async (event) => {
           try {
-            const base64Content = (e.target?.result as string).split(',')[1];
+            const base64Content = (event.target?.result as string).split(',')[1];
             editorRef.current!.documentEditor.open(base64Content);
-            
-            // Wait a moment for the editor to process the file, then serialize and analyze.
+            // Wait for editor to process, then analyze
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
-            }, 1000); 
-
+            }, 1000);
           } catch (editorError) {
-             console.error("Error opening document in editor:", editorError);
-             throw new Error("The editor could not process this file type.");
+            console.error("Error opening DOCX in editor:", editorError);
+            throw new Error("The editor could not process this .docx file.");
           }
         };
-        reader.onerror = (error) => {
-            throw new Error("Failed to read file.");
-        };
+        reader.onerror = () => { throw new Error("Failed to read the .docx file."); };
         reader.readAsDataURL(file);
 
+      } else if (isPdfOrImage) {
+        const reader = new FileReader();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        const ocrResult = await ocrDocument({ documentDataUri: dataUri });
+        
+        // Convert plain text to SFDT format for the editor
+        const sfdtPayload = {
+          "sections": [
+            {
+              "blocks": ocrResult.extractedText.split('\n').map(paragraph => ({
+                "inlines": [{ "text": paragraph }]
+              }))
+            }
+          ]
+        };
+        
+        const sfdtString = JSON.stringify(sfdtPayload);
+        editorRef.current.documentEditor.open(sfdtString);
+
+        // Now run the full analysis on the SFDT string
+        await handleFullAnalysis(sfdtString);
+
       } else {
-        throw new Error("Editor is not available to process the document.");
+        throw new Error("Unsupported file type. Please upload a .docx, PDF, or image file.");
       }
     } catch (error) {
       console.error("Error during file processing:", error);
@@ -196,7 +220,6 @@ export function UploadContractDialog() {
       });
       setIsProcessingAi(false);
     }
-    // Note: setIsProcessingAi(false) is now handled within handleFullAnalysis
   };
   
   const handlePastedText = async () => {
@@ -456,7 +479,7 @@ export function UploadContractDialog() {
                   onChange={handleFileChange}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Uploading will use OCR to extract text into the editor on the right.
+                  Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.
                 </p>
               </div>
               <Card>
