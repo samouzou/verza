@@ -542,7 +542,7 @@ export default function EditContractPage() {
             <div className="flex items-center gap-2">
               <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
+                  <Button variant="outline" disabled={!canSendSignatureRequest || isSendingForSignature}>
                     {getSignatureButtonText()}
                   </Button>
                 </DialogTrigger>
