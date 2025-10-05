@@ -6,6 +6,7 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
+import { getStorage } from "firebase-admin/storage";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -67,46 +68,20 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
-    if (!finalSignerEmail) {
-      throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
-    }
-
-    const creatorUserId = contractData.userId;
-    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
-    const creatorEmail = creatorUserRecord.email;
-    if (!creatorEmail) {
-      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
-    }
-
-    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
-    const creatorUserData = creatorUserDoc.data();
-    if (!creatorUserData) {
-      throw new HttpsError("failed-precondition", "Creator's display name not found.");
-    }
-
-    const signers: DropboxSign.SubSignatureRequestSigner[] = [
-      {emailAddress: finalSignerEmail, name: contractData.clientName || "Client Signer", order: 0},
-      {emailAddress: creatorEmail, name: creatorUserData.displayName || "Creator Signer", order: 1},
-    ];
+    let fileUrlForSignature: string | undefined = undefined;
 
     const requestData: DropboxSign.SignatureRequestSendRequest = {
       title: contractData.projectName || `Contract with ${contractData.brand}`,
       subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
-      message: `Hello,\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`,
-      signers,
+      message: `Hello,\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${(requesterData as any).displayName || "The Contract Sender"}`,
+      signers: [], // Will be populated below
       testMode: true,
       metadata: {
         contract_id: contractId,
-        user_id: creatorUserId,
+        user_id: contractData.userId,
         verza_env: process.env.NODE_ENV || "development",
       },
     };
-
-    if (isAgencyOwner && requesterData.email) {
-      requestData.ccEmailAddresses = [requesterData.email];
-      requestData.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
-    }
 
     if (contractData.contractText) {
       logger.info(`Generating HTML document from contractText for contract ${contractId}.`);
@@ -145,18 +120,58 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         <head><meta charset="UTF-8"><title>Contract: ${contractData.projectName || contractData.brand}</title>
         <style>body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }</style>
         </head><body>${htmlBody}</body></html>`;
-
-      requestData.files = [
-        {
-          filename: `${contractData.brand}_contract.html`,
-          data: Buffer.from(htmlContent, "utf8"),
-        },
-      ];
+      
+      const buffer = Buffer.from(htmlContent, "utf8");
+      
+      requestData.files = [{
+        filename: `${contractData.brand}_contract.html`,
+        data: buffer,
+      }];
     } else if (contractData.fileUrl) {
-      logger.warn(`Using fileUrl for contract ${contractId}. This might fail if permissions are incorrect.`);
-      requestData.fileUrls = [contractData.fileUrl];
+      logger.info(`Using existing fileUrl for contract ${contractId}. Generating signed URL.`);
+      try {
+        const fileUrl = new URL(contractData.fileUrl);
+        const filePath = decodeURIComponent(fileUrl.pathname.split('/o/')[1]);
+        const bucket = getStorage().bucket();
+        const file = bucket.file(filePath);
+        const [signedUrl] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + 60 * 60 * 1000, // 1 hour validity
+        });
+        fileUrlForSignature = signedUrl;
+      } catch (e) {
+        logger.error(`Error generating signed URL for existing file: ${contractData.fileUrl}`, e);
+        throw new HttpsError("internal", "Could not access existing contract file. Please re-upload it.");
+      }
+      requestData.fileUrls = [fileUrlForSignature];
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
+    }
+    
+    const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
+    if (!finalSignerEmail) {
+      throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
+    }
+
+    const creatorUserId = contractData.userId;
+    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
+    const creatorEmail = creatorUserRecord.email;
+    if (!creatorEmail) {
+      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
+    }
+    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
+    const creatorUserData = creatorUserDoc.data();
+    if (!creatorUserData) {
+      throw new HttpsError("failed-precondition", "Creator's display name not found.");
+    }
+
+    requestData.signers = [
+      {emailAddress: finalSignerEmail, name: contractData.clientName || "Client Signer", order: 0},
+      {emailAddress: creatorEmail, name: creatorUserData.displayName || "Creator Signer", order: 1},
+    ];
+
+    if (isAgencyOwner) {
+      requestData.ccEmailAddresses = [requesterData.email!];
     }
     
     logger.info("Sending Dropbox Sign request...");
