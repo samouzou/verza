@@ -73,7 +73,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    let filesPayload: DropboxSign.SignatureRequestSendRequest["files"];
+    const filesPayload: DropboxSign.RequestFile[] = [];
 
     // NEW LOGIC: Generate file from text if available
     if (contractData.contractText) {
@@ -125,17 +125,14 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </body>
           </html>
         `;
-
+      
       const htmlBuffer = Buffer.from(htmlContent, "utf8");
-      filesPayload = [{
-        filename: "contract.html",
-        data: htmlBuffer,
-      }];
+      filesPayload.push(htmlBuffer as unknown as DropboxSign.RequestFile);
 
     } else if (contractData.fileUrl) {
       // FALLBACK LOGIC: Use existing fileUrl if no contractText
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      filesPayload = [{ fileUrl: contractData.fileUrl }];
+      filesPayload.push({ fileUrl: contractData.fileUrl } as DropboxSign.RequestFile);
     } else {
       // No text and no file, cannot proceed
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
