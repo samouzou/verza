@@ -198,10 +198,10 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
       ...options,
-      // Redact emails for logging
+      // Redact emails and file data for logging
       signers: options.signers ? options.signers.map((s) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
       ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
-      files: options.files ? "[REDACTED]" : undefined,
+      files: options.files ? "[REDACTED_FILE_DATA]" : undefined,
     }));
 
     const response = await signatureRequestApi.signatureRequestSend(options);
