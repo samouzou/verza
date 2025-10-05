@@ -6,7 +6,6 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
-import { getStorage } from "firebase-admin/storage";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -68,11 +67,50 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    let fileUrlForSignature: string | undefined = undefined;
+    const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
+    if (!finalSignerEmail) {
+      throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
+    }
+    
+    const creatorUserId = contractData.userId;
+    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
+    const creatorEmail = creatorUserRecord.email;
+    if (!creatorEmail) {
+      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
+    }
 
-    // NEW LOGIC: Generate file from text if available
+    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
+    const creatorUserData = creatorUserDoc.data() as UserProfileFirestoreData;
+    if (!creatorUserData) {
+      throw new HttpsError("failed-precondition", "Creator's display name not found.");
+    }
+
+    const signers: DropboxSign.SubSignatureRequestSigner[] = [
+      { emailAddress: finalSignerEmail, name: contractData.clientName || "Client Signer", order: 0 },
+      { emailAddress: creatorEmail, name: creatorUserData.displayName || "Creator Signer", order: 1 },
+    ];
+    
+    const requestData: DropboxSign.SignatureRequestSendRequest = {
+      title: contractData.projectName || `Contract with ${contractData.brand}`,
+      subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
+      message: `Hello,\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`,
+      signers,
+      testMode: true,
+      metadata: {
+        contract_id: contractId,
+        user_id: creatorUserId,
+        verza_env: process.env.NODE_ENV || "development",
+      },
+      files: [], // Initialize empty and populate based on logic below
+    };
+
+    if (isAgencyOwner) {
+        requestData.ccEmailAddresses = [requesterData.email!];
+        requestData.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
+    }
+
     if (contractData.contractText) {
-        logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
+        logger.info(`Generating HTML document from contractText for contract ${contractId}.`);
         let paragraphs: string[] = [];
         try {
             const sfdtData = JSON.parse(contractData.contractText);
@@ -99,119 +137,32 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         }
 
         const htmlBody = paragraphs
-            .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
+            .map((p) => p ? `<p style="margin-bottom: 1em; white-space: pre-wrap;">${p.replace(/\n/g, "<br>")}</p>` : "<br>")
             .join("");
         
         const htmlContent = `
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Contract: ${contractData.projectName || contractData.brand}</title>
-            <style>
-              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
-              p { margin-bottom: 1em; }
-            </style>
-          </head>
-          <body>
-            ${htmlBody}
-          </body>
-          </html>
-        `;
-        
-        const bucket = getStorage().bucket(); // Get default bucket
-        const fileName = `generated-contracts/${contractId}/${Date.now()}.html`;
-        const file = bucket.file(fileName);
+        <!DOCTYPE html>
+        <html lang="en">
+        <head><meta charset="UTF-8"><title>Contract: ${contractData.projectName || contractData.brand}</title>
+        <style>body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }</style>
+        </head><body>${htmlBody}</body></html>`;
 
-        await file.save(Buffer.from(htmlContent, "utf8"), {
-            contentType: "text/html",
-        });
-
-        // Generate a short-lived signed URL for Dropbox Sign to access the file
-        const [signedUrl] = await file.getSignedUrl({
-            action: "read",
-            expires: Date.now() + 60 * 60 * 1000, // 1 hour validity
-        });
-        fileUrlForSignature = signedUrl;
-
-        // Optionally, update the contract with the PATH of the generated file for tracking
-        await contractDocRef.update({
-            lastGeneratedSignatureFilePath: file.name,
-        });
+        const buffer = Buffer.from(htmlContent, "utf8");
+        requestData.files = [{
+            filename: `${contractData.brand}_contract.html`,
+            data: buffer,
+        }];
 
     } else if (contractData.fileUrl) {
-        // FALLBACK LOGIC: Use existing fileUrl if no contractText
-        logger.info(`Using existing fileUrl for contract ${contractId}.`);
-        fileUrlForSignature = contractData.fileUrl;
+        logger.warn(`Using fileUrl for contract ${contractId}. This might fail if permissions are incorrect.`);
+        requestData.fileUrls = [contractData.fileUrl];
     } else {
-        // No text and no file, cannot proceed
         throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
     
-    const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
-    if (!finalSignerEmail) {
-      throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
-    }
+    logger.info("Sending Dropbox Sign request...");
+    const response = await signatureRequestApi.signatureRequestSend(requestData);
 
-    const creatorUserId = contractData.userId; // The actual talent/creator
-    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
-    const creatorEmail = creatorUserRecord.email;
-    if (!creatorEmail) {
-      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
-    }
-
-    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
-    const creatorUserData = creatorUserDoc.data() as UserProfileFirestoreData;
-    if (!creatorUserData) {
-      throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
-    }
-    
-    const options: DropboxSign.SignatureRequestSendRequest = {
-      testMode: true, // Set to true for testing
-      title: contractData.projectName || `Contract with ${contractData.brand}`,
-      subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
-      message: `
-        Hello,
-        Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.
-        
-        Thank you,
-        ${creatorUserData.displayName || "The Contract Sender"}
-      `,
-      signers: [
-        {
-          emailAddress: finalSignerEmail,
-          name: contractData.clientName || "Client Signer",
-          // order: 0 // Optional: explicitly set signing order if needed
-        },
-        {
-          emailAddress: creatorEmail,
-          name: creatorUserData.displayName || "Creator Signer",
-          // order: 1 // Optional: explicitly set signing order if needed
-        },
-      ],
-      fileUrls: [fileUrlForSignature], // Use the generated or existing URL
-      metadata: {
-        contract_id: contractId,
-        user_id: creatorUserId, // Creator's user ID
-        verza_env: process.env.NODE_ENV || "development",
-      },
-    };
-    
-    if (isAgencyOwner) {
-        options.ccEmailAddresses = [requesterData.email!];
-        options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
-    }
-
-    logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
-      ...options,
-      // Redact emails for logging
-      signers: options.signers ? options.signers.map(s => ({ name: s.name, emailAddress: "[REDACTED]" })) : undefined,
-      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
-      fileUrls: options.fileUrls ? options.fileUrls.map(() => "[REDACTED_URL]") : undefined,
-    }));
-    
-    const response = await signatureRequestApi.signatureRequestSend(options);
     const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
 
     if (!signatureRequestId) {
@@ -221,7 +172,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     await contractDocRef.update({
       helloSignRequestId: signatureRequestId,
-      signatureStatus: "sent", // Initial status
+      signatureStatus: "sent",
       lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.Timestamp.now(),
@@ -459,7 +410,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
 
       const updates: Partial<Contract> = {
         signatureStatus: newStatus,
-        lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as unknown as ClientTimestamp,
+        lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as any,
         invoiceHistory: admin.firestore.FieldValue.arrayUnion({
           timestamp: admin.firestore.Timestamp.now(),
           action: historyAction,
@@ -486,5 +437,5 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-    
+
     
