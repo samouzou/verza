@@ -78,10 +78,8 @@ export function UploadContractDialog() {
 
   useEffect(() => {
     if (!isOpen) {
-      if (editorRef.current) {
-        // Explicitly clear the editor's content when the dialog closes.
-        // This prevents the "Failed to load file" error on reopening.
-        editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
+      if (editorRef.current?.documentEditor) {
+          editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
       }
       setFileName("");
       setProjectName("");

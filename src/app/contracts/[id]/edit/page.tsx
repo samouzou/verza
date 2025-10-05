@@ -203,7 +203,7 @@ export default function EditContractPage() {
     }
   };
   
-  const handleSaveChanges = async (event?: FormEvent) => {
+  const handleSaveChanges = async (event?: MouseEvent) => {
     event?.preventDefault(); 
     if (!contract || !user || !editorRef.current) {
       toast({ title: "Error", description: "Contract, user, or editor data missing.", variant: "destructive" });
@@ -420,7 +420,7 @@ export default function EditContractPage() {
         </CardContent>
       </Card>
       
-      <form>
+      <div className="space-y-4">
         <Accordion type="multiple" className="w-full space-y-6">
           <AccordionItem value="core-details" className="border-b-0">
             <Card>
@@ -507,7 +507,7 @@ export default function EditContractPage() {
             </Card>
           </AccordionItem>
         </Accordion>
-      </form>
+      </div>
     </div>
   );
 
@@ -581,7 +581,7 @@ export default function EditContractPage() {
               <Button variant="outline" type="button" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={() => handleSaveChanges()} disabled={isSaving || isReparsingAi}>
+              <Button type="button" onClick={(e) => handleSaveChanges(e as any)} disabled={isSaving || isReparsingAi}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Changes
               </Button>
