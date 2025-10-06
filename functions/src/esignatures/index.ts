@@ -127,11 +127,14 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         `;
 
       const htmlBuffer = Buffer.from(htmlContent, "utf8");
-      filesPayload.push(htmlBuffer as unknown as DropboxSign.RequestFile);
+      filesPayload.push({
+        filename: 'contract.html',
+        data: htmlBuffer,
+      } as unknown as DropboxSign.RequestFile); // Cast to satisfy TypeScript
     } else if (contractData.fileUrl) {
       // FALLBACK LOGIC: Use existing fileUrl if no contractText
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      filesPayload.push({fileUrl: contractData.fileUrl} as unknown as DropboxSign.RequestFile);
+      filesPayload.push({ fileUrl: contractData.fileUrl } as unknown as DropboxSign.RequestFile);
     } else {
       // No text and no file, cannot proceed
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
@@ -187,7 +190,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       },
     };
 
-    if (isAgencyOwner) {
+    if (isAgencyOwner && requesterData.email) {
       options.ccEmailAddresses = [requesterData.email!];
       options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
     }
@@ -476,3 +479,5 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
+
+    
