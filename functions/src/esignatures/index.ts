@@ -479,5 +479,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
