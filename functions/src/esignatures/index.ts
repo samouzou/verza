@@ -7,7 +7,7 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
-import { Readable } from 'stream';
+import {Readable} from "stream";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
@@ -126,17 +126,16 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </html>
         `;
 
-        const htmlBuffer = Buffer.from(htmlContent, 'utf-8');
-        const readableStream = new Readable();
-        readableStream._read = () => {}; // _read is required
-        readableStream.push(htmlBuffer);
-        readableStream.push(null);
+      const htmlBuffer = Buffer.from(htmlContent, "utf-8");
+      const readableStream = new Readable();
+      readableStream._read = () => { /* no-op */ }; // _read is required
+      readableStream.push(htmlBuffer);
+      readableStream.push(null);
 
-        filesPayload.push({
-            filename: 'contract.html',
-            data: readableStream,
-        } as unknown as DropboxSign.RequestFile);
-
+      filesPayload.push({
+        filename: "contract.html",
+        data: readableStream,
+      } as unknown as DropboxSign.RequestFile);
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
       filesPayload.push({ fileUrl: contractData.fileUrl } as unknown as DropboxSign.RequestFile);
@@ -187,7 +186,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       files: filesPayload,
       metadata: {
         contract_id: contractId,
-        user_id: creatorUserId, 
+        user_id: creatorUserId,
         verza_env: process.env.NODE_ENV || "development",
       },
     };
@@ -214,7 +213,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     await contractDocRef.update({
       helloSignRequestId: signatureRequestId,
-      signatureStatus: "sent", 
+      signatureStatus: "sent",
       lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
       invoiceHistory: admin.firestore.FieldValue.arrayUnion({
         timestamp: admin.firestore.Timestamp.now(),
@@ -480,5 +479,3 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
     }
   }
 });
-
-    
