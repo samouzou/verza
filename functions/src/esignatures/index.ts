@@ -15,11 +15,9 @@ import FormData from "form-data";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
-let signatureRequestApi: DropboxSign.SignatureRequestApi | null = null;
-
 if (HELLOSIGN_API_KEY) {
-  signatureRequestApi = new DropboxSign.SignatureRequestApi();
-  signatureRequestApi.username = HELLOSIGN_API_KEY;
+  // We keep this for type reference but will use axios for the actual call
+  new DropboxSign.SignatureRequestApi().username = HELLOSIGN_API_KEY;
 } else {
   logger.warn("HELLOSIGN_API_KEY (for Dropbox Sign) is not set. E-signature functionality will not work.");
 }
@@ -129,14 +127,12 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         `;
       tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
       fs.writeFileSync(tempFilePath, htmlContent);
+      
+      formData.append("file[0]", fs.createReadStream(tempFilePath), "contract.html");
 
-      formData.append("file", fs.createReadStream(tempFilePath), {
-        filename: "contract.html",
-        contentType: "text/html",
-      });
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      formData.append("file_url", contractData.fileUrl);
+      formData.append("file_url[0]", contractData.fileUrl);
       fileSentViaUrl = true;
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
@@ -159,35 +155,29 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (!creatorUserData) {
       throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
+    
+    formData.append('signers[0][email_address]', finalSignerEmail);
+    formData.append('signers[0][name]', contractData.clientName || "Client Signer");
+    formData.append('signers[0][order]', '0');
 
-    const metadata = JSON.stringify({
-      contract_id: contractId,
-      user_id: creatorUserId,
-      verza_env: process.env.NODE_ENV || "development",
-    });
-
-    const signers = JSON.stringify([
-      {
-        email_address: finalSignerEmail,
-        name: contractData.clientName || "Client Signer",
-        order: 0,
-      },
-      {
-        email_address: creatorEmail,
-        name: creatorUserData.displayName || "Creator Signer",
-        order: 1,
-      },
-    ]);
+    formData.append('signers[1][email_address]', creatorEmail);
+    formData.append('signers[1][name]', creatorUserData.displayName || "Creator Signer");
+    formData.append('signers[1][order]', '1');
 
     formData.append("test_mode", "1");
     formData.append("title", contractData.projectName || `Contract with ${contractData.brand}`);
     formData.append("subject", `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`);
     formData.append("message", `Hello,\n\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`);
-    formData.append("signers", signers);
-    formData.append("metadata", metadata);
+    
+    const metadata = {
+      contract_id: contractId,
+      user_id: creatorUserId,
+      verza_env: process.env.NODE_ENV || "development",
+    };
+    formData.append("metadata", JSON.stringify(metadata));
 
     if (isAgencyOwner && requesterData.email) {
-      formData.append("cc_email_addresses", JSON.stringify([requesterData.email!]));
+      formData.append("cc_email_addresses[0]", requesterData.email!);
     }
 
     logger.info("Sending Dropbox Sign request using FormData via Axios.");
