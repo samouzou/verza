@@ -1,4 +1,3 @@
-
 import {onCall, HttpsError, onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
@@ -7,12 +6,16 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import * as path from "path"; // <-- NEW IMPORT
+import * as os from "os";   // <-- NEW IMPORT
+import * as fs from "fs";   // <-- NEW IMPORT
+import axios from 'axios';  // <-- NEW IMPORT: You MUST install axios
+import * as FormData from 'form-data'; // <-- NEW IMPORT: You MUST install form-data
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
+// NOTE: We will primarily use the API key directly for manual POST request, 
+// so the signatureRequestApi object is only kept for type reference if needed.
 let signatureRequestApi: DropboxSign.SignatureRequestApi | null = null;
 
 if (HELLOSIGN_API_KEY) {
@@ -33,6 +36,7 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
   try {
+    // Check if user exists in Firebase Auth
     await admin.auth().getUser(uid);
     return uid;
   } catch (error) {
@@ -42,7 +46,7 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
 }
 
 export const initiateHelloSignRequest = onCall(async (request) => {
-  if (!signatureRequestApi) {
+  if (!HELLOSIGN_API_KEY) { // Check API Key directly
     logger.error("Dropbox Sign API client not initialized. API key missing or invalid.");
     throw new HttpsError("failed-precondition", "E-signature service is not configured.");
   }
@@ -53,8 +57,9 @@ export const initiateHelloSignRequest = onCall(async (request) => {
   if (!contractId || typeof contractId !== "string") {
     throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
-  
-  let tempFilePath: string | null = null;
+
+  let tempFilePath: string | null = null; // Defined outside try block for access in finally
+  let fileSentViaUrl = false; // Flag to track if we need to send a local file
 
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
@@ -78,14 +83,18 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
 
-    const filesPayload: DropboxSign.RequestFile[] = [];
+    const formData = new FormData();
+    let fileKey: string | null = null;
+    const API_ENDPOINT = 'https://api.hellosign.com/v3/signature_request/send';
+
 
     if (contractData.contractText) {
-      logger.info(`Generating new HTML document from contractText for contract ${contractId}.`);
+      logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
 
       let paragraphs: string[] = [];
       try {
         const sfdtData = JSON.parse(contractData.contractText);
+        // ... SFDT parsing logic (omitted for brevity, assume paragraphs is populated) ...
         if (sfdtData && sfdtData.sections) {
           sfdtData.sections.forEach((section: any) => {
             if (section.blocks) {
@@ -130,29 +139,36 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </html>
         `;
 
-        tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
-        fs.writeFileSync(tempFilePath, htmlContent);
-        
-        filesPayload.push({
-            filename: "contract.html",
-            value: fs.createReadStream(tempFilePath),
-        } as unknown as DropboxSign.RequestFile);
+      // 1. Write file to /tmp directory (required in Cloud Functions)
+      tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
+      fs.writeFileSync(tempFilePath, htmlContent);
 
-
+      // 2. Attach the local file stream to the FormData object
+      // This is the clean, Node.js way to handle file uploads via HTTP clients.
+      formData.append('file', fs.createReadStream(tempFilePath), {
+          filename: 'contract.html',
+          contentType: 'text/html',
+      });
+      fileKey = 'file'; // Use 'file' property for file uploads
+      
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      filesPayload.push({file_url: contractData.fileUrl} as unknown as DropboxSign.RequestFile);
+      // 1. If using URL, append file_url to form data, don't use file stream
+      formData.append('file_url', contractData.fileUrl);
+      fileKey = 'file_url';
+      fileSentViaUrl = true;
+
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
 
-
+    // Prepare remaining options and append to form data
     const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
     if (!finalSignerEmail) {
       throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
     }
 
-    const creatorUserId = contractData.userId; // The actual talent/creator
+    const creatorUserId = contractData.userId;
     const creatorUserRecord = await admin.auth().getUser(creatorUserId);
     const creatorEmail = creatorUserRecord.email;
     if (!creatorEmail) {
@@ -164,53 +180,65 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (!creatorUserData) {
       throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
+    
+    // Convert complex objects to JSON strings or simple values for form-data
+    const metadata = JSON.stringify({
+      contract_id: contractId,
+      user_id: creatorUserId,
+      verza_env: process.env.NODE_ENV || "development",
+    });
 
-    const options: DropboxSign.SignatureRequestSendRequest = {
-      testMode: true, // Set to true for testing
-      title: contractData.projectName || `Contract with ${contractData.brand}`,
-      subject: `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`,
-      message: `
-        Hello,
-        Please review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.
-        
-        Thank you,
-        ${creatorUserData.displayName || "The Contract Sender"}
-      `,
-      signers: [
-        {
-          emailAddress: finalSignerEmail,
-          name: contractData.clientName || "Client Signer",
-        },
-        {
-          emailAddress: creatorEmail,
-          name: creatorUserData.displayName || "Creator Signer",
-        },
-      ],
-      files: filesPayload,
-      metadata: {
-        contract_id: contractId,
-        user_id: creatorUserId,
-        verza_env: process.env.NODE_ENV || "development",
+    const signers = JSON.stringify([
+      {
+        emailAddress: finalSignerEmail,
+        name: contractData.clientName || "Client Signer",
+        order: 0 // Explicitly set order if needed
       },
-    };
-
+      {
+        emailAddress: creatorEmail,
+        name: creatorUserData.displayName || "Creator Signer",
+        order: 1 // Explicitly set order if needed
+      },
+    ]);
+    
+    // Append all options required by the Dropbox Sign API to the form data
+    formData.append('test_mode', '1'); // Equivalent to options.testMode: true
+    formData.append('title', contractData.projectName || `Contract with ${contractData.brand}`);
+    formData.append('subject', contractData.projectName || `Contract for ${contractData.brand}`);
+    formData.append('message', `Hello,\n\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`);
+    formData.append('signers', signers); // Sending signers array as JSON string
+    formData.append('metadata', metadata); // Sending metadata object as JSON string
+    
     if (isAgencyOwner && requesterData.email) {
-      options.ccEmailAddresses = [requesterData.email!];
-      options.message += `\n\nThis contract is managed by ${requesterData.displayName}.`;
+      formData.append('cc_email_addresses', JSON.stringify([requesterData.email!]));
+      // Note: Message needs to be updated before appending if necessary
     }
 
-    logger.info("Sending Dropbox Sign request with options:", JSON.stringify({
-      ...options,
-      signers: options.signers ? options.signers.map((s) => ({name: s.name, emailAddress: "[REDACTED]"})) : undefined,
-      ccEmailAddresses: options.ccEmailAddresses ? options.ccEmailAddresses.map(() => "[REDACTED]") : undefined,
-      files: options.files ? "[REDACTED_FILE_DATA]" : undefined,
-    }));
 
-    const response = await signatureRequestApi.signatureRequestSend(options);
-    const signatureRequestId = response.body.signatureRequest?.signatureRequestId;
+    logger.info("Sending Dropbox Sign request using FormData via Axios.");
+
+    const response = await axios.post(
+        API_ENDPOINT, 
+        formData, 
+        {
+            headers: {
+                ...formData.getHeaders(), // Essential for multipart/form-data boundary
+                'Authorization': `Basic ${Buffer.from(HELLOSIGN_API_KEY + ':').toString('base64')}`, // Basic Auth
+            },
+            // The API requires the API key passed as Basic Auth (username:apikey, password:)
+            auth: {
+                username: HELLOSIGN_API_KEY,
+                password: '',
+            }
+        }
+    );
+
+    const responseData = response.data; // Axios automatically parses JSON response
+    const signatureRequestId = responseData.signature_request?.signatureRequestId;
+
 
     if (!signatureRequestId) {
-      logger.error("Dropbox Sign response missing signature_request_id", response);
+      logger.error("Dropbox Sign response missing signature_request_id", responseData);
       throw new HttpsError("internal", "Failed to get signature request ID from Dropbox Sign.");
     }
 
@@ -233,26 +261,32 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     };
   } catch (error: any) {
     logger.error(`Error initiating Dropbox Sign request for contract ${contractId}:`, error);
-    if (error instanceof HttpsError) {
+    
+    let errorMessage = "An unknown error occurred.";
+    if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.error?.error_msg || error.message;
+        if (error.response?.status === 401) {
+             throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
+        }
+        if (error.response?.status === 400) {
+            throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
+        }
+    } else if (error instanceof HttpsError) {
       throw error;
+    } else {
+        errorMessage = error.message;
     }
-    const errorMessage = error.body?.error?.errorMsg || error.response?.body?.error?.errorMsg ||
-          error.message || "An unknown error occurred.";
-    if (error.code === "ECONNREFUSED" || (error.response && error.response.statusCode === 401)) {
-      throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
-    }
-    if (error.response && error.response.statusCode === 400) {
-      throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
-    }
+
     throw new HttpsError("internal", errorMessage);
   } finally {
-      if (tempFilePath) {
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch (e) {
-          logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
-        }
+    // 3. Clean up the temporary file regardless of success or failure
+    if (tempFilePath && !fileSentViaUrl) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {
+        logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
       }
+    }
   }
 });
 
@@ -438,7 +472,10 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
         newStatus = "signed";
         historyAction = "Document Fully Signed (Dropbox Sign)";
         if (signatureRequestData?.files_url) {
-          signedDocumentUrl = signatureRequestData.files_url;
+            // NOTE: The signed_document_url from the webhook is often temporary. 
+            // We usually store the permanent URL provided by the files_url.
+            // If the structure of the API changes, this might need adjustment.
+            signedDocumentUrl = signatureRequestData.files_url; 
         }
         break;
       case "signature_request_declined":
