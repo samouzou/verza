@@ -7,6 +7,9 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
@@ -50,6 +53,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
   if (!contractId || typeof contractId !== "string") {
     throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
+  
+  let tempFilePath: string | null = null;
 
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
@@ -125,25 +130,18 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </html>
         `;
 
-      const htmlBuffer = Buffer.from(htmlContent, "utf-8");
+        tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
+        fs.writeFileSync(tempFilePath, htmlContent);
+        
+        filesPayload.push({
+            filename: "contract.html",
+            value: fs.createReadStream(tempFilePath),
+        } as unknown as DropboxSign.RequestFile);
 
-      // --- FIX: Convert Buffer to Base64 and use 'file_base64' ---
-      // This is the most reliable way to send binary data without stream issues in many SDKs.
-      // We check for the size limit (usually 25MB).
-      const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; 
-      if (htmlBuffer.length > MAX_FILE_SIZE_BYTES) {
-        throw new HttpsError("resource-exhausted", "Generated contract file size exceeds 25MB limit.");
-      }
 
-      const fileBase64 = htmlBuffer.toString("base64");
-      filesPayload.push({
-        filename: "contract.html",
-        file_base64: fileBase64, // Use file_base64 property
-        contentType: "text/html", // Although not strictly needed with base64, good practice
-      } as unknown as DropboxSign.RequestFile);
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      filesPayload.push({fileUrl: contractData.fileUrl} as unknown as DropboxSign.RequestFile);
+      filesPayload.push({file_url: contractData.fileUrl} as unknown as DropboxSign.RequestFile);
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
@@ -247,6 +245,14 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
     }
     throw new HttpsError("internal", errorMessage);
+  } finally {
+      if (tempFilePath) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (e) {
+          logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
+        }
+      }
   }
 });
 
