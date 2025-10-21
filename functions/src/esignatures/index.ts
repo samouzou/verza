@@ -22,6 +22,12 @@ if (HELLOSIGN_API_KEY) {
   logger.warn("HELLOSIGN_API_KEY (for Dropbox Sign) is not set. E-signature functionality will not work.");
 }
 
+/**
+ * Verifies that a user is authenticated via their UID.
+ * @param {string | undefined} uid The user's ID from the request auth context.
+ * @return {Promise<string>} A promise that resolves with the UID if valid.
+ * @throws {HttpsError} If the user is not authenticated or the UID is invalid.
+ */
 async function verifyAuth(uid: string | undefined): Promise<string> {
   if (!uid) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -127,9 +133,11 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         `;
       tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
       fs.writeFileSync(tempFilePath, htmlContent);
-      
-      formData.append("file[0]", fs.createReadStream(tempFilePath), "contract.html");
 
+      formData.append("file[0]", fs.createReadStream(tempFilePath), {
+        filename: `contract-${contractId}-${Date.now()}.html`,
+        contentType: "text/html",
+      });
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
       formData.append("file_url[0]", contractData.fileUrl);
@@ -155,29 +163,39 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (!creatorUserData) {
       throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
     }
-    
-    formData.append('signers[0][email_address]', finalSignerEmail);
-    formData.append('signers[0][name]', contractData.clientName || "Client Signer");
-    formData.append('signers[0][order]', '0');
 
-    formData.append('signers[1][email_address]', creatorEmail);
-    formData.append('signers[1][name]', creatorUserData.displayName || "Creator Signer");
-    formData.append('signers[1][order]', '1');
-
-    formData.append("test_mode", "1");
-    formData.append("title", contractData.projectName || `Contract with ${contractData.brand}`);
-    formData.append("subject", `Signature Request: ${contractData.projectName || `Contract for ${contractData.brand}`}`);
-    formData.append("message", `Hello,\n\nPlease review and sign the attached contract regarding ${contractData.projectName || contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`);
-    
-    const metadata = {
+    // Convert complex objects to JSON strings or simple values for form-data
+    const metadata = JSON.stringify({
       contract_id: contractId,
       user_id: creatorUserId,
       verza_env: process.env.NODE_ENV || "development",
-    };
-    formData.append("metadata", JSON.stringify(metadata));
+    });
+
+    const signers = JSON.stringify([
+      {
+        email_address: finalSignerEmail,
+        name: contractData.clientName || "Client Signer",
+        order: 0, // Explicitly set order if needed
+      },
+      {
+        email_address: creatorEmail,
+        name: creatorUserData.displayName || "Creator Signer",
+        order: 1, // Explicitly set order if needed
+      },
+    ]);
+
+    // Append all options required by the Dropbox Sign API to the form data
+    formData.append("test_mode", "1"); // Equivalent to options.testMode: true
+    formData.append("title", contractData.projectName || `Contract with ${contractData.brand}`);
+    formData.append("subject", contractData.projectName || `Contract for ${contractData.brand}`);
+    formData.append("message", `Hello,\n\nPlease review and sign the attached contract regarding ${contractData.projectName ||
+      contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`);
+    formData.append("signers", signers); // Sending signers array as JSON string
+    formData.append("metadata", metadata); // Sending metadata object as JSON string
 
     if (isAgencyOwner && requesterData.email) {
-      formData.append("cc_email_addresses[0]", requesterData.email!);
+      formData.append("cc_email_addresses", JSON.stringify([requesterData.email!]));
+      // Note: Message needs to be updated before appending if necessary
     }
 
     logger.info("Sending Dropbox Sign request using FormData via Axios.");
