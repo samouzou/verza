@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2 } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +13,8 @@ import { ContractStatusBadge } from '@/components/contracts/contract-status-badg
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
-import { storage, functions as firebaseAppFunctions } from '@/lib/firebase'; // Import initialized functions
+import { storage } from '@/lib/firebase'; // Import initialized functions
 import { ref as storageFileRef, deleteObject } from 'firebase/storage';
-import { getFunctions, httpsCallableFromURL } from 'firebase/functions'; // Keep these for callable
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -30,13 +29,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
@@ -45,10 +37,13 @@ import { format } from 'date-fns';
 import { ShareContractDialog } from '@/components/contracts/share-contract-dialog';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
+import { registerLicense } from '@syncfusion/ej2-base';
+import { useSidebar } from '@/components/ui/sidebar';
 
-const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
+if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
+  registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
+}
 
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
@@ -106,7 +101,7 @@ export default function ContractDetailPage() {
   const id = params.id as string;
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
@@ -128,12 +123,14 @@ export default function ContractDetailPage() {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
 
-  // E-Signature State
-  const [isSendingForSignature, setIsSendingForSignature] = useState(false);
-  const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
-  const [signerEmailOverride, setSignerEmailOverride] = useState("");
-
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
+  const { setOpen } = useSidebar();
+
+  useEffect(() => {
+    // Collapse sidebar by default on this page
+    setOpen(false);
+  }, [setOpen]);
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
@@ -206,8 +203,8 @@ export default function ContractDetailPage() {
 
 
           setContract({
-            id: contractSnap.id,
             ...data,
+            id: contractSnap.id,
             createdAt: createdAt,
             updatedAt: updatedAt,
             lastReminderSentAt: lastReminderSentAt || null,
@@ -313,12 +310,16 @@ export default function ContractDetailPage() {
       if (unsubscribeEmailLogs) unsubscribeEmailLogs();
     };
   }, [id, user, authLoading, router, toast]);
-
-  useEffect(() => {
-    if (isSignatureDialogOpen && contract) {
-      setSignerEmailOverride(contract.clientEmail || "");
+  
+  const onEditorCreated = () => {
+    if (editorRef.current && contract?.contractText) {
+      try {
+        editorRef.current.documentEditor.open(contract.contractText);
+      } catch (e) {
+        console.error("Failed to load SFDT content in viewer:", e);
+      }
     }
-  }, [isSignatureDialogOpen, contract]);
+  };
 
   const handleDeleteContract = async () => {
     if (!contract) return;
@@ -434,74 +435,6 @@ export default function ContractDetailPage() {
       setIsDeletingCommentOrReply(false);
     }
   };
-  
-  const handleInitiateSignatureRequest = async () => {
-    if (!contract || !user) {
-      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
-      return;
-    }
-    if (!signerEmailOverride.trim()) {
-      toast({ title: "Email Required", description: "Please enter the signer's email address.", variant: "destructive" });
-      return;
-    }
-    if (!contract.fileUrl && !contract.contractText) {
-      toast({ title: "File or Text Missing", description: "This contract does not have an uploaded file or text to send for signature.", variant: "destructive" });
-      return;
-    }
-
-    setIsSendingForSignature(true);
-    try {
-      const idToken = await getUserIdToken();
-      if (!idToken) {
-        throw new Error("Authentication token is not available.");
-      }
-      
-      const initiateRequestCallable = httpsCallableFromURL(
-        firebaseAppFunctions, 
-        INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL
-      );
-
-      const result = await initiateRequestCallable({
-        contractId: contract.id,
-        signerEmailOverride: signerEmailOverride.trim(),
-      });
-
-      const data = result.data as { success: boolean; message: string; helloSignRequestId?: string };
-
-      if (data.success) {
-        toast({ title: "E-Signature Request Sent", description: data.message });
-        setIsSignatureDialogOpen(false); 
-      } else {
-        throw new Error(data.message || "Failed to send e-signature request.");
-      }
-    } catch (error: any) {
-      console.error("Error initiating Dropbox Sign request:", error);
-      toast({
-        title: "E-Signature Error",
-        description: error.message || "Could not initiate e-signature request.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingForSignature(false);
-    }
-  };
-
-  const getSignatureButtonText = () => {
-    if (!contract?.signatureStatus || contract.signatureStatus === 'none') return "Send for E-Signature";
-    if (contract.signatureStatus === 'sent') return "Signature Request Sent";
-    if (contract.signatureStatus === 'signed') return "Document Signed";
-    if (contract.signatureStatus === 'viewed_by_signer') return "Viewed by Signer";
-    if (contract.signatureStatus === 'declined') return "Signature Declined - Resend?";
-    if (contract.signatureStatus === 'canceled') return "Request Canceled - Resend?";
-    if (contract.signatureStatus === 'error') return "Error Sending - Retry?";
-    return "Manage E-Signature";
-  };
-  
-  const canSendSignatureRequest = !contract?.signatureStatus || 
-                                 contract.signatureStatus === 'none' || 
-                                 contract.signatureStatus === 'error' || 
-                                 contract.signatureStatus === 'declined' ||
-                                 contract.signatureStatus === 'canceled';
 
   const handleUpdateProposalStatus = async (proposal: RedlineProposal, newStatus: 'accepted' | 'rejected') => {
     if (!contract || !user) return;
@@ -669,19 +602,27 @@ export default function ContractDetailPage() {
                         </div>
                      )}
 
-                     {contract.contractText && (
+                     {contract.contractText ? (
                         <div className="contract-text-card-for-print">
                             <h3 className="font-semibold text-lg mb-2 hide-on-print">Full Contract Text</h3>
-                             <ScrollArea className="h-[500px] pr-3 border rounded-md p-3 bg-muted/30 hide-on-print">
-                                <p className="text-sm text-foreground whitespace-pre-wrap">{contract.contractText}</p>
-                            </ScrollArea>
-                            {/* This is for printing only */}
+                            <div className="h-[800px] border rounded-md overflow-hidden hide-on-print">
+                              <DocumentEditorContainerComponent 
+                                id="contract-viewer" 
+                                ref={editorRef}
+                                created={onEditorCreated}
+                                style={{ display: 'block' }} 
+                                height="100%" 
+                                serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
+                                enableToolbar={false}
+                                readOnly={true}
+                                showPropertiesPane={false}
+                              />
+                            </div>
                             <div className="hidden print:block">
-                               <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.contractText}</p>
+                               <p className="text-xs text-foreground whitespace-pre-wrap contract-text-paragraph-for-print">{contract.summary || 'Summary not available.'}</p>
                             </div>
                         </div>
-                     )}
-                     {!contract.contractText && (
+                     ) : (
                         <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
                           <p>No contract text available.</p>
                           <p className="text-sm">Edit the contract to paste the text for AI analysis.</p>
@@ -696,48 +637,9 @@ export default function ContractDetailPage() {
             <div className="space-y-6">
               <Card className="shadow-lg hide-on-print">
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-2">
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Edit3 className="mr-2 h-4 w-4"/>Edit</Link></Button>
+                  <CardContent className="flex flex-col gap-2">
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
-                      <ShareContractDialog contractId={contract.id} isOpen={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />
-                      <Dialog open={isSignatureDialogOpen} onOpenChange={setIsSignatureDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" disabled={!canSendSignatureRequest && !isSendingForSignature}>
-                            {getSignatureButtonText()}
-                          </Button>
-                        </DialogTrigger>
-                         {canSendSignatureRequest && (
-                           <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Send for E-Signature</DialogTitle>
-                                <DialogDescription>
-                                  Send this contract to the client for signature via Dropbox Sign. You will also be required to sign.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4 py-2">
-                                <div>
-                                  <Label htmlFor="signer-email">Client's Email</Label>
-                                  <Input 
-                                    id="signer-email"
-                                    type="email"
-                                    value={signerEmailOverride}
-                                    onChange={(e) => setSignerEmailOverride(e.target.value)}
-                                    placeholder="client@example.com"
-                                    disabled={isSendingForSignature}
-                                  />
-                                  <p className="text-xs text-muted-foreground mt-1">Defaults to client email on contract, if available.</p>
-                                </div>
-                              </div>
-                              <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsSignatureDialogOpen(false)}>Cancel</Button>
-                                <Button onClick={handleInitiateSignatureRequest} disabled={isSendingForSignature || !signerEmailOverride.trim()}>
-                                  {isSendingForSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SendIconComponent className="mr-2 h-4 w-4" />}
-                                  Send Request
-                                </Button>
-                              </DialogFooter>
-                           </DialogContent>
-                         )}
-                      </Dialog>
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>AI Contract Negotiator</Link></Button>
                   </CardContent>
               </Card>
 
@@ -831,16 +733,20 @@ export default function ContractDetailPage() {
                       : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
                       : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
                           {contractComments.map(comment => (
-                            <div key={comment.id} className="p-3 border rounded-md bg-muted/30">
-                              <div className="flex items-center justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
+                            <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
+                              <div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
                               <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
                               {comment.replies && comment.replies.length > 0 && (
-                                <div className="mt-3 ml-8 pl-4 border-l border-primary/30 space-y-2">{comment.replies.map(reply => (
-                                  <div key={reply.replyId} className="text-sm p-2 rounded-md bg-primary/5">
-                                    <div className="flex items-center justify-between mb-0.5"><p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName}</p><Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('reply', reply.replyId, comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                                    <p className="text-foreground/80 whitespace-pre-wrap text-xs ml-5">{reply.replyText}</p>
-                                  </div>
-                                ))}</div>
+                                <div className="mt-3 ml-8 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
+                                    {comment.replies.map(reply => (
+                                        <div key={reply.replyId}>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName} (Creator)</p>
+                                            </div>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{reply.replyText}</p>
+                                        </div>
+                                    ))}
+                                </div>
                               )}
                               <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
                             </div>

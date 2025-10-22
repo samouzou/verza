@@ -32,7 +32,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     talentLimit: 0, // No talent limit for individuals
     subscriptionInterval: null,
     trialEndsAt: trialEndsAt as any,
-    subscriptionEndsAt: null, 
+    subscriptionEndsAt: null,
     trialExtensionUsed: false,
     stripeAccountId: null,
     stripeAccountStatus: "none",

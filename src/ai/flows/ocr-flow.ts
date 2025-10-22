@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview Performs Optical Character Recognition (OCR) on a document image.
+ * @fileOverview Performs Optical Character Recognition (OCR) on a document.
  *
- * - ocrDocument - A function that extracts text from an image or PDF file.
+ * - ocrDocument - A function that extracts text and returns it.
  * - OcrDocumentInput - The input type for the function.
  * - OcrDocumentOutput - The return type for the function.
  */
@@ -20,7 +20,7 @@ const OcrDocumentInputSchema = z.object({
 export type OcrDocumentInput = z.infer<typeof OcrDocumentInputSchema>;
 
 const OcrDocumentOutputSchema = z.object({
-  extractedText: z.string().describe('The full text extracted from the document.'),
+  extractedText: z.string().describe('The extracted plain text from the document.'),
 });
 export type OcrDocumentOutput = z.infer<typeof OcrDocumentOutputSchema>;
 
@@ -32,14 +32,11 @@ const prompt = ai.definePrompt({
   name: 'ocrDocumentPrompt',
   input: { schema: OcrDocumentInputSchema },
   output: { schema: OcrDocumentOutputSchema },
-  prompt: `You are an expert Optical Character Recognition (OCR) AI.
-  Your task is to accurately extract all text from the provided document.
-  Preserve the original formatting, including line breaks and spacing, as much as possible.
+  prompt: `You are an expert Optical Character Recognition (OCR) AI. Your task is to accurately extract all text from the provided document image or PDF. Preserve original line breaks and paragraph structure in the extracted text.
 
   Document to process:
   {{media url=documentDataUri}}
   `,
-  // Specify a model that supports multimodal input (image/pdf + text)
   model: 'googleai/gemini-2.0-flash',
 });
 
