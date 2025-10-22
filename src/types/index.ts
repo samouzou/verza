@@ -1,4 +1,3 @@
-
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
@@ -187,6 +186,7 @@ export interface UserProfileFirestoreData {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  hasCreatedContract?: boolean;
 }
 
 // Simplified Receipt Feature Types

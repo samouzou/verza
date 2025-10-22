@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -49,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SetupGuide } from "./setup-guide"; // Import the new component
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -159,6 +159,7 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
+         <SetupGuide />
          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>

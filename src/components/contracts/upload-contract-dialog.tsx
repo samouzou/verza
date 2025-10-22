@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useTransition, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,7 @@ import type { Agency, Contract, Talent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc } from '@/lib/firebase';
+import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc } from '@/lib/firebase';
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -48,7 +47,7 @@ export function UploadContractDialog() {
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const { user } = useAuth();
+  const { user, refreshAuthUser } = useAuth();
   
   const [agency, setAgency] = useState<Agency | null>(null);
   const [selectedOwner, setSelectedOwner] = useState<string>("personal"); // 'personal' or a talent's UID
@@ -336,6 +335,11 @@ export function UploadContractDialog() {
 
 
       await addDoc(collection(db, 'contracts'), contractDataForFirestore);
+      
+      // Mark hasCreatedContract as true for the user
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, { hasCreatedContract: true });
+      await refreshAuthUser(); // Refresh user state to reflect this change
       
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
       setIsOpen(false);
