@@ -55,7 +55,6 @@ const navItems = [
   { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/receipts", label: "Receipts", icon: ReceiptText },
   { href: "/integrations", label: "Integrations", icon: Link2 },
-  { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { href: "/tax-forms", label: "Tax Forms", icon: FileStack },
   { href: "/agency", label: "Agency", icon: Building },
