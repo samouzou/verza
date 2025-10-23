@@ -21,6 +21,7 @@ interface Step {
 export function SetupGuide() {
   const { user } = useAuth();
   const { open } = useSidebar();
+  const [hasCreatedContract, setHasCreatedContract] = useState(false);
   const [hasSentInvoice, setHasSentInvoice] = useState(false);
   const [hasPaidContract, setHasPaidContract] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,16 +32,27 @@ export function SetupGuide() {
       return;
     }
 
-    const checkContractStatus = async () => {
+    const checkStatuses = async () => {
       setIsLoading(true);
       try {
         const contractsCol = collection(db, 'contracts');
+        
+        // Query 1: Check for any contract created by the user
+        const createdQuery = query(
+          contractsCol,
+          where('userId', '==', user.uid),
+          limit(1)
+        );
+
+        // Query 2: Check for any invoice sent by the user
         const sentQuery = query(
           contractsCol,
           where('userId', '==', user.uid),
           where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']),
           limit(1)
         );
+        
+        // Query 3: Check for any paid contract
         const paidQuery = query(
           contractsCol,
           where('userId', '==', user.uid),
@@ -48,16 +60,20 @@ export function SetupGuide() {
           limit(1)
         );
 
-        const [sentSnapshot, paidSnapshot] = await Promise.all([
+        const [createdSnapshot, sentSnapshot, paidSnapshot] = await Promise.all([
+          getDocs(createdQuery),
           getDocs(sentQuery),
           getDocs(paidQuery),
         ]);
 
+        setHasCreatedContract(!createdSnapshot.empty);
         setHasSentInvoice(!sentSnapshot.empty);
         setHasPaidContract(!paidSnapshot.empty);
         
       } catch (error) {
         console.error("Error checking contract statuses:", error);
+        // Reset on error
+        setHasCreatedContract(false);
         setHasSentInvoice(false);
         setHasPaidContract(false);
       } finally {
@@ -65,10 +81,9 @@ export function SetupGuide() {
       }
     };
 
-    checkContractStatus();
+    checkStatuses();
   }, [user]);
 
-  const hasCreatedContract = user?.hasCreatedContract || false;
   const isStripeConnected = user?.stripePayoutsEnabled || false;
 
   const steps: Step[] = [
@@ -134,7 +149,7 @@ export function SetupGuide() {
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    <span className={step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'}>
+                    <span className={cn('transition-colors', step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground')}>
                       {step.label}
                     </span>
                   </Link>
