@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
+import { cn } from "@/lib/utils";
 
 interface Step {
   id: string;
