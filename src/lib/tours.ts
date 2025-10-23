@@ -46,3 +46,37 @@ export const dashboardTour: Tour = {
     },
   ],
 };
+
+export const contractsTour: Tour = {
+  id: 'contracts-tour',
+  steps: [
+    {
+      selector: '#add-contract-button',
+      title: 'Add a Contract',
+      content: 'Click here to start a new contract. You can upload a file (DOCX, PDF, image) or paste text directly for our AI to analyze.',
+      side: 'bottom',
+      align: 'end',
+    },
+    {
+      selector: '#contract-search-input',
+      title: 'Search Contracts',
+      content: 'Quickly find any contract by searching for a brand name, file name, or contract type.',
+      side: 'bottom',
+      align: 'start',
+    },
+    {
+      selector: '#contract-list-container',
+      title: 'Your Contracts',
+      content: 'All of your contracts are listed here. You can see their status, amount, and due date at a glance.',
+      side: 'top',
+      align: 'center',
+    },
+     {
+      selector: '#contract-actions-menu',
+      title: 'Contract Actions',
+      content: 'Use this menu to view, edit, or delete a contract.',
+      side: 'left',
+      align: 'end',
+    },
+  ],
+};

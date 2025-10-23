@@ -7,12 +7,14 @@ import { ContractList } from "@/components/contracts/contract-list";
 import { UploadContractDialog } from "@/components/contracts/upload-contract-dialog";
 import type { Contract } from "@/types";
 import { Input } from "@/components/ui/input";
-import { Search, Download } from "lucide-react";
+import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useTour } from "@/hooks/use-tour";
+import { contractsTour } from "@/lib/tours";
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -20,6 +22,7 @@ export default function ContractsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { startTour } = useTour();
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -194,9 +197,7 @@ export default function ContractsPage() {
         description="Manage all your brand deals and agreements."
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" disabled>
-              <Download className="mr-2 h-4 w-4" /> Export All
-            </Button>
+            <Button variant="outline" onClick={() => startTour(contractsTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>
             {user && <UploadContractDialog />}
           </div>
         }
@@ -206,6 +207,7 @@ export default function ContractsPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
+            id="contract-search-input"
             type="search"
             placeholder="Search contracts by brand, file, or type..."
             className="pl-10 w-full md:w-1/2 lg:w-1/3"
