@@ -5,12 +5,14 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Instagram, Youtube, Link as LinkIcon } from "lucide-react";
+import { Loader2, AlertTriangle, Instagram, Youtube, Link as LinkIcon, LifeBuoy } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
+import { useTour } from "@/hooks/use-tour";
+import { insightsTour } from "@/lib/tours";
 
 // Placeholder for TikTok Icon
 const TikTokIcon = () => (
@@ -23,6 +25,7 @@ export default function InsightsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
+  const { startTour } = useTour();
 
   const handleConnectInstagram = async () => {
     setIsConnecting(true);
@@ -68,9 +71,10 @@ export default function InsightsPage() {
       <PageHeader
         title="Creator Insights"
         description="Connect your social media accounts to analyze your audience and estimate your earnings potential."
+        actions={<Button variant="outline" onClick={() => startTour(insightsTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
       <div className="space-y-8">
-        <Card>
+        <Card id="connect-accounts-card">
           <CardHeader>
             <CardTitle>Connect Your Accounts</CardTitle>
             <CardDescription>
@@ -97,7 +101,7 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
         
-        <Card className="bg-muted/50">
+        <Card id="how-it-works-card" className="bg-muted/50">
             <CardHeader>
                 <CardTitle>How It Works</CardTitle>
             </CardHeader>

@@ -1,3 +1,4 @@
+
 import type { Tour } from '@/types';
 
 export const dashboardTour: Tour = {
@@ -77,6 +78,26 @@ export const contractsTour: Tour = {
       content: 'Use this menu to view, edit, or delete a contract.',
       side: 'left',
       align: 'end',
+    },
+  ],
+};
+
+export const insightsTour: Tour = {
+  id: 'insights-tour',
+  steps: [
+    {
+      selector: '#connect-accounts-card',
+      title: 'Connect Your Social Accounts',
+      content: 'Start by connecting your Instagram, TikTok, or YouTube accounts. This allows Verza to fetch your engagement data for analysis.',
+      side: 'bottom',
+      align: 'start',
+    },
+    {
+      selector: '#how-it-works-card',
+      title: 'How Insights Work',
+      content: 'Once connected, Verza provides trends and AI-powered estimates to help you gauge your market value for brand deals.',
+      side: 'top',
+      align: 'start',
     },
   ],
 };
