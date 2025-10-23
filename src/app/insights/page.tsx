@@ -7,6 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, AlertTriangle, Instagram, Youtube, Link as LinkIcon } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase';
+import { useToast } from "@/hooks/use-toast";
 
 // Placeholder for TikTok Icon
 const TikTokIcon = () => (
@@ -17,6 +21,33 @@ const TikTokIcon = () => (
 
 export default function InsightsPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectInstagram = async () => {
+    setIsConnecting(true);
+    toast({ title: 'Redirecting to Instagram...', description: 'Please follow the prompts to authorize Verza.' });
+    try {
+      const getInstagramAuthUrl = httpsCallable(functions, 'getInstagramAuthUrl');
+      const result = await getInstagramAuthUrl();
+      const { authUrl } = result.data as { authUrl: string };
+
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        throw new Error("Could not retrieve Instagram authorization URL.");
+      }
+    } catch (error: any) {
+      console.error("Error initiating Instagram connection:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Could not connect to Instagram. Please try again.",
+        variant: "destructive",
+      });
+      setIsConnecting(false);
+    }
+  };
+
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -47,8 +78,12 @@ export default function InsightsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
-                <Instagram className="h-6 w-6 text-pink-500" />
+            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectInstagram} disabled={isConnecting}>
+                {isConnecting ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Instagram className="h-6 w-6 text-pink-500" />
+                )}
                 Connect Instagram
             </Button>
             <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
