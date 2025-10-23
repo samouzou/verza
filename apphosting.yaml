@@ -95,19 +95,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
-  # Instagram OAuth
-  - variable: INSTAGRAM_APP_ID
-    secret: VERZA_INSTAGRAM_APP_ID
-    availability:
-      - RUNTIME
-
-  - variable: INSTAGRAM_APP_SECRET
-    secret: VERZA_INSTAGRAM_APP_SECRET
-    availability:
-      - RUNTIME
-
-  - variable: INSTAGRAM_REDIRECT_URI
-    secret: VERZA_INSTAGRAM_REDIRECT_URI
-    availability:
-      - RUNTIME

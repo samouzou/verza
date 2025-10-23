@@ -1,3 +1,4 @@
+
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
@@ -294,4 +295,18 @@ export interface InternalPayout {
   paidAt?: ClientTimestamp;
   stripeChargeId?: string;
   platformFee?: number;
+}
+
+// Tour Guide Types
+export interface TourStep {
+  selector: string;
+  title: string;
+  content: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+}
+
+export type Tour = {
+  id: string;
+  steps: TourStep[];
 }
