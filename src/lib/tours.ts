@@ -101,3 +101,37 @@ export const insightsTour: Tour = {
     },
   ],
 };
+
+export const agencyTour: Tour = {
+  id: 'agency-tour',
+  steps: [
+    {
+      selector: '#invite-talent-card',
+      title: 'Invite Talent',
+      content: 'Add creators to your agency by sending an invitation to their email address. Once they accept, you can manage their contracts.',
+      side: 'bottom',
+      align: 'start',
+    },
+    {
+      selector: '#create-payout-card',
+      title: 'Create Payouts',
+      content: 'Send payments directly to your talent through Stripe. Record the amount, date, and reason for each payout.',
+      side: 'bottom',
+      align: 'end',
+    },
+    {
+      selector: '#talent-roster-card',
+      title: 'Talent Roster',
+      content: 'View all the talent in your agency, their status, and set their commission rates for financial tracking.',
+      side: 'top',
+      align: 'center',
+    },
+    {
+      selector: '#payout-history-card',
+      title: 'Payout History',
+      content: 'Keep track of all the internal payouts you have sent to your talent, including their status and amount.',
+      side: 'top',
+      align: 'center',
+    },
+  ],
+};
