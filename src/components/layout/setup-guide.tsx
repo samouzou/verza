@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2 } from "lucide-react";
+import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
 
@@ -21,6 +21,7 @@ interface Step {
 export function SetupGuide() {
   const { user } = useAuth();
   const { open } = useSidebar();
+  const [hasSentInvoice, setHasSentInvoice] = useState(false);
   const [hasPaidContract, setHasPaidContract] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -30,32 +31,54 @@ export function SetupGuide() {
       return;
     }
 
-    const checkPaidContracts = async () => {
+    const checkContractStatus = async () => {
+      setIsLoading(true);
       try {
         const contractsCol = collection(db, 'contracts');
-        const q = query(
+        const sentQuery = query(
+          contractsCol,
+          where('userId', '==', user.uid),
+          where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']),
+          limit(1)
+        );
+        const paidQuery = query(
           contractsCol,
           where('userId', '==', user.uid),
           where('invoiceStatus', '==', 'paid'),
           limit(1)
         );
-        const contractSnapshot = await getDocs(q);
-        setHasPaidContract(!contractSnapshot.empty);
+
+        const [sentSnapshot, paidSnapshot] = await Promise.all([
+          getDocs(sentQuery),
+          getDocs(paidQuery),
+        ]);
+
+        setHasSentInvoice(!sentSnapshot.empty);
+        setHasPaidContract(!paidSnapshot.empty);
+        
       } catch (error) {
-        console.error("Error checking for paid contracts:", error);
-        setHasPaidContract(false); // Assume false on error
+        console.error("Error checking contract statuses:", error);
+        setHasSentInvoice(false);
+        setHasPaidContract(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkPaidContracts();
+    checkContractStatus();
   }, [user]);
 
   const hasCreatedContract = user?.hasCreatedContract || false;
   const isStripeConnected = user?.stripePayoutsEnabled || false;
 
   const steps: Step[] = [
+    {
+      id: 'stripe',
+      label: 'Connect Stripe for payouts',
+      isCompleted: isStripeConnected,
+      href: '/settings',
+      icon: Banknote
+    },
     {
       id: 'contract',
       label: 'Create your first contract',
@@ -64,11 +87,11 @@ export function SetupGuide() {
       icon: FileText
     },
     {
-      id: 'stripe',
-      label: 'Connect Stripe for payouts',
-      isCompleted: isStripeConnected,
-      href: '/settings',
-      icon: Banknote
+      id: 'invoice',
+      label: 'Send your first invoice',
+      isCompleted: hasSentInvoice,
+      href: '/contracts',
+      icon: Send
     },
     {
       id: 'payment',
