@@ -533,7 +533,7 @@ export default function ContractDetailPage() {
     effectiveDisplayStatus = 'overdue';
   } else if ((contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
     effectiveDisplayStatus = 'overdue';
-  } else if (contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
+  } else if (invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
     effectiveDisplayStatus = 'invoiced';
   } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
     effectiveDisplayStatus = 'overdue';
@@ -612,7 +612,6 @@ export default function ContractDetailPage() {
                                 created={onEditorCreated}
                                 style={{ display: 'block' }} 
                                 height="100%" 
-                                serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                                 enableToolbar={false}
                                 readOnly={true}
                                 showPropertiesPane={false}
