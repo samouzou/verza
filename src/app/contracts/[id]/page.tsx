@@ -533,7 +533,7 @@ export default function ContractDetailPage() {
     effectiveDisplayStatus = 'overdue';
   } else if ((contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
     effectiveDisplayStatus = 'overdue';
-  } else if (invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
+  } else if (contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
     effectiveDisplayStatus = 'invoiced';
   } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
     effectiveDisplayStatus = 'overdue';
