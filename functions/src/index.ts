@@ -60,11 +60,6 @@ import {
   createInternalPayout,
 } from "./agency";
 
-import {
-  getInstagramAuthUrl,
-} from "./instagram";
-
-
 // Export v2 functions
 export {
   createStripeConnectedAccount,
@@ -92,7 +87,6 @@ export {
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
-  getInstagramAuthUrl,
 };
 
 // Import and export v1 auth trigger using require/exports
