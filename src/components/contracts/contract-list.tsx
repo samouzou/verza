@@ -16,6 +16,7 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { Timestamp } from 'firebase/firestore'; 
 import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
 
 interface ContractListProps {
   contracts: Contract[];
@@ -23,10 +24,15 @@ interface ContractListProps {
 
 export function ContractList({ contracts }: ContractListProps) {
   const { user } = useAuth();
+  const router = useRouter();
   
   if (contracts.length === 0) {
     return <p className="text-muted-foreground mt-4">No contracts found. Add your first contract to get started!</p>;
   }
+
+  const handleRowClick = (contractId: string) => {
+    router.push(`/contracts/${contractId}`);
+  };
 
   const formatDate = (dateInput: string | Timestamp | undefined): string => {
     if (!dateInput) return 'N/A';
@@ -59,7 +65,7 @@ export function ContractList({ contracts }: ContractListProps) {
         </TableHeader>
         <TableBody>
           {contracts.map((contract, index) => (
-            <TableRow key={contract.id}>
+            <TableRow key={contract.id} onClick={() => handleRowClick(contract.id)} className="cursor-pointer">
               <TableCell className="font-medium">{contract.brand}</TableCell>
               {isAgencyView && (
                 <TableCell className="hidden md:table-cell">
@@ -90,12 +96,12 @@ export function ContractList({ contracts }: ContractListProps) {
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0" id={index === 0 ? 'contract-actions-menu' : undefined}>
+                    <Button variant="ghost" className="h-8 w-8 p-0" id={index === 0 ? 'contract-actions-menu' : undefined} onClick={(e) => e.stopPropagation()}>
                       <span className="sr-only">Open menu</span>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenuItem asChild>
                       <Link href={`/contracts/${contract.id}`}>
                         <Eye className="mr-2 h-4 w-4" /> View Details
