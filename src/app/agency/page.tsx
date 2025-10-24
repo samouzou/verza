@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy, Wand2 } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { useTour } from '@/hooks/use-tour';
 import { agencyTour } from '@/lib/tours';
+import { generateTalentContract } from '@/ai/flows/generate-talent-contract-flow';
+import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -105,6 +107,13 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
   
   const [payoutHistory, setPayoutHistory] = useState<InternalPayout[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  // AI Contract Generation State
+  const [aiContractPrompt, setAiContractPrompt] = useState("");
+  const [aiContractTalentId, setAiContractTalentId] = useState("");
+  const [isGeneratingContract, setIsGeneratingContract] = useState(false);
+  const [generatedContractData, setGeneratedContractData] = useState<{ sfdt: string; talent: Talent } | null>(null);
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
 
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
@@ -223,6 +232,30 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
     await onAgencyUpdate({ talent: updatedTalentArray });
     toast({ title: "Commission Updated", description: `Commission for ${editingTalent.displayName} set to ${rate}%.`});
     setEditingTalent(null);
+  };
+
+  const handleGenerateContract = async () => {
+    const selectedTalent = agency.talent.find(t => t.userId === aiContractTalentId);
+    if (!aiContractPrompt.trim() || !selectedTalent) {
+        toast({ title: "Missing Information", description: "Please provide a prompt and select a talent.", variant: "destructive" });
+        return;
+    }
+    setIsGeneratingContract(true);
+    try {
+        const result = await generateTalentContract({
+            prompt: aiContractPrompt,
+            agencyName: agency.name,
+            talentName: selectedTalent.displayName || 'The Talent',
+        });
+        setGeneratedContractData({ sfdt: result.contractSfdt, talent: selectedTalent });
+        setIsContractDialogOpen(true); // Open the dialog
+        toast({ title: "Contract Generated", description: "Review and save the AI-generated contract." });
+    } catch (error: any) {
+        console.error("Error generating AI contract:", error);
+        toast({ title: "Generation Failed", description: error.message || "Could not generate the contract.", variant: "destructive" });
+    } finally {
+        setIsGeneratingContract(false);
+    }
   };
   
   const selectedTalentForPayout = agency.talent.find(t => t.userId === payoutTalentId);
@@ -343,6 +376,53 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
           </CardContent>
         </Card>
       </div>
+
+       <Card id="ai-contract-generator-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Wand2 className="text-primary"/> AI Talent Contract Generator</CardTitle>
+          <CardDescription>Generate a standardized talent management agreement using AI.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="ai-contract-prompt">Contract Prompt</Label>
+            <Textarea 
+              id="ai-contract-prompt"
+              value={aiContractPrompt}
+              onChange={(e) => setAiContractPrompt(e.target.value)}
+              placeholder="e.g., Draft a 1-year exclusive management contract with a 20% commission on all brand deals."
+              rows={3}
+              disabled={isGeneratingContract || isNotOnAgencyPlan}
+            />
+          </div>
+          <div>
+            <Label htmlFor="ai-contract-talent">For Talent</Label>
+            <Select value={aiContractTalentId} onValueChange={setAiContractTalentId} disabled={isGeneratingContract || isNotOnAgencyPlan}>
+              <SelectTrigger id="ai-contract-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
+              <SelectContent>
+                {agency.talent.filter(t => t.status === 'active').map(t => (
+                  <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleGenerateContract} disabled={isGeneratingContract || !aiContractPrompt || !aiContractTalentId || isNotOnAgencyPlan}>
+            {isGeneratingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+            Generate Contract
+          </Button>
+        </CardContent>
+      </Card>
+      
+      {generatedContractData && (
+        <UploadContractDialog 
+          isOpen={isContractDialogOpen} 
+          onOpenChange={setIsContractDialogOpen}
+          initialSFDT={generatedContractData.sfdt}
+          initialSelectedOwner={generatedContractData.talent.userId}
+          initialFileName={`Talent Agreement - ${generatedContractData.talent.displayName}.docx`}
+        />
+      )}
+
+
       <Card id="talent-roster-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>

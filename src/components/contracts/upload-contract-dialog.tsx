@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useTransition, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -39,8 +40,21 @@ if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
 // Inject the required modules for the Document Editor
 DocumentEditorContainerComponent.Inject(Toolbar, Ribbon);
 
-export function UploadContractDialog() {
-  const [isOpen, setIsOpen] = useState(false);
+interface UploadContractDialogProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialSFDT?: string;
+  initialSelectedOwner?: string;
+  initialFileName?: string;
+}
+
+
+export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange, initialSFDT, initialSelectedOwner, initialFileName }: UploadContractDialogProps) {
+  const [isInternalOpen, setInternalOpen] = useState(false);
+  
+  const isOpen = controlledIsOpen ?? isInternalOpen;
+  const onOpenChange = controlledOnOpenChange ?? setInternalOpen;
+
   const [fileName, setFileName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [isProcessingAi, setIsProcessingAi] = useState(false);
@@ -75,8 +89,7 @@ export function UploadContractDialog() {
       user.trialEndsAt &&
       user.trialEndsAt.toMillis() > now);
 
-  useEffect(() => {
-    if (!isOpen) {
+  const resetState = () => {
       if (editorRef.current?.documentEditor) {
           editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
       }
@@ -96,16 +109,44 @@ export function UploadContractDialog() {
       setRecurrenceInterval(undefined);
       setAgency(null);
       setSelectedOwner("personal");
-    } else if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
-      const agencyId = user.agencyMemberships[0].agencyId;
-      const agencyDocRef = doc(db, "agencies", agencyId);
-      getDoc(agencyDocRef).then(docSnap => {
-        if (docSnap.exists()) {
-          setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetState();
+    } else {
+        if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
+            const agencyId = user.agencyMemberships[0].agencyId;
+            const agencyDocRef = doc(db, "agencies", agencyId);
+            getDoc(agencyDocRef).then(docSnap => {
+                if (docSnap.exists()) {
+                    setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+                }
+            });
         }
-      });
+        if (initialSFDT) {
+            if (editorRef.current?.documentEditor) {
+                editorRef.current.documentEditor.open(initialSFDT);
+                handleFullAnalysis(initialSFDT);
+            } else {
+                // Editor not ready, try again shortly
+                setTimeout(() => {
+                    if (editorRef.current?.documentEditor) {
+                      editorRef.current.documentEditor.open(initialSFDT);
+                      handleFullAnalysis(initialSFDT);
+                    }
+                }, 500);
+            }
+        }
+        if (initialSelectedOwner) {
+            setSelectedOwner(initialSelectedOwner);
+        }
+        if (initialFileName) {
+            setFileName(initialFileName);
+        }
     }
-  }, [isOpen, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, user, initialSFDT, initialSelectedOwner, initialFileName]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -342,7 +383,7 @@ export function UploadContractDialog() {
       await refreshAuthUser(); // Refresh user state to reflect this change
       
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
-      setIsOpen(false);
+      onOpenChange(false);
     } catch (error) {
       console.error("Error saving contract:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -394,12 +435,14 @@ export function UploadContractDialog() {
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button id="add-contract-button">
-          <UploadCloud className="mr-2 h-4 w-4" /> Add Contract
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      {!controlledIsOpen && (
+        <DialogTrigger asChild>
+          <Button id="add-contract-button">
+            <UploadCloud className="mr-2 h-4 w-4" /> Add Contract
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent 
         className="w-[95vw] max-w-[95vw] max-h-[90vh] flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -601,7 +644,7 @@ export function UploadContractDialog() {
           </div>
         </div>
         <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Cancel</Button>
           <Button 
             onClick={handleSaveContract} 
             disabled={isProcessingAi || isSaving || !canPerformProAction}
