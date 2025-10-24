@@ -15,12 +15,14 @@ import { DashboardFilters, type DashboardFilterState } from "@/components/dashbo
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock } from "lucide-react"; 
+import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import { useTour } from "@/hooks/use-tour";
+import { dashboardTour } from "@/lib/tours";
 
 
 const addDays = (date: Date, days: number): Date => {
@@ -54,6 +56,7 @@ export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { startTour } = useTour();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
@@ -328,6 +331,7 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Overview of your earnings, contracts, and payment timelines."
+        actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
 
       {showTrialBanner && (
@@ -377,30 +381,35 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
         <SummaryCard 
+          id="summary-card-pending-income"
           title="Pending Income (Filtered)" 
           value={`$${stats.totalPendingIncome.toLocaleString()}`}
           icon={DollarSign}
           description={`${stats.upcomingIncomeCount} upcoming payments`}
         />
         <SummaryCard 
+          id="summary-card-total-contracts"
           title="Total Active Contracts" 
           value={stats.totalContractsCount.toString()}
           icon={FileText}
           description="All contracts managed"
         />
          <SummaryCard 
+          id="summary-card-invoiced"
           title="Invoiced This Month" 
           value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
           icon={FileSpreadsheet}
           description="Based on invoices sent this month"
         />
         <SummaryCard 
+          id="summary-card-collected"
           title="Collected This Month" 
           value={`$${stats.paidThisMonthAmount.toLocaleString()}`}
           icon={CheckCircleIcon} 
           description="Based on invoices paid this month"
         />
         <SummaryCard 
+          id="summary-card-at-risk"
           title="Payments At Risk (Filtered)" 
           value={stats.atRiskPaymentsCount.toString()}
           icon={AlertCircle}
@@ -410,15 +419,15 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div id="earnings-chart-container" className="lg:col-span-2">
           <EarningsChart data={stats.earningsChartData} />
         </div>
-        <div className="lg:col-span-1 space-y-6">
+        <div id="upcoming-income-container" className="lg:col-span-1 space-y-6">
            <UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} />
         </div>
       </div>
 
-      <div className="mt-6">
+      <div id="at-risk-payments-container" className="mt-6">
         <AtRiskPayments payments={stats.atRiskPaymentsList} />
       </div>
     </>

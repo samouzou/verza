@@ -15,6 +15,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/hooks/use-auth'; 
 import { AuthGuard } from '@/components/auth-gaurd';
 import { ThemeProvider } from "next-themes";
+import { TourProvider } from '@/hooks/use-tour';
+import { TourGuide } from '@/components/tour/tour-guide';
 
 export const metadata: Metadata = {
   title: 'Verza', // Updated title
@@ -39,10 +41,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider> 
-            <AuthGuard>
-              {children}
-            </AuthGuard>
-            <Toaster />
+            <TourProvider>
+              <AuthGuard>
+                {children}
+              </AuthGuard>
+              <TourGuide />
+              <Toaster />
+            </TourProvider>
           </AuthProvider> 
         </ThemeProvider>
       </body>

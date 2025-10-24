@@ -187,6 +187,7 @@ export interface UserProfileFirestoreData {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  hasCreatedContract?: boolean;
 }
 
 // Simplified Receipt Feature Types
@@ -294,4 +295,18 @@ export interface InternalPayout {
   paidAt?: ClientTimestamp;
   stripeChargeId?: string;
   platformFee?: number;
+}
+
+// Tour Guide Types
+export interface TourStep {
+  selector: string;
+  title: string;
+  content: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+}
+
+export type Tour = {
+  id: string;
+  steps: TourStep[];
 }

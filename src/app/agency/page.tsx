@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +34,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
+import { useTour } from '@/hooks/use-tour';
+import { agencyTour } from '@/lib/tours';
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -250,7 +252,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card id="invite-talent-card">
             <CardHeader>
             <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
             <CardDescription>Invite creators to join your agency via email.</CardDescription>
@@ -275,7 +277,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
             </div>
             </CardContent>
         </Card>
-         <Card>
+         <Card id="create-payout-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
             <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
@@ -341,7 +343,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
           </CardContent>
         </Card>
       </div>
-      <Card>
+      <Card id="talent-roster-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>
           <CardDescription>View your current roster of creators. ({activeTalentCount} / {talentLimit} talents)</CardDescription>
@@ -385,7 +387,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
            ) : <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators!</p>}
         </CardContent>
       </Card>
-       <Card>
+       <Card id="payout-history-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
           <CardDescription>History of one-off payments made to your talent.</CardDescription>
@@ -499,6 +501,7 @@ export default function AgencyPage() {
   const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
+  const { startTour } = useTour();
 
   const handleUpdateAgency = async (agencyUpdates: Partial<Agency>) => {
     if (!ownedAgencies[0]) return;
@@ -597,6 +600,7 @@ export default function AgencyPage() {
       <PageHeader
         title={pageTitle}
         description={pageDescription}
+        actions={userOwnsAnAgency ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
       />
       <div className="space-y-6">
         {userOwnsAnAgency ? (

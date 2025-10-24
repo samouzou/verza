@@ -43,7 +43,7 @@ export function ContractList({ contracts }: ContractListProps) {
   const isAgencyView = user?.role === 'agency_owner';
 
   return (
-    <div className="overflow-hidden rounded-lg border shadow-sm bg-card text-card-foreground">
+    <div id="contract-list-container" className="overflow-hidden rounded-lg border shadow-sm bg-card text-card-foreground">
       <Table>
         <TableHeader>
           <TableRow>
@@ -58,7 +58,7 @@ export function ContractList({ contracts }: ContractListProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {contracts.map((contract) => (
+          {contracts.map((contract, index) => (
             <TableRow key={contract.id}>
               <TableCell className="font-medium">{contract.brand}</TableCell>
               {isAgencyView && (
@@ -90,7 +90,7 @@ export function ContractList({ contracts }: ContractListProps) {
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
+                    <Button variant="ghost" className="h-8 w-8 p-0" id={index === 0 ? 'contract-actions-menu' : undefined}>
                       <span className="sr-only">Open menu</span>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
