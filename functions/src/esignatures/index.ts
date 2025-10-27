@@ -9,8 +9,9 @@ import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 import axios from "axios";
 import FormData from "form-data";
-import { PdfDocument, PdfPageOrientation, PdfPageSettings, PdfSection, SizeF } from "@syncfusion/ej2-pdf-export";
-import { WordProcessor, DocumentHelper } from "@syncfusion/ej2-file-utils";
+import { PdfDocument } from "@syncfusion/ej2-pdf-export";
+import { DocumentEditor } from "@syncfusion/ej2-documenteditor";
+
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
@@ -81,17 +82,11 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (contractData.contractText) {
       logger.info(`Generating PDF from SFDT for contract ${contractId}.`);
 
-      const document: DocumentHelper = new DocumentHelper();
-      const pageSettings: PdfPageSettings = new PdfPageSettings();
-      pageSettings.orientation = PdfPageOrientation.Portrait;
-      const section: PdfSection = document.addSection();
-      section.pageSettings = pageSettings;
-      document.wordProcessor = new WordProcessor(section);
+      const docEditor = new DocumentEditor();
+      docEditor.open(contractData.contractText);
+      const pdfDocument: PdfDocument = docEditor.saveAsPdf();
+      docEditor.destroy();
 
-      await document.wordProcessor.deserialize(contractData.contractText);
-
-      const pdfDocument: PdfDocument = new PdfDocument();
-      await document.saveAsPdf(pdfDocument, new SizeF(pdfDocument.pageSettings.width, pdfDocument.pageSettings.height));
       const pdfBuffer = Buffer.from(await pdfDocument.save(), 'base64');
       
       formData.append("file[0]", pdfBuffer, {
