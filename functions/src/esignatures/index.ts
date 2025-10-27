@@ -56,7 +56,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
-    const contractSnap = await contractDocRef.get();
+    const contractSnap = await getDoc(contractDocRef);
 
     if (!contractSnap.exists) {
       throw new HttpsError("not-found", "Contract not found.");
@@ -84,10 +84,10 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
       const docEditor = new DocumentEditor();
       docEditor.open(contractData.contractText);
-      const pdfDocument: PdfDocument = docEditor.saveAsPdf();
+      const pdfData: string = await docEditor.saveAsPdf(); // This returns a base64 string
       docEditor.destroy();
-
-      const pdfBuffer = Buffer.from(await pdfDocument.save(), 'base64');
+      
+      const pdfBuffer = Buffer.from(pdfData, 'base64');
       
       formData.append("file[0]", pdfBuffer, {
         filename: `contract-${contractId}.pdf`,
