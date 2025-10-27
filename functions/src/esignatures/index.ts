@@ -7,11 +7,10 @@ import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
-import * as path from "path";
-import * as os from "os";
-import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
+import { PdfDocument, PdfPageOrientation, PdfPageSettings, PdfSection, SizeF } from "@syncfusion/ej2-pdf-export";
+import { WordProcessor, DocumentHelper } from "@syncfusion/ej2-file-utils";
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
@@ -54,9 +53,6 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
 
-  let tempFilePath: string | null = null;
-  let fileSentViaUrl = false;
-
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
     const contractSnap = await contractDocRef.get();
@@ -83,65 +79,29 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const API_ENDPOINT = "https://api.hellosign.com/v3/signature_request/send";
 
     if (contractData.contractText) {
-      logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
+      logger.info(`Generating PDF from SFDT for contract ${contractId}.`);
 
-      let paragraphs: string[] = [];
-      try {
-        const sfdtData = JSON.parse(contractData.contractText);
-        if (sfdtData && sfdtData.sections) {
-          sfdtData.sections.forEach((section: any) => {
-            if (section.blocks) {
-              section.blocks.forEach((block: any) => {
-                let paragraphText = "";
-                if (block.inlines) {
-                  block.inlines.forEach((inline: any) => {
-                    if (inline.text) {
-                      paragraphText += inline.text;
-                    }
-                  });
-                }
-                paragraphs.push(paragraphText.trim());
-              });
-            }
-          });
-        }
-      } catch (e) {
-        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
-        paragraphs = [contractData.contractText];
-      }
+      const document: DocumentHelper = new DocumentHelper();
+      const pageSettings: PdfPageSettings = new PdfPageSettings();
+      pageSettings.orientation = PdfPageOrientation.Portrait;
+      const section: PdfSection = document.addSection();
+      section.pageSettings = pageSettings;
+      document.wordProcessor = new WordProcessor(section);
 
-      const htmlBody = paragraphs
-        .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
-        .join("");
+      await document.wordProcessor.deserialize(contractData.contractText);
 
-      const htmlContent = `
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Contract: ${contractData.projectName || contractData.brand}</title>
-            <style>
-              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
-              p { margin-bottom: 1em; }
-            </style>
-          </head>
-          <body>
-            ${htmlBody}
-          </body>
-          </html>
-        `;
-      tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
-      fs.writeFileSync(tempFilePath, htmlContent);
-
-      formData.append("file[0]", fs.createReadStream(tempFilePath), {
-        filename: `contract-${contractId}-${Date.now()}.html`,
-        contentType: "text/html",
+      const pdfDocument: PdfDocument = new PdfDocument();
+      await document.saveAsPdf(pdfDocument, new SizeF(pdfDocument.pageSettings.width, pdfDocument.pageSettings.height));
+      const pdfBuffer = Buffer.from(await pdfDocument.save(), 'base64');
+      
+      formData.append("file[0]", pdfBuffer, {
+        filename: `contract-${contractId}.pdf`,
+        contentType: "application/pdf",
       });
+
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
       formData.append("file_url[0]", contractData.fileUrl);
-      fileSentViaUrl = true;
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
@@ -259,14 +219,6 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     }
 
     throw new HttpsError("internal", errorMessage);
-  } finally {
-    if (tempFilePath && !fileSentViaUrl) {
-      try {
-        fs.unlinkSync(tempFilePath);
-      } catch (e) {
-        logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
-      }
-    }
   }
 });
 

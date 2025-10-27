@@ -17,6 +17,8 @@
   "dependencies": {
     "@dropbox/sign": "^1.10.0",
     "@sendgrid/mail": "^8.1.5",
+    "@syncfusion/ej2-file-utils": "^26.2.4",
+    "@syncfusion/ej2-pdf-export": "^26.2.4",
     "@types/stripe": "^8.0.417",
     "axios": "^1.7.2",
     "firebase-admin": "^13.4.0",
