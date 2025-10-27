@@ -6,11 +6,12 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
-import type {Timestamp as ClientTimestamp} from "firebase/firestore";
+import * as path from "path";
+import * as os from "os";
+import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
-import { PdfDocument } from "@syncfusion/ej2-pdf-export";
-import { DocumentEditor } from "@syncfusion/ej2-documenteditor";
+import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -54,9 +55,12 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Valid contract ID is required.");
   }
 
+  let tempFilePath: string | null = null;
+  let fileSentViaUrl = false;
+
   try {
     const contractDocRef = db.collection("contracts").doc(contractId);
-    const contractSnap = await getDoc(contractDocRef);
+    const contractSnap = await contractDocRef.get();
 
     if (!contractSnap.exists) {
       throw new HttpsError("not-found", "Contract not found.");
@@ -80,23 +84,90 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const API_ENDPOINT = "https://api.hellosign.com/v3/signature_request/send";
 
     if (contractData.contractText) {
-      logger.info(`Generating PDF from SFDT for contract ${contractId}.`);
+      logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
 
-      const docEditor = new DocumentEditor();
-      docEditor.open(contractData.contractText);
-      const pdfData: string = await docEditor.saveAsPdf(); // This returns a base64 string
-      docEditor.destroy();
+      let paragraphs: string[] = [];
+      try {
+        const sfdtData = JSON.parse(contractData.contractText);
+        if (sfdtData && sfdtData.sections) {
+          sfdtData.sections.forEach((section: any) => {
+            if (section.blocks) {
+              section.blocks.forEach((block: any) => {
+                let paragraphText = "";
+                // CHECK 1: Look for the 'inlines' array within the block
+                if (block.inlines) {
+                  block.inlines.forEach((inline: any) => {
+                    // CHECK 2: Look for 'text' (standard text run)
+                    if (inline.text) {
+                      paragraphText += inline.text;
+                    } else if (inline.tlp) { // Check for text in Text Layout Property (used for simple text runs)
+                      paragraphText += inline.tlp;
+                    }
+                    // CHECK 3: Fallback for complex inline elements (like fields or controls)
+                    // The actual text might be nested deeper if standard text property is empty.
+                    // This is where you might need to check other properties if simple inline.text is missing.
+                  });
+                }
+                // FALLBACK CHECK 4: Check 'cf' (Character Format) or 'tlp' (Text Layout Property) if available
+                // This is a common pattern for entire paragraph contents in SFDT if inlines are just formatting marks.
+                if (paragraphText.trim() === "" && block.cf && block.cf.tlp) {
+                  paragraphText = block.cf.tlp;
+                }
+                // Push the collected text
+                paragraphs.push(paragraphText.trim());
+              });
+            }
+          });
+        }
+      } catch (e) {
+        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
+        paragraphs = [contractData.contractText];
+      }
+
+      const htmlBody = paragraphs
+        .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
+        .join("");
       
-      const pdfBuffer = Buffer.from(pdfData, 'base64');
-      
-      formData.append("file[0]", pdfBuffer, {
-        filename: `contract-${contractId}.pdf`,
-        contentType: "application/pdf",
+      const htmlContent = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Contract: ${contractData.projectName || contractData.brand}</title>
+            <style>
+              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
+              p { margin-bottom: 1em; }
+            </style>
+          </head>
+          <body>
+            ${htmlBody}
+          </body>
+          </html>
+        `;
+        
+        // --- DIAGNOSTIC LOGGING ---
+        if (htmlBody.length < 5) {
+            logger.warn(`Generated HTML Body is likely EMPTY. Length: ${htmlBody.length}.`);
+            logger.warn(`SFDT Data Size Check: ${contractData.contractText.length} characters.`);
+        } else {
+             logger.info(`Successfully generated HTML. Length: ${htmlBody.length}.
+          Preview (first 500 chars): ${htmlContent.substring(0, 500)}`);
+        }
+        // --- END DIAGNOSTIC LOGGING ---
+        
+      tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
+      fs.writeFileSync(tempFilePath, htmlContent);
+
+      formData.append("file[0]", fs.createReadStream(tempFilePath), {
+        filename: `contract-${contractId}-${Date.now()}.html`,
+        contentType: "text/html",
       });
 
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
       formData.append("file_url[0]", contractData.fileUrl);
+      fileSentViaUrl = true;
     } else {
       throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
     }
@@ -214,6 +285,14 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     }
 
     throw new HttpsError("internal", errorMessage);
+  } finally {
+    if (tempFilePath && !fileSentViaUrl) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {
+        logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
+      }
+    }
   }
 });
 
