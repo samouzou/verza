@@ -85,35 +85,26 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     if (contractData.contractText) {
       logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
-
+      
       let paragraphs: string[] = [];
       try {
         const sfdtData = JSON.parse(contractData.contractText);
+        // Correctly parse the provided SFDT structure
         if (sfdtData && sfdtData.sections) {
           sfdtData.sections.forEach((section: any) => {
             if (section.blocks) {
               section.blocks.forEach((block: any) => {
                 let paragraphText = "";
-                // CHECK 1: Look for the 'inlines' array within the block
                 if (block.inlines) {
                   block.inlines.forEach((inline: any) => {
-                    // CHECK 2: Look for 'text' (standard text run)
-                    if (inline.text) {
-                      paragraphText += inline.text;
-                    } else if (inline.tlp) { // Check for text in Text Layout Property (used for simple text runs)
+                    // Correctly extract text from the 'tlp' property
+                    if (inline.tlp) {
                       paragraphText += inline.tlp;
+                    } else if (inline.text) { // Fallback for older/different formats
+                       paragraphText += inline.text;
                     }
-                    // CHECK 3: Fallback for complex inline elements (like fields or controls)
-                    // The actual text might be nested deeper if standard text property is empty.
-                    // This is where you might need to check other properties if simple inline.text is missing.
                   });
                 }
-                // FALLBACK CHECK 4: Check 'cf' (Character Format) or 'tlp' (Text Layout Property) if available
-                // This is a common pattern for entire paragraph contents in SFDT if inlines are just formatting marks.
-                if (paragraphText.trim() === "" && block.cf && block.cf.tlp) {
-                  paragraphText = block.cf.tlp;
-                }
-                // Push the collected text
                 paragraphs.push(paragraphText.trim());
               });
             }
@@ -127,7 +118,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       const htmlBody = paragraphs
         .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
         .join("");
-      
+
       const htmlContent = `
           <!DOCTYPE html>
           <html lang="en">
