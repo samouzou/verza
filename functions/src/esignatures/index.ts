@@ -85,23 +85,22 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     if (contractData.contractText) {
       logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
-      
+
       let paragraphs: string[] = [];
       try {
         const sfdtData = JSON.parse(contractData.contractText);
-        // Correctly parse the provided SFDT structure
-        if (sfdtData && sfdtData.sections) {
-          sfdtData.sections.forEach((section: any) => {
-            if (section.blocks) {
-              section.blocks.forEach((block: any) => {
+        // Correctly parse the provided SFDT structure using 'sec', 'b', 'i', and 'tlp'
+        if (sfdtData && sfdtData.sec) {
+          sfdtData.sec.forEach((section: any) => {
+            if (section.b) {
+              section.b.forEach((block: any) => {
                 let paragraphText = "";
-                if (block.inlines) {
-                  block.inlines.forEach((inline: any) => {
-                    // Correctly extract text from the 'tlp' property
+                if (block.i) {
+                  block.i.forEach((inline: any) => {
                     if (inline.tlp) {
                       paragraphText += inline.tlp;
                     } else if (inline.text) { // Fallback for older/different formats
-                       paragraphText += inline.text;
+                      paragraphText += inline.text;
                     }
                   });
                 }
@@ -136,17 +135,17 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </body>
           </html>
         `;
-        
-        // --- DIAGNOSTIC LOGGING ---
-        if (htmlBody.length < 5) {
-            logger.warn(`Generated HTML Body is likely EMPTY. Length: ${htmlBody.length}.`);
-            logger.warn(`SFDT Data Size Check: ${contractData.contractText.length} characters.`);
-        } else {
-             logger.info(`Successfully generated HTML. Length: ${htmlBody.length}.
+
+      // --- DIAGNOSTIC LOGGING ---
+      if (htmlBody.length < 5) {
+        logger.warn(`Generated HTML Body is likely EMPTY. Length: ${htmlBody.length}.`);
+        logger.warn(`SFDT Data Size Check: ${contractData.contractText.length} characters.`);
+      } else {
+        logger.info(`Successfully generated HTML. Length: ${htmlBody.length}.
           Preview (first 500 chars): ${htmlContent.substring(0, 500)}`);
-        }
-        // --- END DIAGNOSTIC LOGGING ---
-        
+      }
+      // --- END DIAGNOSTIC LOGGING ---
+
       tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
       fs.writeFileSync(tempFilePath, htmlContent);
 
@@ -154,7 +153,6 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         filename: `contract-${contractId}-${Date.now()}.html`,
         contentType: "text/html",
       });
-
     } else if (contractData.fileUrl) {
       logger.info(`Using existing fileUrl for contract ${contractId}.`);
       formData.append("file_url[0]", contractData.fileUrl);
