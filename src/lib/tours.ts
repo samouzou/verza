@@ -113,16 +113,16 @@ export const agencyTour: Tour = {
       align: 'start',
     },
     {
-      selector: '#ai-contract-generator-card',
-      title: 'AI Contract Generator',
-      content: 'Generate a standardized talent management agreement using AI. Simply describe the terms, select the talent, and let the AI draft the contract.',
-      side: 'bottom',
-      align: 'end'
-    },
-    {
       selector: '#create-payout-card',
       title: 'Create Payouts',
       content: 'Send payments directly to your talent through Stripe. Record the amount, date, and reason for each payout.',
+      side: 'bottom',
+      align: 'end',
+    },
+    {
+      selector: '#ai-contract-generator-card',
+      title: 'AI Contract Generator',
+      content: 'Generate a standardized talent management agreement using AI. Simply describe the terms, select the talent, and let the AI draft the contract.',
       side: 'top',
       align: 'start',
     },
