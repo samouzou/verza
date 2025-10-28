@@ -612,7 +612,6 @@ export default function ContractDetailPage() {
                                 created={onEditorCreated}
                                 style={{ display: 'block' }} 
                                 height="100%" 
-                                serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                                 enableToolbar={false}
                                 readOnly={true}
                                 showPropertiesPane={false}

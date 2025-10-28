@@ -6,12 +6,13 @@ import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
 import type {Contract, UserProfileFirestoreData} from "../../../src/types";
 import * as crypto from "crypto";
-import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
+import type {Timestamp as ClientTimestamp} from "firebase/firestore";
+
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
 
@@ -88,14 +89,17 @@ export const initiateHelloSignRequest = onCall(async (request) => {
       let paragraphs: string[] = [];
       try {
         const sfdtData = JSON.parse(contractData.contractText);
-        if (sfdtData && sfdtData.sections) {
-          sfdtData.sections.forEach((section: any) => {
-            if (section.blocks) {
-              section.blocks.forEach((block: any) => {
+        // Correctly parse the provided SFDT structure using 'sec', 'b', 'i', and 'tlp'
+        if (sfdtData && sfdtData.sec) {
+          sfdtData.sec.forEach((section: any) => {
+            if (section.b) {
+              section.b.forEach((block: any) => {
                 let paragraphText = "";
-                if (block.inlines) {
-                  block.inlines.forEach((inline: any) => {
-                    if (inline.text) {
+                if (block.i) {
+                  block.i.forEach((inline: any) => {
+                    if (inline.tlp) {
+                      paragraphText += inline.tlp;
+                    } else if (inline.text) { // Fallback for older/different formats
                       paragraphText += inline.text;
                     }
                   });
@@ -131,6 +135,17 @@ export const initiateHelloSignRequest = onCall(async (request) => {
           </body>
           </html>
         `;
+
+      // --- DIAGNOSTIC LOGGING ---
+      if (htmlBody.length < 5) {
+        logger.warn(`Generated HTML Body is likely EMPTY. Length: ${htmlBody.length}.`);
+        logger.warn(`SFDT Data Size Check: ${contractData.contractText.length} characters.`);
+      } else {
+        logger.info(`Successfully generated HTML. Length: ${htmlBody.length}.
+          Preview (first 500 chars): ${htmlContent.substring(0, 500)}`);
+      }
+      // --- END DIAGNOSTIC LOGGING ---
+
       tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
       fs.writeFileSync(tempFilePath, htmlContent);
 
