@@ -614,7 +614,6 @@ export default function EditContractPage() {
                       ref={editorRef} 
                       created={onEditorCreated}
                       height={'100%'} 
-                      serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
                       showPropertiesPane={false}
                       enableToolbar={true}
                       toolbarMode={'Ribbon'}
