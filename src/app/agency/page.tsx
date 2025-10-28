@@ -310,74 +310,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
             </div>
             </CardContent>
         </Card>
-         <Card id="create-payout-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
-            <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="payout-talent">Talent</Label>
-              <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout || isNotOnAgencyPlan}>
-                <SelectTrigger id="payout-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
-                <SelectContent>
-                  {agency.talent.filter(t => t.status === 'active').map(t => (
-                    <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="payout-amount">Amount ($)</Label>
-                  <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
-                </div>
-                 <div>
-                  <Label htmlFor="payout-date">Payment Date</Label>
-                  <Input id="payout-date" type="date" value={payoutDate} onChange={(e) => setPayoutDate(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
-                </div>
-            </div>
-            <div>
-              <Label htmlFor="payout-description">Payment For</Label>
-              <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
-            </div>
-            {payoutAmount && (
-              <div className="p-3 border rounded-md bg-muted text-sm space-y-2">
-                <div className="flex justify-between"><span>Payout to {selectedTalentForPayout?.displayName || 'Talent'}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Platform & Processing Fee</span><span>${platformFee.toFixed(2)}</span></div>
-                <Separator />
-                <div className="flex justify-between font-bold"><span>Total Charge</span><span>${totalCharge.toFixed(2)}</span></div>
-              </div>
-            )}
-             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate || isNotOnAgencyPlan}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Send Payment
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. 
-                    The total charge to your payment method will be <span className="font-bold">${totalCharge.toFixed(2)}</span>. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSendPayout} disabled={isSendingPayout}>
-                    {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Confirm Payment
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
-      </div>
-
-       <Card id="ai-contract-generator-card">
+        <Card id="ai-contract-generator-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Wand2 className="text-primary"/> AI Talent Contract Generator</CardTitle>
           <CardDescription>Generate a standardized talent management agreement using AI.</CardDescription>
@@ -409,6 +342,73 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
             {isGeneratingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
             Generate Contract
           </Button>
+        </CardContent>
+      </Card>
+      </div>
+
+      <Card id="create-payout-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
+          <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="payout-talent">Talent</Label>
+            <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout || isNotOnAgencyPlan}>
+              <SelectTrigger id="payout-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
+              <SelectContent>
+                {agency.talent.filter(t => t.status === 'active').map(t => (
+                  <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="payout-amount">Amount ($)</Label>
+                <Input id="payout-amount" type="number" placeholder="100.00" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
+              </div>
+                <div>
+                <Label htmlFor="payout-date">Payment Date</Label>
+                <Input id="payout-date" type="date" value={payoutDate} onChange={(e) => setPayoutDate(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
+              </div>
+          </div>
+          <div>
+            <Label htmlFor="payout-description">Payment For</Label>
+            <Textarea id="payout-description" placeholder="e.g., July Retainer, Bonus for TikTok video" value={payoutDescription} onChange={(e) => setPayoutDescription(e.target.value)} disabled={isSendingPayout || isNotOnAgencyPlan} />
+          </div>
+          {payoutAmount && (
+            <div className="p-3 border rounded-md bg-muted text-sm space-y-2">
+              <div className="flex justify-between"><span>Payout to {selectedTalentForPayout?.displayName || 'Talent'}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Platform & Processing Fee</span><span>${platformFee.toFixed(2)}</span></div>
+              <Separator />
+              <div className="flex justify-between font-bold"><span>Total Charge</span><span>${totalCharge.toFixed(2)}</span></div>
+            </div>
+          )}
+            <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={isSendingPayout || !payoutTalentId || !payoutAmount || !payoutDescription || !payoutDate || isNotOnAgencyPlan}>
+                <Send className="mr-2 h-4 w-4" />
+                Send Payment
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+                <AlertDialogDescription>
+                  You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. 
+                  The total charge to your payment method will be <span className="font-bold">${totalCharge.toFixed(2)}</span>. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSendPayout} disabled={isSendingPayout}>
+                  {isSendingPayout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Confirm Payment
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
       
