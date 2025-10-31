@@ -120,6 +120,13 @@ export const agencyTour: Tour = {
       align: 'end',
     },
     {
+      selector: '#ai-contract-generator-card',
+      title: 'AI Contract Generator',
+      content: 'Generate a standardized talent management agreement using AI. Simply describe the terms, select the talent, and let the AI draft the contract.',
+      side: 'top',
+      align: 'start',
+    },
+    {
       selector: '#talent-roster-card',
       title: 'Talent Roster',
       content: 'View all the talent in your agency, their status, and set their commission rates for financial tracking.',

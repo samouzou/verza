@@ -86,37 +86,61 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     if (contractData.contractText) {
       logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
 
-      let paragraphs: string[] = [];
+      let htmlBody = "";
       try {
         const sfdtData = JSON.parse(contractData.contractText);
-        // Correctly parse the provided SFDT structure using 'sec', 'b', 'i', and 'tlp'
+
         if (sfdtData && sfdtData.sec) {
           sfdtData.sec.forEach((section: any) => {
             if (section.b) {
               section.b.forEach((block: any) => {
-                let paragraphText = "";
+                let paragraphHtml = "";
                 if (block.i) {
                   block.i.forEach((inline: any) => {
                     if (inline.tlp) {
-                      paragraphText += inline.tlp;
-                    } else if (inline.text) { // Fallback for older/different formats
-                      paragraphText += inline.text;
+                      let text = inline.tlp;
+                      // Apply character formatting
+                      if (inline.cf) {
+                        if (inline.cf.b) text = `<strong>${text}</strong>`;
+                        if (inline.cf.i) text = `<em>${text}</em>`;
+                      }
+                      paragraphHtml += text;
                     }
                   });
                 }
-                paragraphs.push(paragraphText.trim());
+
+                // Apply paragraph formatting
+                let blockTag = "p";
+                const blockStyles: string[] = [];
+                if (block.pf) {
+                  if (block.pf.stn?.startsWith("Heading")) {
+                    const level = block.pf.stn.split(" ")[1];
+                    if (level && !isNaN(parseInt(level))) {
+                      blockTag = `h${level}`;
+                    }
+                  }
+                  if (block.pf.ta === 1) blockStyles.push("text-align: center;");
+                  if (block.pf.ta === 2) blockStyles.push("text-align: right;");
+                }
+
+                if (paragraphHtml.trim().length > 0) {
+                  htmlBody += `<${blockTag} style="${blockStyles.join(" ")}">${paragraphHtml}</${blockTag}>`;
+                } else {
+                  htmlBody += "<br>"; // Add a line break for empty blocks to preserve spacing
+                }
               });
             }
           });
         }
       } catch (e) {
         logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
-        paragraphs = [contractData.contractText];
+        // Fallback for plain text
+        htmlBody = contractData.contractText
+          .split("\n")
+          .map((p) => p.trim() ? `<p>${p}</p>` : "<br>")
+          .join("");
       }
 
-      const htmlBody = paragraphs
-        .map((p) => p ? `<p>${p.replace(/\n/g, "<br>")}</p>` : "<br>")
-        .join("");
 
       const htmlContent = `
           <!DOCTYPE html>
@@ -126,8 +150,9 @@ export const initiateHelloSignRequest = onCall(async (request) => {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Contract: ${contractData.projectName || contractData.brand}</title>
             <style>
-              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; }
-              p { margin-bottom: 1em; }
+              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; color: #000; }
+              p, h1, h2, h3, h4, h5, h6 { margin-bottom: 1em; }
+              h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.17em; }
             </style>
           </head>
           <body>
