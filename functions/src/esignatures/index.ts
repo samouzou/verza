@@ -113,20 +113,20 @@ export const initiateHelloSignRequest = onCall(async (request) => {
                 let blockTag = "p";
                 const blockStyles: string[] = [];
                 if (block.pf) {
-                    if (block.pf.stn?.startsWith("Heading")) {
-                        const level = block.pf.stn.split(" ")[1];
-                        if (level && !isNaN(parseInt(level))) {
-                            blockTag = `h${level}`;
-                        }
+                  if (block.pf.stn?.startsWith("Heading")) {
+                    const level = block.pf.stn.split(" ")[1];
+                    if (level && !isNaN(parseInt(level))) {
+                      blockTag = `h${level}`;
                     }
-                    if (block.pf.ta === 1) blockStyles.push("text-align: center;");
-                    if (block.pf.ta === 2) blockStyles.push("text-align: right;");
+                  }
+                  if (block.pf.ta === 1) blockStyles.push("text-align: center;");
+                  if (block.pf.ta === 2) blockStyles.push("text-align: right;");
                 }
-                
+
                 if (paragraphHtml.trim().length > 0) {
-                    htmlBody += `<${blockTag} style="${blockStyles.join(" ")}">${paragraphHtml}</${blockTag}>`;
+                  htmlBody += `<${blockTag} style="${blockStyles.join(" ")}">${paragraphHtml}</${blockTag}>`;
                 } else {
-                    htmlBody += "<br>"; // Add a line break for empty blocks to preserve spacing
+                  htmlBody += "<br>"; // Add a line break for empty blocks to preserve spacing
                 }
               });
             }
@@ -136,9 +136,9 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
         // Fallback for plain text
         htmlBody = contractData.contractText
-            .split('\n')
-            .map(p => p.trim() ? `<p>${p}</p>` : '<br>')
-            .join('');
+          .split("\n")
+          .map((p) => p.trim() ? `<p>${p}</p>` : "<br>")
+          .join("");
       }
 
 
