@@ -30,6 +30,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null; 
   tin?: string | null;
@@ -89,6 +90,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.email = email;
     updates.displayName = displayName || email?.split('@')[0] || 'User';
     updates.avatarUrl = photoURL || null;
+    updates.companyLogoUrl = null;
     updates.emailVerified = emailVerified;
     updates.address = null; 
     updates.tin = null;
@@ -141,6 +143,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.tin === undefined) { 
       updates.tin = null;
+      needsUpdate = true;
+    }
+    if (existingData.companyLogoUrl === undefined) {
+      updates.companyLogoUrl = null;
       needsUpdate = true;
     }
     if (existingData.role === undefined) {
@@ -235,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: currentFirebaseUser.email,
               displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
               avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
+              companyLogoUrl: firestoreUserData.companyLogoUrl || null,
               emailVerified: currentFirebaseUser.emailVerified,
               address: firestoreUserData.address || null, 
               tin: firestoreUserData.tin || null,

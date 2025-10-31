@@ -7,7 +7,7 @@ import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const {uid, email, displayName, photoURL, emailVerified} = user;
+  const { uid, email, displayName, photoURL, emailVerified } = user;
 
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
@@ -20,6 +20,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     email: email || null,
     displayName: displayName || email?.split("@")[0] || "New User",
     avatarUrl: photoURL || null,
+    companyLogoUrl: null,
     emailVerified: emailVerified,
     createdAt: createdAt as any, // Cast for compatibility
     role: "individual_creator", // Default role
@@ -42,7 +43,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     tin: null,
   };
 
-  await userDocRef.set(newUserDoc, {merge: true});
+  await userDocRef.set(newUserDoc, { merge: true });
 
 
   if (!email) {
@@ -58,7 +59,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     logger.info(`Found pending invitation for new user ${email}.`);
     const invitationData = invitationDoc.data();
     if (invitationData && invitationData.status === "pending") {
-      const {agencyId, agencyName} = invitationData;
+      const { agencyId, agencyName } = invitationData;
       const agencyDocRef = db.collection("agencies").doc(agencyId);
 
       const newTalentMember: Talent = {
@@ -108,4 +109,3 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
 
   return null;
 });
-

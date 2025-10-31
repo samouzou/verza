@@ -154,6 +154,7 @@ export default function ManageInvoicePage() {
       ...detailsToUse,
       contractId: contractIdToUse,
       totalAmount: totalAmount,
+      companyLogoUrl: user?.companyLogoUrl || undefined,
       deliverables: detailsToUse.deliverables.map(d => ({ ...d, total: d.quantity * d.unitPrice })),
       payInvoiceLink: currentPayUrl || undefined,
       receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
@@ -167,7 +168,7 @@ export default function ManageInvoicePage() {
       toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
       setInvoiceHtmlContent("<p>Error generating preview.</p>");
     }
-  }, [toast, setInvoiceHtmlContent]); 
+  }, [toast, setInvoiceHtmlContent, user?.companyLogoUrl]); 
 
   const handleInitialAiGeneration = useCallback(async (
     initialContractData: Contract,
@@ -356,6 +357,7 @@ export default function ManageInvoicePage() {
         ...currentFormData,
         contractId: contract.id,
         totalAmount: finalTotalAmount,
+        companyLogoUrl: user.companyLogoUrl || undefined,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrl || undefined,
         receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
@@ -464,6 +466,7 @@ export default function ManageInvoicePage() {
         ...currentFormData,
         contractId: contract.id,
         totalAmount: totalAmountForEmail,
+        companyLogoUrl: user.companyLogoUrl || undefined,
         deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
         payInvoiceLink: currentPayUrlForEmail || undefined,
         receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
@@ -794,14 +797,3 @@ export default function ManageInvoicePage() {
     </>
   );
 }
-    
-
-    
-
-
-
-    
-
-    
-
-
