@@ -20,11 +20,15 @@ import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
 import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
-import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText } from 'lucide-react';
+import { editInvoiceNote } from '@/ai/flows/edit-invoice-note-flow';
+import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
@@ -97,6 +101,12 @@ export default function ManageInvoicePage() {
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  // New state for send dialog
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [invoiceNote, setInvoiceNote] = useState("");
+  const [aiTone, setAiTone] = useState<'more_professional' | 'more_friendly' | 'shorter' | 'more_detailed'>('more_professional');
+  const [isEditingNoteWithAi, setIsEditingNoteWithAi] = useState(false);
 
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -437,16 +447,7 @@ export default function ManageInvoicePage() {
       toast({ title: "Cannot Send", description: "No contract or user session available.", variant: "destructive" });
       return;
     }
-    const finalClientEmail = editableClientEmail || contract.clientEmail;
-    if (!finalClientEmail) {
-      toast({ title: "Missing Client Email", description: "Client email is required to send an invoice. Please add it to the invoice details or contract.", variant: "destructive" });
-      return;
-    }
-     if (isEditingDetails) {
-      toast({ title: "Unsaved Changes", description: "Please save or preview your changes before sending.", variant: "default" });
-      return;
-    }
-
+    
     setIsSending(true);
     try {
       const idToken = await getUserIdToken();
@@ -455,11 +456,12 @@ export default function ManageInvoicePage() {
       const finalClientName = editableClientName || contract.clientName || contract.brand;
       const finalProjectName = editableProjectName || contract.projectName || 'services rendered';
       const finalInvoiceNumber = editableInvoiceNumber || contract.invoiceNumber;
-      const finalDueDate = editableDueDate || contract.dueDate || new Date().toISOString().split('T')[0];
-      const finalCreatorName = editableCreatorName || user.displayName || 'Your Service Provider';
       
       const currentFormData = getStructuredDataFromForm();
       const totalAmountForEmail = calculateTotal(currentFormData.deliverables);
+      
+      // Use the note from state, adding paragraph tags
+      const noteHtml = invoiceNote ? `<p>${invoiceNote.replace(/\n/g, '<br>')}</p>` : "";
 
       const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
       const inputForAISend: GenerateInvoiceHtmlInput = {
@@ -472,12 +474,29 @@ export default function ManageInvoicePage() {
         receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
       };
       const htmlResultForSend = await generateInvoiceHtml(inputForAISend);
-      const htmlToSend = htmlResultForSend.invoiceHtml;
+      let htmlToSend = htmlResultForSend.invoiceHtml;
+
+      // Inject the note into the HTML
+      if (noteHtml) {
+        const instructionsMarker = '<!-- Payment Instructions Section -->';
+        if (htmlToSend.includes(instructionsMarker)) {
+           htmlToSend = htmlToSend.replace(instructionsMarker, `
+            <div class="notes-section" style="margin-bottom: 20px;">
+              <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">Note from ${currentFormData.creatorName}</h3>
+              ${noteHtml}
+            </div>
+            ${instructionsMarker}
+           `);
+        } else {
+            // Fallback if marker is not found
+            htmlToSend = htmlToSend.replace('</body>', `<div style="padding: 30px; padding-top: 0;">${noteHtml}</div></body>`);
+        }
+      }
 
       const emailBody = {
-        to: finalClientEmail,
-        subject: `Invoice ${finalInvoiceNumber} from ${finalCreatorName}`,
-        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${totalAmountForEmail.toFixed(2)}\nDue Date: ${new Date(finalDueDate + 'T00:00:00').toLocaleDateString()}\n\nClick here to pay: ${currentPayUrlForEmail}\n\nThank you,\n${finalCreatorName}`,
+        to: editableClientEmail || contract.clientEmail,
+        subject: `Invoice ${finalInvoiceNumber} from ${currentFormData.creatorName}`,
+        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${totalAmountForEmail.toFixed(2)}\n\n${invoiceNote ? `Note: ${invoiceNote}\n\n` : ''}Click here to pay: ${currentPayUrlForEmail}\n\nThank you,\n${currentFormData.creatorName}`,
         html: htmlToSend, 
         contractId: contract.id,
       };
@@ -493,36 +512,46 @@ export default function ManageInvoicePage() {
       }
 
       const contractDocRef = doc(db, 'contracts', contract.id);
-      const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${finalClientEmail}`};
+      const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${emailBody.to}`};
       
-      const updatesToSave: Partial<Contract> = { 
+      await updateDoc(contractDocRef, { 
         invoiceStatus: 'sent', 
-        invoiceHistory: arrayUnion(historyEntry) as any,
-        lastReminderSentAt: serverTimestamp() as Timestamp, // Initialize reminder timestamp
-        updatedAt: serverTimestamp() as Timestamp, 
-        invoiceHtmlContent: htmlToSend,
-        editableInvoiceDetails: currentFormData, 
-        amount: totalAmountForEmail,
-      };
-      await updateDoc(contractDocRef, updatesToSave);
+        invoiceHistory: arrayUnion(historyEntry),
+        lastReminderSentAt: serverTimestamp(),
+        updatedAt: serverTimestamp(), 
+      });
 
       setInvoiceStatus('sent');
       setInvoiceHtmlContent(htmlToSend); 
-      setContract(prev => prev ? ({
-        ...prev, 
-        invoiceStatus: 'sent', 
-        invoiceHtmlContent: htmlToSend, 
-        editableInvoiceDetails: currentFormData, 
-        amount: totalAmountForEmail 
-      }) : null);
+      setContract(prev => prev ? ({ ...prev, invoiceStatus: 'sent' }) : null);
 
-      toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${finalClientEmail}.` });
+      toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailBody.to}.` });
+      setIsSendDialogOpen(false);
+      setInvoiceNote("");
 
     } catch (error: any) {
       console.error("Error sending invoice:", error);
       toast({ title: "Send Invoice Failed", description: error.message || "Could not send invoice email.", variant: "destructive" });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleAiEditNote = async () => {
+    if (!invoiceNote.trim()) {
+      toast({ title: "Cannot Edit", description: "Please write a draft note first.", variant: "destructive" });
+      return;
+    }
+    setIsEditingNoteWithAi(true);
+    try {
+      const result = await editInvoiceNote({ draftNote: invoiceNote, tone: aiTone });
+      setInvoiceNote(result.editedNote);
+      toast({ title: "Note Updated by AI" });
+    } catch (error: any) {
+      console.error("Error editing note with AI:", error);
+      toast({ title: "AI Error", description: error.message || "Could not edit the note.", variant: "destructive" });
+    } finally {
+      setIsEditingNoteWithAi(false);
     }
   };
 
@@ -663,10 +692,45 @@ export default function ManageInvoicePage() {
                 Save Details & HTML
               </Button>
               {canSend && (
-                <Button onClick={handleSendInvoice} disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || (!editableClientEmail && !contract.clientEmail) || isEditingDetails}>
-                  {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  Send to Client
-                </Button>
+                 <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+                  <DialogTrigger asChild>
+                     <Button disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || (!editableClientEmail && !contract.clientEmail) || isEditingDetails}>
+                      <Send className="mr-2 h-4 w-4" /> Send to Client
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Send Invoice to Client</DialogTitle>
+                      <DialogDescription>
+                        Add an optional note to your client. The full invoice will be attached.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div>
+                        <Label htmlFor="note">Personal Note (Optional)</Label>
+                        <Textarea id="note" value={invoiceNote} onChange={(e) => setInvoiceNote(e.target.value)} placeholder="e.g., Thanks for the great collaboration on this project!" className="mt-1" rows={4} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Refine note with AI</Label>
+                        <RadioGroup defaultValue="more_professional" value={aiTone} onValueChange={(val) => setAiTone(val as any)} className="flex gap-4">
+                           <Label className="flex items-center gap-2 cursor-pointer"><RadioGroupItem value="more_professional" /> Professional</Label>
+                           <Label className="flex items-center gap-2 cursor-pointer"><RadioGroupItem value="more_friendly" /> Friendly</Label>
+                           <Label className="flex items-center gap-2 cursor-pointer"><RadioGroupItem value="shorter" /> Shorter</Label>
+                        </RadioGroup>
+                        <Button variant="outline" size="sm" onClick={handleAiEditNote} disabled={isEditingNoteWithAi || !invoiceNote.trim()}>
+                           {isEditingNoteWithAi ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Bot className="h-4 w-4 mr-2"/>} Refine with AI
+                        </Button>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsSendDialogOpen(false)}>Cancel</Button>
+                      <Button type="button" onClick={handleSendInvoice} disabled={isSending}>
+                        {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                        Send Invoice
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               )}
                {canPay && (
                 <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingDetails} variant="default">
