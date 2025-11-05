@@ -52,7 +52,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
     const userId = await verifyAuthToken(request.headers.authorization);
 
     // Validate request body
-    const {to, subject, text, html, contractId} = request.body;
+    const {to, subject, text, html, contractId } = request.body;
     if (!to || !subject || !text || !html) {
       response.status(400).json({error: "Bad Request", message: "Missing required fields: to, subject, text, html."});
       return;
