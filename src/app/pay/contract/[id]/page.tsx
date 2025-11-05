@@ -180,7 +180,7 @@ export default function ClientPaymentPage() {
                   {isFetchingClientSecret ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
                   Proceed to Secure Payment
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">Pay with Card or ACH Direct Debit</p>
+                <p className="text-xs text-muted-foreground mt-2">Pay with ACH Direct Debit</p>
               </div>
             </>
           ) : (
