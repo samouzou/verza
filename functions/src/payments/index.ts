@@ -245,7 +245,6 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       paymentIntentParams = {
         amount: amountInCents,
         currency,
-        payment_method_types: ['us_bank_account'],
         metadata: {
           contractId,
           userId: userId || "",
@@ -269,7 +268,6 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       paymentIntentParams = {
         amount: amountInCents,
         currency,
-        payment_method_types: ['us_bank_account'],
         application_fee_amount: totalApplicationFee,
         metadata: {
           contractId,
