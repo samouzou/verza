@@ -78,34 +78,6 @@ export default function DashboardPage() {
     }
   }, [searchParams, router]);
 
-  const completeOnboarding = useCallback(async () => {
-    if (user && user.hasCompletedOnboarding === false) {
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, { hasCompletedOnboarding: true });
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user && !authLoading && user.hasCompletedOnboarding === false) {
-      // Add a small delay to ensure the UI has rendered
-      const timer = setTimeout(() => {
-        // Override the default stopTour to mark it as complete
-        const onboardingStopTour = () => {
-          stopTour();
-          completeOnboarding();
-        };
-        startTour({ ...getStartedTour, onStop: onboardingStopTour });
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-     // If the tour is manually stopped, also mark as complete
-    if (!isTourActive && user?.hasCompletedOnboarding === false) {
-      completeOnboarding();
-    }
-
-  }, [user, authLoading, startTour, stopTour, completeOnboarding, isTourActive]);
-
-
   useEffect(() => {
     if (user && !authLoading) {
       setIsLoadingData(true);
