@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
 import { dashboardTour, getStartedTour } from "@/lib/tours";
+import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
 
 
 const addDays = (date: Date, days: number): Date => {
@@ -354,6 +355,8 @@ export default function DashboardPage() {
   const showTrialBanner = user && user.subscriptionStatus === 'trialing' && user.trialEndsAt;
   const trialTimeLeft = showTrialBanner ? formatDistanceToNow(user.trialEndsAt!.toDate(), { addSuffix: true }) : '';
 
+  const showSetupGuide = user && user.hasCompletedOnboarding === false && !isLoadingData;
+
   return (
     <>
       <PageHeader
@@ -361,6 +364,8 @@ export default function DashboardPage() {
         description="Overview of your earnings, contracts, and payment timelines."
         actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
+
+      {showSetupGuide && <SetupGuideCard />}
 
       {showTrialBanner && (
         <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400">

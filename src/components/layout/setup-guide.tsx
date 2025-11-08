@@ -4,14 +4,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send } from "lucide-react";
+import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send, Rocket } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
 
-interface Step {
+export interface Step {
   id: string;
   label: string;
   isCompleted: boolean;
@@ -19,13 +19,11 @@ interface Step {
   icon: React.ElementType;
 }
 
-export function SetupGuide() {
+export function useSetupSteps() {
   const { user } = useAuth();
-  const { open } = useSidebar();
-  const [hasCreatedContract, setHasCreatedContract] = useState(false);
-  const [hasSentInvoice, setHasSentInvoice] = useState(false);
-  const [hasPaidContract, setHasPaidContract] = useState(false);
+  const [steps, setSteps] = useState<Step[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [completedStepsCount, setCompletedStepsCount] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -38,28 +36,9 @@ export function SetupGuide() {
       try {
         const contractsCol = collection(db, 'contracts');
         
-        // Query 1: Check for any contract created by the user
-        const createdQuery = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          limit(1)
-        );
-
-        // Query 2: Check for any invoice sent by the user
-        const sentQuery = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']),
-          limit(1)
-        );
-        
-        // Query 3: Check for any paid contract
-        const paidQuery = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          where('invoiceStatus', '==', 'paid'),
-          limit(1)
-        );
+        const createdQuery = query(contractsCol, where('userId', '==', user.uid), limit(1));
+        const sentQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), limit(1));
+        const paidQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', '==', 'paid'), limit(1));
 
         const [createdSnapshot, sentSnapshot, paidSnapshot] = await Promise.all([
           getDocs(createdQuery),
@@ -67,16 +46,20 @@ export function SetupGuide() {
           getDocs(paidQuery),
         ]);
 
-        setHasCreatedContract(!createdSnapshot.empty);
-        setHasSentInvoice(!sentSnapshot.empty);
-        setHasPaidContract(!paidSnapshot.empty);
+        const definedSteps: Step[] = [
+          { id: 'stripe', label: 'Connect Stripe for payouts', isCompleted: user.stripePayoutsEnabled || false, href: '/settings', icon: Banknote },
+          { id: 'contract', label: 'Create your first contract', isCompleted: !createdSnapshot.empty, href: '/contracts', icon: FileText },
+          { id: 'invoice', label: 'Send your first invoice', isCompleted: !sentSnapshot.empty, href: '/contracts', icon: Send },
+          { id: 'payment', label: 'Receive your first payment', isCompleted: !paidSnapshot.empty, href: '/dashboard', icon: DollarSign },
+        ];
         
+        setSteps(definedSteps);
+        setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+
       } catch (error) {
         console.error("Error checking contract statuses:", error);
-        // Reset on error
-        setHasCreatedContract(false);
-        setHasSentInvoice(false);
-        setHasPaidContract(false);
+        setSteps([]);
+        setCompletedStepsCount(0);
       } finally {
         setIsLoading(false);
       }
@@ -85,54 +68,28 @@ export function SetupGuide() {
     checkStatuses();
   }, [user]);
 
-  const isStripeConnected = user?.stripePayoutsEnabled || false;
+  return { steps, isLoading, completedStepsCount, totalSteps: 4 };
+}
 
-  const steps: Step[] = [
-    {
-      id: 'stripe',
-      label: 'Connect Stripe for payouts',
-      isCompleted: isStripeConnected,
-      href: '/settings',
-      icon: Banknote
-    },
-    {
-      id: 'contract',
-      label: 'Create your first contract',
-      isCompleted: hasCreatedContract,
-      href: '/contracts',
-      icon: FileText
-    },
-    {
-      id: 'invoice',
-      label: 'Send your first invoice',
-      isCompleted: hasSentInvoice,
-      href: '/contracts',
-      icon: Send
-    },
-    {
-      id: 'payment',
-      label: 'Receive your first payment',
-      isCompleted: hasPaidContract,
-      href: '/dashboard',
-      icon: DollarSign
-    },
-  ];
 
-  const completedSteps = steps.filter(step => step.isCompleted).length;
-  const progressPercentage = (completedSteps / steps.length) * 100;
+export function SetupGuide() {
+  const { open } = useSidebar();
+  const { steps, isLoading, completedStepsCount, totalSteps } = useSetupSteps();
 
-  if (progressPercentage === 100) {
+  const progressPercentage = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
+
+  if (progressPercentage === 100 && !isLoading) {
     return null; // Hide the component if all steps are completed
   }
   
-  if (open) { // Expanded view
+  if (open) { // Expanded view in sidebar
     return (
       <Card className="mx-2 my-2 bg-sidebar-accent/50 border-sidebar-border shadow-inner">
         <CardHeader className="p-3">
           <CardTitle className="text-sm font-semibold">Setup Guide</CardTitle>
           <div className="flex items-center gap-2 pt-1">
             <Progress value={progressPercentage} className="h-2 w-full" />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{completedSteps} / {steps.length}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{completedStepsCount} / {totalSteps}</span>
           </div>
         </CardHeader>
         <CardContent className="p-3 pt-0 text-sm">
@@ -163,11 +120,11 @@ export function SetupGuide() {
     );
   }
 
-  // Collapsed view
+  // Collapsed view in sidebar
   return (
     <div className="mx-auto my-2 p-2">
        <Progress value={progressPercentage} className="h-1.5 w-8 mx-auto" />
-       <p className="text-xs text-muted-foreground text-center mt-1">{completedSteps}/{steps.length}</p>
+       <p className="text-xs text-muted-foreground text-center mt-1">{completedStepsCount}/{totalSteps}</p>
     </div>
   );
 }
