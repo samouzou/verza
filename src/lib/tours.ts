@@ -1,6 +1,27 @@
 
 import type { Tour } from '@/types';
 
+export const getStartedTour: Tour = {
+  id: 'get-started-tour',
+  steps: [
+    {
+      selector: '#nav-item-contracts',
+      title: 'Welcome to Verza!',
+      content: "Let's get you started. Your contracts are the heart of your business. Click here to go to the contracts page.",
+      side: 'right',
+      align: 'start',
+    },
+    {
+      selector: '#add-contract-button',
+      title: 'Add Your First Contract',
+      content: 'Click here to upload or create a new contract. Our AI will help you extract key details and analyze the terms.',
+      side: 'bottom',
+      align: 'end',
+    },
+  ],
+};
+
+
 export const dashboardTour: Tour = {
   id: 'dashboard-tour',
   steps: [

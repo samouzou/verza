@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -51,14 +52,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide"; // Import the new component
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/contracts", label: "Contracts", icon: FileText },
-  { href: "/receipts", label: "Receipts", icon: ReceiptText },
-  { href: "/integrations", label: "Integrations", icon: Link2 },
-  { href: "/banking", label: "Banking & Taxes", icon: Landmark },
-  { href: "/tax-forms", label: "Tax Forms", icon: FileStack },
-  { href: "/agency", label: "Agency", icon: Building },
-  { href: "/wallet", label: "Creator Wallet", icon: Wallet },
+  { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
+  { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
+  { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
+  { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
+  { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
+  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
+  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
 ];
 
 export function SidebarNav() {
@@ -137,7 +138,7 @@ export function SidebarNav() {
       <SidebarContent>
         <SidebarMenu>
           {navItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
+            <SidebarMenuItem key={item.label} id={item.id}>
               <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
                   onClick={() => {

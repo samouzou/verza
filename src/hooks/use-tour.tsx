@@ -30,9 +30,13 @@ export const TourProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const stopTour = useCallback(() => {
+    const tourToStop = activeTour;
     setActiveTour(null);
     setCurrentStepIndex(0);
-  }, []);
+    if (tourToStop?.onStop) {
+      tourToStop.onStop();
+    }
+  }, [activeTour]);
 
   const goToNextStep = useCallback(() => {
     if (activeTour && currentStepIndex < activeTour.steps.length - 1) {

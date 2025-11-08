@@ -17,12 +17,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
-import { dashboardTour } from "@/lib/tours";
+import { dashboardTour, getStartedTour } from "@/lib/tours";
 
 
 const addDays = (date: Date, days: number): Date => {
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { startTour } = useTour();
+  const { startTour, stopTour, isTourActive } = useTour();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
@@ -76,6 +76,34 @@ export default function DashboardPage() {
       router.replace('/dashboard', { scroll: false });
     }
   }, [searchParams, router]);
+
+  const completeOnboarding = useCallback(async () => {
+    if (user && user.hasCompletedOnboarding === false) {
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, { hasCompletedOnboarding: true });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && !authLoading && user.hasCompletedOnboarding === false) {
+      // Add a small delay to ensure the UI has rendered
+      const timer = setTimeout(() => {
+        // Override the default stopTour to mark it as complete
+        const onboardingStopTour = () => {
+          stopTour();
+          completeOnboarding();
+        };
+        startTour({ ...getStartedTour, onStop: onboardingStopTour });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+     // If the tour is manually stopped, also mark as complete
+    if (!isTourActive && user?.hasCompletedOnboarding === false) {
+      completeOnboarding();
+    }
+
+  }, [user, authLoading, startTour, stopTour, completeOnboarding, isTourActive]);
+
 
   useEffect(() => {
     if (user && !authLoading) {

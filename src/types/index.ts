@@ -189,6 +189,7 @@ export interface UserProfileFirestoreData {
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
   hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean; // New field for onboarding tour
 }
 
 // Simplified Receipt Feature Types

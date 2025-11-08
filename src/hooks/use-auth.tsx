@@ -55,6 +55,10 @@ export interface UserProfile {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  
+  // Onboarding fields
+  hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean;
 }
 
 interface AuthContextType {
@@ -113,6 +117,8 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.stripeAccountStatus = 'none';
     updates.stripeChargesEnabled = false;
     updates.stripePayoutsEnabled = false;
+    
+    updates.hasCompletedOnboarding = false;
 
     needsUpdate = true;
 
@@ -195,6 +201,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.stripeChargesEnabled === undefined) { updates.stripeChargesEnabled = false; needsUpdate = true; }
     if (existingData.stripePayoutsEnabled === undefined) { updates.stripePayoutsEnabled = false; needsUpdate = true; }
 
+    if (existingData.hasCompletedOnboarding === undefined) {
+      updates.hasCompletedOnboarding = false;
+      needsUpdate = true;
+    }
+
 
     if (needsUpdate) {
       try {
@@ -262,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripeAccountStatus: firestoreUserData.stripeAccountStatus,
               stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
+              hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
             });
           } else {
              console.warn(`User document for ${currentFirebaseUser.uid} not found during listener setup.`);
