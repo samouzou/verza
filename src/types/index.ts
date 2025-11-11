@@ -92,7 +92,7 @@ export interface EmailLog {
   subject: string;
   text: string;
   html: string;
-  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic';
+  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic' | 'onboarding';
   timestamp: ClientTimestamp;
   status: 'sent' | 'failed';
 }
@@ -190,6 +190,12 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean; // New field for onboarding tour
+  
+  // Email sequence tracking
+  emailSequence?: {
+    step: number; // 0=just signed up, 1=welcome sent, 2=email#2 sent, etc. 'completed' when done.
+    nextEmailAt: ClientTimestamp;
+  };
 }
 
 // Simplified Receipt Feature Types
@@ -311,4 +317,5 @@ export interface TourStep {
 export type Tour = {
   id: string;
   steps: TourStep[];
-}
+  onStop?: () => void;
+};

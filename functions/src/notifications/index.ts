@@ -227,3 +227,78 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
     // We don't throw an error here to avoid failing the parent function, but we log it.
   }
 }
+
+/**
+ * Sends a specific email from a sequence to a user.
+ * @param {string} toEmail The recipient's email address.
+ * @param {string} name The recipient's name.
+ * @param {number} step The step number of the email in the sequence.
+ */
+export async function sendEmailSequence(toEmail: string, name: string, step: number): Promise<void> {
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || "team@tryverza.com";
+  const appUrl = process.env.APP_URL || "http://localhost:9002";
+  
+  let subject = "";
+  let html = "";
+
+  switch (step) {
+    case 0: // Welcome Email
+      subject = "Welcome to Verza! Your First Step to Smarter Contracts.";
+      html = `
+        <h1>Welcome, ${name}!</h1>
+        <p>We're thrilled to have you on board. Verza is designed to help you manage your contracts, get paid on time, and understand your business like never before.</p>
+        <p>The best way to get started is to <strong>add your first contract</strong>. Our AI will automatically extract key details and give you negotiation insights.</p>
+        <p><a href="${appUrl}/contracts">Click here to add a contract now</a></p>
+        <p>Cheers,<br/>The Verza Team</p>
+      `;
+      break;
+    case 1: // Educational Email #1: Contract Analysis
+      subject = "Don't Just Sign Contracts, Understand Them";
+      html = `
+        <h1>Unlock Your Contract's Secrets</h1>
+        <p>Hi ${name},</p>
+        <p>Confusing contract clauses? Verza's AI can help. When you upload a contract, we automatically summarize the key terms and provide negotiation suggestions to help you get a better deal.</p>
+        <p>Stop guessing and start understanding. Analyze your first contract today.</p>
+        <p><a href="${appUrl}/contracts">Analyze a Contract</a></p>
+        <p>Best,<br/>The Verza Team</p>
+      `;
+      break;
+    case 2: // Educational Email #2: Getting Paid
+      subject = "From Signed to Paid: The Verza Workflow";
+      html = `
+        <h1>Get Paid Faster</h1>
+        <p>Hi ${name},</p>
+        <p>Once your contract is in Verza, getting paid is simple. Generate a professional invoice, send it to your client, and accept secure payments with Stripe.</p>
+        <p>Stop chasing payments and let Verza handle the reminders.</p>
+        <p><a href="${appUrl}/settings">Connect Stripe to Get Paid</a></p>
+        <p>All the best,<br/>The Verza Team</p>
+      `;
+      break;
+    // Add more cases for future emails
+    default:
+      logger.info(`No email template configured for step ${step}.`);
+      return;
+  }
+  
+  const msg = {
+    to: toEmail,
+    from: fromEmail,
+    subject: subject,
+    html: html,
+  };
+  
+  try {
+    await sgMail.send(msg);
+    logger.info(`Email sequence step ${step} sent to ${toEmail}.`);
+    await db.collection("emailLogs").add({
+        to: toEmail,
+        subject,
+        html,
+        type: 'onboarding',
+        timestamp: admin.firestore.Timestamp.now(),
+        status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send email sequence step ${step} to ${toEmail}:`, error);
+  }
+}

@@ -29,6 +29,7 @@ import {
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
+  sendDripCampaignEmails, // Import new drip campaign function
 } from "./scheduler";
 
 import {
@@ -73,6 +74,7 @@ export {
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
+  sendDripCampaignEmails, // Export new drip campaign function
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
