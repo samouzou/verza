@@ -14,6 +14,16 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*'); // Only image types
     }
 
+    // Rules for company logos
+    match /logos/{userId}/{allPaths=**} {
+      // Allow public read for logos so they can be displayed on invoices
+      allow read: if true;
+      // Allow authenticated users to write to their own logo path
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024 // Max 2MB
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // Rules for contract files
     // The {ownerId} can be either a user's UID or an agency's ID
     match /contracts/{ownerId}/{allPaths=**} {
@@ -45,7 +55,7 @@ service firebase.storage {
       // with constraints on file size and type
       allow write: if request.auth != null && request.auth.uid == userId
                    && request.resource.size < 4 * 1024 * 1024 // Max 4MB for receipts
-                   && request.resource.contentType.matches('image/.*'); // Only image types (jpeg, png, gif, etc.)
+                   && request.resource.contentType.matches('image/.*|application/pdf'); // Allow images and PDFs for receipts
     }
   }
 }

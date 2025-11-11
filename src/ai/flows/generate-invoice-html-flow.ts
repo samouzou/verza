@@ -22,6 +22,7 @@ const GenerateInvoiceHtmlInputSchema = z.object({
   creatorName: z.string().optional().default("Your Company/Name"),
   creatorAddress: z.string().optional().default("123 Creator Lane, Suite 100, Creative City, CC 12345"),
   creatorEmail: z.string().optional().default("you@example.com"),
+  companyLogoUrl: z.string().url().optional().describe("URL to the creator's company logo."),
   
   // Client details from Contract
   clientName: z.string().optional().describe("The name of the client or brand being invoiced."),
@@ -67,6 +68,7 @@ const prompt = ai.definePrompt({
   - Name: {{{creatorName}}}
   - Address: {{{creatorAddress}}}
   - Email: {{{creatorEmail}}}
+  - Logo URL: {{{companyLogoUrl}}}
 
   Client Information:
   - Name: {{{clientName}}}
@@ -100,7 +102,9 @@ const prompt = ai.definePrompt({
   {{/each}}
   {{/if}}
 
-  Please structure this as a clean HTML page. Include a prominent "Pay Now" button if a 'Payment Link' is provided above.
+  Please structure this as a clean HTML page. 
+  If a 'Logo URL' is provided, display it in the header, opposite the creator's name and address. The logo should be a reasonable size (e.g., max-height: 60px).
+  Include a prominent "Pay Now" button if a 'Payment Link' is provided above.
   Style the "Pay Now" button to be noticeable, for example, with a background color and padding.
   If supporting documents/receipts are provided, list them clearly with their descriptions and clickable links.
   For receipt links, add the attribute 'sendgrid-disable-tracking="true"' to the <a> tag.
@@ -127,11 +131,33 @@ const prompt = ai.definePrompt({
       .receipts-section li { margin-bottom: 5px; }
       .receipts-section a { color: #007bff; text-decoration: none; }
       .receipts-section a:hover { text-decoration: underline; }
+      .company-logo { max-height: 60px; max-width: 200px; width: auto; height: auto; }
     </style>
   </head>
   <body>
     <div class="invoice-box">
-      <!-- Header Section with Creator and Invoice Details -->
+      <!-- Header Section -->
+      <div class="header">
+        <table>
+          <tr>
+            <td>
+              {{#if companyLogoUrl}}
+                <img src="{{{companyLogoUrl}}}" alt="Company Logo" class="company-logo" data-ai-hint="company logo"/>
+              {{else}}
+                <h2 class="bold">{{{creatorName}}}</h2>
+              {{/if}}
+              {{{creatorAddress}}}<br>
+              {{{creatorEmail}}}
+            </td>
+            <td class="invoice-details">
+              <h1 class="bold">INVOICE</h1>
+              Invoice #: {{{invoiceNumber}}}<br>
+              Date: {{{invoiceDate}}}<br>
+              Due: {{{dueDate}}}
+            </td>
+          </tr>
+        </table>
+      </div>
       <!-- Client Details Section -->
       <!-- Items Table Section -->
       <!-- Totals Section -->
@@ -169,4 +195,3 @@ const generateInvoiceHtmlFlow = ai.defineFlow(
     return output!;
   }
 );
-

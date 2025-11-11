@@ -30,6 +30,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null; 
   tin?: string | null;
@@ -54,6 +55,10 @@ export interface UserProfile {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  
+  // Onboarding fields
+  hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean;
 }
 
 interface AuthContextType {
@@ -89,6 +94,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.email = email;
     updates.displayName = displayName || email?.split('@')[0] || 'User';
     updates.avatarUrl = photoURL || null;
+    updates.companyLogoUrl = null;
     updates.emailVerified = emailVerified;
     updates.address = null; 
     updates.tin = null;
@@ -111,6 +117,8 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.stripeAccountStatus = 'none';
     updates.stripeChargesEnabled = false;
     updates.stripePayoutsEnabled = false;
+    
+    updates.hasCompletedOnboarding = false;
 
     needsUpdate = true;
 
@@ -141,6 +149,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.tin === undefined) { 
       updates.tin = null;
+      needsUpdate = true;
+    }
+    if (existingData.companyLogoUrl === undefined) {
+      updates.companyLogoUrl = null;
       needsUpdate = true;
     }
     if (existingData.role === undefined) {
@@ -189,6 +201,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.stripeChargesEnabled === undefined) { updates.stripeChargesEnabled = false; needsUpdate = true; }
     if (existingData.stripePayoutsEnabled === undefined) { updates.stripePayoutsEnabled = false; needsUpdate = true; }
 
+    if (existingData.hasCompletedOnboarding === undefined) {
+      updates.hasCompletedOnboarding = false;
+      needsUpdate = true;
+    }
+
 
     if (needsUpdate) {
       try {
@@ -235,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: currentFirebaseUser.email,
               displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
               avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
+              companyLogoUrl: firestoreUserData.companyLogoUrl || null,
               emailVerified: currentFirebaseUser.emailVerified,
               address: firestoreUserData.address || null, 
               tin: firestoreUserData.tin || null,
@@ -255,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripeAccountStatus: firestoreUserData.stripeAccountStatus,
               stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
+              hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
             });
           } else {
              console.warn(`User document for ${currentFirebaseUser.uid} not found during listener setup.`);
