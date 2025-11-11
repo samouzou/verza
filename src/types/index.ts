@@ -167,6 +167,7 @@ export interface UserProfileFirestoreData {
   email: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
@@ -188,6 +189,7 @@ export interface UserProfileFirestoreData {
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
   hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean; // New field for onboarding tour
 }
 
 // Simplified Receipt Feature Types

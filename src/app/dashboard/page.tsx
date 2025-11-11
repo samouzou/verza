@@ -17,12 +17,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, Timestamp } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
-import { dashboardTour } from "@/lib/tours";
+import { dashboardTour, getStartedTour } from "@/lib/tours";
+import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
 
 
 const addDays = (date: Date, days: number): Date => {
@@ -56,7 +57,7 @@ export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { startTour } = useTour();
+  const { startTour, stopTour, isTourActive } = useTour();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
@@ -326,6 +327,8 @@ export default function DashboardPage() {
   const showTrialBanner = user && user.subscriptionStatus === 'trialing' && user.trialEndsAt;
   const trialTimeLeft = showTrialBanner ? formatDistanceToNow(user.trialEndsAt!.toDate(), { addSuffix: true }) : '';
 
+  const showSetupGuide = user && user.hasCompletedOnboarding === false && !isLoadingData;
+
   return (
     <>
       <PageHeader
@@ -333,6 +336,8 @@ export default function DashboardPage() {
         description="Overview of your earnings, contracts, and payment timelines."
         actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
+
+      {showSetupGuide && <SetupGuideCard />}
 
       {showTrialBanner && (
         <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400">

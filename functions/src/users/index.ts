@@ -7,7 +7,7 @@ import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const {uid, email, displayName, photoURL, emailVerified} = user;
+  const { uid, email, displayName, photoURL, emailVerified } = user;
 
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
@@ -20,6 +20,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     email: email || null,
     displayName: displayName || email?.split("@")[0] || "New User",
     avatarUrl: photoURL || null,
+    companyLogoUrl: null,
     emailVerified: emailVerified,
     createdAt: createdAt as any, // Cast for compatibility
     role: "individual_creator", // Default role
@@ -40,9 +41,10 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     stripePayoutsEnabled: false,
     address: null,
     tin: null,
+    hasCompletedOnboarding: false, // Initialize onboarding tour flag
   };
 
-  await userDocRef.set(newUserDoc, {merge: true});
+  await userDocRef.set(newUserDoc, { merge: true });
 
 
   if (!email) {
@@ -108,4 +110,3 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
 
   return null;
 });
-

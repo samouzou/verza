@@ -170,15 +170,18 @@ export default function ClientPaymentPage() {
                   ${contract.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
-              <Button
-                onClick={handleInitiatePayment}
-                disabled={isFetchingClientSecret || !stripePromise}
-                className="w-full text-lg py-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md shadow-lg hover:shadow-xl transition-all duration-150 ease-in-out transform hover:-translate-y-0.5"
-                size="lg"
-              >
-                {isFetchingClientSecret ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
-                Proceed to Secure Payment
-              </Button>
+              <div className="flex flex-col items-center">
+                <Button
+                  onClick={handleInitiatePayment}
+                  disabled={isFetchingClientSecret || !stripePromise}
+                  className="w-full text-lg py-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md shadow-lg hover:shadow-xl transition-all duration-150 ease-in-out transform hover:-translate-y-0.5"
+                  size="lg"
+                >
+                  {isFetchingClientSecret ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
+                  Proceed to Secure Payment
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">Pay with ACH Direct Debit</p>
+              </div>
             </>
           ) : (
             clientSecret && stripePromise && elementsOptions && (
