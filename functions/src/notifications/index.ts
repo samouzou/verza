@@ -235,21 +235,25 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
  * @param {number} step The step number of the email in the sequence.
  */
 export async function sendEmailSequence(toEmail: string, name: string, step: number): Promise<void> {
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL || "team@tryverza.com";
+  const fromEmail = {
+    email: process.env.SENDGRID_FROM_EMAIL || "team@tryverza.com",
+    name: "Serge from Verza"
+  };
   const appUrl = process.env.APP_URL || "http://localhost:9002";
   
   let subject = "";
   let html = "";
+  const signature = "<p>Cheers,<br/>Serge Amouzou<br/>Founder & CEO of Verza</p>";
 
   switch (step) {
     case 0: // Welcome Email
       subject = "Welcome to Verza! Your First Step to Smarter Contracts.";
       html = `
         <h1>Welcome, ${name}!</h1>
-        <p>We're thrilled to have you on board. Verza is designed to help you manage your contracts, get paid on time, and understand your business like never before.</p>
+        <p>I'm Serge, the founder of Verza, and I'm thrilled to have you on board. Our goal is to help you manage your contracts, get paid on time, and understand your business like never before.</p>
         <p>The best way to get started is to <strong>add your first contract</strong>. Our AI will automatically extract key details and give you negotiation insights.</p>
         <p><a href="${appUrl}/contracts">Click here to add a contract now</a></p>
-        <p>Cheers,<br/>The Verza Team</p>
+        ${signature}
       `;
       break;
     case 1: // Educational Email #1: Contract Analysis
@@ -260,7 +264,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         <p>Confusing contract clauses? Verza's AI can help. When you upload a contract, we automatically summarize the key terms and provide negotiation suggestions to help you get a better deal.</p>
         <p>Stop guessing and start understanding. Analyze your first contract today.</p>
         <p><a href="${appUrl}/contracts">Analyze a Contract</a></p>
-        <p>Best,<br/>The Verza Team</p>
+        ${signature}
       `;
       break;
     case 2: // Educational Email #2: Getting Paid
@@ -271,7 +275,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         <p>Once your contract is in Verza, getting paid is simple. Generate a professional invoice, send it to your client, and accept secure payments with Stripe.</p>
         <p>Stop chasing payments and let Verza handle the reminders.</p>
         <p><a href="${appUrl}/settings">Connect Stripe to Get Paid</a></p>
-        <p>All the best,<br/>The Verza Team</p>
+        ${signature}
       `;
       break;
     // Add more cases for future emails
