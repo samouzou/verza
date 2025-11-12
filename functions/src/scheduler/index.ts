@@ -5,7 +5,7 @@ import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import type {UserProfileFirestoreData, Contract} from "../../../src/types";
-import { sendEmailSequence } from "../notifications";
+import {sendEmailSequence} from "../notifications";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
@@ -393,16 +393,16 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
       if (!user.email || !user.emailSequence) {
         continue;
       }
-      
+
       const currentStep = user.emailSequence.step;
-      
+
       // Send the educational email for the current step
-      await sendEmailSequence(user.email, user.displayName || 'Creator', currentStep);
-      
+      await sendEmailSequence(user.email, user.displayName || "Creator", currentStep);
+
       // Prepare user doc for the next step
       const nextStep = currentStep + 1;
       const twoDaysFromNow = new admin.firestore.Timestamp(now.seconds + 2 * 24 * 60 * 60, now.nanoseconds);
-      
+
       batch.update(userDoc.ref, {
         "emailSequence.step": nextStep,
         "emailSequence.nextEmailAt": twoDaysFromNow,
@@ -411,7 +411,6 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
 
     await batch.commit();
     logger.info(`Processed ${usersSnapshot.size} users for the drip campaign.`);
-
   } catch (error) {
     logger.error("Error in sendDripCampaignEmails:", error);
   }

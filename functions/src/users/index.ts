@@ -4,11 +4,11 @@ import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../src/types";
-import { sendEmailSequence } from "../notifications";
+import {sendEmailSequence} from "../notifications";
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const { uid, email, displayName, photoURL, emailVerified } = user;
+  const {uid, email, displayName, photoURL, emailVerified} = user;
 
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
@@ -31,7 +31,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     subscriptionStatus: "trialing", // Start with a 7-day free trial
-    subscriptionPlanId: undefined, // User hasn't chosen a specific plan yet
+    subscriptionPlanId: null, // User hasn't chosen a specific plan yet
     talentLimit: 0, // No talent limit for individuals
     subscriptionInterval: null,
     trialEndsAt: trialEndsAt as any,
@@ -45,12 +45,12 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     tin: null,
     hasCompletedOnboarding: false, // Initialize onboarding tour flag
     emailSequence: {
-        step: 1, // Start at step 1 (Welcome email sent)
-        nextEmailAt: twoDaysFromNow as any, // Schedule next email
-    }
+      step: 1, // Start at step 1 (Welcome email sent)
+      nextEmailAt: twoDaysFromNow as any, // Schedule next email
+    },
   };
 
-  await userDocRef.set(newUserDoc, { merge: true });
+  await userDocRef.set(newUserDoc, {merge: true});
 
   // Send welcome email immediately
   if (email) {
