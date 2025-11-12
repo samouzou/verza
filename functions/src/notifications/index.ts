@@ -284,9 +284,14 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     return;
   }
 
+  const fromName = "Serge from Verza";
+
   const msg = {
     to: toEmail,
-    from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+    from: {
+      name: fromName,
+      email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+    },
     subject: subject,
     html: html,
   };
