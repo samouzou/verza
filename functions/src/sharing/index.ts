@@ -151,10 +151,11 @@ export const getPublicContractDetails = onCall({
       id: contractSnap.id,
       brand: contractData.brand,
       projectName: contractData.projectName,
+      // The total amount for display purposes. The frontend will select the milestone amount.
       amount: contractData.amount,
       invoiceStatus: contractData.invoiceStatus,
-      clientEmail: contractData.clientEmail || null, // Include client email
-      milestones: contractData.milestones || null,   // Include milestones
+      clientEmail: contractData.clientEmail || null,
+      milestones: contractData.milestones || null,
     };
 
     return publicData;
