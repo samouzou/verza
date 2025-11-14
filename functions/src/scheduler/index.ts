@@ -5,6 +5,7 @@ import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import type {UserProfileFirestoreData, Contract} from "../../../src/types";
+import {sendEmailSequence} from "../notifications";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
@@ -366,5 +367,51 @@ export const processRecurringContracts = onSchedule("every 24 hours", async () =
     logger.info("Recurring contract processing finished.");
   } catch (error) {
     logger.error("Error processing recurring contracts:", error);
+  }
+});
+
+
+export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
+  logger.info("Starting sendDripCampaignEmails function.");
+  const now = admin.firestore.Timestamp.now();
+
+  try {
+    const usersSnapshot = await db.collection("users")
+      .where("emailSequence.nextEmailAt", "<=", now)
+      .where("emailSequence.step", "<", 3) // Stop after step 2 (for a 3-email total sequence)
+      .get();
+
+    if (usersSnapshot.empty) {
+      logger.info("No users due for a drip campaign email.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const user = userDoc.data() as UserProfileFirestoreData;
+      if (!user.email || !user.emailSequence) {
+        continue;
+      }
+
+      const currentStep = user.emailSequence.step;
+
+      // Send the educational email for the current step
+      await sendEmailSequence(user.email, user.displayName || "Creator", currentStep);
+
+      // Prepare user doc for the next step
+      const nextStep = currentStep + 1;
+      const twoDaysFromNow = new admin.firestore.Timestamp(now.seconds + 2 * 24 * 60 * 60, now.nanoseconds);
+
+      batch.update(userDoc.ref, {
+        "emailSequence.step": nextStep,
+        "emailSequence.nextEmailAt": twoDaysFromNow,
+      });
+    }
+
+    await batch.commit();
+    logger.info(`Processed ${usersSnapshot.size} users for the drip campaign.`);
+  } catch (error) {
+    logger.error("Error in sendDripCampaignEmails:", error);
   }
 });

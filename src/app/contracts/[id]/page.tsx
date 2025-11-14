@@ -5,17 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2 } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save, UploadCloud } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
-import { storage } from '@/lib/firebase'; // Import initialized functions
-import { ref as storageFileRef, deleteObject } from 'firebase/storage';
-import { Skeleton } from '@/components/ui/skeleton';
+import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject, uploadBytes, getDownloadURL } from '@/lib/firebase';
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -28,9 +26,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -40,6 +35,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { useSidebar } from '@/components/ui/sidebar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -58,43 +58,6 @@ function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.
   );
 }
 
-interface ReplyFormProps {
-  commentId: string;
-  onSubmitReply: (commentId: string, replyText: string) => Promise<void>;
-}
-
-function ReplyForm({ commentId, onSubmitReply }: ReplyFormProps) {
-  const [replyText, setReplyText] = useState("");
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim()) return;
-    setIsSubmittingReply(true);
-    await onSubmitReply(commentId, replyText.trim());
-    setReplyText("");
-    setIsSubmittingReply(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-2 ml-8 pl-4 border-l border-muted space-y-2">
-      <Textarea
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-        placeholder="Write your reply..."
-        rows={2}
-        className="text-sm"
-        disabled={isSubmittingReply}
-      />
-      <Button type="submit" size="sm" variant="outline" disabled={isSubmittingReply || !replyText.trim()}>
-        {isSubmittingReply ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <SendIconComponent className="mr-1 h-3 w-3" />}
-        Reply
-      </Button>
-    </form>
-  );
-}
-
-
 export default function ContractDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -105,46 +68,61 @@ export default function ContractDetailPage() {
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
-  const [sharedVersions, setSharedVersions] = useState<SharedContractVersionType[]>([]);
-  const [isLoadingSharedVersions, setIsLoadingSharedVersions] = useState(true);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [contractComments, setContractComments] = useState<ContractComment[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(true);
   const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null);
 
-  // Redlining State
-  const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
-  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
-  const [isUpdatingProposal, setIsUpdatingProposal] = useState<string | null>(null);
-
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'comment'; id: string } | { type: 'reply'; commentId: string; replyId: string } | null>(null);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
-  const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
-
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
   const { setOpen } = useSidebar();
+  
+  // State for editable sidebar fields
+  const [isSavingSidebar, setIsSavingSidebar] = useState(false);
+  const [brand, setBrand] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [amount, setAmount] = useState<number | string>('');
+  const [dueDate, setDueDate] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
+  const [clientTin, setClientTin] = useState('');
+  const [paymentInstructions, setPaymentInstructions] = useState('');
+  const [contractType, setContractType] = useState<Contract['contractType']>('other');
+  const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval']>();
+
 
   useEffect(() => {
     // Collapse sidebar by default on this page
     setOpen(false);
   }, [setOpen]);
+  
+  const populateSidebarForms = (contractData: Contract) => {
+    setBrand(contractData.brand || '');
+    setProjectName(contractData.projectName || '');
+    setAmount(contractData.amount || '');
+    setDueDate(contractData.dueDate || '');
+    setContractType(contractData.contractType || 'other');
+    setClientName(contractData.clientName || '');
+    setClientEmail(contractData.clientEmail || '');
+    setClientAddress(contractData.clientAddress || '');
+    setClientTin(contractData.clientTin || '');
+    setPaymentInstructions(contractData.paymentInstructions || '');
+    setCurrentFileName(contractData.fileName || null);
+    setIsRecurring(contractData.isRecurring || false);
+    setRecurrenceInterval(contractData.recurrenceInterval);
+    setNewSelectedFile(null); // Reset file selection on new data
+  };
 
   useEffect(() => {
-    let unsubscribeSharedVersions: (() => void) | undefined;
-    let unsubscribeComments: (() => void) | undefined;
-    let unsubscribeProposals: (() => void) | undefined;
     let unsubscribeContract: (() => void) | undefined;
     let unsubscribeEmailLogs: (() => void) | undefined;
 
 
     if (id && user && !authLoading) {
       setIsLoading(true);
-      setIsLoadingSharedVersions(true);
-      setIsLoadingComments(true);
-      setIsLoadingProposals(true);
       setIsLoadingEmailLogs(true);
 
       const contractDocRef = doc(db, 'contracts', id as string);
@@ -153,69 +131,24 @@ export default function ContractDetailPage() {
         const data = contractSnap.data();
 
         if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
-          let createdAt = data.createdAt;
-          if (createdAt && !(createdAt instanceof Timestamp)) {
-            if (typeof createdAt === 'string') {
-              createdAt = Timestamp.fromDate(new Date(createdAt));
-            } else if (createdAt.seconds && typeof createdAt.seconds === 'number' && createdAt.nanoseconds && typeof createdAt.nanoseconds === 'number') {
-              createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
-            } else {
-              createdAt = Timestamp.now(); 
-            }
-          } else if (!createdAt) {
-               createdAt = Timestamp.now();
-          }
-
-          let updatedAt = data.updatedAt;
-          if (updatedAt && !(updatedAt instanceof Timestamp)) {
-             if (typeof updatedAt === 'string') {
-              updatedAt = Timestamp.fromDate(new Date(updatedAt));
-            } else if (updatedAt.seconds && typeof updatedAt.seconds === 'number' && updatedAt.nanoseconds && typeof updatedAt.nanoseconds === 'number') {
-              updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
-            } else {
-              updatedAt = Timestamp.now(); 
-            }
-          } else if (!updatedAt) {
-              updatedAt = Timestamp.now();
-          }
-          
-          let lastReminderSentAt = data.lastReminderSentAt;
-          if (lastReminderSentAt && !(lastReminderSentAt instanceof Timestamp)) {
-            if (typeof lastReminderSentAt === 'string') {
-              lastReminderSentAt = Timestamp.fromDate(new Date(lastReminderSentAt));
-            } else if (lastReminderSentAt.seconds && typeof lastReminderSentAt.seconds === 'number') {
-              lastReminderSentAt = new Timestamp(lastReminderSentAt.seconds, lastReminderSentAt.nanoseconds || 0);
-            } else {
-              lastReminderSentAt = null;
-            }
-          }
-          
-          let lastSignatureEventAt = data.lastSignatureEventAt;
-           if (lastSignatureEventAt && !(lastSignatureEventAt instanceof Timestamp)) {
-            if (typeof lastSignatureEventAt === 'string') {
-              lastSignatureEventAt = Timestamp.fromDate(new Date(lastSignatureEventAt));
-            } else if (lastSignatureEventAt.seconds && typeof lastSignatureEventAt.seconds === 'number') {
-              lastSignatureEventAt = new Timestamp(lastSignatureEventAt.seconds, lastSignatureEventAt.nanoseconds || 0);
-            } else {
-              lastSignatureEventAt = null;
-            }
-          }
-
-
-          setContract({
+          const processedData = {
             ...data,
             id: contractSnap.id,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            lastReminderSentAt: lastReminderSentAt || null,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
+            lastReminderSentAt: data.lastReminderSentAt instanceof Timestamp ? data.lastReminderSentAt : null,
             invoiceStatus: data.invoiceStatus || 'none',
             invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
               ...entry,
               timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
             })) || [],
             signatureStatus: data.signatureStatus || 'none',
-            lastSignatureEventAt: lastSignatureEventAt || null,
-          } as Contract);
+            lastSignatureEventAt: data.lastSignatureEventAt instanceof Timestamp ? data.lastSignatureEventAt : null,
+          } as Contract;
+          
+          setContract(processedData);
+          populateSidebarForms(processedData);
+
         } else {
           setContract(null);
           toast({ title: "Error", description: "Contract not found or you don't have permission to view it.", variant: "destructive" });
@@ -245,68 +178,14 @@ export default function ContractDetailPage() {
       });
 
 
-      const sharedVersionsQuery = query(
-        collection(db, "sharedContractVersions"),
-        where("originalContractId", "==", id),
-        where("userId", "==", user.uid),
-        orderBy("sharedAt", "desc")
-      );
-      unsubscribeSharedVersions = onSnapshot(sharedVersionsQuery, (snapshot) => {
-        const versions = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as SharedContractVersionType));
-        setSharedVersions(versions);
-        setIsLoadingSharedVersions(false);
-      }, (error) => {
-        console.error("Error fetching shared versions: ", error);
-        toast({ title: "Sharing Error", description: "Could not load shared versions.", variant: "destructive" });
-        setIsLoadingSharedVersions(false);
-      });
-
-      const commentsQuery = query(
-        collection(db, "contractComments"),
-        where("originalContractId", "==", id),
-        where("creatorId", "==", user.uid), 
-        orderBy("commentedAt", "desc")
-      );
-      unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
-        const fetchedComments = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment));
-        setContractComments(fetchedComments);
-        setIsLoadingComments(false);
-      }, (error) => {
-        console.error("Error fetching contract comments:", error);
-        toast({ title: "Comment Fetch Error", description: "Could not load comments for this contract.", variant: "destructive" });
-        setIsLoadingComments(false);
-      });
-      
-      const proposalsQuery = query(
-        collection(db, "redlineProposals"),
-        where("originalContractId", "==", id),
-        where("creatorId", "==", user.uid),
-        orderBy("proposedAt", "desc")
-      );
-      unsubscribeProposals = onSnapshot(proposalsQuery, (snapshot) => {
-        const proposals = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as RedlineProposal));
-        setRedlineProposals(proposals);
-        setIsLoadingProposals(false);
-      }, (error) => {
-        console.error("Error fetching redline proposals: ", error);
-        toast({ title: "Proposals Error", description: "Could not load redline proposals.", variant: "destructive" });
-        setIsLoadingProposals(false);
-      });
-
-
     } else if (!authLoading && !user) {
       router.push('/login');
     } else if (!id) {
         setIsLoading(false);
-        setIsLoadingSharedVersions(false);
-        setIsLoadingComments(false);
-        setIsLoadingProposals(false);
+        setIsLoadingEmailLogs(false);
     }
      return () => {
       if (unsubscribeContract) unsubscribeContract();
-      if (unsubscribeSharedVersions) unsubscribeSharedVersions();
-      if (unsubscribeComments) unsubscribeComments();
-      if (unsubscribeProposals) unsubscribeProposals();
       if (unsubscribeEmailLogs) unsubscribeEmailLogs();
     };
   }, [id, user, authLoading, router, toast]);
@@ -351,139 +230,77 @@ export default function ContractDetailPage() {
       setIsContractDeleteDialogOpen(false);
     }
   };
+  
+  const handleSaveSidebarChanges = async (event?: MouseEvent) => {
+    event?.preventDefault(); 
+    if (!contract || !user) {
+      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
+      return false;
+    }
+    setIsSavingSidebar(true);
+
+    const contractAmount = parseFloat(amount as string);
+    if (isNaN(contractAmount) || contractAmount < 0) {
+        toast({ title: "Invalid Amount", description: "Please enter a valid positive number for the amount.", variant: "destructive" });
+        setIsSavingSidebar(false);
+        return false;
+    }
+
+    try {
+      const contractDocRef = doc(db, 'contracts', id);
+      let newFileUrl: string | null = contract.fileUrl;
+      let newFileNameToSave: string | null = contract.fileName;
+
+      if (newSelectedFile) {
+        if (contract.fileUrl) {
+          try {
+            const oldFileStorageRef = storageFileRef(storage, contract.fileUrl);
+            await deleteObject(oldFileStorageRef);
+          } catch (deleteError: any) {
+            console.warn("Could not delete old file from storage:", deleteError.message);
+          }
+        }
+        const fileStorageRef = storageFileRef(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
+        const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
+        newFileUrl = await getDownloadURL(uploadResult.ref);
+        newFileNameToSave = newSelectedFile.name;
+      }
+      
+      const updates: Partial<Contract> = {
+        brand: brand.trim(),
+        projectName: projectName.trim() || null,
+        amount: contractAmount,
+        dueDate: dueDate,
+        contractType: contractType,
+        clientName: clientName.trim() || null,
+        clientEmail: clientEmail.trim() || null,
+        clientAddress: clientAddress.trim() || null,
+        clientTin: clientTin.trim() || null,
+        paymentInstructions: paymentInstructions.trim() || null,
+        fileUrl: newFileUrl,
+        fileName: newFileNameToSave,
+        updatedAt: Timestamp.now(),
+        isRecurring: isRecurring,
+        recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
+      };
+
+      await updateDoc(contractDocRef, updates);
+      toast({ title: "Contract Details Updated", description: "Changes saved successfully." });
+      setNewSelectedFile(null); // Clear file input after save
+      return true;
+    } catch (error) {
+      console.error("Error updating contract:", error);
+      toast({ title: "Update Failed", description: "Could not save changes.", variant: "destructive" });
+      return false;
+    } finally {
+      setIsSavingSidebar(false);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
   };
   
-  const formatCommentDateDisplay = (dateInput: Timestamp | undefined | null): string => {
-    if (!dateInput) return 'N/A';
-    try {
-      const date = dateInput.toDate();
-      return format(date, "PPp"); 
-    } catch (e) {
-      console.warn("Error formatting comment date:", dateInput, e);
-      return 'Invalid Date';
-    }
-  };
-
-  const handleAddReply = async (commentId: string, replyText: string) => {
-    if (!user || !contract) {
-      toast({ title: "Error", description: "User or contract data missing.", variant: "destructive" });
-      return;
-    }
-    try {
-      const commentDocRef = doc(db, "contractComments", commentId);
-      const newReply: CommentReply = {
-        replyId: doc(collection(db, "tmp")).id, 
-        creatorId: user.uid,
-        creatorName: user.displayName || "Creator",
-        replyText: replyText,
-        repliedAt: Timestamp.now(),
-      };
-
-      await updateDoc(commentDocRef, {
-        replies: arrayUnion(newReply)
-      });
-
-      toast({ title: "Reply Added", description: "Your reply has been posted." });
-    } catch (error: any) {
-      console.error("Error adding reply:", error);
-      toast({ title: "Reply Failed", description: error.message || "Could not post reply.", variant: "destructive" });
-    }
-  };
-
-  const openDeleteConfirmationDialog = (type: 'comment' | 'reply', id: string, commentId?: string) => {
-    if (type === 'comment') {
-      setDeleteTarget({ type: 'comment', id });
-    } else if (type === 'reply' && commentId) {
-      setDeleteTarget({ type: 'reply', commentId, replyId: id });
-    }
-    setIsDeleteConfirmationOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget || !user) return;
-    setIsDeletingCommentOrReply(true);
-    try {
-      if (deleteTarget.type === 'comment') {
-        const commentDocRef = doc(db, "contractComments", deleteTarget.id);
-        await deleteFirestoreDoc(commentDocRef);
-        toast({ title: "Comment Deleted", description: "The brand's comment has been removed." });
-      } else if (deleteTarget.type === 'reply') {
-        const commentDocRef = doc(db, "contractComments", deleteTarget.commentId);
-        const commentSnap = await getDoc(commentDocRef);
-        if (commentSnap.exists()) {
-            const commentData = commentSnap.data() as ContractComment;
-            const replyToRemove = commentData.replies?.find(r => r.replyId === deleteTarget.replyId);
-            if (replyToRemove) {
-                await updateDoc(commentDocRef, {
-                    replies: arrayRemove(replyToRemove)
-                });
-                toast({ title: "Reply Deleted", description: "Your reply has been removed." });
-            } else {
-                 toast({ title: "Reply Not Found", description: "Could not find the reply to delete.", variant: "destructive" });
-            }
-        }
-      }
-      setDeleteTarget(null);
-      setIsDeleteConfirmationOpen(false);
-    } catch (error: any) {
-      console.error("Error deleting comment/reply:", error);
-      toast({ title: "Deletion Failed", description: error.message || "Could not complete deletion.", variant: "destructive" });
-    } finally {
-      setIsDeletingCommentOrReply(false);
-    }
-  };
-
-  const handleUpdateProposalStatus = async (proposal: RedlineProposal, newStatus: 'accepted' | 'rejected') => {
-    if (!contract || !user) return;
-    setIsUpdatingProposal(proposal.id);
-
-    try {
-        const proposalRef = doc(db, "redlineProposals", proposal.id);
-        const updates: Partial<RedlineProposal> = {
-            status: newStatus,
-            reviewedAt: Timestamp.now(),
-        };
-
-        if (newStatus === 'accepted') {
-            const contractRef = doc(db, "contracts", contract.id);
-            const currentText = contract.contractText || "";
-            
-            if (currentText.includes(proposal.originalText)) {
-                const newText = currentText.replace(proposal.originalText, proposal.proposedText);
-                await updateDoc(contractRef, { contractText: newText });
-
-                const historyEntry = {
-                    timestamp: Timestamp.now(),
-                    action: "Redline Proposal Accepted",
-                    details: `Change by ${proposal.proposerName}.`,
-                };
-                await updateDoc(contractRef, {
-                    invoiceHistory: arrayUnion(historyEntry),
-                    updatedAt: serverTimestamp(),
-                });
-
-                toast({ title: "Proposal Accepted", description: "The contract text has been updated." });
-            } else {
-                throw new Error("The original text to be replaced was not found in the current contract. The contract may have been updated since this proposal was made.");
-            }
-        }
-        
-        await updateDoc(proposalRef, updates);
-
-        if (newStatus === 'rejected') {
-            toast({ title: "Proposal Rejected", description: "The proposal has been marked as rejected." });
-        }
-    } catch (error: any) {
-        console.error("Error updating proposal status:", error);
-        toast({ title: "Update Failed", description: error.message || "Could not update proposal.", variant: "destructive" });
-    } finally {
-        setIsUpdatingProposal(null);
-    }
-  };
-
   if (authLoading || isLoading) {
     return (
       <div className="flex-1 p-8 overflow-y-auto">
@@ -517,10 +334,6 @@ export default function ContractDetailPage() {
   }
   
   const formattedDueDate = contract.dueDate ? new Date(contract.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A';
-  
-  const formattedCreatedAt = contract.createdAt instanceof Timestamp
-    ? contract.createdAt.toDate().toLocaleDateString()
-    : 'N/A';
   
   let effectiveDisplayStatus: Contract['status'] = contract.status || 'pending';
   const todayMidnight = new Date();
@@ -638,8 +451,96 @@ export default function ContractDetailPage() {
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-2">
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>AI Contract Negotiator</Link></Button>
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>Contract Co-Pilot</Link></Button>
                   </CardContent>
+              </Card>
+
+              <Card className="shadow-lg hide-on-print">
+                <CardHeader>
+                  <CardTitle>Editable Details</CardTitle>
+                  <CardDescription>Quickly edit metadata for this contract.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Accordion type="multiple" className="w-full space-y-6">
+                    <AccordionItem value="core-details" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                          <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Core Details</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                            <div><Label htmlFor="brand">Brand Name</Label><Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" /></div>
+                            <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" /></div>
+                            <div><Label htmlFor="amount">Amount ($)</Label><Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" /></div>
+                            <div><Label htmlFor="dueDate">Due Date</Label><Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" /></div>
+                            <div><Label htmlFor="contractType">Contract Type</Label><Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}><SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger><SelectContent><SelectItem value="sponsorship">Sponsorship</SelectItem><SelectItem value="consulting">Consulting</SelectItem><SelectItem value="affiliate">Affiliate</SelectItem><SelectItem value="retainer">Retainer</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
+                    <AccordionItem value="client-file" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                           <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Client &amp; File</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                              <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label><Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} /></div>
+                              <div><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/></div>
+                              <div><Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>{currentFileName && !newSelectedFile && <div className="text-xs text-muted-foreground flex items-center mt-1"><FileText className="mr-1 h-3 w-3" /> {currentFileName}</div>}{newSelectedFile && <div className="text-xs text-green-600 flex items-center mt-1"><UploadCloud className="mr-1 h-3 w-3" /> {newSelectedFile.name}</div>}<Input id="newContractFile" type="file" className="mt-1" onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)} /></div>
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
+                    <AccordionItem value="recurrence" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                          <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Contract Recurrence</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                             <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="isRecurring"
+                                checked={isRecurring}
+                                onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
+                              />
+                              <Label htmlFor="isRecurring" className="font-normal">
+                                Is this a recurring contract?
+                              </Label>
+                            </div>
+                            {isRecurring && (
+                              <div>
+                                <Label htmlFor="recurrenceInterval">Recurrence Interval</Label>
+                                <Select
+                                  value={recurrenceInterval}
+                                  onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
+                                >
+                                  <SelectTrigger id="recurrenceInterval" className="mt-1">
+                                    <SelectValue placeholder="Select interval" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                                    <SelectItem value="annually">Annually</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+                 <CardFooter>
+                    <Button onClick={(e) => handleSaveSidebarChanges(e as any)} disabled={isSavingSidebar} className="w-full">
+                      {isSavingSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Details
+                    </Button>
+                  </CardFooter>
               </Card>
 
               <Card className="shadow-lg hide-on-print">
@@ -686,73 +587,6 @@ export default function ContractDetailPage() {
                   </Sheet>
                 </CardContent>
               </Card>
-              
-              <Card className="shadow-lg hide-on-print">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg"><Info className="h-5 w-5 text-green-500" />Platform Fee Notice</CardTitle>
-                </CardHeader>
-                <CardContent>
-                   <p className="text-xs text-muted-foreground">
-                    Payments received through Verza are subject to a 1% platform fee and standard Stripe processing fees (typically 2.9% + 30¢). These fees are deducted from the total payment amount.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg hide-on-print">
-                  <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle>
-                      <CardDescription>Review brand-proposed changes.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                      : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
-                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
-                          {redlineProposals.map(proposal => (
-                              <div key={proposal.id} className="p-3 border rounded-lg bg-muted/30 relative text-sm">
-                                  <div className="flex justify-between items-start mb-2"><p className="font-semibold text-foreground">{proposal.proposerName}</p><Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge></div>
-                                  {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
-                                  <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
-                                  <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
-                                  {proposal.status === 'proposed' && (
-                                      <div className="flex gap-2 mt-3 justify-end">
-                                          <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button>
-                                          <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button>
-                                      </div>
-                                  )}
-                              </div>
-                          ))}
-                      </div></ScrollArea>}
-                  </CardContent>
-              </Card>
-
-              <Card className="shadow-lg hide-on-print">
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MessageCircle className="h-5 w-5 text-purple-500" />Contract Comments</CardTitle></CardHeader>
-                  <CardContent>
-                      {isLoadingComments ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                      : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
-                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
-                          {contractComments.map(comment => (
-                            <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
-                              <div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                              <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                              {comment.replies && comment.replies.length > 0 && (
-                                <div className="mt-3 ml-8 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
-                                    {comment.replies.map(reply => (
-                                        <div key={reply.replyId}>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName} (Creator)</p>
-                                            </div>
-                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{reply.replyText}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                              )}
-                              <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
-                            </div>
-                          ))}
-                      </div></ScrollArea>}
-                  </CardContent>
-              </Card>
 
               <Card>
                 <CardHeader><CardTitle className="text-lg">Danger Zone</CardTitle></CardHeader>
@@ -787,24 +621,8 @@ export default function ContractDetailPage() {
           </aside>
         </div>
       </div>
-
-      <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.type === 'comment' ? "This will permanently delete the brand's comment." : "This will permanently delete your reply."} This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteTarget(null)} disabled={isDeletingCommentOrReply}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeletingCommentOrReply} className="bg-destructive hover:bg-destructive/90">
-              {isDeletingCommentOrReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
+
+    
