@@ -381,9 +381,14 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
           if (allMilestonesPaid) {
             updates.invoiceStatus = "paid";
+            updates.status = "paid";
+          } else {
+            updates.invoiceStatus = "partially_paid";
+            updates.status = "partially_paid";
           }
         } else {
           updates.invoiceStatus = "paid";
+          updates.status = "paid";
         }
 
         await contractDocRef.update(updates);
