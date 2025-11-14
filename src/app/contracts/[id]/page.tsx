@@ -85,12 +85,12 @@ export default function ContractDetailPage() {
   // Amount is now managed via milestones
   const [milestones, setMilestones] = useState<Omit<PaymentMilestone, 'status'>[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [contractType, setContractType] = useState<Contract['contractType']>('other');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientTin, setClientTin] = useState('');
   const [paymentInstructions, setPaymentInstructions] = useState('');
-  const [contractType, setContractType] = useState<Contract['contractType']>('other');
   const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
@@ -435,7 +435,7 @@ export default function ContractDetailPage() {
                               <div className="flex items-center gap-4 w-full sm:w-auto">
                                 <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
                                 <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
-                                <Button size="sm" asChild disabled={milestone.status !== 'pending'}>
+                                <Button size="sm" asChild disabled={milestone.status === 'invoiced' || milestone.status === 'paid'}>
                                   <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
                                     Generate Invoice
                                   </Link>
@@ -687,5 +687,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
-    

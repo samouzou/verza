@@ -264,7 +264,7 @@ export default function ManageInvoicePage() {
           if (isOwner || isAgencyOwner) {
               setContract(contractData);
               setInvoiceStatus(contractData.invoiceStatus || 'none');
-              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
               setPayUrl(currentPayUrlValue);
 
               const receiptsCol = collection(db, 'receipts');
@@ -389,7 +389,8 @@ export default function ManageInvoicePage() {
 
       // Determine overall invoice status
       const allMilestonesInvoiced = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
-      const newStatus = milestoneId ? (allMilestonesInvoiced ? 'invoiced' : 'draft') : 'draft';
+      const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
+      const newStatus = allMilestonesPaid ? 'paid' : (allMilestonesInvoiced ? 'invoiced' : 'draft');
       
       const historyEntry = {
         timestamp: Timestamp.now(),
@@ -527,8 +528,10 @@ export default function ManageInvoicePage() {
           m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
         );
       }
+      
+      const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
       const allMilestonesDone = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
-      const newOverallStatus = allMilestonesDone ? 'invoiced' : 'draft';
+      const newOverallStatus = allMilestonesPaid ? 'paid' : (allMilestonesDone ? 'invoiced' : 'sent');
 
 
       await updateDoc(contractDocRef, { 
