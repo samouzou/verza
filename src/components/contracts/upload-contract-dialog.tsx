@@ -456,10 +456,10 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             <div><Label htmlFor="contractFile">Upload Contract File</Label><Input id="contractFile" type="file" accept=".pdf,.doc,.docx,image/*" className="mt-1" onChange={handleFileChange} /><p className="text-xs text-muted-foreground mt-1">Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.</p></div>
 
             <Card><CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} /></div>
-                <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} /></div>
-                <div className="md:col-span-2"><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/></div>
-                <div className="md:col-span-2"><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/></div>
+                <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" /></div>
+                <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" /></div>
+                <div className="md:col-span-2"><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} /></div>
+                <div className="md:col-span-2"><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} /></div>
             </CardContent></Card>
 
             <Card><CardHeader><CardTitle className="text-lg flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" />Payment Milestones</CardTitle></CardHeader><CardContent className="space-y-4">
@@ -503,3 +503,5 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     </Dialog>
   );
 }
+
+    
