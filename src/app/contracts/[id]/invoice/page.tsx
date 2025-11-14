@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType } from '@/types';
+import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType, PaymentMilestone } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
 import { editInvoiceNote } from '@/ai/flows/edit-invoice-note-flow';
 import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText, Bot } from 'lucide-react';
@@ -40,13 +40,13 @@ const buildDefaultEditableDetails = (
   currentContract: Contract,
   currentUser: UserProfile | null,
   currentId: string,
-  currentEditableInvoiceNumber?: string
+  currentEditableInvoiceNumber?: string,
+  milestone?: PaymentMilestone,
 ): EditableInvoiceDetails => {
-  const baseDeliverables = currentContract.extractedTerms?.deliverables?.map((desc) => ({
-    description: desc,
-    quantity: 1,
-    unitPrice: currentContract.extractedTerms?.deliverables && currentContract.extractedTerms.deliverables.length > 0 && currentContract.amount > 0 ? currentContract.amount / currentContract.extractedTerms.deliverables.length : currentContract.amount,
-  })) || (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
+  const lineItems = milestone
+    ? [{ description: milestone.description, quantity: 1, unitPrice: milestone.amount }]
+    : currentContract.milestones?.map(m => ({ description: m.description, quantity: 1, unitPrice: m.amount })) ||
+      (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
 
   return {
     creatorName: currentUser?.displayName || "",
@@ -57,9 +57,9 @@ const buildDefaultEditableDetails = (
     clientEmail: currentContract.clientEmail || "",
     invoiceNumber: currentEditableInvoiceNumber || currentContract.invoiceNumber || `INV-${currentContract.brand?.substring(0,3).toUpperCase() || 'AAA'}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${currentId.substring(0,4).toUpperCase()}`,
     invoiceDate: new Date().toISOString().split('T')[0],
-    dueDate: currentContract.dueDate || new Date().toISOString().split('T')[0],
+    dueDate: milestone?.dueDate || currentContract.dueDate || new Date().toISOString().split('T')[0],
     projectName: currentContract.projectName || "",
-    deliverables: baseDeliverables,
+    deliverables: lineItems,
     paymentInstructions: currentContract.paymentInstructions || "",
   };
 };
@@ -71,8 +71,10 @@ const calculateTotal = (items: EditableInvoiceLineItem[]): number => {
 
 export default function ManageInvoicePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id as string;
+  const milestoneId = searchParams.get('milestoneId');
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
@@ -191,7 +193,8 @@ export default function ManageInvoicePage() {
 
     setIsGeneratingAi(true);
     try {
-        const aiInputDetails = buildDefaultEditableDetails(initialContractData, currentUserData, currentContractId, currentInvNum);
+        const targetMilestone = milestoneId ? initialContractData.milestones?.find(m => m.id === milestoneId) : undefined;
+        const aiInputDetails = buildDefaultEditableDetails(initialContractData, currentUserData, currentContractId, currentInvNum, targetMilestone);
         populateFormFromEditableDetails(aiInputDetails, initialContractData, currentUserData);
         await generateAndSetHtmlFromForm(aiInputDetails, initialReceiptsData, currentContractId);
         toast({ title: "Invoice Drafted by AI", description: "Review and edit as needed before saving or sending." });
@@ -201,7 +204,7 @@ export default function ManageInvoicePage() {
     } finally {
         setIsGeneratingAi(false);
     }
-  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast]);
+  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast, milestoneId]);
   
   const handleAiRegenerationRequest = useCallback(async () => {
     if (!contract || !user) {
@@ -279,21 +282,18 @@ export default function ManageInvoicePage() {
               }
 
               // Logic for setting initial HTML content or generating AI
-              if (contractData.invoiceHtmlContent) {
+              const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
+
+              if (!milestoneId && contractData.invoiceHtmlContent) {
                 setInvoiceHtmlContent(contractData.invoiceHtmlContent);
                 const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
                 populateFormFromEditableDetails(detailsToPopulate, contractData, user);
-              } else if (contractData.editableInvoiceDetails) {
+              } else if (!milestoneId && contractData.editableInvoiceDetails) {
                 populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
                 await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
-              } else if (contractData.amount > 0) {
-                // AI generation if no content and amount exists
-                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               } else {
-                // No content, no details, no amount - just set defaults and empty HTML
-                const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-                populateFormFromEditableDetails(defaultDetails, contractData, user);
-                setInvoiceHtmlContent("");
+                 // Always generate fresh for a milestone, or if no prior data exists
+                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               }
               
               // Setup real-time listener for receipts AFTER initial data processing
@@ -329,7 +329,7 @@ export default function ManageInvoicePage() {
       isMounted = false; 
       if (unsubscribeReceipts) unsubscribeReceipts();
     };
-  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration]);
+  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration, milestoneId]);
 
   const toggleEditMode = useCallback(async () => {
     if (isEditingDetails) { 
@@ -341,12 +341,13 @@ export default function ManageInvoicePage() {
       }
     } else { 
       if (contract && user) {
-        const detailsToPopulate = contract.editableInvoiceDetails || buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber);
+        const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
+        const detailsToPopulate = contract.editableInvoiceDetails && !milestoneId ? contract.editableInvoiceDetails : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
         populateFormFromEditableDetails(detailsToPopulate, contract, user);
       }
     }
     setIsEditingDetails(prev => !prev);
-  }, [isEditingDetails, contract, user, contractReceipts, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails]);
+  }, [isEditingDetails, contract, user, contractReceipts, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails, milestoneId]);
   
   const handleSaveInvoice = async () => {
     if (!contract || !editableInvoiceNumber) {
@@ -377,36 +378,41 @@ export default function ManageInvoicePage() {
       setInvoiceHtmlContent(finalHtmlToSave); 
 
       const contractDocRef = doc(db, 'contracts', contract.id);
-      const newStatus = (contract.invoiceStatus === 'none' || !contract.invoiceStatus) ? 'draft' : contract.invoiceStatus;
+      
+      // Update the specific milestone's status if this invoice is for a milestone
+      let updatedMilestones = contract.milestones;
+      if (milestoneId && updatedMilestones) {
+        updatedMilestones = updatedMilestones.map(m => 
+          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+        );
+      }
+
+      // Determine overall invoice status
+      const allMilestonesInvoiced = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
+      const newStatus = milestoneId ? (allMilestonesInvoiced ? 'invoiced' : 'draft') : 'draft';
       
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: "Invoice Details Updated",
+        action: `Invoice Draft Saved for Milestone: ${currentFormData.deliverables[0]?.description || 'General Invoice'}`,
         details: `Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
       };
 
-      const updatesToSave: Partial<Contract> = { 
+      const updatesToSave: Partial<Contract> & {[key: string]: any} = { 
+        milestones: updatedMilestones,
         invoiceHtmlContent: finalHtmlToSave,
         invoiceNumber: editableInvoiceNumber,
         invoiceStatus: newStatus, 
         editableInvoiceDetails: currentFormData, 
-        amount: finalTotalAmount, 
-        invoiceHistory: arrayUnion(historyEntry) as any, 
-        updatedAt: serverTimestamp() as Timestamp, 
+        amount: contract.amount, // Keep total contract amount, not just this invoice's amount
+        invoiceHistory: arrayUnion(historyEntry), 
+        updatedAt: serverTimestamp(), 
       };
 
       await updateDoc(contractDocRef, updatesToSave);
       
       setInvoiceStatus(newStatus); 
       setIsEditingDetails(false); 
-      setContract(prev => prev ? ({
-        ...prev, 
-        invoiceHtmlContent: finalHtmlToSave, 
-        editableInvoiceDetails: currentFormData, 
-        amount: finalTotalAmount, 
-        invoiceStatus: newStatus, 
-        invoiceNumber: editableInvoiceNumber 
-      }) : null);
+      setContract(prev => prev ? ({ ...prev, ...updatesToSave }) as Contract : null);
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
     } catch (error) {
@@ -514,16 +520,28 @@ export default function ManageInvoicePage() {
       const contractDocRef = doc(db, 'contracts', contract.id);
       const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${emailBody.to}`};
       
+      // Update milestone status if applicable
+      let updatedMilestones = contract.milestones;
+      if (milestoneId && updatedMilestones) {
+        updatedMilestones = updatedMilestones.map(m => 
+          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+        );
+      }
+      const allMilestonesDone = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
+      const newOverallStatus = allMilestonesDone ? 'invoiced' : 'draft';
+
+
       await updateDoc(contractDocRef, { 
-        invoiceStatus: 'sent', 
+        invoiceStatus: newOverallStatus, 
+        milestones: updatedMilestones,
         invoiceHistory: arrayUnion(historyEntry),
         lastReminderSentAt: serverTimestamp(),
         updatedAt: serverTimestamp(), 
       });
 
-      setInvoiceStatus('sent');
+      setInvoiceStatus(newOverallStatus);
       setInvoiceHtmlContent(htmlToSend); 
-      setContract(prev => prev ? ({ ...prev, invoiceStatus: 'sent' }) : null);
+      setContract(prev => prev ? ({ ...prev, invoiceStatus: newOverallStatus, milestones: updatedMilestones }) as Contract : null);
 
       toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailBody.to}.` });
       setIsSendDialogOpen(false);
@@ -646,10 +664,15 @@ export default function ManageInvoicePage() {
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
 
+  const milestoneBeingInvoiced = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
+  const pageTitle = milestoneBeingInvoiced
+    ? `Invoice for: ${milestoneBeingInvoiced.description}`
+    : `Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`;
+
   return (
     <>
       <PageHeader
-        title={`Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`}
+        title={pageTitle}
         description={editableInvoiceNumber ? `Invoice #: ${editableInvoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
         actions={<Button variant="outline" asChild><Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Contract</Link></Button>}
       />

@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save, UploadCloud } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
-import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
+import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog, PaymentMilestone } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -40,6 +40,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { v4 as uuidv4 } from 'uuid';
+
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -80,7 +82,8 @@ export default function ContractDetailPage() {
   const [isSavingSidebar, setIsSavingSidebar] = useState(false);
   const [brand, setBrand] = useState('');
   const [projectName, setProjectName] = useState('');
-  const [amount, setAmount] = useState<number | string>('');
+  // Amount is now managed via milestones
+  const [milestones, setMilestones] = useState<Omit<PaymentMilestone, 'status'>[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
@@ -102,7 +105,7 @@ export default function ContractDetailPage() {
   const populateSidebarForms = (contractData: Contract) => {
     setBrand(contractData.brand || '');
     setProjectName(contractData.projectName || '');
-    setAmount(contractData.amount || '');
+    setMilestones(contractData.milestones?.map(({ status, ...rest }) => rest) || [{ id: uuidv4(), description: 'Initial payment', amount: contractData.amount || 0, dueDate: contractData.dueDate || '' }]);
     setDueDate(contractData.dueDate || '');
     setContractType(contractData.contractType || 'other');
     setClientName(contractData.clientName || '');
@@ -144,6 +147,7 @@ export default function ContractDetailPage() {
             })) || [],
             signatureStatus: data.signatureStatus || 'none',
             lastSignatureEventAt: data.lastSignatureEventAt instanceof Timestamp ? data.lastSignatureEventAt : null,
+            milestones: data.milestones || [{ id: uuidv4(), description: 'Total Amount', amount: data.amount, dueDate: data.dueDate, status: 'pending' }],
           } as Contract;
           
           setContract(processedData);
@@ -238,10 +242,12 @@ export default function ContractDetailPage() {
       return false;
     }
     setIsSavingSidebar(true);
+    
+    const totalAmount = milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+    const finalDueDate = milestones.reduce((latest, m) => m.dueDate > latest ? m.dueDate : latest, "1970-01-01");
 
-    const contractAmount = parseFloat(amount as string);
-    if (isNaN(contractAmount) || contractAmount < 0) {
-        toast({ title: "Invalid Amount", description: "Please enter a valid positive number for the amount.", variant: "destructive" });
+    if (totalAmount <= 0) {
+        toast({ title: "Invalid Amount", description: "Total amount from milestones must be greater than zero.", variant: "destructive" });
         setIsSavingSidebar(false);
         return false;
     }
@@ -266,11 +272,12 @@ export default function ContractDetailPage() {
         newFileNameToSave = newSelectedFile.name;
       }
       
-      const updates: Partial<Contract> = {
+      const updates: Partial<Contract> & { [key: string]: any } = {
         brand: brand.trim(),
         projectName: projectName.trim() || null,
-        amount: contractAmount,
-        dueDate: dueDate,
+        amount: totalAmount,
+        dueDate: finalDueDate,
+        milestones: milestones.map(m => ({ ...m, status: contract.milestones?.find(cm => cm.id === m.id)?.status || 'pending' })),
         contractType: contractType,
         clientName: clientName.trim() || null,
         clientEmail: clientEmail.trim() || null,
@@ -294,6 +301,24 @@ export default function ContractDetailPage() {
       return false;
     } finally {
       setIsSavingSidebar(false);
+    }
+  };
+
+  const handleMilestoneChange = (id: string, field: keyof Omit<PaymentMilestone, 'id' | 'status'>, value: string | number) => {
+    setMilestones(currentMilestones => 
+      currentMilestones.map(m => m.id === id ? { ...m, [field]: value } : m)
+    );
+  };
+
+  const addMilestone = () => {
+    setMilestones([...milestones, { id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
+  };
+
+  const removeMilestone = (id: string) => {
+    if (milestones.length > 1) {
+      setMilestones(milestones.filter(m => m.id !== id));
+    } else {
+      toast({ title: "Cannot Remove", description: "You must have at least one payment milestone." });
     }
   };
 
@@ -392,10 +417,36 @@ export default function ContractDetailPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-md bg-muted/30">
                             <DetailItem icon={Briefcase} label="Brand" value={contract.brand} />
                             <DetailItem icon={FileText} label="Project" value={contract.projectName} />
-                            <DetailItem icon={DollarSign} label="Amount" value={`$${contract.amount.toLocaleString()}`} />
-                            <DetailItem icon={CalendarDays} label="Due Date" value={formattedDueDate} />
+                            <DetailItem icon={DollarSign} label="Total Amount" value={`$${contract.amount.toLocaleString()}`} />
+                            <DetailItem icon={CalendarDays} label="Final Due Date" value={formattedDueDate} />
                         </div>
                     </div>
+
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg">Payment Milestones</h3>
+                      <div className="space-y-2">
+                        {contract.milestones && contract.milestones.map((milestone) => (
+                           <Card key={milestone.id} className="p-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                              <div className="flex-1 mb-2 sm:mb-0">
+                                <p className="font-medium">{milestone.description}</p>
+                                <p className="text-sm text-muted-foreground">Due: {milestone.dueDate ? new Date(milestone.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</p>
+                              </div>
+                              <div className="flex items-center gap-4 w-full sm:w-auto">
+                                <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
+                                <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
+                                <Button size="sm" asChild disabled={milestone.status !== 'pending'}>
+                                  <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
+                                    Generate Invoice
+                                  </Link>
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+
                      {contract.extractedTerms && (Object.values(contract.extractedTerms).some(v => v)) && (
                         <div className="space-y-4">
                             <h3 className="font-semibold text-lg">AI Extracted Terms</h3>
@@ -450,8 +501,7 @@ export default function ContractDetailPage() {
               <Card className="shadow-lg hide-on-print">
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-2">
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>Contract Co-Pilot</Link></Button>
+                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>Contract Co-Pilot</Link></Button>
                   </CardContent>
               </Card>
 
@@ -471,8 +521,21 @@ export default function ContractDetailPage() {
                           <CardContent className="pt-0 space-y-4">
                             <div><Label htmlFor="brand">Brand Name</Label><Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" /></div>
                             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" /></div>
-                            <div><Label htmlFor="amount">Amount ($)</Label><Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" /></div>
-                            <div><Label htmlFor="dueDate">Due Date</Label><Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" /></div>
+                            
+                             <div className="space-y-2 rounded-md border p-4">
+                                <Label>Payment Milestones</Label>
+                                {milestones.map((milestone, index) => (
+                                  <div key={milestone.id} className="grid grid-cols-12 gap-2 items-end pt-2 border-t first:border-t-0 first:pt-0">
+                                      <div className="col-span-12"><Label htmlFor={`milestone-desc-${index}`} className="text-xs">Description</Label><Input id={`milestone-desc-${index}`} value={milestone.description} onChange={(e) => handleMilestoneChange(milestone.id, 'description', e.target.value)} placeholder="e.g., 50% Upfront" className="mt-1 h-8"/></div>
+                                      <div className="col-span-6"><Label htmlFor={`milestone-amount-${index}`} className="text-xs">Amount</Label><Input id={`milestone-amount-${index}`} type="number" value={milestone.amount} onChange={(e) => handleMilestoneChange(milestone.id, 'amount', Number(e.target.value))} placeholder="5000" className="mt-1 h-8"/></div>
+                                      <div className="col-span-6"><Label htmlFor={`milestone-due-${index}`} className="text-xs">Due Date</Label><Input id={`milestone-due-${index}`} type="date" value={milestone.dueDate} onChange={(e) => handleMilestoneChange(milestone.id, 'dueDate', e.target.value)} className="mt-1 h-8"/></div>
+                                      {milestones.length > 1 && <div className="col-span-12 flex justify-end"><Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeMilestone(milestone.id)}><Trash2 className="h-4 w-4"/></Button></div>}
+                                  </div>
+                                ))}
+                                <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
+                                <div className="text-right font-semibold text-sm pt-2 border-t">Total: ${milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0).toLocaleString()}</div>
+                             </div>
+
                             <div><Label htmlFor="contractType">Contract Type</Label><Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}><SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger><SelectContent><SelectItem value="sponsorship">Sponsorship</SelectItem><SelectItem value="consulting">Consulting</SelectItem><SelectItem value="affiliate">Affiliate</SelectItem><SelectItem value="retainer">Retainer</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
                           </CardContent>
                         </AccordionContent>
@@ -624,5 +687,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
-    
