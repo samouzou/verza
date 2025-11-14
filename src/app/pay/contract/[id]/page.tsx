@@ -18,7 +18,7 @@ import Image from 'next/image';
 
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 
-type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'amount' | 'invoiceStatus' | 'clientEmail' | 'milestones'>;
+type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'invoiceStatus' | 'clientEmail' | 'milestones'>;
 
 export default function ClientPaymentPage() {
   const params = useParams();
@@ -55,6 +55,11 @@ export default function ClientPaymentPage() {
         .then((result) => {
           const data = result.data as PublicContractData;
           setContract(data);
+
+          let totalAmount = 0;
+          if (data.milestones && data.milestones.length > 0) {
+            totalAmount = data.milestones.reduce((sum, m) => sum + m.amount, 0);
+          }
           
           if (milestoneId) {
             const targetMilestone = data.milestones?.find(m => m.id === milestoneId);
@@ -66,13 +71,13 @@ export default function ClientPaymentPage() {
               setAmountToPay(targetMilestone.amount);
             } else {
                toast({ title: "Error", description: "Specific payment milestone not found.", variant: "destructive" });
-               setAmountToPay(data.amount); // Fallback to total amount
+               setAmountToPay(totalAmount); // Fallback to total amount
             }
           } else {
             if (data.invoiceStatus === 'paid') {
               toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
             }
-            setAmountToPay(data.amount);
+            setAmountToPay(totalAmount);
           }
         })
         .catch((error) => {
