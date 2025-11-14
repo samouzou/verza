@@ -221,7 +221,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     }
 
     let amountToCharge = 0;
-    let finalMilestoneId: string | null = milestoneId || null;
+    const finalMilestoneId: string | null = milestoneId || null;
 
     if (milestoneId) {
       const milestone = contractData.milestones?.find((m: PaymentMilestone) => m.id === milestoneId);
@@ -260,11 +260,11 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     const amountInCents = Math.round(amountToCharge * 100);
 
     const metadataForStripe: Stripe.MetadataParam = {
-        contractId,
-        userId: userId || "",
-        creatorId: contractData.userId,
-        clientEmail: emailForReceiptAndMetadata,
-        paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
+      contractId,
+      userId: userId || "",
+      creatorId: contractData.userId,
+      clientEmail: emailForReceiptAndMetadata,
+      paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
     };
 
     if (finalMilestoneId) {
@@ -272,8 +272,8 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     }
 
     if (contractData.ownerType === "agency" && contractData.ownerId) {
-       metadataForStripe.agencyId = contractData.ownerId;
-       metadataForStripe.paymentType = "agency_payment";
+      metadataForStripe.agencyId = contractData.ownerId;
+      metadataForStripe.paymentType = "agency_payment";
 
       paymentIntentParams = {
         amount: amountInCents,
@@ -367,23 +367,23 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.Timestamp.now(),
-            action: `Payment Received for ${milestoneId ? 'Milestone' : 'Invoice'}`,
+            action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
         };
 
         if (milestoneId && contractData.milestones) {
-          const updatedMilestones = contractData.milestones.map(m => 
-            m.id === milestoneId ? { ...m, status: 'paid' } : m
+          const updatedMilestones = contractData.milestones.map((m) =>
+            m.id === milestoneId ? {...m, status: "paid"} : m
           );
           updates.milestones = updatedMilestones;
 
-          const allMilestonesPaid = updatedMilestones.every(m => m.status === 'paid');
+          const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
           if (allMilestonesPaid) {
-            updates.invoiceStatus = 'paid';
+            updates.invoiceStatus = "paid";
           }
         } else {
-          updates.invoiceStatus = 'paid';
+          updates.invoiceStatus = "paid";
         }
 
         await contractDocRef.update(updates);
@@ -393,7 +393,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           if (!chargeId) {
             throw new Error("Missing charge ID for agency payment split.");
           }
-          
+
           const agencyDoc = await db.collection("agencies").doc(agencyId).get();
           const agencyData = agencyDoc.data() as Agency;
 

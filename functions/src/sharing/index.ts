@@ -153,6 +153,8 @@ export const getPublicContractDetails = onCall({
       projectName: contractData.projectName,
       amount: contractData.amount,
       invoiceStatus: contractData.invoiceStatus,
+      clientEmail: contractData.clientEmail || null, // Include client email
+      milestones: contractData.milestones || null,   // Include milestones
     };
 
     return publicData;
