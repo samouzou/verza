@@ -289,16 +289,14 @@ export default function ManageInvoicePage() {
 
               // Logic for setting initial HTML content or generating AI
               const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
-              const hasExistingInvoiceDetails = contractData.editableInvoiceDetails && !milestoneId;
-
-              if (hasExistingInvoiceDetails) {
-                // If saved details exist (and we're not on a milestone), prioritize them
-                populateFormFromEditableDetails(contractData.editableInvoiceDetails!, contractData, user);
+              
+              if (contractData.editableInvoiceDetails) {
+                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
                 if (contractData.invoiceHtmlContent) {
                   setInvoiceHtmlContent(contractData.invoiceHtmlContent);
                 } else {
                   // Regenerate HTML if it's missing but details are present
-                  await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails!, initialFetchedReceipts, id);
+                  await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
                 }
               } else {
                  // Generate fresh for a milestone, or if no prior data exists
@@ -351,7 +349,7 @@ export default function ManageInvoicePage() {
     } else { 
       if (contract && user) {
         const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-        const detailsToPopulate = contract.editableInvoiceDetails && !milestoneId ? contract.editableInvoiceDetails : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
+        const detailsToPopulate = contract.editableInvoiceDetails ? contract.editableInvoiceDetails : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
         populateFormFromEditableDetails(detailsToPopulate, contract, user);
       }
     }
@@ -399,15 +397,8 @@ export default function ManageInvoicePage() {
         );
       }
 
-      const allMilestonesInvoiced = updatedMilestones.every(m => m.status === 'invoiced' || m.status === 'paid');
-      const allMilestonesPaid = updatedMilestones.every(m => m.status === 'paid');
-      let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus;
-
-      if (allMilestonesPaid) {
-        newStatus = 'paid';
-      } else if (allMilestonesInvoiced) {
-        newStatus = 'invoiced';
-      } else if (newStatus === 'none' || newStatus === 'draft') {
+      let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus || 'none';
+      if (newStatus === 'none' || !newStatus) {
         newStatus = 'draft';
       }
       
@@ -908,5 +899,3 @@ export default function ManageInvoicePage() {
     </>
   );
 }
-
-    
