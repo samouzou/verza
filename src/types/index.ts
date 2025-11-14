@@ -92,7 +92,7 @@ export interface EmailLog {
   subject: string;
   text: string;
   html: string;
-  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic';
+  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic' | 'onboarding';
   timestamp: ClientTimestamp;
   status: 'sent' | 'failed';
 }
@@ -178,7 +178,7 @@ export interface UserProfileFirestoreData {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
-  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | null;
   talentLimit?: number; // Talent limit for agency plans
   subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;
@@ -190,6 +190,12 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean; // New field for onboarding tour
+  
+  // Email sequence tracking
+  emailSequence?: {
+    step: number; // 0=just signed up, 1=welcome sent, 2=email#2 sent, etc. 'completed' when done.
+    nextEmailAt: ClientTimestamp;
+  };
 }
 
 // Simplified Receipt Feature Types
@@ -311,4 +317,5 @@ export interface TourStep {
 export type Tour = {
   id: string;
   steps: TourStep[];
-}
+  onStop?: () => void;
+};
