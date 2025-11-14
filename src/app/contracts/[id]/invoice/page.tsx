@@ -363,7 +363,7 @@ export default function ManageInvoicePage() {
       const currentFormData = getStructuredDataFromForm();
       const finalTotalAmount = calculateTotal(currentFormData.deliverables);
       
-      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
+      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
       const inputForAI: GenerateInvoiceHtmlInput = {
         ...currentFormData,
         contractId: contract.id,
@@ -469,7 +469,7 @@ export default function ManageInvoicePage() {
       // Use the note from state, adding paragraph tags
       const noteHtml = invoiceNote ? `<p>${invoiceNote.replace(/\n/g, '<br>')}</p>` : "";
 
-      const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
+      const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
       const inputForAISend: GenerateInvoiceHtmlInput = {
         ...currentFormData,
         contractId: contract.id,
