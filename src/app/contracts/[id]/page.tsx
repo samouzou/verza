@@ -288,7 +288,7 @@ export default function ContractDetailPage() {
         fileName: newFileNameToSave,
         updatedAt: Timestamp.now(),
         isRecurring: isRecurring,
-        recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
+        recurrenceInterval: isRecurring ? (recurrenceInterval || null) : null,
       };
 
       await updateDoc(contractDocRef, updates);
@@ -687,3 +687,5 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
+    
