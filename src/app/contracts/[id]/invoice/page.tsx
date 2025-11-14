@@ -396,7 +396,7 @@ export default function ManageInvoicePage() {
       // Determine overall invoice status
       const allMilestonesInvoiced = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
       const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
-      const newStatus = allMilestonesPaid ? 'paid' : (allMilestonesInvoiced ? 'invoiced' : 'draft');
+      const newStatus = allMilestonesPaid ? 'paid' : (allMilestonesInvoiced ? 'invoiced' : (contract.invoiceStatus === 'none' ? 'draft' : contract.invoiceStatus));
       
       const historyEntry = {
         timestamp: Timestamp.now(),
@@ -410,7 +410,6 @@ export default function ManageInvoicePage() {
         invoiceNumber: editableInvoiceNumber,
         invoiceStatus: newStatus, 
         editableInvoiceDetails: currentFormData, 
-        amount: contract.amount, // Keep total contract amount, not just this invoice's amount
         invoiceHistory: arrayUnion(historyEntry), 
         updatedAt: serverTimestamp(), 
       };
@@ -898,3 +897,5 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+
+    
