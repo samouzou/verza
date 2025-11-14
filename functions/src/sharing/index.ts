@@ -153,7 +153,7 @@ export const getPublicContractDetails = onCall({
       projectName: contractData.projectName,
       invoiceStatus: contractData.invoiceStatus,
       clientEmail: contractData.clientEmail || null, // Include client email
-      milestones: contractData.milestones || null, // Include milestones
+      milestones: contractData.milestones || null,   // Include milestones
     };
 
     return publicData;
@@ -162,3 +162,5 @@ export const getPublicContractDetails = onCall({
     throw new HttpsError("internal", "An error occurred while fetching contract details.");
   }
 });
+
+    
