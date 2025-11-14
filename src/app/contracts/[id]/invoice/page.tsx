@@ -289,16 +289,19 @@ export default function ManageInvoicePage() {
 
               // Logic for setting initial HTML content or generating AI
               const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
+              const hasExistingInvoiceDetails = contractData.editableInvoiceDetails && !milestoneId;
 
-              if (!milestoneId && contractData.invoiceHtmlContent) {
-                setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-                const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-                populateFormFromEditableDetails(detailsToPopulate, contractData, user);
-              } else if (!milestoneId && contractData.editableInvoiceDetails) {
-                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
-                await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
+              if (hasExistingInvoiceDetails) {
+                // If saved details exist (and we're not on a milestone), prioritize them
+                populateFormFromEditableDetails(contractData.editableInvoiceDetails!, contractData, user);
+                if (contractData.invoiceHtmlContent) {
+                  setInvoiceHtmlContent(contractData.invoiceHtmlContent);
+                } else {
+                  // Regenerate HTML if it's missing but details are present
+                  await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails!, initialFetchedReceipts, id);
+                }
               } else {
-                 // Always generate fresh for a milestone, or if no prior data exists
+                 // Generate fresh for a milestone, or if no prior data exists
                 await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               }
               
@@ -905,3 +908,5 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+
+    
