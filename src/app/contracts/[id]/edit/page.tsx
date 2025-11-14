@@ -290,7 +290,7 @@ export default function EditContractPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400"/> AI Negotiation Assistant</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-yellow-400"/> Contract Co-Pilot</CardTitle>
           <CardDescription>AI-generated summary and negotiation points.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -464,3 +464,5 @@ export default function EditContractPage() {
     </>
   );
 }
+
+    

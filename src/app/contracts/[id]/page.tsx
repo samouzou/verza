@@ -451,7 +451,7 @@ export default function ContractDetailPage() {
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-2">
                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileSpreadsheet className="mr-2 h-4 w-4"/>Invoice</Link></Button>
-                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>AI Contract Negotiator</Link></Button>
+                      <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>Contract Co-Pilot</Link></Button>
                   </CardContent>
               </Card>
 
