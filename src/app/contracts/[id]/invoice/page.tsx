@@ -633,7 +633,8 @@ export default function ManageInvoicePage() {
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
     const newDeliverables = [...editableDeliverables];
     if (field === 'quantity' || field === 'unitPrice') {
-        newDeliverables[index] = { ...newDeliverables[index], [field]: Number(value) < 0 ? 0 : Number(value) };
+        const numericValue = Number(value);
+        newDeliverables[index] = { ...newDeliverables[index], [field]: isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue) };
     } else {
         newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
     }
@@ -859,8 +860,8 @@ export default function ManageInvoicePage() {
                 {editableDeliverables.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
                     <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
                     <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
