@@ -455,6 +455,13 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
             <div><Label htmlFor="contractFile">Upload Contract File</Label><Input id="contractFile" type="file" accept=".pdf,.doc,.docx,image/*" className="mt-1" onChange={handleFileChange} /><p className="text-xs text-muted-foreground mt-1">Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.</p></div>
 
+            <Card><CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} /></div>
+                <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} /></div>
+                <div className="md:col-span-2"><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/></div>
+                <div className="md:col-span-2"><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/></div>
+            </CardContent></Card>
+
             <Card><CardHeader><CardTitle className="text-lg flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" />Payment Milestones</CardTitle></CardHeader><CardContent className="space-y-4">
               {milestones.map((milestone, index) => (
                 <div key={milestone.id} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-md relative">
@@ -468,12 +475,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
               <div className="text-right font-semibold">Total Amount: ${totalAmount.toLocaleString()}</div>
             </CardContent></Card>
             
-            <Card><CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} /></div>
-                <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} /></div>
-                <div className="md:col-span-2"><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/></div>
-                <div className="md:col-span-2"><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/></div>
-            </CardContent></Card>
             <Card><CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader><CardContent className="space-y-4">
               <div className="flex items-center space-x-2"><Checkbox id="isRecurring" checked={isRecurring} onCheckedChange={(checked) => setIsRecurring(checked as boolean)} /><Label htmlFor="isRecurring" className="font-normal">Is this a recurring contract?</Label></div>
               {isRecurring && (<div><Label htmlFor="recurrenceInterval">Recurrence Interval</Label><Select value={recurrenceInterval} onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}><SelectTrigger id="recurrenceInterval" className="mt-1"><SelectValue placeholder="Select interval" /></SelectTrigger><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem><SelectItem value="annually">Annually</SelectItem></SelectContent></Select></div>)}

@@ -377,7 +377,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             m.id === milestoneId ? {...m, status: "paid"} : m
           );
           updates.milestones = updatedMilestones;
-          
+
           const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
           if (allMilestonesPaid) {
             updates.invoiceStatus = "paid";
