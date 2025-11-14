@@ -113,6 +113,7 @@ export default function ManageInvoicePage() {
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState<boolean>(false);
   const [payUrl, setPayUrl] = useState<string>("");
 
   useEffect(() => {
