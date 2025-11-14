@@ -43,10 +43,10 @@ const buildDefaultEditableDetails = (
   currentEditableInvoiceNumber?: string,
   milestone?: PaymentMilestone,
 ): EditableInvoiceDetails => {
-  const lineItems = milestone
-    ? [{ description: milestone.description, quantity: 1, unitPrice: milestone.amount }]
-    : currentContract.milestones?.map(m => ({ description: m.description, quantity: 1, unitPrice: m.amount })) ||
-      (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
+    const lineItems: EditableInvoiceLineItem[] = milestone
+    ? [{ description: milestone.description, quantity: 1, unitPrice: milestone.amount, isMilestone: true }]
+    : currentContract.milestones?.map(m => ({ description: m.description, quantity: 1, unitPrice: m.amount, isMilestone: true })) ||
+      (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount, isMilestone: true }] : [getDefaultLineItem()]);
 
   return {
     creatorName: currentUser?.displayName || "",
@@ -385,18 +385,23 @@ export default function ManageInvoicePage() {
 
       const contractDocRef = doc(db, 'contracts', contract.id);
       
-      // Update the specific milestone's status if this invoice is for a milestone
-      let updatedMilestones = contract.milestones;
-      if (milestoneId && updatedMilestones) {
+      let updatedMilestones = contract.milestones || [];
+      if (milestoneId) {
         updatedMilestones = updatedMilestones.map(m => 
           m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
         );
       }
 
-      // Determine overall invoice status
-      const allMilestonesInvoiced = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
-      const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
-      const newStatus = allMilestonesPaid ? 'paid' : (allMilestonesInvoiced ? 'invoiced' : (contract.invoiceStatus === 'none' ? 'draft' : contract.invoiceStatus));
+      const allMilestonesInvoiced = updatedMilestones.every(m => m.status === 'invoiced' || m.status === 'paid');
+      const allMilestonesPaid = updatedMilestones.every(m => m.status === 'paid');
+      let newStatus: Contract['invoiceStatus'] = contract.invoiceStatus;
+      if (allMilestonesPaid) {
+        newStatus = 'paid';
+      } else if (allMilestonesInvoiced) {
+        newStatus = 'invoiced';
+      } else if (contract.invoiceStatus === 'none' || contract.invoiceStatus === 'draft') {
+        newStatus = 'draft';
+      }
       
       const historyEntry = {
         timestamp: Timestamp.now(),
@@ -638,11 +643,11 @@ export default function ManageInvoicePage() {
 
   const addDeliverable = () => setEditableDeliverables([...editableDeliverables, getDefaultLineItem()]);
   const removeDeliverable = (index: number) => {
-    if (editableDeliverables.length > 1) {
-      setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
-    } else {
-      toast({title: "Cannot Remove", description: "You must have at least one line item.", variant: "default"});
+    if (editableDeliverables[index]?.isMilestone) {
+        toast({ title: "Cannot Remove", description: "The main milestone line item cannot be removed.", variant: "default" });
+        return;
     }
+    setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
   };
   
   // Effect to regenerate HTML preview if receipts change while in preview mode
@@ -652,7 +657,6 @@ export default function ManageInvoicePage() {
       generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id)
         .catch(error => {
           console.error("Auto-regeneration of preview failed on receipt change:", error);
-          // Optional: toast({ title: "Preview Update Failed", description: "Could not refresh preview with new receipts." });
         });
     }
   }, [
@@ -817,7 +821,6 @@ export default function ManageInvoicePage() {
                 </div>
               </div>
               
-              {/* Currently Linked Receipts Section */}
               <div className="border-t pt-4 mt-4">
                 <div className="mb-6"> 
                   <h4 className="text-md font-semibold mb-2 flex items-center">
@@ -856,11 +859,11 @@ export default function ManageInvoicePage() {
                 <h4 className="text-md font-semibold mb-2">Invoice Line Items</h4>
                 {editableDeliverables.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
-                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1"/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="0" onChange={(e) => handleDeliverableChange(index, 'quantity', parseFloat(e.target.value))} className="mt-1"/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', parseFloat(e.target.value))} className="mt-1"/></div>
+                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
-                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full"><Trash2 className="h-4 w-4"/></Button></div>
+                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
                 ))}
                 <Button type="button" variant="outline" onClick={addDeliverable} size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Add Line Item</Button>
@@ -897,5 +900,3 @@ export default function ManageInvoicePage() {
     </>
   );
 }
-
-    

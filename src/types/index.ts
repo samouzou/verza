@@ -15,7 +15,7 @@ export interface EditableInvoiceLineItem {
   description: string;
   quantity: number;
   unitPrice: number;
-  // total will be calculated: quantity * unitPrice
+  isMilestone?: boolean; // To identify the locked milestone line item
 }
 
 export interface EditableInvoiceDetails {
