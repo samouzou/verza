@@ -160,7 +160,7 @@ export default function ManageInvoicePage() {
 
   const generateAndSetHtmlFromForm = useCallback(async (detailsToUse: EditableInvoiceDetails, receiptsToUse: Array<{url: string; description?: string;}>, contractIdToUse: string) => {
     const totalAmount = calculateTotal(detailsToUse.deliverables);
-    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}` : "";
+    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
     
     const inputForAI: GenerateInvoiceHtmlInput = {
       ...detailsToUse,
@@ -180,7 +180,7 @@ export default function ManageInvoicePage() {
       toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
       setInvoiceHtmlContent("<p>Error generating preview.</p>");
     }
-  }, [toast, setInvoiceHtmlContent, user?.companyLogoUrl]); 
+  }, [toast, setInvoiceHtmlContent, user?.companyLogoUrl, milestoneId]); 
 
   const handleInitialAiGeneration = useCallback(async (
     initialContractData: Contract,
@@ -588,10 +588,15 @@ export default function ManageInvoicePage() {
       const idToken = await getUserIdToken();
       if (!idToken) throw new Error("Could not get user token for payment.");
 
+      const amountForPayment = calculateTotal(editableDeliverables);
+
       const response = await fetch(CREATE_PAYMENT_INTENT_FUNCTION_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify({
-          amount: contract.amount, currency: 'usd', contractId: contract.id,
+          amount: amountForPayment, 
+          currency: 'usd', 
+          contractId: contract.id,
+          milestoneId: milestoneId,
           clientEmail: editableClientEmail || contract.clientEmail || undefined,
         }),
       });
@@ -659,7 +664,7 @@ export default function ManageInvoicePage() {
     return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4"/>Back</Link></Button></div>;
   }
 
-  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && contract.amount > 0 && !clientSecret;
+  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && calculatedTotalAmount > 0 && !clientSecret;
   const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
@@ -758,7 +763,7 @@ export default function ManageInvoicePage() {
                {canPay && (
                 <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingDetails} variant="default">
                   {isFetchingClientSecret ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                  Pay Invoice (${contract.amount.toLocaleString()})
+                  Pay Invoice (${calculatedTotalAmount.toLocaleString()})
                 </Button>
               )}
             </div>

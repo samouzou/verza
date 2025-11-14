@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract } from '@/types';
+import type { Contract, PaymentMilestone } from '@/types';
 import { Loader2, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
@@ -18,14 +18,19 @@ import Image from 'next/image';
 
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 
-type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'amount' | 'invoiceStatus' | 'clientEmail'>;
+type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'amount' | 'invoiceStatus' | 'clientEmail' | 'milestones'>;
 
 export default function ClientPaymentPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const milestoneId = searchParams.get('milestoneId');
   const { toast } = useToast();
 
   const [contract, setContract] = useState<PublicContractData | null>(null);
+  const [milestone, setMilestone] = useState<PaymentMilestone | null>(null);
+  const [amountToPay, setAmountToPay] = useState<number>(0);
+  
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -49,10 +54,26 @@ export default function ClientPaymentPage() {
       getPublicContractDetailsCallable({ contractId: id })
         .then((result) => {
           const data = result.data as PublicContractData;
-          if (data.invoiceStatus === 'paid') {
-            toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
-          }
           setContract(data);
+          
+          if (milestoneId) {
+            const targetMilestone = data.milestones?.find(m => m.id === milestoneId);
+            if (targetMilestone) {
+              if (targetMilestone.status === 'paid') {
+                 toast({ title: "Milestone Already Paid", description: "This part of the invoice has already been settled.", variant: "default" });
+              }
+              setMilestone(targetMilestone);
+              setAmountToPay(targetMilestone.amount);
+            } else {
+               toast({ title: "Error", description: "Specific payment milestone not found.", variant: "destructive" });
+               setAmountToPay(data.amount); // Fallback to total amount
+            }
+          } else {
+            if (data.invoiceStatus === 'paid') {
+              toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
+            }
+            setAmountToPay(data.amount);
+          }
         })
         .catch((error) => {
           console.error("Error fetching public contract details:", error);
@@ -62,15 +83,15 @@ export default function ClientPaymentPage() {
           setIsLoadingContract(false);
         });
     }
-  }, [id, toast]);
+  }, [id, milestoneId, toast]);
 
   const handleInitiatePayment = async () => {
-    if (!contract || !stripePromise) {
-      toast({ title: "Error", description: "Contract details missing or Stripe not loaded.", variant: "destructive" });
+    if (!contract || !stripePromise || amountToPay <= 0) {
+      toast({ title: "Error", description: "Invoice details missing, payment amount is zero, or Stripe is not loaded.", variant: "destructive" });
       return;
     }
-    if (contract.invoiceStatus === 'paid') {
-      toast({ title: "Already Paid", description: "This invoice has already been paid.", variant: "default" });
+    if ((milestone && milestone.status === 'paid') || (!milestone && contract.invoiceStatus === 'paid')) {
+      toast({ title: "Already Paid", description: "This has already been paid.", variant: "default" });
       return;
     }
 
@@ -85,7 +106,8 @@ export default function ClientPaymentPage() {
         },
         body: JSON.stringify({
           contractId: contract.id,
-          amount: contract.amount,
+          milestoneId: milestone?.id,
+          amount: amountToPay,
           currency: 'usd',
            clientEmail: contract.clientEmail || undefined,
         }),
@@ -143,6 +165,9 @@ export default function ClientPaymentPage() {
   };
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
 
+  const isPaid = (milestone && milestone.status === 'paid') || (!milestone && contract.invoiceStatus === 'paid');
+  const paymentDescription = milestone?.description ? `Payment for: ${milestone.description}` : `For ${contract.brand} - ${contract.projectName || `Contract ID: ${contract.id.substring(0,8)}...`}`;
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-100 to-sky-100 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-lg shadow-2xl rounded-xl overflow-hidden bg-background">
@@ -151,23 +176,23 @@ export default function ClientPaymentPage() {
              <Image src="/verza-icon.svg" alt="Verza Icon" width={40} height={40} />
             <div>
               <CardTitle className="text-2xl md:text-3xl text-white">Pay Invoice</CardTitle>
-              <CardDescription className="text-slate-300">For {contract.brand} - {contract.projectName || `Contract ID: ${contract.id.substring(0,8)}...`}</CardDescription>
+              <CardDescription className="text-slate-300">{paymentDescription}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
-          {contract.invoiceStatus === 'paid' ? (
+          {isPaid ? (
             <div className="text-center py-8">
               <ShieldCheck className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-green-600">Invoice Already Paid</h3>
-              <p className="text-muted-foreground mt-2">This invoice has already been settled. Thank you!</p>
+              <h3 className="text-xl font-semibold text-green-600">Already Paid</h3>
+              <p className="text-muted-foreground mt-2">This payment has already been settled. Thank you!</p>
             </div>
           ) : !showPaymentForm ? (
             <>
               <div className="space-y-3 text-center">
                 <p className="text-muted-foreground">Amount Due</p>
                  <p className="text-5xl font-bold text-slate-800 dark:text-slate-100">
-                  ${contract.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="flex flex-col items-center">
@@ -188,7 +213,7 @@ export default function ClientPaymentPage() {
               <div>
                 <p className="text-sm text-center text-muted-foreground mb-4">
                   Enter your payment details below. Total:
-                  <span className="font-semibold text-slate-700 dark:text-slate-200"> ${contract.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200"> ${amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </p>
                 <Elements stripe={stripePromise} options={elementsOptions}>
                   <StripePaymentForm clientSecret={clientSecret} contractId={contract.id} />
