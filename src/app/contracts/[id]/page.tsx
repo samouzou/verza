@@ -13,7 +13,7 @@ import { ContractStatusBadge } from '@/components/contracts/contract-status-badg
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject, uploadBytes, getDownloadURL } from '@/lib/firebase';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -39,6 +39,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -57,43 +58,6 @@ function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.
   );
 }
 
-interface ReplyFormProps {
-  commentId: string;
-  onSubmitReply: (commentId: string, replyText: string) => Promise<void>;
-}
-
-function ReplyForm({ commentId, onSubmitReply }: ReplyFormProps) {
-  const [replyText, setReplyText] = useState("");
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim()) return;
-    setIsSubmittingReply(true);
-    await onSubmitReply(commentId, replyText.trim());
-    setReplyText("");
-    setIsSubmittingReply(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-2 ml-8 pl-4 border-l border-muted space-y-2">
-      <Textarea
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-        placeholder="Write your reply..."
-        rows={2}
-        className="text-sm"
-        disabled={isSubmittingReply}
-      />
-      <Button type="submit" size="sm" variant="outline" disabled={isSubmittingReply || !replyText.trim()}>
-        {isSubmittingReply ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <SendIconComponent className="mr-1 h-3 w-3" />}
-        Reply
-      </Button>
-    </form>
-  );
-}
-
-
 export default function ContractDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -104,22 +68,9 @@ export default function ContractDetailPage() {
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
-  const [sharedVersions, setSharedVersions] = useState<SharedContractVersionType[]>([]);
-  const [isLoadingSharedVersions, setIsLoadingSharedVersions] = useState(true);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [contractComments, setContractComments] = useState<ContractComment[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(true);
   const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null);
-
-  const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
-  const [isLoadingProposals, setIsLoadingProposals] = useState(true);
-  const [isUpdatingProposal, setIsUpdatingProposal] = useState<string | null>(null);
-
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'comment'; id: string } | { type: 'reply'; commentId: string; replyId: string } | null>(null);
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
-  const [isDeletingCommentOrReply, setIsDeletingCommentOrReply] = useState(false);
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
@@ -139,6 +90,8 @@ export default function ContractDetailPage() {
   const [contractType, setContractType] = useState<Contract['contractType']>('other');
   const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval']>();
 
 
   useEffect(() => {
@@ -158,22 +111,18 @@ export default function ContractDetailPage() {
     setClientTin(contractData.clientTin || '');
     setPaymentInstructions(contractData.paymentInstructions || '');
     setCurrentFileName(contractData.fileName || null);
+    setIsRecurring(contractData.isRecurring || false);
+    setRecurrenceInterval(contractData.recurrenceInterval);
     setNewSelectedFile(null); // Reset file selection on new data
   };
 
   useEffect(() => {
-    let unsubscribeSharedVersions: (() => void) | undefined;
-    let unsubscribeComments: (() => void) | undefined;
-    let unsubscribeProposals: (() => void) | undefined;
     let unsubscribeContract: (() => void) | undefined;
     let unsubscribeEmailLogs: (() => void) | undefined;
 
 
     if (id && user && !authLoading) {
       setIsLoading(true);
-      setIsLoadingSharedVersions(true);
-      setIsLoadingComments(true);
-      setIsLoadingProposals(true);
       setIsLoadingEmailLogs(true);
 
       const contractDocRef = doc(db, 'contracts', id as string);
@@ -229,68 +178,14 @@ export default function ContractDetailPage() {
       });
 
 
-      const sharedVersionsQuery = query(
-        collection(db, "sharedContractVersions"),
-        where("originalContractId", "==", id),
-        where("userId", "==", user.uid),
-        orderBy("sharedAt", "desc")
-      );
-      unsubscribeSharedVersions = onSnapshot(sharedVersionsQuery, (snapshot) => {
-        const versions = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as SharedContractVersionType));
-        setSharedVersions(versions);
-        setIsLoadingSharedVersions(false);
-      }, (error) => {
-        console.error("Error fetching shared versions: ", error);
-        toast({ title: "Sharing Error", description: "Could not load shared versions.", variant: "destructive" });
-        setIsLoadingSharedVersions(false);
-      });
-
-      const commentsQuery = query(
-        collection(db, "contractComments"),
-        where("originalContractId", "==", id),
-        where("creatorId", "==", user.uid), 
-        orderBy("commentedAt", "desc")
-      );
-      unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
-        const fetchedComments = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as ContractComment));
-        setContractComments(fetchedComments);
-        setIsLoadingComments(false);
-      }, (error) => {
-        console.error("Error fetching contract comments:", error);
-        toast({ title: "Comment Fetch Error", description: "Could not load comments for this contract.", variant: "destructive" });
-        setIsLoadingComments(false);
-      });
-      
-      const proposalsQuery = query(
-        collection(db, "redlineProposals"),
-        where("originalContractId", "==", id),
-        where("creatorId", "==", user.uid),
-        orderBy("proposedAt", "desc")
-      );
-      unsubscribeProposals = onSnapshot(proposalsQuery, (snapshot) => {
-        const proposals = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as RedlineProposal));
-        setRedlineProposals(proposals);
-        setIsLoadingProposals(false);
-      }, (error) => {
-        console.error("Error fetching redline proposals: ", error);
-        toast({ title: "Proposals Error", description: "Could not load redline proposals.", variant: "destructive" });
-        setIsLoadingProposals(false);
-      });
-
-
     } else if (!authLoading && !user) {
       router.push('/login');
     } else if (!id) {
         setIsLoading(false);
-        setIsLoadingSharedVersions(false);
-        setIsLoadingComments(false);
-        setIsLoadingProposals(false);
+        setIsLoadingEmailLogs(false);
     }
      return () => {
       if (unsubscribeContract) unsubscribeContract();
-      if (unsubscribeSharedVersions) unsubscribeSharedVersions();
-      if (unsubscribeComments) unsubscribeComments();
-      if (unsubscribeProposals) unsubscribeProposals();
       if (unsubscribeEmailLogs) unsubscribeEmailLogs();
     };
   }, [id, user, authLoading, router, toast]);
@@ -385,6 +280,8 @@ export default function ContractDetailPage() {
         fileUrl: newFileUrl,
         fileName: newFileNameToSave,
         updatedAt: Timestamp.now(),
+        isRecurring: isRecurring,
+        recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
       };
 
       await updateDoc(contractDocRef, updates);
@@ -404,134 +301,6 @@ export default function ContractDetailPage() {
     window.print();
   };
   
-  const formatCommentDateDisplay = (dateInput: Timestamp | undefined | null): string => {
-    if (!dateInput) return 'N/A';
-    try {
-      const date = dateInput.toDate();
-      return format(date, "PPp"); 
-    } catch (e) {
-      console.warn("Error formatting comment date:", dateInput, e);
-      return 'Invalid Date';
-    }
-  };
-
-  const handleAddReply = async (commentId: string, replyText: string) => {
-    if (!user || !contract) {
-      toast({ title: "Error", description: "User or contract data missing.", variant: "destructive" });
-      return;
-    }
-    try {
-      const commentDocRef = doc(db, "contractComments", commentId);
-      const newReply: CommentReply = {
-        replyId: doc(collection(db, "tmp")).id, 
-        creatorId: user.uid,
-        creatorName: user.displayName || "Creator",
-        replyText: replyText,
-        repliedAt: Timestamp.now(),
-      };
-
-      await updateDoc(commentDocRef, {
-        replies: arrayUnion(newReply)
-      });
-
-      toast({ title: "Reply Added", description: "Your reply has been posted." });
-    } catch (error: any) {
-      console.error("Error adding reply:", error);
-      toast({ title: "Reply Failed", description: error.message || "Could not post reply.", variant: "destructive" });
-    }
-  };
-
-  const openDeleteConfirmationDialog = (type: 'comment' | 'reply', id: string, commentId?: string) => {
-    if (type === 'comment') {
-      setDeleteTarget({ type: 'comment', id });
-    } else if (type === 'reply' && commentId) {
-      setDeleteTarget({ type: 'reply', commentId, replyId: id });
-    }
-    setIsDeleteConfirmationOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget || !user) return;
-    setIsDeletingCommentOrReply(true);
-    try {
-      if (deleteTarget.type === 'comment') {
-        const commentDocRef = doc(db, "contractComments", deleteTarget.id);
-        await deleteFirestoreDoc(commentDocRef);
-        toast({ title: "Comment Deleted", description: "The brand's comment has been removed." });
-      } else if (deleteTarget.type === 'reply') {
-        const commentDocRef = doc(db, "contractComments", deleteTarget.commentId);
-        const commentSnap = await getDoc(commentDocRef);
-        if (commentSnap.exists()) {
-            const commentData = commentSnap.data() as ContractComment;
-            const replyToRemove = commentData.replies?.find(r => r.replyId === deleteTarget.replyId);
-            if (replyToRemove) {
-                await updateDoc(commentDocRef, {
-                    replies: arrayRemove(replyToRemove)
-                });
-                toast({ title: "Reply Deleted", description: "Your reply has been removed." });
-            } else {
-                 toast({ title: "Reply Not Found", description: "Could not find the reply to delete.", variant: "destructive" });
-            }
-        }
-      }
-      setDeleteTarget(null);
-      setIsDeleteConfirmationOpen(false);
-    } catch (error: any) {
-      console.error("Error deleting comment/reply:", error);
-      toast({ title: "Deletion Failed", description: error.message || "Could not complete deletion.", variant: "destructive" });
-    } finally {
-      setIsDeletingCommentOrReply(false);
-    }
-  };
-
-  const handleUpdateProposalStatus = async (proposal: RedlineProposal, newStatus: 'accepted' | 'rejected') => {
-    if (!contract || !user) return;
-    setIsUpdatingProposal(proposal.id);
-
-    try {
-        const proposalRef = doc(db, "redlineProposals", proposal.id);
-        const updates: Partial<RedlineProposal> = {
-            status: newStatus,
-            reviewedAt: Timestamp.now(),
-        };
-
-        if (newStatus === 'accepted') {
-            const contractRef = doc(db, "contracts", contract.id);
-            const currentText = contract.contractText || "";
-            
-            if (currentText.includes(proposal.originalText)) {
-                const newText = currentText.replace(proposal.originalText, proposal.proposedText);
-                await updateDoc(contractRef, { contractText: newText });
-
-                const historyEntry = {
-                    timestamp: Timestamp.now(),
-                    action: "Redline Proposal Accepted",
-                    details: `Change by ${proposal.proposerName}.`,
-                };
-                await updateDoc(contractRef, {
-                    invoiceHistory: arrayUnion(historyEntry),
-                    updatedAt: serverTimestamp(),
-                });
-
-                toast({ title: "Proposal Accepted", description: "The contract text has been updated." });
-            } else {
-                throw new Error("The original text to be replaced was not found in the current contract. The contract may have been updated since this proposal was made.");
-            }
-        }
-        
-        await updateDoc(proposalRef, updates);
-
-        if (newStatus === 'rejected') {
-            toast({ title: "Proposal Rejected", description: "The proposal has been marked as rejected." });
-        }
-    } catch (error: any) {
-      console.error("Error updating proposal status:", error);
-      toast({ title: "Update Failed", description: error.message || "Could not update proposal.", variant: "destructive" });
-    } finally {
-        setIsUpdatingProposal(null);
-    }
-  };
-
   if (authLoading || isLoading) {
     return (
       <div className="flex-1 p-8 overflow-y-auto">
@@ -565,10 +334,6 @@ export default function ContractDetailPage() {
   }
   
   const formattedDueDate = contract.dueDate ? new Date(contract.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A';
-  
-  const formattedCreatedAt = contract.createdAt instanceof Timestamp
-    ? contract.createdAt.toDate().toLocaleDateString()
-    : 'N/A';
   
   let effectiveDisplayStatus: Contract['status'] = contract.status || 'pending';
   const todayMidnight = new Date();
@@ -730,6 +495,45 @@ export default function ContractDetailPage() {
                         </AccordionContent>
                       </Card>
                     </AccordionItem>
+                    <AccordionItem value="recurrence" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                          <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Contract Recurrence</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                             <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="isRecurring"
+                                checked={isRecurring}
+                                onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
+                              />
+                              <Label htmlFor="isRecurring" className="font-normal">
+                                Is this a recurring contract?
+                              </Label>
+                            </div>
+                            {isRecurring && (
+                              <div>
+                                <Label htmlFor="recurrenceInterval">Recurrence Interval</Label>
+                                <Select
+                                  value={recurrenceInterval}
+                                  onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
+                                >
+                                  <SelectTrigger id="recurrenceInterval" className="mt-1">
+                                    <SelectValue placeholder="Select interval" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                                    <SelectItem value="annually">Annually</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
                   </Accordion>
                 </CardContent>
                  <CardFooter>
@@ -817,24 +621,6 @@ export default function ContractDetailPage() {
           </aside>
         </div>
       </div>
-
-      <AlertDialog open={isDeleteConfirmationOpen} onOpenChange={setIsDeleteConfirmationOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.type === 'comment' ? "This will permanently delete the brand's comment." : "This will permanently delete your reply."} This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteTarget(null)} disabled={isDeletingCommentOrReply}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeletingCommentOrReply} className="bg-destructive hover:bg-destructive/90">
-              {isDeletingCommentOrReply ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
