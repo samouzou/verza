@@ -44,7 +44,7 @@ export interface Contract {
   brand: string;
   amount: number; // This will now be the TOTAL amount of all milestones
   dueDate: string; // YYYY-MM-DD - Represents the final due date of the contract
-  status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced';
+  status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced' | 'partially_paid';
   contractType: 'sponsorship' | 'consulting' | 'affiliate' | 'retainer' | 'other';
   projectName?: string; // Optional project name
   

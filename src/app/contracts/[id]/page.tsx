@@ -365,16 +365,29 @@ export default function ContractDetailPage() {
   todayMidnight.setHours(0, 0, 0, 0);
   const contractDueDate = contract.dueDate ? new Date(contract.dueDate + 'T00:00:00') : null;
 
-  if (contract.invoiceStatus === 'paid') {
-    effectiveDisplayStatus = 'paid';
-  } else if (contract.invoiceStatus === 'overdue') {
-    effectiveDisplayStatus = 'overdue';
-  } else if ((contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
-    effectiveDisplayStatus = 'overdue';
-  } else if (contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
-    effectiveDisplayStatus = 'invoiced';
-  } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
-    effectiveDisplayStatus = 'overdue';
+  if (contract.milestones && contract.milestones.length > 0) {
+    const paidCount = contract.milestones.filter(m => m.status === 'paid').length;
+    if (paidCount === contract.milestones.length) {
+        effectiveDisplayStatus = 'paid';
+    } else if (paidCount > 0) {
+        effectiveDisplayStatus = 'partially_paid' as any; // Using 'as any' because it's a custom status
+    } else if (contract.milestones.every(m => m.status === 'invoiced')) {
+        effectiveDisplayStatus = 'invoiced';
+    } else if (contractDueDate && contractDueDate < todayMidnight && effectiveDisplayStatus !== 'paid') {
+        effectiveDisplayStatus = 'overdue';
+    }
+  } else {
+      if (contract.invoiceStatus === 'paid') {
+        effectiveDisplayStatus = 'paid';
+      } else if (contract.invoiceStatus === 'overdue') {
+        effectiveDisplayStatus = 'overdue';
+      } else if ((contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
+        effectiveDisplayStatus = 'overdue';
+      } else if (contract.invoiceStatus === 'sent' || contract.invoiceStatus === 'viewed') {
+        effectiveDisplayStatus = 'invoiced';
+      } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
+        effectiveDisplayStatus = 'overdue';
+      }
   }
 
 

@@ -247,6 +247,11 @@ export default function ManageInvoicePage() {
     let isMounted = true;
     let unsubscribeReceipts: (() => void) | undefined = undefined;
     setIsLoadingContract(true);
+    // Reset local state when component mounts or `milestoneId` changes
+    setInvoiceHtmlContent("");
+    setClientSecret(null);
+    setShowPaymentForm(false);
+    setIsEditingDetails(false);
 
     const loadInitialData = async () => {
       try {
