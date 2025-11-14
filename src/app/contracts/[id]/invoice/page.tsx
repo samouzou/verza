@@ -385,7 +385,11 @@ export default function ManageInvoicePage() {
 
       const contractDocRef = doc(db, 'contracts', contract.id);
       
-      let updatedMilestones = contract.milestones || [];
+      // Get the most recent state of milestones
+      const freshContractSnap = await getDoc(contractDocRef);
+      const freshContractData = freshContractSnap.data() as Contract;
+      let updatedMilestones = freshContractData.milestones || [];
+
       if (milestoneId) {
         updatedMilestones = updatedMilestones.map(m => 
           m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
@@ -394,18 +398,19 @@ export default function ManageInvoicePage() {
 
       const allMilestonesInvoiced = updatedMilestones.every(m => m.status === 'invoiced' || m.status === 'paid');
       const allMilestonesPaid = updatedMilestones.every(m => m.status === 'paid');
-      let newStatus: Contract['invoiceStatus'] = contract.invoiceStatus;
+      let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus;
+
       if (allMilestonesPaid) {
         newStatus = 'paid';
       } else if (allMilestonesInvoiced) {
         newStatus = 'invoiced';
-      } else if (contract.invoiceStatus === 'none' || contract.invoiceStatus === 'draft') {
+      } else if (newStatus === 'none' || newStatus === 'draft') {
         newStatus = 'draft';
       }
       
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: `Invoice Draft Saved for Milestone: ${currentFormData.deliverables[0]?.description || 'General Invoice'}`,
+        action: `Invoice Draft Saved for ${milestoneId ? `Milestone: ${currentFormData.deliverables.find(d=>d.isMilestone)?.description}` : 'General Invoice'}`,
         details: `Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
       };
 
