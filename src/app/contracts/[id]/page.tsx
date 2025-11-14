@@ -5,16 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2 } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove } from '@/lib/firebase';
-import { storage } from '@/lib/firebase'; // Import initialized functions
-import { ref as storageFileRef, deleteObject } from 'firebase/storage';
+import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -28,9 +26,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -40,6 +35,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { useSidebar } from '@/components/ui/sidebar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -114,7 +113,6 @@ export default function ContractDetailPage() {
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(true);
   const [selectedEmailLog, setSelectedEmailLog] = useState<EmailLog | null>(null);
 
-  // Redlining State
   const [redlineProposals, setRedlineProposals] = useState<RedlineProposal[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(true);
   const [isUpdatingProposal, setIsUpdatingProposal] = useState<string | null>(null);
@@ -126,11 +124,42 @@ export default function ContractDetailPage() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
   const { setOpen } = useSidebar();
+  
+  // State for editable sidebar fields
+  const [isSavingSidebar, setIsSavingSidebar] = useState(false);
+  const [brand, setBrand] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [amount, setAmount] = useState<number | string>('');
+  const [dueDate, setDueDate] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientAddress, setClientAddress] = useState('');
+  const [clientTin, setClientTin] = useState('');
+  const [paymentInstructions, setPaymentInstructions] = useState('');
+  const [contractType, setContractType] = useState<Contract['contractType']>('other');
+  const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
+
 
   useEffect(() => {
     // Collapse sidebar by default on this page
     setOpen(false);
   }, [setOpen]);
+  
+  const populateSidebarForms = (contractData: Contract) => {
+    setBrand(contractData.brand || '');
+    setProjectName(contractData.projectName || '');
+    setAmount(contractData.amount || '');
+    setDueDate(contractData.dueDate || '');
+    setContractType(contractData.contractType || 'other');
+    setClientName(contractData.clientName || '');
+    setClientEmail(contractData.clientEmail || '');
+    setClientAddress(contractData.clientAddress || '');
+    setClientTin(contractData.clientTin || '');
+    setPaymentInstructions(contractData.paymentInstructions || '');
+    setCurrentFileName(contractData.fileName || null);
+    setNewSelectedFile(null); // Reset file selection on new data
+  };
 
   useEffect(() => {
     let unsubscribeSharedVersions: (() => void) | undefined;
@@ -153,69 +182,24 @@ export default function ContractDetailPage() {
         const data = contractSnap.data();
 
         if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
-          let createdAt = data.createdAt;
-          if (createdAt && !(createdAt instanceof Timestamp)) {
-            if (typeof createdAt === 'string') {
-              createdAt = Timestamp.fromDate(new Date(createdAt));
-            } else if (createdAt.seconds && typeof createdAt.seconds === 'number' && createdAt.nanoseconds && typeof createdAt.nanoseconds === 'number') {
-              createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
-            } else {
-              createdAt = Timestamp.now(); 
-            }
-          } else if (!createdAt) {
-               createdAt = Timestamp.now();
-          }
-
-          let updatedAt = data.updatedAt;
-          if (updatedAt && !(updatedAt instanceof Timestamp)) {
-             if (typeof updatedAt === 'string') {
-              updatedAt = Timestamp.fromDate(new Date(updatedAt));
-            } else if (updatedAt.seconds && typeof updatedAt.seconds === 'number' && updatedAt.nanoseconds && typeof updatedAt.nanoseconds === 'number') {
-              updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
-            } else {
-              updatedAt = Timestamp.now(); 
-            }
-          } else if (!updatedAt) {
-              updatedAt = Timestamp.now();
-          }
-          
-          let lastReminderSentAt = data.lastReminderSentAt;
-          if (lastReminderSentAt && !(lastReminderSentAt instanceof Timestamp)) {
-            if (typeof lastReminderSentAt === 'string') {
-              lastReminderSentAt = Timestamp.fromDate(new Date(lastReminderSentAt));
-            } else if (lastReminderSentAt.seconds && typeof lastReminderSentAt.seconds === 'number') {
-              lastReminderSentAt = new Timestamp(lastReminderSentAt.seconds, lastReminderSentAt.nanoseconds || 0);
-            } else {
-              lastReminderSentAt = null;
-            }
-          }
-          
-          let lastSignatureEventAt = data.lastSignatureEventAt;
-           if (lastSignatureEventAt && !(lastSignatureEventAt instanceof Timestamp)) {
-            if (typeof lastSignatureEventAt === 'string') {
-              lastSignatureEventAt = Timestamp.fromDate(new Date(lastSignatureEventAt));
-            } else if (lastSignatureEventAt.seconds && typeof lastSignatureEventAt.seconds === 'number') {
-              lastSignatureEventAt = new Timestamp(lastSignatureEventAt.seconds, lastSignatureEventAt.nanoseconds || 0);
-            } else {
-              lastSignatureEventAt = null;
-            }
-          }
-
-
-          setContract({
+          const processedData = {
             ...data,
             id: contractSnap.id,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            lastReminderSentAt: lastReminderSentAt || null,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
+            lastReminderSentAt: data.lastReminderSentAt instanceof Timestamp ? data.lastReminderSentAt : null,
             invoiceStatus: data.invoiceStatus || 'none',
             invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
               ...entry,
               timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
             })) || [],
             signatureStatus: data.signatureStatus || 'none',
-            lastSignatureEventAt: lastSignatureEventAt || null,
-          } as Contract);
+            lastSignatureEventAt: data.lastSignatureEventAt instanceof Timestamp ? data.lastSignatureEventAt : null,
+          } as Contract;
+          
+          setContract(processedData);
+          populateSidebarForms(processedData);
+
         } else {
           setContract(null);
           toast({ title: "Error", description: "Contract not found or you don't have permission to view it.", variant: "destructive" });
@@ -351,6 +335,70 @@ export default function ContractDetailPage() {
       setIsContractDeleteDialogOpen(false);
     }
   };
+  
+  const handleSaveSidebarChanges = async (event?: MouseEvent) => {
+    event?.preventDefault(); 
+    if (!contract || !user) {
+      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
+      return false;
+    }
+    setIsSavingSidebar(true);
+
+    const contractAmount = parseFloat(amount as string);
+    if (isNaN(contractAmount) || contractAmount < 0) {
+        toast({ title: "Invalid Amount", description: "Please enter a valid positive number for the amount.", variant: "destructive" });
+        setIsSavingSidebar(false);
+        return false;
+    }
+
+    try {
+      const contractDocRef = doc(db, 'contracts', id);
+      let newFileUrl: string | null = contract.fileUrl;
+      let newFileNameToSave: string | null = contract.fileName;
+
+      if (newSelectedFile) {
+        if (contract.fileUrl) {
+          try {
+            const oldFileStorageRef = storageFileRef(storage, contract.fileUrl);
+            await deleteObject(oldFileStorageRef);
+          } catch (deleteError: any) {
+            console.warn("Could not delete old file from storage:", deleteError.message);
+          }
+        }
+        const fileStorageRef = storageFileRef(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
+        const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
+        newFileUrl = await getDownloadURL(uploadResult.ref);
+        newFileNameToSave = newSelectedFile.name;
+      }
+      
+      const updates: Partial<Contract> = {
+        brand: brand.trim(),
+        projectName: projectName.trim() || null,
+        amount: contractAmount,
+        dueDate: dueDate,
+        contractType: contractType,
+        clientName: clientName.trim() || null,
+        clientEmail: clientEmail.trim() || null,
+        clientAddress: clientAddress.trim() || null,
+        clientTin: clientTin.trim() || null,
+        paymentInstructions: paymentInstructions.trim() || null,
+        fileUrl: newFileUrl,
+        fileName: newFileNameToSave,
+        updatedAt: Timestamp.now(),
+      };
+
+      await updateDoc(contractDocRef, updates);
+      toast({ title: "Contract Details Updated", description: "Changes saved successfully." });
+      setNewSelectedFile(null); // Clear file input after save
+      return true;
+    } catch (error) {
+      console.error("Error updating contract:", error);
+      toast({ title: "Update Failed", description: "Could not save changes.", variant: "destructive" });
+      return false;
+    } finally {
+      setIsSavingSidebar(false);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -477,8 +525,8 @@ export default function ContractDetailPage() {
             toast({ title: "Proposal Rejected", description: "The proposal has been marked as rejected." });
         }
     } catch (error: any) {
-        console.error("Error updating proposal status:", error);
-        toast({ title: "Update Failed", description: error.message || "Could not update proposal.", variant: "destructive" });
+      console.error("Error updating proposal status:", error);
+      toast({ title: "Update Failed", description: error.message || "Could not update proposal.", variant: "destructive" });
     } finally {
         setIsUpdatingProposal(null);
     }
@@ -644,6 +692,53 @@ export default function ContractDetailPage() {
 
               <Card className="shadow-lg hide-on-print">
                 <CardHeader>
+                  <CardTitle>Editable Details</CardTitle>
+                  <CardDescription>Quickly edit metadata for this contract.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Accordion type="multiple" className="w-full space-y-6">
+                    <AccordionItem value="core-details" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                          <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Core Details</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                            <div><Label htmlFor="brand">Brand Name</Label><Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" /></div>
+                            <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" /></div>
+                            <div><Label htmlFor="amount">Amount ($)</Label><Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" /></div>
+                            <div><Label htmlFor="dueDate">Due Date</Label><Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" /></div>
+                            <div><Label htmlFor="contractType">Contract Type</Label><Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}><SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger><SelectContent><SelectItem value="sponsorship">Sponsorship</SelectItem><SelectItem value="consulting">Consulting</SelectItem><SelectItem value="affiliate">Affiliate</SelectItem><SelectItem value="retainer">Retainer</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
+                    <AccordionItem value="client-file" className="border-b-0">
+                      <Card>
+                        <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
+                           <CardHeader className="flex-1 text-left"><CardTitle className="text-base">Client &amp; File</CardTitle></CardHeader>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <CardContent className="pt-0 space-y-4">
+                              <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label><Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" /></div>
+                              <div><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} /></div>
+                              <div><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/></div>
+                              <div><Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>{currentFileName && !newSelectedFile && <div className="text-xs text-muted-foreground flex items-center mt-1"><FileText className="mr-1 h-3 w-3" /> {currentFileName}</div>}{newSelectedFile && <div className="text-xs text-green-600 flex items-center mt-1"><UploadCloud className="mr-1 h-3 w-3" /> {newSelectedFile.name}</div>}<Input id="newContractFile" type="file" className="mt-1" onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)} /></div>
+                          </CardContent>
+                        </AccordionContent>
+                      </Card>
+                    </AccordionItem>
+                  </Accordion>
+                  <Button onClick={(e) => handleSaveSidebarChanges(e as any)} disabled={isSavingSidebar} className="w-full mt-6">
+                    {isSavingSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Details
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-lg hide-on-print">
+                <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg"><History className="h-5 w-5 text-blue-500" />Invoice History</CardTitle>
                     <CardDescription>A log of all invoice-related events.</CardDescription>
                 </CardHeader>
@@ -688,21 +783,7 @@ export default function ContractDetailPage() {
               </Card>
               
               <Card className="shadow-lg hide-on-print">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg"><Info className="h-5 w-5 text-green-500" />Platform Fee Notice</CardTitle>
-                </CardHeader>
-                <CardContent>
-                   <p className="text-xs text-muted-foreground">
-                    Payments received through Verza are subject to a 1% platform fee and standard Stripe processing fees (typically 2.9% + 30¢). These fees are deducted from the total payment amount.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg hide-on-print">
-                  <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle>
-                      <CardDescription>Review brand-proposed changes.</CardDescription>
-                  </CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle><CardDescription>Review brand-proposed changes.</CardDescription></CardHeader>
                   <CardContent>
                       {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                       : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
@@ -713,12 +794,7 @@ export default function ContractDetailPage() {
                                   {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
                                   <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
                                   <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
-                                  {proposal.status === 'proposed' && (
-                                      <div className="flex gap-2 mt-3 justify-end">
-                                          <Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button>
-                                          <Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button>
-                                      </div>
-                                  )}
+                                  {proposal.status === 'proposed' && (<div className="flex gap-2 mt-3 justify-end"><Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button><Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button></div>)}
                               </div>
                           ))}
                       </div></ScrollArea>}

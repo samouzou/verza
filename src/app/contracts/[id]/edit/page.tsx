@@ -6,22 +6,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, updateDoc, Timestamp, storage, ref as storageFileRefOriginal, uploadBytes, getDownloadURL, deleteObject as deleteStorageObject, functions as firebaseAppFunctions } from '@/lib/firebase';
+import { db, doc, getDoc, updateDoc, Timestamp, functions as firebaseAppFunctions } from '@/lib/firebase';
 import { httpsCallableFromURL } from 'firebase/functions';
 import type { Contract, NegotiationSuggestionsOutput } from '@/types';
-import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, UploadCloud, File as FileIcon, Copy, Check, Lightbulb, Send as SendIcon } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Save, Loader2, AlertTriangle, Wand2, Copy, Check, Lightbulb, Send as SendIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { diffChars } from 'diff';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 import { extractContractDetails } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms } from "@/ai/flows/summarize-contract-terms";
@@ -29,7 +21,11 @@ import { getNegotiationSuggestions } from "@/ai/flows/negotiation-suggestions-fl
 import { DocumentEditorContainerComponent, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { useSidebar } from '@/components/ui/sidebar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
 
@@ -60,26 +56,10 @@ export default function EditContractPage() {
   const [isSendingForSignature, setIsSendingForSignature] = useState(false);
   const [isSignatureDialogOpen, setIsSignatureDialogOpen] = useState(false);
   const [signerEmailOverride, setSignerEmailOverride] = useState("");
-
-  // Form state
-  const [brand, setBrand] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [amount, setAmount] = useState<number | string>('');
-  const [dueDate, setDueDate] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-  const [clientAddress, setClientAddress] = useState('');
-  const [clientTin, setClientTin] = useState('');
-  const [paymentInstructions, setPaymentInstructions] = useState('');
-  const [contractType, setContractType] = useState<Contract['contractType']>('other');
   
   // State for editable contract text and its AI-derived data
   const [currentSummary, setCurrentSummary] = useState<string | undefined>(undefined);
   const [currentNegotiationSuggestions, setCurrentNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null | undefined>(null);
-
-  // State for new file upload
-  const [newSelectedFile, setNewSelectedFile] = useState<File | null>(null);
-  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
   const [copiedSuggestion, setCopiedSuggestion] = useState<string | null>(null);
   const { setOpen } = useSidebar();
@@ -115,21 +95,8 @@ export default function EditContractPage() {
             if (isOwner || isAgencyOwner) {
                 const contractWithId = { ...data, id: contractSnap.id };
                 setContract(contractWithId);
-                // Pre-fill form fields
-                setBrand(data.brand || '');
-                setProjectName(data.projectName || '');
-                setAmount(data.amount || '');
-                setDueDate(data.dueDate || '');
-                setContractType(data.contractType || 'other');
-                setClientName(data.clientName || '');
-                setClientEmail(data.clientEmail || '');
-                setClientAddress(data.clientAddress || '');
-                setClientTin(data.clientTin || '');
-                setPaymentInstructions(data.paymentInstructions || '');
-                
                 setCurrentSummary(data.summary);
                 setCurrentNegotiationSuggestions(data.negotiationSuggestions);
-                setCurrentFileName(data.fileName || null);
             } else {
                  toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
                  router.push('/contracts');
@@ -184,17 +151,22 @@ export default function EditContractPage() {
         summarizeContractTerms({ contractText: sfdtString }),
         getNegotiationSuggestions({ contractText: sfdtString }),
       ]);
-
-      // Update form fields with AI extracted details
-      setBrand(details.brand || '');
-      setAmount(details.amount || 0);
-      const aiDueDate = details.dueDate ? new Date(details.dueDate + 'T00:00:00Z').toISOString().split('T')[0] : ''; // Ensure UTC for date input
-      setDueDate(aiDueDate);
       
       setCurrentSummary(summaryOutput.summary);
       setCurrentNegotiationSuggestions(suggestions ? JSON.parse(JSON.stringify(suggestions)) : null);
       
-      toast({ title: "AI Re-processing Complete", description: "Contract details, summary, and suggestions updated." });
+      // Update the contract in Firestore with the new AI data without affecting metadata
+      const contractDocRef = doc(db, 'contracts', id);
+      await updateDoc(contractDocRef, {
+          brand: details.brand || "Unknown Brand",
+          amount: details.amount || 0,
+          dueDate: details.dueDate ? new Date(details.dueDate + 'T00:00:00Z').toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          summary: summaryOutput.summary || null,
+          negotiationSuggestions: suggestions ? JSON.parse(JSON.stringify(suggestions)) : null,
+          updatedAt: Timestamp.now(),
+      });
+      
+      toast({ title: "AI Re-processing Complete", description: "Contract summary and suggestions updated." });
     } catch (error) {
       console.error("Error re-parsing with AI:", error);
       toast({ title: "AI Error", description: "Could not re-process contract text.", variant: "destructive" });
@@ -203,7 +175,7 @@ export default function EditContractPage() {
     }
   };
   
-  const handleSaveChanges = async (event?: MouseEvent) => {
+  const handleSaveTextChanges = async (event?: MouseEvent) => {
     event?.preventDefault(); 
     if (!contract || !user || !editorRef.current) {
       toast({ title: "Error", description: "Contract, user, or editor data missing.", variant: "destructive" });
@@ -213,75 +185,23 @@ export default function EditContractPage() {
 
     const newContractText = await editorRef.current.documentEditor.serialize();
 
-    const contractAmount = parseFloat(amount as string);
-    if (isNaN(contractAmount) || contractAmount < 0) {
-        toast({ title: "Invalid Amount", description: "Please enter a valid positive number for the amount.", variant: "destructive" });
-        setIsSaving(false);
-        return false;
-    }
-
     try {
       const contractDocRef = doc(db, 'contracts', id);
-      let newFileUrl: string | null = contract.fileUrl;
-      let newFileNameToSave: string | null = contract.fileName;
-
-      if (newSelectedFile) {
-        // Attempt to delete old file if it exists
-        if (contract.fileUrl) {
-          try {
-            const oldFileStorageRef = storageFileRefOriginal(storage, contract.fileUrl);
-            await deleteStorageObject(oldFileStorageRef);
-            toast({ title: "Old File Removed", description: "Previous contract file deleted from storage." });
-          } catch (deleteError: any) {
-            console.warn("Could not delete old file from storage:", deleteError.message);
-            toast({ title: "Warning", description: "Could not delete old file. It might have been already removed.", variant: "default" });
-          }
-        }
-        // Upload new file
-        const fileStorageRef = storageFileRefOriginal(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
-        const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
-        newFileUrl = await getDownloadURL(uploadResult.ref);
-        newFileNameToSave = newSelectedFile.name;
-        toast({ title: "New File Uploaded", description: "New contract file saved to storage." });
-      }
       
       const updates: Partial<Contract> = {
-        brand: brand.trim(),
-        projectName: projectName.trim() || null,
-        amount: contractAmount,
-        dueDate: dueDate,
-        contractType: contractType,
-        clientName: clientName.trim() || null,
-        clientEmail: clientEmail.trim() || null,
-        clientAddress: clientAddress.trim() || null,
-        clientTin: clientTin.trim() || null,
-        paymentInstructions: paymentInstructions.trim() || null,
-        
         previousContractText: contract.contractText,
         contractText: newContractText,
-        summary: currentSummary || null,
-        negotiationSuggestions: currentNegotiationSuggestions ? JSON.parse(JSON.stringify(currentNegotiationSuggestions)) : null,
-        
-        fileUrl: newFileUrl,
-        fileName: newFileNameToSave,
         updatedAt: Timestamp.now(),
       };
 
-      const finalUpdates: { [key: string]: any } = {};
-      for (const key in updates) {
-        if ((updates as Record<string, any>)[key] !== undefined) { 
-          finalUpdates[key] = (updates as Record<string, any>)[key];
-        }
-      }
-
-      await updateDoc(contractDocRef, finalUpdates);
-      toast({ title: "Contract Updated", description: "Changes saved successfully." });
-      setContract(prev => prev ? { ...prev, ...finalUpdates } as Contract : null);
+      await updateDoc(contractDocRef, updates);
+      toast({ title: "Contract Text Saved", description: "Changes to the document text have been saved." });
+      setContract(prev => prev ? { ...prev, ...updates } as Contract : null);
       setIsSaving(false);
       return true;
     } catch (error) {
-      console.error("Error updating contract:", error);
-      toast({ title: "Update Failed", description: "Could not save changes.", variant: "destructive" });
+      console.error("Error updating contract text:", error);
+      toast({ title: "Update Failed", description: "Could not save text changes.", variant: "destructive" });
       setIsSaving(false);
       return false;
     }
@@ -293,9 +213,9 @@ export default function EditContractPage() {
       return;
     }
     
-    // First, save any pending changes to ensure the latest version is used.
+    // First, save any pending text changes to ensure the latest version is used.
     toast({ title: "Saving...", description: "Ensuring latest version is saved before sending." });
-    const isSaveSuccessful = await handleSaveChanges();
+    const isSaveSuccessful = await handleSaveTextChanges();
     if (!isSaveSuccessful) {
         toast({ title: "E-Signature Canceled", description: "Could not send for signature because changes could not be saved.", variant: "destructive" });
         return;
@@ -374,7 +294,7 @@ export default function EditContractPage() {
           <CardDescription>AI-generated summary and negotiation points.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[1100px] pr-3">
+          <ScrollArea className="h-[calc(100vh_-_12rem)] pr-3">
             <div className="space-y-4 text-sm">
               <div>
                 <h4 className="font-semibold mb-1">AI Summary</h4>
@@ -419,95 +339,6 @@ export default function EditContractPage() {
           </ScrollArea>
         </CardContent>
       </Card>
-      
-      <div className="space-y-4">
-        <Accordion type="multiple" className="w-full space-y-6">
-          <AccordionItem value="core-details" className="border-b-0">
-            <Card>
-              <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
-                <CardHeader className="flex-1 text-left">
-                  <CardTitle>Core Details</CardTitle>
-                  <CardDescription>Essential information for this contract.</CardDescription>
-                </CardHeader>
-              </AccordionTrigger>
-              <AccordionContent>
-                <CardContent className="pt-0 space-y-4">
-                  <div>
-                    <Label htmlFor="brand">Brand Name</Label>
-                    <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} required className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="projectName">Project Name (Optional)</Label>
-                    <Input id="projectName" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="amount">Amount ($)</Label>
-                    <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="dueDate">Due Date</Label>
-                    <Input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="contractType">Contract Type</Label>
-                    <Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}>
-                      <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sponsorship">Sponsorship</SelectItem>
-                        <SelectItem value="consulting">Consulting</SelectItem>
-                        <SelectItem value="affiliate">Affiliate</SelectItem>
-                        <SelectItem value="retainer">Retainer</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </AccordionContent>
-            </Card>
-          </AccordionItem>
-
-          <AccordionItem value="client-file" className="border-b-0">
-            <Card>
-              <AccordionTrigger className="p-0 hover:no-underline [&>svg]:mx-6">
-                <CardHeader className="flex-1 text-left">
-                  <CardTitle>Client &amp; File</CardTitle>
-                  <CardDescription>Details for invoicing and the original file.</CardDescription>
-                </CardHeader>
-              </AccordionTrigger>
-              <AccordionContent>
-                <CardContent className="pt-0 space-y-4">
-                  <div>
-                    <Label htmlFor="clientName">Client Name</Label>
-                    <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="clientEmail">Client Email</Label>
-                    <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="clientTin">Client Tax ID (EIN/SSN)</Label>
-                    <Input id="clientTin" value={clientTin} onChange={(e) => setClientTin(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="clientAddress">Client Address</Label>
-                    <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className="mt-1" rows={2} />
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentInstructions">Payment Instructions</Label>
-                    <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} className="mt-1" rows={2} placeholder="e.g. Bank Details, PayPal email"/>
-                  </div>
-                  <div>
-                    <Label htmlFor="newContractFile">Replace Contract File (Optional)</Label>
-                    {currentFileName && !newSelectedFile && <div className="text-xs text-muted-foreground flex items-center mt-1"><FileIcon className="mr-1 h-3 w-3" /> {currentFileName}</div>}
-                    {newSelectedFile && <div className="text-xs text-green-600 flex items-center mt-1"><UploadCloud className="mr-1 h-3 w-3" /> {newSelectedFile.name}</div>}
-                    <Input id="newContractFile" type="file" className="mt-1" onChange={(e) => setNewSelectedFile(e.target.files ? e.target.files[0] : null)} />
-                  </div>
-                </CardContent>
-              </AccordionContent>
-            </Card>
-          </AccordionItem>
-        </Accordion>
-      </div>
     </div>
   );
 
@@ -581,9 +412,9 @@ export default function EditContractPage() {
               <Button variant="outline" type="button" onClick={() => router.push(`/contracts/${id}`)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="button" onClick={(e) => handleSaveChanges(e as any)} disabled={isSaving || isReparsingAi}>
+              <Button type="button" onClick={(e) => handleSaveTextChanges(e as any)} disabled={isSaving || isReparsingAi}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save Changes
+                Save Text Changes
               </Button>
             </div>
           }
