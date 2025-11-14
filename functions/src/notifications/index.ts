@@ -51,6 +51,12 @@ export const sendContractNotification = onRequest(async (request, response) => {
     // Verify authentication
     const userId = await verifyAuthToken(request.headers.authorization);
 
+    // Fetch user's display name
+    const userDoc = await db.collection("users").doc(userId).get();
+    const userData = userDoc.data();
+    const fromName = userData?.displayName || "Verza";
+
+
     // Validate request body
     const {to, subject, text, html, contractId} = request.body;
     if (!to || !subject || !text || !html) {
@@ -60,7 +66,10 @@ export const sendContractNotification = onRequest(async (request, response) => {
 
     const msg: sgMail.MailDataRequired = {
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+      from: {
+        name: fromName,
+        email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+      },
       subject,
       text,
       html,
