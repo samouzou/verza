@@ -5,14 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save } from 'lucide-react'; // Renamed Send icon
+import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save, UploadCloud } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
 import type { Contract, SharedContractVersion as SharedContractVersionType, ContractComment, CommentReply, RedlineProposal, EmailLog } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject } from '@/lib/firebase';
+import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -731,10 +731,12 @@ export default function ContractDetailPage() {
                       </Card>
                     </AccordionItem>
                   </Accordion>
-                  <Button onClick={(e) => handleSaveSidebarChanges(e as any)} disabled={isSavingSidebar} className="w-full mt-6">
-                    {isSavingSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Details
-                  </Button>
                 </CardContent>
+                 <CardFooter>
+                    <Button onClick={(e) => handleSaveSidebarChanges(e as any)} disabled={isSavingSidebar} className="w-full">
+                      {isSavingSidebar ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save Details
+                    </Button>
+                  </CardFooter>
               </Card>
 
               <Card className="shadow-lg hide-on-print">
@@ -780,54 +782,6 @@ export default function ContractDetailPage() {
                     </SheetContent>
                   </Sheet>
                 </CardContent>
-              </Card>
-              
-              <Card className="shadow-lg hide-on-print">
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FilePenLine className="h-5 w-5 text-indigo-500" />Redline Proposals</CardTitle><CardDescription>Review brand-proposed changes.</CardDescription></CardHeader>
-                  <CardContent>
-                      {isLoadingProposals ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                      : redlineProposals.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No proposals submitted.</p>
-                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
-                          {redlineProposals.map(proposal => (
-                              <div key={proposal.id} className="p-3 border rounded-lg bg-muted/30 relative text-sm">
-                                  <div className="flex justify-between items-start mb-2"><p className="font-semibold text-foreground">{proposal.proposerName}</p><Badge variant={proposal.status === 'proposed' ? 'secondary' : proposal.status === 'accepted' ? 'default' : 'destructive'} className={`capitalize text-xs ${proposal.status === 'accepted' ? 'bg-green-500' : ''}`}>{proposal.status}</Badge></div>
-                                  {proposal.comment && <p className="italic text-muted-foreground mb-2">"{proposal.comment}"</p>}
-                                  <div><p className="text-xs text-red-500">REPLACES:</p><p className="font-mono text-xs bg-red-50 dark:bg-red-900/20 p-1 rounded">"{proposal.originalText}"</p></div>
-                                  <div className="mt-1"><p className="text-xs text-green-500">WITH:</p><p className="font-mono text-xs bg-green-50 dark:bg-green-900/20 p-1 rounded">"{proposal.proposedText}"</p></div>
-                                  {proposal.status === 'proposed' && (<div className="flex gap-2 mt-3 justify-end"><Button size="sm" variant="destructive_outline" onClick={() => handleUpdateProposalStatus(proposal, 'rejected')} disabled={isUpdatingProposal === proposal.id}><X className="mr-1 h-4 w-4"/> Reject</Button><Button size="sm" variant="default" onClick={() => handleUpdateProposalStatus(proposal, 'accepted')} disabled={isUpdatingProposal === proposal.id}><Check className="mr-1 h-4 w-4"/> Accept</Button></div>)}
-                              </div>
-                          ))}
-                      </div></ScrollArea>}
-                  </CardContent>
-              </Card>
-
-              <Card className="shadow-lg hide-on-print">
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MessageCircle className="h-5 w-5 text-purple-500" />Contract Comments</CardTitle></CardHeader>
-                  <CardContent>
-                      {isLoadingComments ? <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-                      : contractComments.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No comments received.</p>
-                      : <ScrollArea className="h-[200px] pr-3"><div className="space-y-4">
-                          {contractComments.map(comment => (
-                            <div key={comment.id} className="p-3 border rounded-md bg-slate-50/70 dark:bg-slate-800/70">
-                              <div className="flex items-start justify-between mb-1"><p className="text-sm font-semibold flex items-center"><User className="h-4 w-4 mr-1.5"/>{comment.commenterName}</p><Button variant="ghost" size="icon" className="ml-2 h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => openDeleteConfirmationDialog('comment', comment.id)} disabled={isDeletingCommentOrReply}><Trash2 className="h-3 w-3"/></Button></div>
-                              <p className="text-sm text-foreground/90 whitespace-pre-wrap ml-5">{comment.commentText}</p>
-                              {comment.replies && comment.replies.length > 0 && (
-                                <div className="mt-3 ml-8 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
-                                    {comment.replies.map(reply => (
-                                        <div key={reply.replyId}>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className="text-xs font-semibold text-primary flex items-center"><CornerDownRight className="h-3 w-3 mr-1.5" />{reply.creatorName} (Creator)</p>
-                                            </div>
-                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap ml-5">{reply.replyText}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                              )}
-                              <ReplyForm commentId={comment.id} onSubmitReply={handleAddReply} />
-                            </div>
-                          ))}
-                      </div></ScrollArea>}
-                  </CardContent>
               </Card>
 
               <Card>
@@ -884,3 +838,5 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
+    
