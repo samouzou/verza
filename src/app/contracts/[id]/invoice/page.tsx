@@ -65,7 +65,7 @@ const buildDefaultEditableDetails = (
 };
 
 const calculateTotal = (items: EditableInvoiceLineItem[]): number => {
-  return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  return items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
 };
 
 
@@ -290,16 +290,17 @@ export default function ManageInvoicePage() {
               // Logic for setting initial HTML content or generating AI
               const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
               
-              if (contractData.editableInvoiceDetails) {
-                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
+              // If there are saved editable details for THIS milestone/contract, use them.
+              const savedDetails = contractData.editableInvoiceDetails;
+
+              if (savedDetails && (milestoneId ? savedDetails.deliverables?.some(d => d.isMilestone && d.description === targetMilestone?.description) : true)) {
+                populateFormFromEditableDetails(savedDetails, contractData, user);
                 if (contractData.invoiceHtmlContent) {
                   setInvoiceHtmlContent(contractData.invoiceHtmlContent);
                 } else {
-                  // Regenerate HTML if it's missing but details are present
-                  await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
+                  await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id);
                 }
               } else {
-                 // Generate fresh for a milestone, or if no prior data exists
                 await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               }
               
@@ -337,6 +338,7 @@ export default function ManageInvoicePage() {
       if (unsubscribeReceipts) unsubscribeReceipts();
     };
   }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration, milestoneId]);
+
 
   const toggleEditMode = useCallback(async () => {
     if (isEditingDetails) { 
@@ -386,11 +388,11 @@ export default function ManageInvoicePage() {
 
       const contractDocRef = doc(db, 'contracts', contract.id);
       
-      // Get the most recent state of milestones
+      // Get the most recent state of the contract to avoid overwriting other changes.
       const freshContractSnap = await getDoc(contractDocRef);
       const freshContractData = freshContractSnap.data() as Contract;
+      
       let updatedMilestones = freshContractData.milestones || [];
-
       if (milestoneId) {
         updatedMilestones = updatedMilestones.map(m => 
           m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
@@ -398,7 +400,7 @@ export default function ManageInvoicePage() {
       }
 
       let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus || 'none';
-      if (newStatus === 'none' || !newStatus) {
+      if (newStatus === 'none' || newStatus === '') {
         newStatus = 'draft';
       }
       
@@ -422,7 +424,7 @@ export default function ManageInvoicePage() {
       
       setInvoiceStatus(newStatus); 
       setIsEditingDetails(false); 
-      setContract(prev => prev ? ({ ...prev, ...updatesToSave }) as Contract : null);
+      setContract(prev => prev ? ({ ...prev, ...updatesToSave, invoiceStatus: newStatus }) as Contract : null);
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
     } catch (error) {
@@ -861,7 +863,7 @@ export default function ManageInvoicePage() {
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
                     <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', Number.isNaN(parseFloat(e.target.value)) ? 0 : parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
                     <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
