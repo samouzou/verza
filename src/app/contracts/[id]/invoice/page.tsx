@@ -289,9 +289,9 @@ export default function ManageInvoicePage() {
               const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
               const savedDetails = contractData.editableInvoiceDetails;
 
-              if (savedDetails) {
+              if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
                 populateFormFromEditableDetails(savedDetails, contractData, user);
-                if (contractData.invoiceHtmlContent) {
+                if (contractData.invoiceHtmlContent && !milestoneId) { // Only load old HTML for general invoice
                   setInvoiceHtmlContent(contractData.invoiceHtmlContent);
                 } else {
                   await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id);
@@ -346,7 +346,9 @@ export default function ManageInvoicePage() {
     } else { 
       if (contract && user) {
         const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-        const detailsToPopulate = contract.editableInvoiceDetails ? contract.editableInvoiceDetails : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
+        const detailsToPopulate = contract.editableInvoiceDetails && (!milestoneId || (milestoneId && contract.editableInvoiceDetails.deliverables?.some(d => d.isMilestone))) 
+            ? contract.editableInvoiceDetails 
+            : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
         populateFormFromEditableDetails(detailsToPopulate, contract, user);
       }
     }
@@ -389,13 +391,16 @@ export default function ManageInvoicePage() {
       
       let updatedMilestones = freshContractData.milestones || [];
       if (milestoneId) {
-        updatedMilestones = updatedMilestones.map(m => 
-          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
-        );
+        const milestoneExists = updatedMilestones.some(m => m.id === milestoneId);
+        if (milestoneExists) {
+            updatedMilestones = updatedMilestones.map(m => 
+            m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+            );
+        }
       }
 
       let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus || 'none';
-      if (newStatus === 'none' || newStatus === '') {
+       if (newStatus === 'none' || newStatus === '') {
         newStatus = 'draft';
       }
       
@@ -435,10 +440,16 @@ export default function ManageInvoicePage() {
     setIsSaving(true);
     try {
       const contractDocRef = doc(db, 'contracts', contract.id);
+      
+      // Fetch current milestone description if applicable
+      const milestoneDescription = milestoneId 
+        ? contract.milestones?.find(m => m.id === milestoneId)?.description
+        : 'General Invoice';
+
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: `Invoice Status Changed to ${newStatusValue}`,
-         details: `Previous status: ${invoiceStatus}`,
+        action: `Status Changed to ${newStatusValue} for ${milestoneId ? `Milestone: ${milestoneDescription}` : 'General Invoice'}`,
+        details: `Previous status: ${invoiceStatus}`,
       };
       await updateDoc(contractDocRef, {
         invoiceStatus: newStatusValue,
@@ -631,8 +642,8 @@ export default function ManageInvoicePage() {
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
     const newDeliverables = [...editableDeliverables];
     if (field === 'quantity' || field === 'unitPrice') {
-        const numericValue = Number.isNaN(parseFloat(value as string)) ? 0 : parseFloat(value as string);
-        newDeliverables[index] = { ...newDeliverables[index], [field]: numericValue < 0 ? 0 : numericValue };
+        const numericValue = parseFloat(value as string);
+        newDeliverables[index] = { ...newDeliverables[index], [field]: isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue) };
     } else {
         newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
     }
@@ -868,7 +879,7 @@ export default function ManageInvoicePage() {
                     <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
+                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={!isNaN(item.quantity * item.unitPrice) ? (item.quantity * item.unitPrice).toFixed(2) : '0.00'} readOnly disabled className="mt-1 bg-muted"/></div>
                     <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
                 ))}
