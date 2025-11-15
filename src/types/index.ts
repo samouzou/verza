@@ -9,6 +9,7 @@ export interface PaymentMilestone {
   dueDate: string; // YYYY-MM-DD
   status: 'pending' | 'invoiced' | 'paid';
   invoiceId?: string; // Link to the generated invoice document ID
+  lastReminderSentAt?: ClientTimestamp;
 }
 
 export interface EditableInvoiceLineItem {
