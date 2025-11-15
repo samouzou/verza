@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract, PaymentMilestone } from '@/types';
+import type { Contract, PaymentMilestone, EditableInvoiceDetails } from '@/types';
 import { Loader2, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
@@ -18,7 +18,9 @@ import Image from 'next/image';
 
 const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
 
-type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'invoiceStatus' | 'clientEmail' | 'milestones'>;
+type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'invoiceStatus' | 'clientEmail' | 'milestones' | 'amount'> & {
+    editableInvoiceDetails?: EditableInvoiceDetails | null;
+};
 
 export default function ClientPaymentPage() {
   const params = useParams();
@@ -56,29 +58,38 @@ export default function ClientPaymentPage() {
           const data = result.data as PublicContractData;
           setContract(data);
 
-          let totalAmount = 0;
-          if (data.milestones && data.milestones.length > 0) {
-            totalAmount = data.milestones.reduce((sum, m) => sum + m.amount, 0);
+          let finalAmount = 0;
+          let targetMilestone: PaymentMilestone | undefined = undefined;
+
+          if (milestoneId) {
+            targetMilestone = data.milestones?.find(m => m.id === milestoneId);
+            setMilestone(targetMilestone || null);
+          }
+
+          if (data.editableInvoiceDetails?.deliverables && data.editableInvoiceDetails.deliverables.length > 0) {
+            // If we are invoicing a specific milestone that has additional items, calculate from there
+            if (targetMilestone && data.editableInvoiceDetails.deliverables.some(d => d.isMilestone && d.description === targetMilestone?.description)) {
+                finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            } else if (!targetMilestone) { // If not a milestone-specific invoice, sum everything
+                finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            }
           }
           
-          if (milestoneId) {
-            const targetMilestone = data.milestones?.find(m => m.id === milestoneId);
+          // Fallback logic if editable details aren't set or don't apply
+          if (finalAmount === 0) {
             if (targetMilestone) {
-              if (targetMilestone.status === 'paid') {
-                 toast({ title: "Milestone Already Paid", description: "This part of the invoice has already been settled.", variant: "default" });
-              }
-              setMilestone(targetMilestone);
-              setAmountToPay(targetMilestone.amount);
+              finalAmount = targetMilestone.amount;
             } else {
-               toast({ title: "Error", description: "Specific payment milestone not found.", variant: "destructive" });
-               setAmountToPay(totalAmount); // Fallback to total amount
+              finalAmount = data.amount || 0;
             }
-          } else {
-            if (data.invoiceStatus === 'paid') {
-              toast({ title: "Invoice Already Paid", description: "This invoice has already been settled.", variant: "default" });
-            }
-            setAmountToPay(totalAmount);
           }
+          
+          setAmountToPay(finalAmount);
+
+          if ((targetMilestone && targetMilestone.status === 'paid') || (!targetMilestone && data.invoiceStatus === 'paid')) {
+              toast({ title: "Already Paid", description: "This invoice or milestone has already been settled.", variant: "default" });
+          }
+
         })
         .catch((error) => {
           console.error("Error fetching public contract details:", error);
@@ -242,5 +253,3 @@ export default function ClientPaymentPage() {
     </div>
   );
 }
-
-    

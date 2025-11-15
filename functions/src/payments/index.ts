@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, EditableInvoiceDetails} from "../../../src/types";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -222,38 +222,62 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
     let amountToCharge = 0;
     const finalMilestoneId: string | null = milestoneId || null;
+    
+    // Prioritize editableInvoiceDetails for amount calculation
+    if (contractData.editableInvoiceDetails?.deliverables && contractData.editableInvoiceDetails.deliverables.length > 0) {
+        const lineItems = contractData.editableInvoiceDetails.deliverables;
+        if (milestoneId) {
+            // Check if the invoice was for a specific milestone
+            const targetMilestone = contractData.milestones?.find(m => m.id === milestoneId);
+            if (targetMilestone && lineItems.some(item => item.isMilestone && item.description === targetMilestone.description)) {
+                // If this specific milestone invoice has line items, sum them up.
+                amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            }
+        } else {
+            // If it's a general invoice, sum up all line items.
+            amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+        }
+    }
+    
+    // Fallback logic if editable details don't provide an amount
+    if (amountToCharge === 0) {
+        if (milestoneId) {
+            const milestone = contractData.milestones?.find((m: PaymentMilestone) => m.id === milestoneId);
+            if (!milestone) throw new Error("Milestone not found on contract.");
+            amountToCharge = milestone.amount;
+        } else {
+            amountToCharge = contractData.amount;
+        }
+    }
 
-    if (milestoneId) {
-      const milestone = contractData.milestones?.find((m: PaymentMilestone) => m.id === milestoneId);
-      if (!milestone) {
-        throw new Error("Milestone not found on contract.");
-      }
-      amountToCharge = milestone.amount;
-    } else {
-      amountToCharge = requestedAmount || contractData.amount;
+    // Security check: if an amount is passed from an unauthenticated user, it MUST match the calculated amount.
+    if (requestedAmount && requestedAmount !== amountToCharge) {
+        let isAuthenticatedUser = false;
+        if (request.headers.authorization) {
+            try {
+                await verifyAuthToken(request.headers.authorization);
+                isAuthenticatedUser = true;
+            } catch { /* treat as unauthenticated */ }
+        }
+        if (!isAuthenticatedUser) {
+            logger.error("Amount mismatch for unauthenticated payment:", { provided: requestedAmount, expected: amountToCharge });
+            throw new Error("Invalid payment amount.");
+        }
     }
 
     if (!amountToCharge || amountToCharge <= 0) {
       throw new Error("A valid amount is required to create a payment intent.");
     }
 
-
     let userId: string | null = null;
-    let isAuthenticatedCreator = false;
     const emailForReceiptAndMetadata = contractData.clientEmail || null;
 
     if (request.headers.authorization) {
       try {
         userId = await verifyAuthToken(request.headers.authorization);
-        isAuthenticatedCreator = userId === contractData.userId;
       } catch {
         logger.info("No valid auth token, treating as public payment");
       }
-    }
-
-    if (!isAuthenticatedCreator && requestedAmount && requestedAmount !== amountToCharge) {
-      logger.error("Amount mismatch:", {provided: requestedAmount, expected: amountToCharge});
-      throw new Error("Invalid payment amount");
     }
 
     let paymentIntentParams: Stripe.PaymentIntentCreateParams;
@@ -264,7 +288,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       userId: userId || "",
       creatorId: contractData.userId,
       clientEmail: emailForReceiptAndMetadata,
-      paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
+      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
     };
 
     if (finalMilestoneId) {
@@ -316,7 +340,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       currency,
       status: paymentIntent.status,
       created: new Date(),
-      paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
+      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
     });
 
     response.json({clientSecret: paymentIntent.client_secret});
@@ -377,20 +401,19 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             m.id === milestoneId ? {...m, status: "paid"} : m
           );
           updates.milestones = updatedMilestones;
-
+        
           const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
           if (allMilestonesPaid) {
             updates.invoiceStatus = "paid";
             updates.status = "paid";
           } else {
-            updates.invoiceStatus = "partially_paid";
+            updates.invoiceStatus = "partially_paid"; 
             updates.status = "partially_paid";
           }
         } else {
           updates.invoiceStatus = "paid";
           updates.status = "paid";
         }
-
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
