@@ -73,7 +73,7 @@ export interface Contract {
   negotiationSuggestions?: NegotiationSuggestionsOutput | null;
   
   // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
-  invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue';
+  invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
   invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string, emailLogId?: string }>;

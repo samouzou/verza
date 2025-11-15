@@ -248,7 +248,7 @@ export default function ManageInvoicePage() {
     let isMounted = true;
     let unsubscribeReceipts: (() => void) | undefined = undefined;
     setIsLoadingContract(true);
-    // Reset local state when component mounts or `milestoneId` changes
+    
     setInvoiceHtmlContent("");
     setClientSecret(null);
     setShowPaymentForm(false);
@@ -276,7 +276,6 @@ export default function ManageInvoicePage() {
               const receiptsCol = collection(db, 'receipts');
               const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
               
-              // Initial fetch for receipts to be used if AI generation is needed
               const initialReceiptSnapshot = await getDocs(qReceipts);
               const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
                 const receiptData = docSnap.data() as ReceiptType;
@@ -284,16 +283,13 @@ export default function ManageInvoicePage() {
               });
               
               if (isMounted) {
-                setContractReceipts(initialFetchedReceipts); // Set receipts state first
+                setContractReceipts(initialFetchedReceipts);
               }
 
-              // Logic for setting initial HTML content or generating AI
               const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
-              
-              // If there are saved editable details for THIS milestone/contract, use them.
               const savedDetails = contractData.editableInvoiceDetails;
 
-              if (savedDetails && (milestoneId ? savedDetails.deliverables?.some(d => d.isMilestone && d.description === targetMilestone?.description) : true)) {
+              if (savedDetails) {
                 populateFormFromEditableDetails(savedDetails, contractData, user);
                 if (contractData.invoiceHtmlContent) {
                   setInvoiceHtmlContent(contractData.invoiceHtmlContent);
@@ -304,7 +300,6 @@ export default function ManageInvoicePage() {
                 await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               }
               
-              // Setup real-time listener for receipts AFTER initial data processing
               unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
                 if (!isMounted) return;
                 const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
@@ -451,6 +446,7 @@ export default function ManageInvoicePage() {
         updatedAt: serverTimestamp(),
       });
       setInvoiceStatus(newStatusValue);
+      setContract(prev => prev ? { ...prev, invoiceStatus: newStatusValue } : null);
       toast({ title: "Status Updated", description: `Invoice status changed to ${newStatusValue}.` });
     } catch (error) {
       console.error("Error updating status:", error);
@@ -635,8 +631,8 @@ export default function ManageInvoicePage() {
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
     const newDeliverables = [...editableDeliverables];
     if (field === 'quantity' || field === 'unitPrice') {
-        const numericValue = Number(value);
-        newDeliverables[index] = { ...newDeliverables[index], [field]: isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue) };
+        const numericValue = Number.isNaN(parseFloat(value as string)) ? 0 : parseFloat(value as string);
+        newDeliverables[index] = { ...newDeliverables[index], [field]: numericValue < 0 ? 0 : numericValue };
     } else {
         newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
     }
@@ -678,8 +674,8 @@ export default function ManageInvoicePage() {
     return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4"/>Back</Link></Button></div>;
   }
 
-  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && calculatedTotalAmount > 0 && !clientSecret;
-  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
+  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue' || invoiceStatus === 'partially_paid') && calculatedTotalAmount > 0 && !clientSecret;
+  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
 
@@ -712,7 +708,15 @@ export default function ManageInvoicePage() {
                 <Label htmlFor="invoiceStatusSelect">Invoice Status</Label>
                  <Select value={invoiceStatus || 'none'} onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])} disabled={isSaving || isLoadingContract || isSending || !!clientSecret || isEditingDetails}>
                   <SelectTrigger className="max-w-sm mt-1" id="invoiceStatusSelect"><SelectValue placeholder="Set Status" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">None</SelectItem><SelectItem value="draft">Draft</SelectItem><SelectItem value="sent">Sent</SelectItem><SelectItem value="viewed">Viewed</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="viewed">Viewed</SelectItem>
+                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -863,7 +867,7 @@ export default function ManageInvoicePage() {
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
                     <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', Number.isNaN(parseFloat(e.target.value)) ? 0 : parseFloat(e.target.value))} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
                     <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
