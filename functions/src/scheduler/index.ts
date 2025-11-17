@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
-import type {UserProfileFirestoreData, Contract, PaymentMilestone} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract} from "../../../src/types";
 import {sendEmailSequence} from "../notifications";
 
 // Send reminders for overdue invoices
@@ -32,7 +32,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         if (milestone.status !== "paid" && milestoneDueDate < todayMidnight && (!lastReminder || lastReminder < threeDaysAgo)) {
           // This milestone is overdue and needs a reminder
           logger.info(`Found overdue milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
-          
+
           if (!contract.clientEmail) {
             logger.warn(`No client email for overdue milestone on contract ${doc.id}`);
             continue;
@@ -44,7 +44,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           const appUrl = process.env.APP_URL || "http://localhost:9002";
           const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
 
-           const htmlContent = `
+          const htmlContent = `
             <!DOCTYPE html>
             <html lang="en">
             <head>
@@ -75,7 +75,8 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
                 <div class="content">
                   <p>Hello,</p>
                   <p>This is a reminder that the payment of <span class="bold">$${milestone.amount.toLocaleString()}</span>
-                  for the milestone <span class="bold">'${milestone.description}'</span> on project <span class="bold">'${contract.projectName || contract.brand}'</span> is now overdue.</p>
+                  for the milestone <span class="bold">'${milestone.description}'</span> on project
+                  <span class="bold">'${contract.projectName || contract.brand}'</span> is now overdue.</p>
                   <p>To keep things on track, please process your payment at your earliest convenience.
                   You can pay securely via the link below:</p>
                   <div class="button-container">
@@ -90,29 +91,30 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
           const msg = {
             to: contract.clientEmail,
-            from: { name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com" },
+            from: {name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
             subject: `Payment Reminder - Milestone for ${contract.projectName || contract.brand} is Overdue`,
-            text: `This is a reminder that your payment of $${milestone.amount} for milestone "${milestone.description}" is overdue. Pay now: ${paymentLink}`,
+            text: `This is a reminder that your payment of $${milestone.amount} for
+            milestone "${milestone.description}" is overdue. Pay now: ${paymentLink}`,
             html: htmlContent,
-            customArgs: { contractId: doc.id, milestoneId: milestone.id },
+            customArgs: {contractId: doc.id, milestoneId: milestone.id},
           };
 
           await sgMail.send(msg);
 
-          const updatedMilestones = contract.milestones.map(m =>
-            m.id === milestone.id ? { ...m, lastReminderSentAt: admin.firestore.Timestamp.now() } : m
+          const updatedMilestones = contract.milestones.map((m) =>
+            m.id === milestone.id ? {...m, lastReminderSentAt: admin.firestore.Timestamp.now()} : m
           );
 
           await doc.ref.update({
             milestones: updatedMilestones,
-            invoiceStatus: 'overdue',
+            invoiceStatus: "overdue",
             invoiceHistory: admin.firestore.FieldValue.arrayUnion({
               timestamp: admin.firestore.Timestamp.now(),
               action: `Overdue Reminder Sent for Milestone: ${milestone.description}`,
               details: `To: ${contract.clientEmail}`,
             }),
           });
-          
+
           logger.info(`Sent overdue reminder for contract ${doc.id}, milestone ${milestone.id}`);
         }
       }
@@ -133,74 +135,77 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
       .collection("contracts")
       .where("status", "in", ["pending", "invoiced", "partially_paid", "sent", "viewed"])
       .get();
-      
+
     logger.info(`Found ${contractsSnapshot.docs.length} active contracts to check for upcoming milestones.`);
 
     for (const doc of contractsSnapshot.docs) {
-        const contract = doc.data() as Contract;
-        if (!contract.milestones || contract.milestones.length === 0) continue;
+      const contract = doc.data() as Contract;
+      if (!contract.milestones || contract.milestones.length === 0) continue;
 
-        for (const milestone of contract.milestones) {
-            const milestoneDueDate = new Date(milestone.dueDate + 'T00:00:00');
-            const lastReminder = milestone.lastReminderSentAt?.toDate();
-            const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      for (const milestone of contract.milestones) {
+        const milestoneDueDate = new Date(milestone.dueDate + "T00:00:00");
+        const lastReminder = milestone.lastReminderSentAt?.toDate();
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-            if (milestone.status === 'pending' && milestoneDueDate >= todayMidnight && milestoneDueDate <= sevenDaysFromNow && (!lastReminder || lastReminder < threeDaysAgo)) {
-              
-              logger.info(`Found upcoming milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
-              
-              if (!contract.clientEmail) {
-                logger.warn(`No client email for upcoming milestone reminder on contract ${doc.id}`);
-                continue;
-              }
+        if (milestone.status === "pending" && milestoneDueDate >= todayMidnight &&
+          milestoneDueDate <= sevenDaysFromNow && (!lastReminder || lastReminder < threeDaysAgo)) {
+          logger.info(`Found upcoming milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
 
-              const creatorDoc = await db.collection("users").doc(contract.userId).get();
-              const creator = creatorDoc.data() as UserProfileFirestoreData | undefined;
-              const creatorName = creator?.displayName || "The Creator";
-              const dueDateFormatted = new Date(milestone.dueDate + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-              const appUrl = process.env.APP_URL || "http://localhost:9002";
-              const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
-              
-              const htmlContent = `
+          if (!contract.clientEmail) {
+            logger.warn(`No client email for upcoming milestone reminder on contract ${doc.id}`);
+            continue;
+          }
+
+          const creatorDoc = await db.collection("users").doc(contract.userId).get();
+          const creator = creatorDoc.data() as UserProfileFirestoreData | undefined;
+          const creatorName = creator?.displayName || "The Creator";
+          const dueDateFormatted = new Date(milestone.dueDate + "T00:00:00").toLocaleDateString("en-US",
+            {year: "numeric", month: "long", day: "numeric"});
+          const appUrl = process.env.APP_URL || "http://localhost:9002";
+          const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
+
+          const htmlContent = `
                 <!DOCTYPE html>
                 <html lang="en">
                 <head><title>Payment Reminder</title></head>
                 <body>
                     <p>Hello,</p>
-                    <p>This is a friendly reminder that a payment of <strong>$${milestone.amount.toLocaleString()}</strong> for milestone "<strong>${milestone.description}</strong>" is due on <strong>${dueDateFormatted}</strong>.</p>
+                    <p>This is a friendly reminder that a payment of <strong>$${milestone.amount.toLocaleString()}</strong>
+                    for milestone "<strong>${milestone.description}</strong>" is due on <strong>${dueDateFormatted}</strong>.</p>
                     <a href="${paymentLink}">Pay Now</a>
                     <p>Thank you,<br/>${creatorName}</p>
                 </body>
                 </html>
               `;
 
-              const msg = {
-                  to: contract.clientEmail,
-                  from: { name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com" },
-                  subject: `Payment Reminder: Milestone for ${contract.projectName || contract.brand}`,
-                  text: `A payment of $${milestone.amount} for milestone "${milestone.description}" is due on ${dueDateFormatted}. Pay here: ${paymentLink}`,
-                  html: htmlContent,
-                  customArgs: { contractId: doc.id, milestoneId: milestone.id },
-              };
-              
-              await sgMail.send(msg);
+          const msg = {
+            to: contract.clientEmail,
+            from: {name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
+            subject: `Payment Reminder: Milestone for ${contract.projectName || contract.brand}`,
+            text: `A payment of $${milestone.amount} for milestone "${milestone.description}"
+            is due on ${dueDateFormatted}. Pay here: ${paymentLink}`,
+            html: htmlContent,
+            customArgs: {contractId: doc.id, milestoneId: milestone.id},
+          };
 
-              const updatedMilestones = contract.milestones.map(m => 
-                m.id === milestone.id ? { ...m, lastReminderSentAt: admin.firestore.Timestamp.now() } : m
-              );
-              
-              await doc.ref.update({
-                milestones: updatedMilestones,
-                invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-                  timestamp: admin.firestore.Timestamp.now(),
-                  action: `Upcoming Reminder Sent for Milestone: ${milestone.description}`,
-                  details: `To: ${contract.clientEmail}`,
-                }),
-              });
+          await sgMail.send(msg);
 
-              logger.info(`Sent upcoming payment reminder for contract ${doc.id}, milestone ${milestone.id}`);
-            }
+          const updatedMilestones = contract.milestones.map((m) =>
+            m.id === milestone.id ? {...m, lastReminderSentAt: admin.firestore.Timestamp.now()} : m
+          );
+
+          await doc.ref.update({
+            milestones: updatedMilestones,
+            invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+              timestamp: admin.firestore.Timestamp.now(),
+              action: `Upcoming Reminder Sent for Milestone: ${milestone.description}`,
+              details: `To: ${contract.clientEmail}`,
+            }),
+          });
+
+          logger.info(`Sent upcoming payment reminder for contract ${doc.id}, milestone ${milestone.id}`);
         }
+      }
     }
   } catch (error) {
     logger.error("Error in sendUpcomingPaymentReminders:", error);
