@@ -316,17 +316,26 @@ export const createInternalPayout = onCall(async (request) => {
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
-
-    // Get their payment methods, filtering for cards
+    
+    // Fetch all payment methods and find a suitable one
     const paymentMethods = await stripe.paymentMethods.list({
-      customer: agencyOwnerData.stripeCustomerId,
-      type: 'card', // Only fetch card payment methods suitable for off-session
+        customer: agencyOwnerData.stripeCustomerId,
     });
 
-    if (!paymentMethods.data || paymentMethods.data.length === 0) {
-      throw new HttpsError("failed-precondition", "Agency owner has no saved card payment methods in Stripe to charge for this payout.");
+    // Prioritize bank account, then card. Ignore others.
+    const bankAccount = paymentMethods.data.find(pm => pm.type === 'us_bank_account');
+    const card = paymentMethods.data.find(pm => pm.type === 'card');
+
+    let paymentMethodId: string | undefined;
+    if (bankAccount) {
+        paymentMethodId = bankAccount.id;
+    } else if (card) {
+        paymentMethodId = card.id;
     }
-    const paymentMethodId = paymentMethods.data[0].id; // Use the first available card
+
+    if (!paymentMethodId) {
+      throw new HttpsError("failed-precondition", "Agency owner has no saved bank account or card in Stripe to charge for this payout.");
+    }
 
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
     if (!talentInfo) {
@@ -404,7 +413,7 @@ export const createInternalPayout = onCall(async (request) => {
       throw error;
     }
     if (error.type === "StripeCardError") {
-      throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}`);
+      throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
