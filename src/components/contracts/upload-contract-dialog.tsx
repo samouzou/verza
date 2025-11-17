@@ -19,8 +19,8 @@ import { ocrDocument } from "@/ai/flows/ocr-flow";
 import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/flows/extract-contract-details";
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
-import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users } from "lucide-react";
-import type { Agency, Contract, Talent } from "@/types";
+import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users, PlusCircle, Trash2, DollarSign, Save } from "lucide-react";
+import type { Agency, Contract, PaymentMilestone } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
+import { v4 as uuidv4 } from 'uuid';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -48,7 +49,6 @@ interface UploadContractDialogProps {
   initialFileName?: string;
 }
 
-
 export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange, initialSFDT, initialSelectedOwner, initialFileName }: UploadContractDialogProps) {
   const [isInternalOpen, setInternalOpen] = useState(false);
   
@@ -64,7 +64,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const { user, refreshAuthUser } = useAuth();
   
   const [agency, setAgency] = useState<Agency | null>(null);
-  const [selectedOwner, setSelectedOwner] = useState<string>("personal"); // 'personal' or a talent's UID
+  const [selectedOwner, setSelectedOwner] = useState<string>("personal");
 
   const [parsedDetails, setParsedDetails] = useState<ExtractContractDetailsOutput | null>(null);
   const [summary, setSummary] = useState<SummarizeContractTermsOutput | null>(null);
@@ -76,11 +76,12 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const [clientAddress, setClientAddress] = useState("");
   const [paymentInstructions, setPaymentInstructions] = useState("");
 
+  const [milestones, setMilestones] = useState<Omit<PaymentMilestone, 'status'>[]>([{ id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
+
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval'] | undefined>(undefined);
   
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
-
 
   const now = Date.now();
   const canPerformProAction =
@@ -105,6 +106,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       setClientEmail("");
       setClientAddress("");
       setPaymentInstructions("");
+      setMilestones([{ id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
       setIsRecurring(false);
       setRecurrenceInterval(undefined);
       setAgency(null);
@@ -129,7 +131,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 editorRef.current.documentEditor.open(initialSFDT);
                 handleFullAnalysis(initialSFDT);
             } else {
-                // Editor not ready, try again shortly
                 setTimeout(() => {
                     if (editorRef.current?.documentEditor) {
                       editorRef.current.documentEditor.open(initialSFDT);
@@ -165,6 +166,17 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       setParsedDetails(details);
       setSummary(termsSummary);
       setNegotiationSuggestions(negSuggestions);
+      
+      // Update milestone from AI details
+      if (details.amount) {
+        setMilestones([{
+            id: uuidv4(),
+            description: projectName || details.brand || "Initial Payment",
+            amount: details.amount,
+            dueDate: details.dueDate || new Date().toISOString().split('T')[0]
+        }]);
+      }
+
       toast({
         title: "AI Analysis Successful",
         description: "Contract details extracted, summarized, and negotiation suggestions provided.",
@@ -206,7 +218,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
           try {
             const base64Content = (event.target?.result as string).split(',')[1];
             editorRef.current!.documentEditor.open(base64Content);
-            // Wait for editor to process, then analyze
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
@@ -229,7 +240,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         const ocrResult = await ocrDocument({ documentDataUri: dataUri });
         
-        // Convert plain text to SFDT format for the editor
         const sfdtPayload = {
           "sections": [
             {
@@ -243,7 +253,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         const sfdtString = JSON.stringify(sfdtPayload);
         editorRef.current.documentEditor.open(sfdtString);
 
-        // Now run the full analysis on the SFDT string
         await handleFullAnalysis(sfdtString);
 
       } else {
@@ -282,6 +291,12 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       return;
     }
 
+    const totalAmount = milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+    if (totalAmount <= 0) {
+      toast({ title: "Invalid Amount", description: "Total amount from milestones must be greater than zero.", variant: "destructive"});
+      return;
+    }
+
     setIsSaving(true);
     let fileUrlToSave: string | null = null;
     
@@ -307,123 +322,95 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       
       const sfdtString = await editorRef.current.documentEditor.serialize();
 
-      const currentParsedDetails = parsedDetails || {
-        brand: "Unknown Brand",
-        amount: 0,
-        dueDate: new Date().toISOString().split('T')[0],
-        extractedTerms: {}
-      };
-      
-      const currentSummary = summary || { summary: sfdtString.trim() ? "Summary not generated by AI." : "No summary available." };
-
-      const cleanedExtractedTerms = currentParsedDetails.extractedTerms
-        ? JSON.parse(JSON.stringify(currentParsedDetails.extractedTerms)) 
-        : {};
-      
-      const suggestionsToSave = negotiationSuggestions 
-        ? JSON.parse(JSON.stringify(negotiationSuggestions)) 
-        : null;
+      const finalMilestones: PaymentMilestone[] = milestones.map(m => ({ ...m, status: 'pending' }));
 
       const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
         userId: finalUserId,
         talentName: talentName || null,
         ownerType: ownerType,
         ownerId: ownerId,
-        brand: currentParsedDetails.brand || "Unknown Brand",
-        amount: currentParsedDetails.amount || 0,
-        dueDate: currentParsedDetails.dueDate || new Date().toISOString().split('T')[0],
+        brand: parsedDetails?.brand || "Unknown Brand",
+        amount: totalAmount,
+        dueDate: milestones.reduce((latest, m) => m.dueDate > latest ? m.dueDate : latest, "1970-01-01"),
         status: 'pending' as Contract['status'],
         contractType: 'other' as Contract['contractType'],
         contractText: sfdtString,
         fileName: fileName.trim() || (selectedFile ? selectedFile.name : (sfdtString.trim() ? "Pasted Contract" : "Untitled Contract")),
         fileUrl: fileUrlToSave || null,
-        summary: currentSummary.summary,
-        extractedTerms: cleanedExtractedTerms,
-        negotiationSuggestions: suggestionsToSave,
+        summary: summary?.summary || (sfdtString.trim() ? "Summary not generated by AI." : "No summary available."),
+        extractedTerms: parsedDetails?.extractedTerms ? JSON.parse(JSON.stringify(parsedDetails.extractedTerms)) : {},
+        negotiationSuggestions: negotiationSuggestions ? JSON.parse(JSON.stringify(negotiationSuggestions)) : null,
+        milestones: finalMilestones,
         invoiceStatus: 'none', 
         createdAt: firebaseServerTimestamp(),
         updatedAt: firebaseServerTimestamp(),
       };
       
       const trimmedProjectName = projectName.trim();
-      if (trimmedProjectName) {
-        contractDataForFirestore.projectName = trimmedProjectName;
-      }
-
+      if (trimmedProjectName) { contractDataForFirestore.projectName = trimmedProjectName; }
       const trimmedClientName = clientName.trim();
-      if (trimmedClientName) {
-        contractDataForFirestore.clientName = trimmedClientName;
-      }
+      if (trimmedClientName) { contractDataForFirestore.clientName = trimmedClientName; }
       const trimmedClientEmail = clientEmail.trim();
-      if (trimmedClientEmail) {
-        contractDataForFirestore.clientEmail = trimmedClientEmail;
-      }
+      if (trimmedClientEmail) { contractDataForFirestore.clientEmail = trimmedClientEmail; }
       const trimmedClientAddress = clientAddress.trim();
-      if (trimmedClientAddress) {
-        contractDataForFirestore.clientAddress = trimmedClientAddress;
-      }
+      if (trimmedClientAddress) { contractDataForFirestore.clientAddress = trimmedClientAddress; }
       const trimmedPaymentInstructions = paymentInstructions.trim();
-      if (trimmedPaymentInstructions) {
-        contractDataForFirestore.paymentInstructions = trimmedPaymentInstructions;
-      }
-
-      if (isRecurring) {
-        contractDataForFirestore.isRecurring = true;
-        if (recurrenceInterval) {
-          contractDataForFirestore.recurrenceInterval = recurrenceInterval;
-        }
-      }
-
+      if (trimmedPaymentInstructions) { contractDataForFirestore.paymentInstructions = trimmedPaymentInstructions; }
+      if (isRecurring) { contractDataForFirestore.isRecurring = true; if (recurrenceInterval) { contractDataForFirestore.recurrenceInterval = recurrenceInterval; }}
 
       await addDoc(collection(db, 'contracts'), contractDataForFirestore);
       
-      // Mark hasCreatedContract as true for the user
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, { hasCreatedContract: true });
-      await refreshAuthUser(); // Refresh user state to reflect this change
+      await refreshAuthUser();
       
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
       onOpenChange(false);
     } catch (error) {
       console.error("Error saving contract:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-      toast({
-        title: "Save Failed",
-        description: `Could not save contract: ${errorMessage}`,
-        variant: "destructive",
-      });
+      toast({ title: "Save Failed", description: `Could not save contract: ${errorMessage}`, variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleMilestoneChange = (id: string, field: keyof Omit<PaymentMilestone, 'id' | 'status'>, value: string | number) => {
+    setMilestones(currentMilestones => 
+      currentMilestones.map(m => m.id === id ? { ...m, [field]: value } : m)
+    );
+  };
+  
+  const addMilestone = () => {
+    setMilestones([...milestones, { id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
+  };
+  
+  const removeMilestone = (id: string) => {
+    if (milestones.length > 1) {
+      setMilestones(milestones.filter(m => m.id !== id));
+    } else {
+      toast({ title: "Cannot Remove", description: "You must have at least one payment milestone."});
+    }
+  };
+
+  const totalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+
   const renderAiAnalysis = () => (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI-Extracted Details
-          </CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />AI-Extracted Details</CardTitle></CardHeader>
         <CardContent className="text-sm space-y-2">
           <p><strong>Brand:</strong> {parsedDetails?.brand || '...'}</p>
-          <p><strong>Amount:</strong> ${parsedDetails?.amount ? parsedDetails.amount.toLocaleString() : '...'}</p>
-          <p><strong>Due Date:</strong> {parsedDetails?.dueDate || '...'}</p>
+          <p><strong>Total Amount:</strong> ${totalAmount.toLocaleString()}</p>
+          <p><strong>Final Due Date:</strong> {milestones.reduce((latest, m) => m.dueDate > latest ? m.dueDate : latest, "N/A")}</p>
         </CardContent>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">AI Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary?.summary || "No summary available."}</p>
-        </CardContent>
+        <CardHeader><CardTitle className="text-lg">AI Summary</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{summary?.summary || "No summary available."}</p></CardContent>
       </Card>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Negotiation Suggestions</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-lg">Negotiation Suggestions</CardTitle></CardHeader>
         <CardContent className="text-sm space-y-3">
           {negotiationSuggestions?.paymentTerms && <div><p className="font-semibold">Payment Terms</p><p className="text-muted-foreground">{negotiationSuggestions.paymentTerms}</p></div>}
           {negotiationSuggestions?.exclusivity && <div><p className="font-semibold">Exclusivity</p><p className="text-muted-foreground">{negotiationSuggestions.exclusivity}</p></div>}
@@ -438,9 +425,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       {!controlledIsOpen && (
         <DialogTrigger asChild>
-          <Button id="add-contract-button">
-            <UploadCloud className="mr-2 h-4 w-4" /> Add Contract
-          </Button>
+          <Button id="add-contract-button"><UploadCloud className="mr-2 h-4 w-4" /> Add Contract</Button>
         </DialogTrigger>
       )}
       <DialogContent 
@@ -448,212 +433,75 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" /> Add New Contract
-          </DialogTitle>
-          <DialogDescription>
-            Upload a contract file or paste text to automatically extract details and analyze with AI.
-          </DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><FileText className="h-6 w-6 text-primary" /> Add New Contract</DialogTitle>
+          <DialogDescription>Upload a contract file or paste text to automatically extract details and analyze with AI.</DialogDescription>
         </DialogHeader>
         
         {!canPerformProAction && (
           <Alert variant="default" className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
             <Sparkles className="h-5 w-5" />
             <AlertTitle className="font-semibold text-primary">Upgrade to Verza Pro</AlertTitle>
-            <AlertDescription className="text-primary/90">
-              Adding new contracts is a Pro feature. Please upgrade your plan to continue.
-              Your free trial may have ended or you are on the free plan.
-            </AlertDescription>
-            <div className="mt-3">
-                <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  <Link href="/settings">
-                    Manage Subscription <ExternalLink className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-            </div>
+            <AlertDescription className="text-primary/90">Adding new contracts is a Pro feature. Please upgrade your plan to continue.</AlertDescription>
+            <div className="mt-3"><Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90"><Link href="/settings">Manage Subscription <ExternalLink className="ml-2 h-4 w-4" /></Link></Button></div>
           </Alert>
         )}
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
-          {/* Left Column */}
-          <ScrollArea className="h-full">
-            <div className="space-y-6 pr-6">
-              {user?.role === 'agency_owner' && agency && (
-                <div>
-                  <Label htmlFor="contractOwner">Contract For</Label>
-                  <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select who this contract is for..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
-                      {agency.talent?.filter(t => t.status === 'active').map(t => (
-                        <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <ScrollArea className="h-full"><div className="space-y-6 pr-6">
+            {user?.role === 'agency_owner' && agency && (
+              <div><Label htmlFor="contractOwner">Contract For</Label><Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}><SelectTrigger className="mt-1"><SelectValue placeholder="Select who this contract is for..." /></SelectTrigger><SelectContent><SelectItem value="personal">My Agency ({agency.name})</SelectItem>{agency.talent?.filter(t => t.status === 'active').map(t => (<SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>))}</SelectContent></Select></div>
+            )}
+            <div><Label htmlFor="fileName">File Name (Optional)</Label><Input id="fileName" type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., BrandX_Sponsorship_Q4.pdf" className="mt-1" /></div>
+            <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
+            <div><Label htmlFor="contractFile">Upload Contract File</Label><Input id="contractFile" type="file" accept=".pdf,.doc,.docx,image/*" className="mt-1" onChange={handleFileChange} /><p className="text-xs text-muted-foreground mt-1">Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.</p></div>
+
+            <Card><CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="clientName">Client Name</Label><Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" /></div>
+                <div><Label htmlFor="clientEmail">Client Email</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" /></div>
+                <div className="md:col-span-2"><Label htmlFor="clientAddress">Client Address</Label><Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} /></div>
+                <div className="md:col-span-2"><Label htmlFor="paymentInstructions">Payment Instructions</Label><Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} /></div>
+            </CardContent></Card>
+
+            <Card><CardHeader><CardTitle className="text-lg flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" />Payment Milestones</CardTitle></CardHeader><CardContent className="space-y-4">
+              {milestones.map((milestone, index) => (
+                <div key={milestone.id} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-md relative">
+                  <div className="col-span-12"><Label htmlFor={`milestone-desc-${index}`}>Description</Label><Input id={`milestone-desc-${index}`} value={milestone.description} onChange={(e) => handleMilestoneChange(milestone.id, 'description', e.target.value)} placeholder="e.g., 50% Upfront" className="mt-1"/></div>
+                  <div className="col-span-6"><Label htmlFor={`milestone-amount-${index}`}>Amount</Label><Input id={`milestone-amount-${index}`} type="number" value={milestone.amount} onChange={(e) => handleMilestoneChange(milestone.id, 'amount', Number(e.target.value))} placeholder="5000" className="mt-1"/></div>
+                  <div className="col-span-6"><Label htmlFor={`milestone-due-${index}`}>Due Date</Label><Input id={`milestone-due-${index}`} type="date" value={milestone.dueDate} onChange={(e) => handleMilestoneChange(milestone.id, 'dueDate', e.target.value)} className="mt-1"/></div>
+                  {milestones.length > 1 && <Button type="button" size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 text-destructive" onClick={() => removeMilestone(milestone.id)}><Trash2 className="h-4 w-4"/></Button>}
                 </div>
-              )}
-              <div>
-                <Label htmlFor="fileName">File Name (Optional - auto-fills on upload)</Label>
-                <Input
-                  id="fileName"
-                  type="text"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  placeholder="e.g., BrandX_Sponsorship_Q4.pdf"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="projectName">Project Name (Optional)</Label>
-                <Input
-                  id="projectName"
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="e.g., Q3 YouTube Campaign"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="contractFile">Upload Contract File</Label>
-                <Input
-                  id="contractFile"
-                  type="file"
-                  accept=".pdf,.doc,.docx,image/*"
-                  className="mt-1"
-                  onChange={handleFileChange}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.
-                </p>
-              </div>
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="clientName">Client Name</Label>
-                    <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client Company Inc." className="mt-1" disabled={isProcessingAi} />
-                  </div>
-                  <div>
-                    <Label htmlFor="clientEmail">Client Email</Label>
-                    <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="contact@client.com" className="mt-1" disabled={isProcessingAi} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="clientAddress">Client Address</Label>
-                    <Textarea id="clientAddress" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="123 Client St, City, Country" className="mt-1" rows={3} disabled={isProcessingAi}/>
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="paymentInstructions">Payment Instructions (Bank details, PayPal, etc.)</Label>
-                    <Textarea id="paymentInstructions" value={paymentInstructions} onChange={(e) => setPaymentInstructions(e.target.value)} placeholder="Bank: XYZ, Account: 12345, Swift: ABCDE..." className="mt-1" rows={3} disabled={isProcessingAi}/>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="isRecurring"
-                      checked={isRecurring}
-                      onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
-                    />
-                    <Label htmlFor="isRecurring" className="font-normal">
-                      Is this a recurring contract?
-                    </Label>
-                  </div>
-                  {isRecurring && (
-                    <div>
-                      <Label htmlFor="recurrenceInterval">Recurrence Interval</Label>
-                      <Select
-                        value={recurrenceInterval}
-                        onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}
-                      >
-                        <SelectTrigger id="recurrenceInterval" className="mt-1">
-                          <SelectValue placeholder="Select interval" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                          <SelectItem value="quarterly">Quarterly</SelectItem>
-                          <SelectItem value="annually">Annually</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </ScrollArea>
-
-          {/* Right Column */}
-          <div className="flex flex-col gap-6 overflow-hidden">
-            <div className="flex-shrink-0">
-              <Label>Contract Text & AI Analysis</Label>
-              <div className="flex items-center gap-2 mt-1">
-                  <Button onClick={handlePastedText} variant="outline" size="sm" disabled={isProcessingAi}>
-                  <Wand2 className="mr-2 h-4 w-4" /> Run AI Analysis on Text
-                  </Button>
-                  <p className="text-xs text-muted-foreground">Paste text into the editor below and click to analyze.</p>
-              </div>
-            </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
+              <div className="text-right font-semibold">Total Amount: ${totalAmount.toLocaleString()}</div>
+            </CardContent></Card>
             
+            <Card><CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader><CardContent className="space-y-4">
+              <div className="flex items-center space-x-2"><Checkbox id="isRecurring" checked={isRecurring} onCheckedChange={(checked) => setIsRecurring(checked as boolean)} /><Label htmlFor="isRecurring" className="font-normal">Is this a recurring contract?</Label></div>
+              {isRecurring && (<div><Label htmlFor="recurrenceInterval">Recurrence Interval</Label><Select value={recurrenceInterval} onValueChange={(value) => setRecurrenceInterval(value as Contract['recurrenceInterval'])}><SelectTrigger id="recurrenceInterval" className="mt-1"><SelectValue placeholder="Select interval" /></SelectTrigger><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem><SelectItem value="annually">Annually</SelectItem></SelectContent></Select></div>)}
+            </CardContent></Card>
+          </div></ScrollArea>
+
+          <div className="flex flex-col gap-6 overflow-hidden">
+            <div className="flex-shrink-0"><Label>Contract Text & AI Analysis</Label><div className="flex items-center gap-2 mt-1"><Button onClick={handlePastedText} variant="outline" size="sm" disabled={isProcessingAi}><Wand2 className="mr-2 h-4 w-4" /> Run AI Analysis</Button><p className="text-xs text-muted-foreground">Paste text into the editor below and click to analyze.</p></div></div>
             <div className="flex-grow min-h-0 relative">
                <div style={{ display: isProcessingAi || parseError ? 'flex' : 'none', zIndex: 10 }} className="absolute inset-0 bg-muted/50 rounded-md items-center justify-center">
-                {isProcessingAi && (
-                    <div className="text-center p-4 bg-background rounded-lg shadow-lg">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-                    <p className="mt-2 text-muted-foreground">AI processing... Please wait.</p>
-                    </div>
-                )}
-                {parseError && (
-                    <div className="p-4 bg-background rounded-lg shadow-lg">
-                    <Alert variant="destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>AI Processing Error</AlertTitle>
-                        <AlertDescription>{parseError}</AlertDescription>
-                    </Alert>
-                    </div>
-                )}
+                {isProcessingAi && (<div className="text-center p-4 bg-background rounded-lg shadow-lg"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /><p className="mt-2 text-muted-foreground">AI processing... Please wait.</p></div>)}
+                {parseError && (<div className="p-4 bg-background rounded-lg shadow-lg"><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>AI Error</AlertTitle><AlertDescription>{parseError}</AlertDescription></Alert></div>)}
               </div>
-              
               <div id="container" style={{ height: '100%' }} className="border rounded-md">
-                  <DocumentEditorContainerComponent 
-                    id="editor"
-                    ref={editorRef} 
-                    height="100%" 
-                    serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/"
-                    showPropertiesPane={false}
-                    enableToolbar={true}
-                    toolbarMode={'Ribbon'}
-                    ribbonLayout={'Simplified'}
-                    currentUser={user?.displayName || "Guest"}
-                    locale="en-US"
-                  />
+                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
               </div>
-
-              {parsedDetails && (
-                  <div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}>
-                    <ScrollArea className="h-full">
-                        <div className="space-y-4 pr-4">{renderAiAnalysis()}</div>
-                    </ScrollArea>
-                  </div>
-              )}
+              {parsedDetails && (<div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}><ScrollArea className="h-full"><div className="space-y-4 pr-4">{renderAiAnalysis()}</div></ScrollArea></div>)}
             </div>
           </div>
         </div>
         <DialogFooter className="pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Cancel</Button>
-          <Button 
-            onClick={handleSaveContract} 
-            disabled={isProcessingAi || isSaving || !canPerformProAction}
-          >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Save Contract
-          </Button>
+          <Button onClick={handleSaveContract} disabled={isProcessingAi || isSaving || !canPerformProAction}><Save className="mr-2 h-4 w-4" />{isSaving ? 'Saving...' : 'Save Contract'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
+    

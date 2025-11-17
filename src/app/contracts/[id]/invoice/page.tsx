@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType } from '@/types';
+import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType, PaymentMilestone } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
 import { editInvoiceNote } from '@/ai/flows/edit-invoice-note-flow';
 import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText, Bot } from 'lucide-react';
@@ -40,13 +40,13 @@ const buildDefaultEditableDetails = (
   currentContract: Contract,
   currentUser: UserProfile | null,
   currentId: string,
-  currentEditableInvoiceNumber?: string
+  currentEditableInvoiceNumber?: string,
+  milestone?: PaymentMilestone,
 ): EditableInvoiceDetails => {
-  const baseDeliverables = currentContract.extractedTerms?.deliverables?.map((desc) => ({
-    description: desc,
-    quantity: 1,
-    unitPrice: currentContract.extractedTerms?.deliverables && currentContract.extractedTerms.deliverables.length > 0 && currentContract.amount > 0 ? currentContract.amount / currentContract.extractedTerms.deliverables.length : currentContract.amount,
-  })) || (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount }] : [getDefaultLineItem()]);
+    const lineItems: EditableInvoiceLineItem[] = milestone
+    ? [{ description: milestone.description, quantity: 1, unitPrice: milestone.amount, isMilestone: true }]
+    : currentContract.milestones?.map(m => ({ description: m.description, quantity: 1, unitPrice: m.amount, isMilestone: true })) ||
+      (currentContract.amount > 0 ? [{ description: currentContract.projectName || `Services for ${currentContract.brand}`, quantity: 1, unitPrice: currentContract.amount, isMilestone: true }] : [getDefaultLineItem()]);
 
   return {
     creatorName: currentUser?.displayName || "",
@@ -57,22 +57,24 @@ const buildDefaultEditableDetails = (
     clientEmail: currentContract.clientEmail || "",
     invoiceNumber: currentEditableInvoiceNumber || currentContract.invoiceNumber || `INV-${currentContract.brand?.substring(0,3).toUpperCase() || 'AAA'}-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${currentId.substring(0,4).toUpperCase()}`,
     invoiceDate: new Date().toISOString().split('T')[0],
-    dueDate: currentContract.dueDate || new Date().toISOString().split('T')[0],
+    dueDate: milestone?.dueDate || currentContract.dueDate || new Date().toISOString().split('T')[0],
     projectName: currentContract.projectName || "",
-    deliverables: baseDeliverables,
+    deliverables: lineItems,
     paymentInstructions: currentContract.paymentInstructions || "",
   };
 };
 
 const calculateTotal = (items: EditableInvoiceLineItem[]): number => {
-  return items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  return items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
 };
 
 
 export default function ManageInvoicePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id as string;
+  const milestoneId = searchParams.get('milestoneId');
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
@@ -111,6 +113,7 @@ export default function ManageInvoicePage() {
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState<boolean>(false);
   const [payUrl, setPayUrl] = useState<string>("");
 
   useEffect(() => {
@@ -158,7 +161,7 @@ export default function ManageInvoicePage() {
 
   const generateAndSetHtmlFromForm = useCallback(async (detailsToUse: EditableInvoiceDetails, receiptsToUse: Array<{url: string; description?: string;}>, contractIdToUse: string) => {
     const totalAmount = calculateTotal(detailsToUse.deliverables);
-    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}` : "";
+    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
     
     const inputForAI: GenerateInvoiceHtmlInput = {
       ...detailsToUse,
@@ -178,7 +181,7 @@ export default function ManageInvoicePage() {
       toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
       setInvoiceHtmlContent("<p>Error generating preview.</p>");
     }
-  }, [toast, setInvoiceHtmlContent, user?.companyLogoUrl]); 
+  }, [toast, setInvoiceHtmlContent, user?.companyLogoUrl, milestoneId]); 
 
   const handleInitialAiGeneration = useCallback(async (
     initialContractData: Contract,
@@ -191,7 +194,8 @@ export default function ManageInvoicePage() {
 
     setIsGeneratingAi(true);
     try {
-        const aiInputDetails = buildDefaultEditableDetails(initialContractData, currentUserData, currentContractId, currentInvNum);
+        const targetMilestone = milestoneId ? initialContractData.milestones?.find(m => m.id === milestoneId) : undefined;
+        const aiInputDetails = buildDefaultEditableDetails(initialContractData, currentUserData, currentContractId, currentInvNum, targetMilestone);
         populateFormFromEditableDetails(aiInputDetails, initialContractData, currentUserData);
         await generateAndSetHtmlFromForm(aiInputDetails, initialReceiptsData, currentContractId);
         toast({ title: "Invoice Drafted by AI", description: "Review and edit as needed before saving or sending." });
@@ -201,7 +205,7 @@ export default function ManageInvoicePage() {
     } finally {
         setIsGeneratingAi(false);
     }
-  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast]);
+  }, [populateFormFromEditableDetails, generateAndSetHtmlFromForm, toast, milestoneId]);
   
   const handleAiRegenerationRequest = useCallback(async () => {
     if (!contract || !user) {
@@ -244,6 +248,11 @@ export default function ManageInvoicePage() {
     let isMounted = true;
     let unsubscribeReceipts: (() => void) | undefined = undefined;
     setIsLoadingContract(true);
+    
+    setInvoiceHtmlContent("");
+    setClientSecret(null);
+    setShowPaymentForm(false);
+    setIsEditingDetails(false);
 
     const loadInitialData = async () => {
       try {
@@ -261,13 +270,12 @@ export default function ManageInvoicePage() {
           if (isOwner || isAgencyOwner) {
               setContract(contractData);
               setInvoiceStatus(contractData.invoiceStatus || 'none');
-              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}` : "";
+              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
               setPayUrl(currentPayUrlValue);
 
               const receiptsCol = collection(db, 'receipts');
               const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
               
-              // Initial fetch for receipts to be used if AI generation is needed
               const initialReceiptSnapshot = await getDocs(qReceipts);
               const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
                 const receiptData = docSnap.data() as ReceiptType;
@@ -275,28 +283,23 @@ export default function ManageInvoicePage() {
               });
               
               if (isMounted) {
-                setContractReceipts(initialFetchedReceipts); // Set receipts state first
+                setContractReceipts(initialFetchedReceipts);
               }
 
-              // Logic for setting initial HTML content or generating AI
-              if (contractData.invoiceHtmlContent) {
-                setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-                const detailsToPopulate = contractData.editableInvoiceDetails || buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-                populateFormFromEditableDetails(detailsToPopulate, contractData, user);
-              } else if (contractData.editableInvoiceDetails) {
-                populateFormFromEditableDetails(contractData.editableInvoiceDetails, contractData, user);
-                await generateAndSetHtmlFromForm(contractData.editableInvoiceDetails, initialFetchedReceipts, id);
-              } else if (contractData.amount > 0) {
-                // AI generation if no content and amount exists
-                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
+              const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
+              const savedDetails = contractData.editableInvoiceDetails;
+
+              if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
+                populateFormFromEditableDetails(savedDetails, contractData, user);
+                if (contractData.invoiceHtmlContent && !milestoneId) { // Only load old HTML for general invoice
+                  setInvoiceHtmlContent(contractData.invoiceHtmlContent);
+                } else {
+                  await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id);
+                }
               } else {
-                // No content, no details, no amount - just set defaults and empty HTML
-                const defaultDetails = buildDefaultEditableDetails(contractData, user, id, contractData.invoiceNumber);
-                populateFormFromEditableDetails(defaultDetails, contractData, user);
-                setInvoiceHtmlContent("");
+                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
               }
               
-              // Setup real-time listener for receipts AFTER initial data processing
               unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
                 if (!isMounted) return;
                 const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
@@ -329,7 +332,8 @@ export default function ManageInvoicePage() {
       isMounted = false; 
       if (unsubscribeReceipts) unsubscribeReceipts();
     };
-  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration]);
+  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration, milestoneId]);
+
 
   const toggleEditMode = useCallback(async () => {
     if (isEditingDetails) { 
@@ -341,12 +345,15 @@ export default function ManageInvoicePage() {
       }
     } else { 
       if (contract && user) {
-        const detailsToPopulate = contract.editableInvoiceDetails || buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber);
+        const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
+        const detailsToPopulate = contract.editableInvoiceDetails && (!milestoneId || (milestoneId && contract.editableInvoiceDetails.deliverables?.some(d => d.isMilestone))) 
+            ? contract.editableInvoiceDetails 
+            : buildDefaultEditableDetails(contract, user, contract.id, contract.invoiceNumber, targetMilestone);
         populateFormFromEditableDetails(detailsToPopulate, contract, user);
       }
     }
     setIsEditingDetails(prev => !prev);
-  }, [isEditingDetails, contract, user, contractReceipts, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails]);
+  }, [isEditingDetails, contract, user, contractReceipts, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails, milestoneId]);
   
   const handleSaveInvoice = async () => {
     if (!contract || !editableInvoiceNumber) {
@@ -362,7 +369,7 @@ export default function ManageInvoicePage() {
       const currentFormData = getStructuredDataFromForm();
       const finalTotalAmount = calculateTotal(currentFormData.deliverables);
       
-      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
+      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
       const inputForAI: GenerateInvoiceHtmlInput = {
         ...currentFormData,
         contractId: contract.id,
@@ -377,36 +384,47 @@ export default function ManageInvoicePage() {
       setInvoiceHtmlContent(finalHtmlToSave); 
 
       const contractDocRef = doc(db, 'contracts', contract.id);
-      const newStatus = (contract.invoiceStatus === 'none' || !contract.invoiceStatus) ? 'draft' : contract.invoiceStatus;
+      
+      // Get the most recent state of the contract to avoid overwriting other changes.
+      const freshContractSnap = await getDoc(contractDocRef);
+      const freshContractData = freshContractSnap.data() as Contract;
+      
+      let updatedMilestones = freshContractData.milestones || [];
+      if (milestoneId) {
+        const milestoneExists = updatedMilestones.some(m => m.id === milestoneId);
+        if (milestoneExists) {
+            updatedMilestones = updatedMilestones.map(m => 
+            m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+            );
+        }
+      }
+
+      let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus || 'none';
+       if (newStatus === 'none' || newStatus === '') {
+        newStatus = 'draft';
+      }
       
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: "Invoice Details Updated",
+        action: `Invoice Draft Saved for ${milestoneId ? `Milestone: ${currentFormData.deliverables.find(d=>d.isMilestone)?.description}` : 'General Invoice'}`,
         details: `Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
       };
 
-      const updatesToSave: Partial<Contract> = { 
+      const updatesToSave: Partial<Contract> & {[key: string]: any} = { 
+        milestones: updatedMilestones,
         invoiceHtmlContent: finalHtmlToSave,
         invoiceNumber: editableInvoiceNumber,
         invoiceStatus: newStatus, 
         editableInvoiceDetails: currentFormData, 
-        amount: finalTotalAmount, 
-        invoiceHistory: arrayUnion(historyEntry) as any, 
-        updatedAt: serverTimestamp() as Timestamp, 
+        invoiceHistory: arrayUnion(historyEntry), 
+        updatedAt: serverTimestamp(), 
       };
 
       await updateDoc(contractDocRef, updatesToSave);
       
       setInvoiceStatus(newStatus); 
       setIsEditingDetails(false); 
-      setContract(prev => prev ? ({
-        ...prev, 
-        invoiceHtmlContent: finalHtmlToSave, 
-        editableInvoiceDetails: currentFormData, 
-        amount: finalTotalAmount, 
-        invoiceStatus: newStatus, 
-        invoiceNumber: editableInvoiceNumber 
-      }) : null);
+      setContract(prev => prev ? ({ ...prev, ...updatesToSave, invoiceStatus: newStatus }) as Contract : null);
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
     } catch (error) {
@@ -422,10 +440,16 @@ export default function ManageInvoicePage() {
     setIsSaving(true);
     try {
       const contractDocRef = doc(db, 'contracts', contract.id);
+      
+      // Fetch current milestone description if applicable
+      const milestoneDescription = milestoneId 
+        ? contract.milestones?.find(m => m.id === milestoneId)?.description
+        : 'General Invoice';
+
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: `Invoice Status Changed to ${newStatusValue}`,
-         details: `Previous status: ${invoiceStatus}`,
+        action: `Status Changed to ${newStatusValue} for ${milestoneId ? `Milestone: ${milestoneDescription}` : 'General Invoice'}`,
+        details: `Previous status: ${invoiceStatus}`,
       };
       await updateDoc(contractDocRef, {
         invoiceStatus: newStatusValue,
@@ -433,6 +457,7 @@ export default function ManageInvoicePage() {
         updatedAt: serverTimestamp(),
       });
       setInvoiceStatus(newStatusValue);
+      setContract(prev => prev ? { ...prev, invoiceStatus: newStatusValue } : null);
       toast({ title: "Status Updated", description: `Invoice status changed to ${newStatusValue}.` });
     } catch (error) {
       console.error("Error updating status:", error);
@@ -463,7 +488,7 @@ export default function ManageInvoicePage() {
       // Use the note from state, adding paragraph tags
       const noteHtml = invoiceNote ? `<p>${invoiceNote.replace(/\n/g, '<br>')}</p>` : "";
 
-      const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}` : "";
+      const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
       const inputForAISend: GenerateInvoiceHtmlInput = {
         ...currentFormData,
         contractId: contract.id,
@@ -514,16 +539,30 @@ export default function ManageInvoicePage() {
       const contractDocRef = doc(db, 'contracts', contract.id);
       const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Sent to Client', details: `To: ${emailBody.to}`};
       
+      // Update milestone status if applicable
+      let updatedMilestones = contract.milestones;
+      if (milestoneId && updatedMilestones) {
+        updatedMilestones = updatedMilestones.map(m => 
+          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+        );
+      }
+      
+      const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
+      const allMilestonesDone = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
+      const newOverallStatus = allMilestonesPaid ? 'paid' : (allMilestonesDone ? 'invoiced' : 'sent');
+
+
       await updateDoc(contractDocRef, { 
-        invoiceStatus: 'sent', 
+        invoiceStatus: newOverallStatus, 
+        milestones: updatedMilestones,
         invoiceHistory: arrayUnion(historyEntry),
         lastReminderSentAt: serverTimestamp(),
         updatedAt: serverTimestamp(), 
       });
 
-      setInvoiceStatus('sent');
+      setInvoiceStatus(newOverallStatus);
       setInvoiceHtmlContent(htmlToSend); 
-      setContract(prev => prev ? ({ ...prev, invoiceStatus: 'sent' }) : null);
+      setContract(prev => prev ? ({ ...prev, invoiceStatus: newOverallStatus, milestones: updatedMilestones }) as Contract : null);
 
       toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailBody.to}.` });
       setIsSendDialogOpen(false);
@@ -570,10 +609,15 @@ export default function ManageInvoicePage() {
       const idToken = await getUserIdToken();
       if (!idToken) throw new Error("Could not get user token for payment.");
 
+      const amountForPayment = calculateTotal(editableDeliverables);
+
       const response = await fetch(CREATE_PAYMENT_INTENT_FUNCTION_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify({
-          amount: contract.amount, currency: 'usd', contractId: contract.id,
+          amount: amountForPayment, 
+          currency: 'usd', 
+          contractId: contract.id,
+          milestoneId: milestoneId,
           clientEmail: editableClientEmail || contract.clientEmail || undefined,
         }),
       });
@@ -598,7 +642,8 @@ export default function ManageInvoicePage() {
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
     const newDeliverables = [...editableDeliverables];
     if (field === 'quantity' || field === 'unitPrice') {
-        newDeliverables[index] = { ...newDeliverables[index], [field]: Number(value) < 0 ? 0 : Number(value) };
+        const numericValue = parseFloat(value as string);
+        newDeliverables[index] = { ...newDeliverables[index], [field]: isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue) };
     } else {
         newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
     }
@@ -607,11 +652,11 @@ export default function ManageInvoicePage() {
 
   const addDeliverable = () => setEditableDeliverables([...editableDeliverables, getDefaultLineItem()]);
   const removeDeliverable = (index: number) => {
-    if (editableDeliverables.length > 1) {
-      setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
-    } else {
-      toast({title: "Cannot Remove", description: "You must have at least one line item.", variant: "default"});
+    if (editableDeliverables[index]?.isMilestone) {
+        toast({ title: "Cannot Remove", description: "The main milestone line item cannot be removed.", variant: "default" });
+        return;
     }
+    setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
   };
   
   // Effect to regenerate HTML preview if receipts change while in preview mode
@@ -621,7 +666,6 @@ export default function ManageInvoicePage() {
       generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id)
         .catch(error => {
           console.error("Auto-regeneration of preview failed on receipt change:", error);
-          // Optional: toast({ title: "Preview Update Failed", description: "Could not refresh preview with new receipts." });
         });
     }
   }, [
@@ -641,15 +685,20 @@ export default function ManageInvoicePage() {
     return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4"/>Back</Link></Button></div>;
   }
 
-  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue') && contract.amount > 0 && !clientSecret;
-  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent');
+  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue' || invoiceStatus === 'partially_paid') && calculatedTotalAmount > 0 && !clientSecret;
+  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
+
+  const milestoneBeingInvoiced = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
+  const pageTitle = milestoneBeingInvoiced
+    ? `Invoice for: ${milestoneBeingInvoiced.description}`
+    : `Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`;
 
   return (
     <>
       <PageHeader
-        title={`Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`}
+        title={pageTitle}
         description={editableInvoiceNumber ? `Invoice #: ${editableInvoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
         actions={<Button variant="outline" asChild><Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Contract</Link></Button>}
       />
@@ -670,7 +719,15 @@ export default function ManageInvoicePage() {
                 <Label htmlFor="invoiceStatusSelect">Invoice Status</Label>
                  <Select value={invoiceStatus || 'none'} onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])} disabled={isSaving || isLoadingContract || isSending || !!clientSecret || isEditingDetails}>
                   <SelectTrigger className="max-w-sm mt-1" id="invoiceStatusSelect"><SelectValue placeholder="Set Status" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">None</SelectItem><SelectItem value="draft">Draft</SelectItem><SelectItem value="sent">Sent</SelectItem><SelectItem value="viewed">Viewed</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="viewed">Viewed</SelectItem>
+                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -735,7 +792,7 @@ export default function ManageInvoicePage() {
                {canPay && (
                 <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingDetails} variant="default">
                   {isFetchingClientSecret ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                  Pay Invoice (${contract.amount.toLocaleString()})
+                  Pay Invoice (${calculatedTotalAmount.toLocaleString()})
                 </Button>
               )}
             </div>
@@ -781,7 +838,6 @@ export default function ManageInvoicePage() {
                 </div>
               </div>
               
-              {/* Currently Linked Receipts Section */}
               <div className="border-t pt-4 mt-4">
                 <div className="mb-6"> 
                   <h4 className="text-md font-semibold mb-2 flex items-center">
@@ -820,11 +876,11 @@ export default function ManageInvoicePage() {
                 <h4 className="text-md font-semibold mb-2">Invoice Line Items</h4>
                 {editableDeliverables.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
-                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1"/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="0" onChange={(e) => handleDeliverableChange(index, 'quantity', parseFloat(e.target.value))} className="mt-1"/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', parseFloat(e.target.value))} className="mt-1"/></div>
-                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={(item.quantity * item.unitPrice).toFixed(2)} readOnly disabled className="mt-1 bg-muted"/></div>
-                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full"><Trash2 className="h-4 w-4"/></Button></div>
+                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
+                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={!isNaN(item.quantity * item.unitPrice) ? (item.quantity * item.unitPrice).toFixed(2) : '0.00'} readOnly disabled className="mt-1 bg-muted"/></div>
+                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
                   </div>
                 ))}
                 <Button type="button" variant="outline" onClick={addDeliverable} size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Add Line Item</Button>
