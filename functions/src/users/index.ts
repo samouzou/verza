@@ -8,7 +8,7 @@ import {sendEmailSequence} from "../notifications";
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const { uid, email, displayName, photoURL, emailVerified } = user;
+  const {uid, email, displayName, photoURL, emailVerified} = user;
 
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
@@ -49,7 +49,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     },
   };
 
-  await userDocRef.set(newUserDoc, { merge: true });
+  await userDocRef.set(newUserDoc, {merge: true});
 
   // Send welcome email immediately
   if (email) {

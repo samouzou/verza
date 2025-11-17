@@ -316,25 +316,26 @@ export const createInternalPayout = onCall(async (request) => {
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
-    
+
     // Fetch all payment methods and find a suitable one
     const paymentMethods = await stripe.paymentMethods.list({
-        customer: agencyOwnerData.stripeCustomerId,
+      customer: agencyOwnerData.stripeCustomerId,
     });
 
     // Prioritize bank account, then card. Ignore others.
-    const bankAccount = paymentMethods.data.find(pm => pm.type === 'us_bank_account');
-    const card = paymentMethods.data.find(pm => pm.type === 'card');
+    const bankAccount = paymentMethods.data.find((pm) => pm.type === "us_bank_account");
+    const card = paymentMethods.data.find((pm) => pm.type === "card");
 
     let paymentMethodId: string | undefined;
     if (bankAccount) {
-        paymentMethodId = bankAccount.id;
+      paymentMethodId = bankAccount.id;
     } else if (card) {
-        paymentMethodId = card.id;
+      paymentMethodId = card.id;
     }
 
     if (!paymentMethodId) {
-      throw new HttpsError("failed-precondition", "Agency owner has no saved bank account or card in Stripe to charge for this payout.");
+      throw new HttpsError("failed-precondition",
+        "Agency owner has no saved bank account or card in Stripe to charge for this payout.");
     }
 
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
