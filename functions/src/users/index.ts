@@ -8,14 +8,13 @@ import {sendEmailSequence} from "../notifications";
 
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
-  const {uid, email, displayName, photoURL, emailVerified} = user;
+  const { uid, email, displayName, photoURL, emailVerified } = user;
 
   // Create the base user document first, regardless of invitation status.
   const userDocRef = db.collection("users").doc(uid);
   const createdAt = admin.firestore.Timestamp.now();
   const trialEndsAt = new admin.firestore.Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
   const twoDaysFromNow = new admin.firestore.Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
-
 
   const newUserDoc: UserProfileFirestoreData = {
     uid: uid,
@@ -50,7 +49,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     },
   };
 
-  await userDocRef.set(newUserDoc, {merge: true});
+  await userDocRef.set(newUserDoc, { merge: true });
 
   // Send welcome email immediately
   if (email) {
