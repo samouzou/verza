@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type {UserProfileFirestoreData, Contract, Agency} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone} from "../../../src/types";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -209,9 +209,9 @@ export const createPaymentIntent = onRequest(async (request, response) => {
   }
 
   try {
-    const {amount, currency = "usd", contractId} = request.body;
-    if (!amount || !contractId) {
-      throw new Error("Amount and contractId are required");
+    const {amount: requestedAmount, currency = "usd", contractId, milestoneId} = request.body;
+    if (!contractId) {
+      throw new Error("contractId is required");
     }
 
     const contractDoc = await db.collection("contracts").doc(contractId).get();
@@ -220,38 +220,89 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       throw new Error("Contract not found");
     }
 
+    let amountToCharge = 0;
+    const finalMilestoneId: string | null = milestoneId || null;
+
+    // Prioritize editableInvoiceDetails for amount calculation
+    if (contractData.editableInvoiceDetails?.deliverables && contractData.editableInvoiceDetails.deliverables.length > 0) {
+      const lineItems = contractData.editableInvoiceDetails.deliverables;
+      if (milestoneId) {
+        // Check if the invoice was for a specific milestone
+        const targetMilestone = contractData.milestones?.find((m) => m.id === milestoneId);
+        if (targetMilestone && lineItems.some((item) => item.isMilestone && item.description === targetMilestone.description)) {
+          // If this specific milestone invoice has line items, sum them up.
+          amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+        }
+      } else {
+        // If it's a general invoice, sum up all line items.
+        amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+      }
+    }
+
+    // Fallback logic if editable details don't provide an amount
+    if (amountToCharge === 0) {
+      if (milestoneId) {
+        const milestone = contractData.milestones?.find((m: PaymentMilestone) => m.id === milestoneId);
+        if (!milestone) throw new Error("Milestone not found on contract.");
+        amountToCharge = milestone.amount;
+      } else {
+        amountToCharge = contractData.amount;
+      }
+    }
+
+    // Security check: if an amount is passed from an unauthenticated user, it MUST match the calculated amount.
+    if (requestedAmount && requestedAmount !== amountToCharge) {
+      let isAuthenticatedUser = false;
+      if (request.headers.authorization) {
+        try {
+          await verifyAuthToken(request.headers.authorization);
+          isAuthenticatedUser = true;
+        } catch {/* treat as unauthenticated */}
+      }
+      if (!isAuthenticatedUser) {
+        logger.error("Amount mismatch for unauthenticated payment:", {provided: requestedAmount, expected: amountToCharge});
+        throw new Error("Invalid payment amount.");
+      }
+    }
+
+    if (!amountToCharge || amountToCharge <= 0) {
+      throw new Error("A valid amount is required to create a payment intent.");
+    }
+
     let userId: string | null = null;
-    let isAuthenticatedCreator = false;
     const emailForReceiptAndMetadata = contractData.clientEmail || null;
 
     if (request.headers.authorization) {
       try {
         userId = await verifyAuthToken(request.headers.authorization);
-        isAuthenticatedCreator = userId === contractData.userId;
       } catch {
         logger.info("No valid auth token, treating as public payment");
       }
     }
 
-    if (!isAuthenticatedCreator && amount !== contractData.amount) {
-      logger.error("Amount mismatch:", {provided: amount, expected: contractData.amount});
-      throw new Error("Invalid payment amount");
+    let paymentIntentParams: Stripe.PaymentIntentCreateParams;
+    const amountInCents = Math.round(amountToCharge * 100);
+
+    const metadataForStripe: Stripe.MetadataParam = {
+      contractId,
+      userId: userId || "",
+      creatorId: contractData.userId,
+      clientEmail: emailForReceiptAndMetadata,
+      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
+    };
+
+    if (finalMilestoneId) {
+      metadataForStripe.milestoneId = finalMilestoneId;
     }
 
-    let paymentIntentParams: Stripe.PaymentIntentCreateParams;
-    const amountInCents = Math.round(amount * 100);
-
     if (contractData.ownerType === "agency" && contractData.ownerId) {
+      metadataForStripe.agencyId = contractData.ownerId;
+      metadataForStripe.paymentType = "agency_payment";
+
       paymentIntentParams = {
         amount: amountInCents,
         currency,
-        metadata: {
-          contractId,
-          userId: userId || "",
-          creatorId: contractData.userId,
-          agencyId: contractData.ownerId,
-          paymentType: "agency_payment",
-        },
+        metadata: metadataForStripe,
         receipt_email: emailForReceiptAndMetadata || undefined,
       };
     } else {
@@ -269,13 +320,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         amount: amountInCents,
         currency,
         application_fee_amount: totalApplicationFee,
-        metadata: {
-          contractId,
-          userId: userId || "",
-          creatorId: contractData.userId,
-          clientEmail: emailForReceiptAndMetadata,
-          paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
-        },
+        metadata: metadataForStripe,
         receipt_email: emailForReceiptAndMetadata || undefined,
         transfer_data: {
           destination: creatorData.stripeAccountId,
@@ -288,13 +333,14 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     await db.collection("paymentIntents").add({
       paymentIntentId: paymentIntent.id,
       contractId,
+      milestoneId: finalMilestoneId,
       userId: userId || "",
       creatorId: contractData.userId,
       amount: amountInCents,
       currency,
       status: paymentIntent.status,
       created: new Date(),
-      paymentType: isAuthenticatedCreator ? "creator_payment" : "public_payment",
+      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
     });
 
     response.json({clientSecret: paymentIntent.client_secret});
@@ -327,7 +373,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
-      const {contractId, userId, clientEmail, paymentType, internalPayoutId, agencyId} = metadata;
+      const {contractId, userId, clientEmail, paymentType, internalPayoutId, agencyId, milestoneId} = metadata;
 
       if (internalPayoutId) {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
@@ -338,24 +384,43 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
       } else if (contractId) {
         const contractDocRef = db.collection("contracts").doc(contractId);
-        await contractDocRef.update({
-          invoiceStatus: "paid",
+        const contractDoc = await contractDocRef.get();
+        const contractData = contractDoc.data() as Contract;
+
+        const updates: {[key: string]: any} = {
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.Timestamp.now(),
-            action: "Invoice Paid",
+            action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
-        });
+        };
+
+        if (milestoneId && contractData.milestones) {
+          const updatedMilestones = contractData.milestones.map((m) =>
+            m.id === milestoneId ? {...m, status: "paid"} : m
+          );
+          updates.milestones = updatedMilestones;
+
+          const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
+          if (allMilestonesPaid) {
+            updates.invoiceStatus = "paid";
+            updates.status = "paid";
+          } else {
+            updates.invoiceStatus = "partially_paid";
+            updates.status = "partially_paid";
+          }
+        } else {
+          updates.invoiceStatus = "paid";
+          updates.status = "paid";
+        }
+        await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
           const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
           if (!chargeId) {
             throw new Error("Missing charge ID for agency payment split.");
           }
-
-          const contractDoc = await contractDocRef.get();
-          const contractData = contractDoc.data() as Contract;
 
           const agencyDoc = await db.collection("agencies").doc(agencyId).get();
           const agencyData = agencyDoc.data() as Agency;

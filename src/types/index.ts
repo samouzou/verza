@@ -2,11 +2,21 @@
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
+export interface PaymentMilestone {
+  id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
+  description: string;
+  amount: number;
+  dueDate: string; // YYYY-MM-DD
+  status: 'pending' | 'invoiced' | 'paid';
+  invoiceId?: string; // Link to the generated invoice document ID
+  lastReminderSentAt?: ClientTimestamp;
+}
+
 export interface EditableInvoiceLineItem {
   description: string;
   quantity: number;
   unitPrice: number;
-  // total will be calculated: quantity * unitPrice
+  isMilestone?: boolean; // To identify the locked milestone line item
 }
 
 export interface EditableInvoiceDetails {
@@ -33,12 +43,15 @@ export interface Contract {
   ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
   ownerId: string; // UID of the user or ID of the agency
   brand: string;
-  amount: number; // This will represent the total amount of the invoice, derived from editableInvoiceDetails if present
-  dueDate: string; // YYYY-MM-DD
-  status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced';
+  amount: number; // This will now be the TOTAL amount of all milestones
+  dueDate: string; // YYYY-MM-DD - Represents the final due date of the contract
+  status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced' | 'partially_paid';
   contractType: 'sponsorship' | 'consulting' | 'affiliate' | 'retainer' | 'other';
   projectName?: string; // Optional project name
   
+  // Payment Milestones
+  milestones?: PaymentMilestone[];
+
   // Client details for invoicing
   clientName?: string;
   clientEmail?: string;
@@ -60,8 +73,8 @@ export interface Contract {
   fileUrl: string | null;
   negotiationSuggestions?: NegotiationSuggestionsOutput | null;
   
-  // Invoice-specific fields
-  invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue';
+  // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
+  invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
   invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string, emailLogId?: string }>;

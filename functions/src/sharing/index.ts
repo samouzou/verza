@@ -151,8 +151,11 @@ export const getPublicContractDetails = onCall({
       id: contractSnap.id,
       brand: contractData.brand,
       projectName: contractData.projectName,
-      amount: contractData.amount,
       invoiceStatus: contractData.invoiceStatus,
+      clientEmail: contractData.clientEmail || null,
+      milestones: contractData.milestones || null,
+      amount: contractData.amount, // Include total amount as a fallback
+      editableInvoiceDetails: contractData.editableInvoiceDetails || null, // **** ADD THIS LINE ****
     };
 
     return publicData;
