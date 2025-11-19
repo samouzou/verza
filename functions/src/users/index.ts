@@ -16,7 +16,6 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
   const trialEndsAt = new admin.firestore.Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
   const twoDaysFromNow = new admin.firestore.Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
 
-
   const newUserDoc: UserProfileFirestoreData = {
     uid: uid,
     email: email || null,
