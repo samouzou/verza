@@ -14,7 +14,7 @@ import {
   sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   sendEmailVerification,
   updateProfile as firebaseUpdateProfile,
-  type FirebaseUser,
+  type User as FirebaseUser,
   db,
   doc,
   setDoc,
@@ -59,6 +59,10 @@ export interface UserProfile {
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
+  emailSequence?: {
+    step: number;
+    nextEmailAt: Timestamp;
+  };
 }
 
 interface AuthContextType {
@@ -89,6 +93,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     const { uid, email, displayName, photoURL, emailVerified } = firebaseUser;
     const createdAt = Timestamp.now();
     const trialEndsAtTimestamp = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
+    const twoDaysFromNow = new Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
 
     updates.uid = uid;
     updates.email = email;
@@ -120,6 +125,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     
     updates.hasCompletedOnboarding = false;
 
+    updates.emailSequence = {
+      step: 1, // Start at step 1 (Welcome email already sent by trigger)
+      nextEmailAt: twoDaysFromNow,
+    };
+
     needsUpdate = true;
 
     try {
@@ -130,6 +140,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
   } else {
     const existingData = userDocSnap.data() as UserProfile;
+    const twoDaysFromNow = new Timestamp(Timestamp.now().seconds + 2 * 24 * 60 * 60, Timestamp.now().nanoseconds);
 
     if (firebaseUser.photoURL && existingData.avatarUrl !== firebaseUser.photoURL) {
       updates.avatarUrl = firebaseUser.photoURL;
@@ -141,6 +152,13 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
     if (existingData.emailVerified !== firebaseUser.emailVerified) {
       updates.emailVerified = firebaseUser.emailVerified;
+      needsUpdate = true;
+    }
+     if (existingData.emailSequence === undefined) {
+      updates.emailSequence = {
+        step: 1, // Start existing users at step 1 (skip welcome)
+        nextEmailAt: twoDaysFromNow,
+      };
       needsUpdate = true;
     }
     if (existingData.address === undefined) { 
@@ -274,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
+              emailSequence: firestoreUserData.emailSequence,
             });
           } else {
              console.warn(`User document for ${currentFirebaseUser.uid} not found during listener setup.`);
