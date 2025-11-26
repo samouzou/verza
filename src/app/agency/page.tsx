@@ -703,62 +703,51 @@ export default function AgencyPage() {
     }
 
     setIsLoadingAgencies(true);
-    let unsubscribeOwner: (()=>void) | undefined;
-    let unsubscribeMember: (()=>void) | undefined;
+    let unsubscribeOwner: (() => void) | undefined;
+    let unsubscribeMemberships: (() => void) | undefined;
 
+    // Listen for owned agencies
     const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
     unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
       const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
       setOwnedAgencies(agencies);
-      if (agencies.length === 0) { // If user is not an owner, check for other memberships
-          const memberQuery = query(collection(db, "agencies"), where("members", "array-contains", {userId: user.uid, status: 'pending'}));
-          const talentQuery = query(collection(db, 'agencies'), where('talent', 'array-contains', {userId: user.uid, status: 'pending'}));
-          
-          // This part becomes more complex. Let's simplify for now.
-          // The logic in TalentAgencyView already handles finding pending memberships.
-          setIsLoadingAgencies(false);
+      if (agencies.length === 0) {
+        setIsLoadingAgencies(false); // Not an owner, stop loading for this part.
       } else {
-         setIsLoadingAgencies(false);
+        setMemberAgencies(agencies); // Owner is also a member, show their agency.
+        setIsLoadingAgencies(false);
       }
     }, (error) => {
       console.error("Error fetching owned agencies:", error);
       setIsLoadingAgencies(false);
     });
 
-    const fetchMemberAgencies = async () => {
-        if (!user.agencyMemberships && !user.isAgencyOwner) {
-            setMemberAgencies([]);
-            return;
-        }
-
-        const agencyIds = new Set<string>();
-        user.agencyMemberships?.forEach(mem => agencyIds.add(mem.agencyId));
-        
-        const q = query(collection(db, 'agencies'), where('members', 'array-contains', {userId: user.uid}));
-        const snapshot = await getDocs(q);
-        snapshot.forEach(doc => agencyIds.add(doc.id));
-
-        if (agencyIds.size > 0) {
-            try {
-                const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", Array.from(agencyIds)));
-                const memberSnapshot = await getDocs(memberQuery);
-                const agencies = memberSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-                setMemberAgencies(agencies);
-            } catch (error) {
-                console.error("Error fetching member agencies:", error);
-                setMemberAgencies([]);
-            }
-        } else {
-            setMemberAgencies([]);
-        }
-    };
+    // Listen for agencies where the user is a member or has a pending invite
+    const agencyIdsFromMemberships = user.agencyMemberships?.map(mem => mem.agencyId) || [];
+    if (agencyIdsFromMemberships.length > 0) {
+      const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", agencyIdsFromMemberships));
+      unsubscribeMemberships = onSnapshot(memberQuery, (snapshot) => {
+        const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+        setMemberAgencies(prev => {
+          // Combine and deduplicate with any owned agencies
+          const allAgencies = [...prev, ...agencies];
+          return Array.from(new Map(allAgencies.map(a => [a.id, a])).values());
+        });
+        setIsLoadingAgencies(false);
+      }, (error) => {
+        console.error("Error fetching member agencies:", error);
+        setIsLoadingAgencies(false);
+      });
+    } else {
+      // If user has no memberships and is not an owner, we can stop loading.
+      if (ownedAgencies.length === 0) {
+          setIsLoadingAgencies(false);
+      }
+    }
     
-    fetchMemberAgencies();
-
-
     return () => {
       if(unsubscribeOwner) unsubscribeOwner();
-      if(unsubscribeMember) unsubscribeMember();
+      if(unsubscribeMemberships) unsubscribeMemberships();
     };
   }, [user, authLoading]);
   
