@@ -285,7 +285,6 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       }
     }
 
-    let paymentIntentParams: Stripe.PaymentIntentCreateParams;
     const amountInCents = Math.round(amountToCharge * 100);
 
     const metadataForStripe: Stripe.MetadataParam = {
@@ -306,7 +305,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     if (contractData.ownerType === "agency" && contractData.ownerId) {
       metadataForStripe.agencyId = contractData.ownerId;
       metadataForStripe.paymentType = "agency_payment";
-      
+
       const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
       const agencyData = agencyDoc.data() as Agency;
 
@@ -314,10 +313,10 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
       finalStripeAccountId = agencyOwnerData.stripeAccountId || undefined;
     } else {
-        metadataForStripe.paymentType = "creator_payment";
-        const creatorDoc = await db.collection("users").doc(contractData.userId).get();
-        const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-        finalStripeAccountId = creatorData.stripeAccountId || undefined;
+      metadataForStripe.paymentType = "creator_payment";
+      const creatorDoc = await db.collection("users").doc(contractData.userId).get();
+      const creatorData = creatorDoc.data() as UserProfileFirestoreData;
+      finalStripeAccountId = creatorData.stripeAccountId || undefined;
     }
 
 
@@ -329,7 +328,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     const stripeFee = Math.round(amountInCents * 0.029) + 30;
     const totalApplicationFee = platformFee + stripeFee;
 
-    paymentIntentParams = {
+    const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
       amount: amountInCents,
       currency,
       application_fee_amount: totalApplicationFee,
