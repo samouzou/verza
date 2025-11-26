@@ -33,12 +33,19 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
+      // Users can read and create their own profile.
       allow read, create: if isUser(userId);
-      // Allow a user to update their own profile, BUT prevent them from changing their role or isAgencyOwner status directly.
-      // Those can only be changed by trusted backend functions.
-      allow update: if isUser(userId) &&
+      // Allow a user to update their own profile, but prevent them from changing their role or isAgencyOwner status directly.
+      // Those can only be changed by trusted backend functions (or during the agency creation process).
+      allow update: if isUser(userId) && 
                        (request.resource.data.role == resource.data.role) &&
                        (request.resource.data.isAgencyOwner == resource.data.isAgencyOwner);
+      
+      // Rules for private credentials subcollection
+      match /private_credentials/{credId} {
+          // NO client read/write access. Only backend functions can access this.
+          allow read, write: if false;
+      }
     }
 
     // Rules for the contracts collection
