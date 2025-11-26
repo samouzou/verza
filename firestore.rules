@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -163,7 +164,15 @@ service cloud.firestore {
     // Rules for agencies
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
-      allow create, update, delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
+      allow update: if request.auth != null && request.auth.uid == resource.data.ownerId && 
+                      (
+                        // Allow owner to update all fields EXCEPT members array initially
+                        !request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'talent']) ||
+                        // Explicitly allow owner to update the members array
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+                      );
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
     // Rules for internal agency payouts
@@ -180,3 +189,5 @@ service cloud.firestore {
      }
   }
 }
+
+    
