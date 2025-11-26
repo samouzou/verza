@@ -9,11 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy, Wand2 } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy, Wand2, Shield, UserCog } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency, AgencyMembership, InternalPayout, Talent } from '@/types';
+import type { Agency, AgencyMember, AgencyMembership, InternalPayout, Talent } from '@/types';
 import { onSnapshot, collection, query, where, getDocs, documentId, orderBy, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -38,6 +38,8 @@ import { useTour } from '@/hooks/use-tour';
 import { agencyTour } from '@/lib/tours';
 import { generateTalentContract } from '@/ai/flows/generate-talent-contract-flow';
 import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -98,6 +100,7 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
   const { user } = useAuth();
   const { toast } = useToast();
   const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
+  const inviteTeamMemberCallable = httpsCallable(functions, 'inviteTeamMember');
   
   const [payoutTalentId, setPayoutTalentId] = useState("");
   const [payoutAmount, setPayoutAmount] = useState("");
@@ -114,6 +117,12 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
   const [isGeneratingContract, setIsGeneratingContract] = useState(false);
   const [generatedContractData, setGeneratedContractData] = useState<{ sfdt: string; talent: Talent } | null>(null);
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+
+  // Team Management State
+  const [teamInviteEmail, setTeamInviteEmail] = useState("");
+  const [teamInviteRole, setTeamInviteRole] = useState<'admin' | 'member'>('member');
+  const [isInvitingTeamMember, setIsInvitingTeamMember] = useState(false);
+
 
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
@@ -177,6 +186,24 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
     }
   };
   
+  const handleInviteTeamMember = async () => {
+    if (!teamInviteEmail.trim() || !/^\S+@\S+\.\S+$/.test(teamInviteEmail)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email for the team member.", variant: "destructive" });
+      return;
+    }
+    setIsInvitingTeamMember(true);
+    try {
+      await inviteTeamMemberCallable({ agencyId: agency.id, memberEmail: teamInviteEmail.trim(), role: teamInviteRole });
+      toast({ title: "Team Invitation Sent", description: `An invitation has been sent to ${teamInviteEmail}.` });
+      setTeamInviteEmail("");
+    } catch (error: any) {
+      console.error("Error inviting team member:", error);
+      toast({ title: "Invitation Failed", description: error.message || "Could not invite team member.", variant: "destructive" });
+    } finally {
+      setIsInvitingTeamMember(false);
+    }
+  };
+
   const handleSendPayout = async () => {
     const amountNum = parseFloat(payoutAmount);
     if (!payoutTalentId) {
@@ -285,31 +312,6 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card id="invite-talent-card">
-            <CardHeader>
-            <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
-            <CardDescription>Invite creators to join your agency via email.</CardDescription>
-            </CardHeader>
-            <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-grow">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    type="email" 
-                    placeholder="creator@example.com" 
-                    className="pl-10"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    disabled={isInviting || atTalentLimit || isNotOnAgencyPlan}
-                />
-                </div>
-                <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan}>
-                {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
-                Send Invite
-                </Button>
-            </div>
-            </CardContent>
-        </Card>
         <Card id="create-payout-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
@@ -375,43 +377,42 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
             </AlertDialog>
           </CardContent>
         </Card>
+        <Card id="ai-contract-generator-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Wand2 className="text-primary"/> AI Talent Contract Generator</CardTitle>
+            <CardDescription>Generate a standardized talent management agreement using AI.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="ai-contract-prompt">Contract Prompt</Label>
+              <Textarea 
+                id="ai-contract-prompt"
+                value={aiContractPrompt}
+                onChange={(e) => setAiContractPrompt(e.target.value)}
+                placeholder="e.g., Draft a 1-year exclusive management contract with a 20% commission on all brand deals."
+                rows={3}
+                disabled={isGeneratingContract || isNotOnAgencyPlan}
+              />
+            </div>
+            <div>
+              <Label htmlFor="ai-contract-talent">For Talent</Label>
+              <Select value={aiContractTalentId} onValueChange={setAiContractTalentId} disabled={isGeneratingContract || isNotOnAgencyPlan}>
+                <SelectTrigger id="ai-contract-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
+                <SelectContent>
+                  {agency.talent.filter(t => t.status === 'active').map(t => (
+                    <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleGenerateContract} disabled={isGeneratingContract || !aiContractPrompt || !aiContractTalentId || isNotOnAgencyPlan}>
+              {isGeneratingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+              Generate Contract
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card id="ai-contract-generator-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Wand2 className="text-primary"/> AI Talent Contract Generator</CardTitle>
-        <CardDescription>Generate a standardized talent management agreement using AI.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label htmlFor="ai-contract-prompt">Contract Prompt</Label>
-          <Textarea 
-            id="ai-contract-prompt"
-            value={aiContractPrompt}
-            onChange={(e) => setAiContractPrompt(e.target.value)}
-            placeholder="e.g., Draft a 1-year exclusive management contract with a 20% commission on all brand deals."
-            rows={3}
-            disabled={isGeneratingContract || isNotOnAgencyPlan}
-          />
-        </div>
-        <div>
-          <Label htmlFor="ai-contract-talent">For Talent</Label>
-          <Select value={aiContractTalentId} onValueChange={setAiContractTalentId} disabled={isGeneratingContract || isNotOnAgencyPlan}>
-            <SelectTrigger id="ai-contract-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
-            <SelectContent>
-              {agency.talent.filter(t => t.status === 'active').map(t => (
-                <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={handleGenerateContract} disabled={isGeneratingContract || !aiContractPrompt || !aiContractTalentId || isNotOnAgencyPlan}>
-          {isGeneratingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
-          Generate Contract
-        </Button>
-      </CardContent>
-      </Card>
-      
       {generatedContractData && (
         <UploadContractDialog 
           isOpen={isContractDialogOpen} 
@@ -422,51 +423,130 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
         />
       )}
 
+      <Tabs defaultValue="talent" className="w-full mt-6">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="talent"><Users className="mr-2 h-4 w-4"/>Talent Roster</TabsTrigger>
+            <TabsTrigger value="team"><UserCog className="mr-2 h-4 w-4"/>Team Management</TabsTrigger>
+        </TabsList>
+        <TabsContent value="talent">
+            <Card id="talent-roster-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">Talent Roster</CardTitle>
+                <CardDescription>Invite and manage creators in your agency. ({activeTalentCount} / {talentLimit} talents)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-grow">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                      type="email" 
+                      placeholder="creator@example.com" 
+                      className="pl-10"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      disabled={isInviting || atTalentLimit || isNotOnAgencyPlan}
+                  />
+                  </div>
+                  <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan}>
+                  {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                  Invite Talent
+                  </Button>
+                </div>
+                <Separator />
+                {agency.talent && agency.talent.length > 0 ? (
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead>Commission</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {agency.talent.map(t => (
+                        <TableRow key={t.userId}>
+                          <TableCell className="font-medium flex items-center gap-2">
+                            <Avatar className="h-8 w-8"><AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
+                            {t.displayName || 'N/A'}
+                          </TableCell>
+                          <TableCell>{t.email}</TableCell>
+                          <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${t.status === 'active' ? 'bg-green-500' : ''}`}>{t.status}</Badge></TableCell>
+                          <TableCell>
+                            {editingTalent?.userId === t.userId ? (
+                              <div className="flex items-center gap-2">
+                                <div className="relative">
+                                  <Input type="number" value={newCommissionRate} onChange={(e) => setNewCommissionRate(Number(e.target.value))} className="w-20 pl-2 pr-6"/>
+                                  <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <Button size="icon" className="h-8 w-8" onClick={handleUpdateCommission}><Check className="h-4 w-4"/></Button>
+                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingTalent(null)}><X className="h-4 w-4"/></Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span>{t.commissionRate ?? 0}%</span>
+                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingTalent(t); setNewCommissionRate(t.commissionRate ?? 0); }}>
+                                  <Percent className="h-4 w-4"/>
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators!</p>}
+              </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="team">
+            <Card id="team-management-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">Team Management</CardTitle>
+                <CardDescription>Invite and manage your internal agency team.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input 
+                      type="email" 
+                      placeholder="teammate@youragency.com" 
+                      className="flex-grow"
+                      value={teamInviteEmail}
+                      onChange={(e) => setTeamInviteEmail(e.target.value)}
+                      disabled={isInvitingTeamMember}
+                    />
+                    <Select value={teamInviteRole} onValueChange={(v) => setTeamInviteRole(v as any)} disabled={isInvitingTeamMember}>
+                      <SelectTrigger className="w-full sm:w-[120px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleInviteTeamMember} disabled={isInvitingTeamMember || !teamInviteEmail}>
+                      {isInvitingTeamMember ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserPlus className="mr-2 h-4 w-4" />}
+                      Invite Teammate
+                    </Button>
+                  </div>
+                  <Separator />
+                  {agency.members && agency.members.length > 0 ? (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Team Member</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {agency.members.map(m => (
+                          <TableRow key={m.userId}>
+                             <TableCell className="font-medium flex items-center gap-2">
+                                <Avatar className="h-8 w-8"><AvatarFallback>{m.displayName ? m.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
+                                {m.displayName}
+                                {m.role === 'owner' && <Shield className="h-4 w-4 text-primary" />}
+                              </TableCell>
+                              <TableCell>{m.email}</TableCell>
+                              <TableCell className="capitalize">{m.role}</TableCell>
+                              <TableCell><Badge variant={m.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${m.status === 'active' ? 'bg-green-500' : ''}`}>{m.status}</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-6">Your team is empty. Invite your first teammate!</p>
+                  )}
+              </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
 
-      <Card id="talent-roster-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>
-          <CardDescription>View your current roster of creators. ({activeTalentCount} / {talentLimit} talents)</CardDescription>
-        </CardHeader>
-        <CardContent>
-           {agency.talent && agency.talent.length > 0 ? (
-            <Table>
-              <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead>Commission</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {agency.talent.map(t => (
-                  <TableRow key={t.userId}>
-                    <TableCell className="font-medium flex items-center gap-2">
-                      <Avatar className="h-8 w-8"><AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
-                      {t.displayName || 'N/A'}
-                    </TableCell>
-                    <TableCell>{t.email}</TableCell>
-                    <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${t.status === 'active' ? 'bg-green-500' : ''}`}>{t.status}</Badge></TableCell>
-                    <TableCell>
-                      {editingTalent?.userId === t.userId ? (
-                        <div className="flex items-center gap-2">
-                           <div className="relative">
-                            <Input type="number" value={newCommissionRate} onChange={(e) => setNewCommissionRate(Number(e.target.value))} className="w-20 pl-2 pr-6"/>
-                            <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <Button size="icon" className="h-8 w-8" onClick={handleUpdateCommission}><Check className="h-4 w-4"/></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingTalent(null)}><X className="h-4 w-4"/></Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span>{t.commissionRate ?? 0}%</span>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingTalent(t); setNewCommissionRate(t.commissionRate ?? 0); }}>
-                            <Percent className="h-4 w-4"/>
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-           ) : <p className="text-center text-muted-foreground py-6">Your talent roster is empty. Invite some creators!</p>}
-        </CardContent>
-      </Card>
        <Card id="payout-history-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
@@ -669,7 +749,7 @@ export default function AgencyPage() {
   let pageDescription = "Create or manage your creator agency.";
   if (userOwnsAnAgency) {
     pageTitle = ownedAgencies[0].name;
-    pageDescription = "Manage your agency's talent, contracts, and finances.";
+    pageDescription = "Manage your agency's talent, finances, and internal team.";
   } else if (isMemberOfAnyAgency) {
     pageTitle = "My Agencies";
     pageDescription = "View and respond to agency invitations.";
@@ -694,5 +774,3 @@ export default function AgencyPage() {
     </>
   );
 }
-
-    
