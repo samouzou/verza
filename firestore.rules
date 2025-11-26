@@ -41,7 +41,7 @@ service cloud.firestore {
         // Allow general profile updates
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence']) ||
         // Allow specifically adding an agency membership when creating an agency
-        request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships'])
+        (request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships']) && request.resource.data.role == 'agency_owner')
       );
     }
 
