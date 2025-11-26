@@ -14,6 +14,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
+    // NEW: Helper function to check if the user is an active team member of a specific agency
+    function isTeamMemberOf(agencyId) {
+      let agency = get(/databases/$(database)/documents/agencies/$(agencyId)).data;
+      return request.auth.uid in agency.members.filter(m => m.status == 'active').map(m => m.userId);
+    }
+
     // Helper functions to allow user to access email logs
     function isSignedIn() {
       return request.auth != null;
@@ -33,13 +39,10 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      // Users can read and create their own profile.
       allow read, create: if isUser(userId);
-      // Allow a user to update their own profile, but prevent them from changing their role or isAgencyOwner status directly.
-      // Those can only be changed by trusted backend functions (or during the agency creation process).
       allow update: if isUser(userId) && 
-                       (request.resource.data.role == resource.data.role) &&
-                       (request.resource.data.isAgencyOwner == resource.data.isAgencyOwner);
+                       !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
+                       !(request.resource.data.isAgencyOwner == true && resource.data.isAgencyOwner == false);
       
       // Rules for private credentials subcollection
       match /private_credentials/{credId} {
@@ -53,13 +56,15 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null && 
         (
           request.auth.uid == resource.data.userId || // User is the talent on the contract
-          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) // User is the owner of the agency on the contract
+          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || // User is the owner of the agency
+          (resource.data.ownerType == 'agency' && isTeamMemberOf(resource.data.ownerId))    // OR User is a team member of the agency
         );
       
       allow create: if request.auth != null && 
         (
           request.auth.uid == request.resource.data.userId || // Talent creating for themselves
-          (request.resource.data.ownerType == 'agency' && isAgencyOwner(request.auth.uid)) // Agency owner creating for talent
+          (request.resource.data.ownerType == 'agency' && isAgencyOwner(request.auth.uid)) || // Agency owner creating for talent
+          (request.resource.data.ownerType == 'agency' && isTeamMemberOf(request.resource.data.ownerId)) // OR Team member creating for talent
         );
     }
     
@@ -174,7 +179,7 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && isOwnerOfAgency(agencyId);
+      allow update: if request.auth != null && (isOwnerOfAgency(agencyId) || isTeamMemberOf(agencyId));
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
