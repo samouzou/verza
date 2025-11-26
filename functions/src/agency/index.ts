@@ -461,8 +461,8 @@ export const inviteTeamMember = onCall(async (request) => {
     }
 
     // Check if user is already a member or talent
-    if (agencyData.members.some((m) => m.email === memberEmailCleaned) ||
-      agencyData.talent.some((t) => t.email === memberEmailCleaned)) {
+    if (agencyData.members?.some((m) => m.email === memberEmailCleaned) ||
+      agencyData.talent?.some((t) => t.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already associated with the agency as a member or talent.");
     }
 
