@@ -39,7 +39,7 @@ service cloud.firestore {
       // Allow user to update their own profile, including adding agency details
       allow update: if isUser(userId) && (
         // Allow general profile updates for common fields
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence', 'agencyMemberships']) ||
         // OR, specifically allow the transition to agency owner
         (request.resource.data.role == 'agency_owner' && 
          request.resource.data.isAgencyOwner == true &&
@@ -193,5 +193,3 @@ service cloud.firestore {
      }
   }
 }
-
-    
