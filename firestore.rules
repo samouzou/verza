@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -17,7 +16,7 @@ service cloud.firestore {
     // Helper function to check if the user is an active team member of a specific agency
     function isTeamMemberOf(agencyId) {
       let agency = get(/databases/$(database)/documents/agencies/$(agencyId)).data;
-      return request.auth.uid in agency.members.filter(m => m.status == 'active').map(m => m.userId);
+      return request.auth.uid in agency.members.filter(m, m.status == 'active').map(m, m.userId);
     }
 
     // NEW: Helper function to check if the requesting user is a team member of an agency owned by the target user
@@ -28,7 +27,7 @@ service cloud.firestore {
             return false;
         }
         // Filter for active team memberships
-        let activeTeamMemberships = userMemberships.filter(mem => mem.role == 'team' && mem.status == 'active');
+        let activeTeamMemberships = userMemberships.filter(mem, mem.role == 'team' && mem.status == 'active');
         if (activeTeamMemberships.size() == 0) {
             return false;
         }
