@@ -527,25 +527,43 @@ export const acceptTeamInvitation = onCall(async (request) => {
   }
 
   const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(memberId);
 
   try {
     return await db.runTransaction(async (transaction) => {
       const agencyDoc = await transaction.get(agencyDocRef);
+      const userDoc = await transaction.get(userDocRef);
+
       if (!agencyDoc.exists) {
         throw new HttpsError("not-found", "Agency not found.");
       }
-      const agencyData = agencyDoc.data() as Agency;
-      const memberIndex = agencyData.members?.findIndex((m) => m.userId === memberId && m.status === "pending");
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User document not found.");
+      }
 
+      const agencyData = agencyDoc.data() as Agency;
+      const userData = userDoc.data() as UserProfileFirestoreData;
+      
+      const memberIndex = agencyData.members?.findIndex((m) => m.userId === memberId && m.status === "pending");
       if (memberIndex === -1 || memberIndex === undefined) {
         throw new HttpsError("failed-precondition", "No pending team invitation found for this user.");
       }
 
+      const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.role === 'team' && m.status === "pending");
+      if (membershipIndex === -1 || membershipIndex === undefined) {
+        throw new HttpsError("failed-precondition", "User does not have a corresponding pending team membership.");
+      }
+
+      // Update agency document
       const updatedMembers = [...(agencyData.members || [])];
       const memberData = updatedMembers[memberIndex];
       updatedMembers[memberIndex] = {...memberData, status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
-
       transaction.update(agencyDocRef, {members: updatedMembers});
+      
+      // Update user document
+      const updatedMemberships = [...(userData.agencyMemberships || [])];
+      updatedMemberships[membershipIndex] = { ...updatedMemberships[membershipIndex], status: "active" };
+      transaction.update(userDocRef, { agencyMemberships: updatedMemberships });
 
       // Set custom claims based on role
       const currentClaims = (await admin.auth().getUser(memberId)).customClaims || {};
@@ -580,17 +598,30 @@ export const declineTeamInvitation = onCall(async (request) => {
   }
 
   const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(memberId);
 
   try {
     await db.runTransaction(async (transaction) => {
       const agencyDoc = await transaction.get(agencyDocRef);
+      const userDoc = await transaction.get(userDocRef);
+
       if (!agencyDoc.exists) {
         throw new HttpsError("not-found", "Agency not found.");
       }
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User document not found.");
+      }
+      
       const agencyData = agencyDoc.data() as Agency;
-      const updatedMembers = agencyData.members?.filter((m) => m.userId !== memberId || m.status !== "pending");
+      const userData = userDoc.data() as UserProfileFirestoreData;
 
+      // Remove member from agency's member list
+      const updatedMembers = agencyData.members?.filter((m) => m.userId !== memberId || m.status !== "pending");
       transaction.update(agencyDocRef, {members: updatedMembers});
+
+      // Remove membership from user's document
+      const updatedMemberships = userData.agencyMemberships?.filter(m => !(m.agencyId === agencyId && m.role === 'team'));
+      transaction.update(userDocRef, { agencyMemberships: updatedMemberships });
     });
     return {success: true, message: "Team invitation declined."};
   } catch (error) {
@@ -599,4 +630,3 @@ export const declineTeamInvitation = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   }
 });
-
