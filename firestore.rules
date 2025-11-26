@@ -67,74 +67,7 @@ service cloud.firestore {
           (request.resource.data.ownerType == 'agency' && isTeamMemberOf(request.resource.data.ownerId)) // OR Team member creating for talent
         );
     }
-    
-    // Rules for shared contract versions (public read, creator write/delete)
-    match /sharedContractVersions/{sharedVersionId} {
-      // PUBLIC READ for active links: Allow anyone to read if the status is 'active'.
-      // Authenticated creator can always read their own versions regardless of status.
-      allow read: if (resource.data.status == 'active') || 
-                       (request.auth != null && request.auth.uid == resource.data.userId);
-
-      // Allow a user to create a shared version if:
-      // 1. They are authenticated.
-      // 2. The userId in the new document matches their own UID.
-      // 3. The originalContractId in the new document points to a contract they own.
-      allow create: if request.auth != null &&
-                       request.resource.data.userId == request.auth.uid &&
-                       get(/databases/$(database)/documents/contracts/$(request.resource.data.originalContractId)).data.userId == request.auth.uid;
-
-      // Only the creator can update (e.g., to revoke) or delete.
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
-
-    // Rules for contract comments on shared versions
-    match /contractComments/{commentId} {
-      allow create: if request.resource.data.sharedVersionId != null &&
-                       exists(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)) &&
-                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
-                       request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
-                       request.resource.data.commenterName is string && request.resource.data.commenterName.size() > 0 && request.resource.data.commenterName.size() < 100 &&
-                       request.resource.data.commentText is string && request.resource.data.commentText.size() > 0 && request.resource.data.commentText.size() < 2000 &&
-                       request.resource.data.commentedAt == request.time &&
-                       (request.resource.data.commenterEmail == null || (request.resource.data.commenterEmail is string && request.resource.data.commenterEmail.size() < 100)) &&
-                       request.resource.data.originalContractId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.originalContractId;
-      
-      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
-                     (request.auth != null && request.auth.uid == resource.data.creatorId);
-
-      allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       request.resource.data.creatorId == resource.data.creatorId && 
-                       request.resource.data.originalContractId == resource.data.originalContractId && 
-                       request.resource.data.sharedVersionId == resource.data.sharedVersionId && 
-                       (request.resource.data.replies == null || request.resource.data.replies is list);
-                       
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
-    }
-    
-    // Rules for redline proposals on shared versions
-    match /redlineProposals/{proposalId} {
-      allow create: if request.resource.data.sharedVersionId != null &&
-                       exists(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)) &&
-                       get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.status == 'active' &&
-                       request.resource.data.proposerName is string && request.resource.data.proposerName.size() > 0 &&
-                       request.resource.data.originalText is string && request.resource.data.originalText.size() > 0 &&
-                       request.resource.data.proposedText is string && request.resource.data.proposedText.size() > 0 &&
-                       request.resource.data.creatorId == get(/databases/$(database)/documents/sharedContractVersions/$(request.resource.data.sharedVersionId)).data.userId &&
-                       request.resource.data.status == 'proposed' &&
-                       request.resource.data.proposedAt == request.time;
-      
-      allow read: if get(/databases/$(database)/documents/sharedContractVersions/$(resource.data.sharedVersionId)).data.status == 'active' ||
-                     (request.auth != null && request.auth.uid == resource.data.creatorId);
-
-      allow update: if request.auth != null && request.auth.uid == resource.data.creatorId &&
-                       request.resource.data.originalText == resource.data.originalText &&
-                       request.resource.data.proposedText == resource.data.proposedText &&
-                       request.resource.data.proposerName == resource.data.proposerName &&
-                       request.resource.data.status in ['accepted', 'rejected'];
-
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
-    }
-
+        
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
