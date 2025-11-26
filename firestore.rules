@@ -33,20 +33,12 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read: if isUser(userId);
-      // Allow user to create their own user document
-      allow create: if request.auth.uid == userId;
-      // Allow user to update their own profile, including adding agency details
-      allow update: if isUser(userId) && (
-        // Allow general profile updates for common fields
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence'])) ||
-        // OR, specifically allow the transition to agency owner
-        (request.resource.data.isAgencyOwner == true && 
-         request.resource.data.role == 'agency_owner' &&
-         request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships'])) ||
-        // OR, allow updating agencyMemberships when joining as talent
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['agencyMemberships']))
-      );
+      allow read, create: if isUser(userId);
+      // Allow a user to update their own profile, BUT prevent them from changing their role or isAgencyOwner status directly.
+      // Those can only be changed by trusted backend functions.
+      allow update: if isUser(userId) &&
+                       (request.resource.data.role == resource.data.role) &&
+                       (request.resource.data.isAgencyOwner == resource.data.isAgencyOwner);
     }
 
     // Rules for the contracts collection
@@ -175,9 +167,7 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && (
-        isOwnerOfAgency(agencyId)
-      );
+      allow update: if request.auth != null && isOwnerOfAgency(agencyId);
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
@@ -195,5 +185,3 @@ service cloud.firestore {
      }
   }
 }
-
-    
