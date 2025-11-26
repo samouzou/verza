@@ -15,27 +15,20 @@ service cloud.firestore {
 
     // Helper function to check if the user is an active team member of a specific agency
     function isTeamMemberOf(agencyId) {
-      let agency = get(/databases/$(database)/documents/agencies/$(agencyId)).data;
-      return request.auth.uid in agency.members.filter(m, m.status == 'active').map(m, m.userId);
+      return request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.members.filter(m, m.status == 'active').map(m, m.userId);
     }
 
     // NEW: Helper function to check if the requesting user is a team member of an agency owned by the target user
     function isTeamMemberOfAgencyOwnedBy(targetUserId) {
-        let userMemberships = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships;
-        // Check if the user has any active team memberships
-        if (!('agencyMemberships' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || userMemberships.size() == 0) {
-            return false;
-        }
-        // Filter for active team memberships
-        let activeTeamMemberships = userMemberships.filter(mem, mem.role == 'team' && mem.status == 'active');
-        if (activeTeamMemberships.size() == 0) {
-            return false;
-        }
-        // Check if any of those agencies are owned by the target user
-        let agencyId = activeTeamMemberships[0].agencyId; // Assuming team member can only be in one agency for now
-        let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
-        return agencyDoc.data.ownerId == targetUserId;
+      // Check if the user has any active team memberships and if any of those agencies are owned by the target user.
+      // This is a single return statement composed of boolean logic.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             'agencyMemberships' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships
+               .filter(mem, mem.role == 'team' && mem.status == 'active').size() > 0 &&
+             get(/databases/$(database)/documents/agencies/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.filter(mem, mem.role == 'team' && mem.status == 'active')[0].agencyId)).data.ownerId == targetUserId;
     }
+
 
     // Helper functions to allow user to access email logs
     function isSignedIn() {
