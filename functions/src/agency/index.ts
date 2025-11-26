@@ -60,7 +60,7 @@ export const createAgency = onCall(async (request) => {
       displayName: userRecord.displayName || "Agency Owner",
       role: "owner",
       status: "active",
-      joinedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+      joinedAt: admin.firestore.Timestamp.now() as any,
     };
 
     const newAgency: Agency = {
