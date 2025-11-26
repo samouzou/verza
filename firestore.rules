@@ -38,10 +38,12 @@ service cloud.firestore {
       allow create: if request.auth.uid == userId;
       // Allow user to update their own profile, including adding agency details
       allow update: if isUser(userId) && (
-        // Allow general profile updates
+        // Allow general profile updates for common fields
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence']) ||
-        // Allow specifically adding an agency membership when creating an agency
-        (request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships']) && request.resource.data.role == 'agency_owner')
+        // OR, specifically allow the transition to agency owner
+        (request.resource.data.role == 'agency_owner' && 
+         request.resource.data.isAgencyOwner == true &&
+         request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships']))
       );
     }
 
@@ -171,7 +173,9 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && request.auth.uid == resource.data.ownerId;
+      allow update: if request.auth != null && (
+        isOwnerOfAgency(agencyId)
+      );
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
@@ -189,3 +193,5 @@ service cloud.firestore {
      }
   }
 }
+
+    
