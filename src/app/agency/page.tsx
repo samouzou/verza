@@ -14,7 +14,7 @@ import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, AgencyMember, AgencyMembership, InternalPayout, Talent } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, doc, getDoc, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, getDocs, doc, getDoc, orderBy, Timestamp, updateDoc, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
