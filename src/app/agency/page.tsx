@@ -583,24 +583,45 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
   
   const acceptAgencyInvitationCallable = httpsCallable(functions, 'acceptAgencyInvitation');
   const declineAgencyInvitationCallable = httpsCallable(functions, 'declineAgencyInvitation');
+  const acceptTeamInvitationCallable = httpsCallable(functions, 'acceptTeamInvitation');
+  const declineTeamInvitationCallable = httpsCallable(functions, 'declineTeamInvitation');
 
-  const handleInvitationAction = async (agencyId: string, action: 'accept' | 'decline') => {
+  const handleInvitationAction = async (agencyId: string, type: 'talent' | 'team', action: 'accept' | 'decline') => {
     setProcessingId(agencyId);
     try {
-      if (action === 'accept') {
-        await acceptAgencyInvitationCallable({ agencyId });
-        toast({ title: "Invitation Accepted!", description: "You are now an active member of the agency." });
-      } else {
-        await declineAgencyInvitationCallable({ agencyId });
-        toast({ title: "Invitation Declined", description: "You have declined the invitation." });
+      if (type === 'talent') {
+        if (action === 'accept') {
+          await acceptAgencyInvitationCallable({ agencyId });
+          toast({ title: "Talent Invitation Accepted!", description: "You are now an active member of the agency." });
+        } else {
+          await declineAgencyInvitationCallable({ agencyId });
+          toast({ title: "Talent Invitation Declined", description: "You have declined the invitation." });
+        }
+      } else { // 'team'
+         if (action === 'accept') {
+          await acceptTeamInvitationCallable({ agencyId });
+          toast({ title: "Team Invitation Accepted!", description: "You are now part of the agency team." });
+        } else {
+          await declineTeamInvitationCallable({ agencyId });
+          toast({ title: "Team Invitation Declined" });
+        }
       }
     } catch (error: any) {
-      console.error(`Error ${action}ing invitation for agency ${agencyId}:`, error);
+      console.error(`Error ${action}ing ${type} invitation for agency ${agencyId}:`, error);
       toast({ title: "Action Failed", description: error.message || "Could not process your request.", variant: "destructive" });
     } finally {
       setProcessingId(null);
     }
   };
+
+  const {user} = useAuth();
+  const pendingTalentMemberships = memberships.filter(m => m.role === 'talent' && m.status === 'pending');
+  
+  const pendingTeamMemberships = useMemo(() => {
+    if (!user) return [];
+    return agencies.filter(agency => agency.members?.some(m => m.userId === user.uid && m.status === 'pending'));
+  }, [agencies, user]);
+
 
   return (
     <Card>
@@ -609,26 +630,28 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
         <CardDescription>You are a member of or have been invited to the following agencies.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {agencies.map(agency => {
-          const membership = memberships.find(m => m.agencyId === agency.id);
-          const isPending = membership?.status === 'pending';
+        {pendingTalentMemberships.length === 0 && pendingTeamMemberships.length === 0 && (
+          <p className="text-center text-muted-foreground py-6">You have no pending invitations.</p>
+        )}
+        {[...pendingTalentMemberships, ...pendingTeamMemberships.map(a => ({agencyId: a.id, agencyName: a.name, role: 'team' as const, status: 'pending' as const}))].map(membership => {
+          const agency = agencies.find(a => a.id === membership.agencyId);
+          if (!agency) return null;
+          const isTeamInvite = 'role' in membership && membership.role === 'team';
 
           return (
-            <div key={agency.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
+            <div key={agency.id + (isTeamInvite ? '-team' : '-talent')} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
               <div className="flex-grow">
                 <div className="font-medium">{agency.name}</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="h-4 w-4"/>
-                    <span>{agency.talent.length} Talent</span>
+                    <span>Invitation to join as {isTeamInvite ? 'a Team Member' : 'Talent'}</span>
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
-                {isPending ? (
-                  <>
                     <Button 
                       size="sm" 
                       variant="destructive_outline"
-                      onClick={() => handleInvitationAction(agency.id, 'decline')}
+                      onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'decline')}
                       disabled={processingId === agency.id}
                     >
                       {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="mr-1 h-3 w-3" />}
@@ -636,16 +659,12 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
                     </Button>
                     <Button 
                       size="sm"
-                      onClick={() => handleInvitationAction(agency.id, 'accept')}
+                      onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'accept')}
                       disabled={processingId === agency.id}
                     >
                        {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="mr-1 h-3 w-3" />}
                       Accept
                     </Button>
-                  </>
-                ) : (
-                   <Badge variant="default" className="bg-green-500">Active Member</Badge>
-                )}
               </div>
             </div>
           );
@@ -662,6 +681,7 @@ export default function AgencyPage() {
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
+  const { toast } = useToast();
 
   const handleUpdateAgency = async (agencyUpdates: Partial<Agency>) => {
     if (!ownedAgencies[0]) return;
@@ -683,13 +703,22 @@ export default function AgencyPage() {
     }
 
     setIsLoadingAgencies(true);
+    let unsubscribeOwner: (()=>void) | undefined;
+    let unsubscribeMember: (()=>void) | undefined;
 
     const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
-    const unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
+    unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
       const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
       setOwnedAgencies(agencies);
-      if (!user.agencyMemberships || user.agencyMemberships.length === 0) {
-        setIsLoadingAgencies(false);
+      if (agencies.length === 0) { // If user is not an owner, check for other memberships
+          const memberQuery = query(collection(db, "agencies"), where("members", "array-contains", {userId: user.uid, status: 'pending'}));
+          const talentQuery = query(collection(db, 'agencies'), where('talent', 'array-contains', {userId: user.uid, status: 'pending'}));
+          
+          // This part becomes more complex. Let's simplify for now.
+          // The logic in TalentAgencyView already handles finding pending memberships.
+          setIsLoadingAgencies(false);
+      } else {
+         setIsLoadingAgencies(false);
       }
     }, (error) => {
       console.error("Error fetching owned agencies:", error);
@@ -697,30 +726,39 @@ export default function AgencyPage() {
     });
 
     const fetchMemberAgencies = async () => {
-      const memberAgencyIds = user.agencyMemberships
-        ?.map(mem => mem.agencyId)
-        .filter(id => !!id) || [];
-
-      if (memberAgencyIds.length > 0) {
-        try {
-          const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", memberAgencyIds));
-          const snapshot = await getDocs(memberQuery);
-          const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-          setMemberAgencies(agencies);
-        } catch (error) {
-          console.error("Error fetching member agencies:", error);
-          setMemberAgencies([]);
+        if (!user.agencyMemberships && !user.isAgencyOwner) {
+            setMemberAgencies([]);
+            return;
         }
-      } else {
-        setMemberAgencies([]);
-      }
-      setIsLoadingAgencies(false);
-    };
 
+        const agencyIds = new Set<string>();
+        user.agencyMemberships?.forEach(mem => agencyIds.add(mem.agencyId));
+        
+        const q = query(collection(db, 'agencies'), where('members', 'array-contains', {userId: user.uid}));
+        const snapshot = await getDocs(q);
+        snapshot.forEach(doc => agencyIds.add(doc.id));
+
+        if (agencyIds.size > 0) {
+            try {
+                const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", Array.from(agencyIds)));
+                const memberSnapshot = await getDocs(memberQuery);
+                const agencies = memberSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+                setMemberAgencies(agencies);
+            } catch (error) {
+                console.error("Error fetching member agencies:", error);
+                setMemberAgencies([]);
+            }
+        } else {
+            setMemberAgencies([]);
+        }
+    };
+    
     fetchMemberAgencies();
 
+
     return () => {
-      unsubscribeOwner();
+      if(unsubscribeOwner) unsubscribeOwner();
+      if(unsubscribeMember) unsubscribeMember();
     };
   }, [user, authLoading]);
   
@@ -743,7 +781,11 @@ export default function AgencyPage() {
   }
   
   const userOwnsAnAgency = ownedAgencies.length > 0;
-  const isMemberOfAnyAgency = (user.agencyMemberships?.filter(m => memberAgencies.some(a => a.id === m.agencyId)).length ?? 0) > 0;
+  
+  // A user is a member if they have pending talent invitations OR pending team invitations.
+  const hasPendingTalentInvite = user.agencyMemberships?.some(m => m.role === 'talent' && m.status === 'pending');
+  const hasPendingTeamInvite = memberAgencies.some(a => a.members?.some(m => m.userId === user.uid && m.status === 'pending'));
+  const isMemberOfAnyAgency = hasPendingTalentInvite || hasPendingTeamInvite;
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
@@ -751,7 +793,7 @@ export default function AgencyPage() {
     pageTitle = ownedAgencies[0].name;
     pageDescription = "Manage your agency's talent, finances, and internal team.";
   } else if (isMemberOfAnyAgency) {
-    pageTitle = "My Agencies";
+    pageTitle = "My Agency Invitations";
     pageDescription = "View and respond to agency invitations.";
   }
 

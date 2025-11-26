@@ -60,6 +60,8 @@ import {
   declineAgencyInvitation,
   createInternalPayout,
   inviteTeamMember,
+  acceptTeamInvitation,
+  declineTeamInvitation,
 } from "./agency";
 
 // Export v2 functions
@@ -91,6 +93,8 @@ export {
   declineAgencyInvitation,
   createInternalPayout,
   inviteTeamMember,
+  acceptTeamInvitation,
+  declineTeamInvitation,
 };
 
 // Import and export v1 auth trigger using require/exports

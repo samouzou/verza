@@ -502,3 +502,88 @@ export const inviteTeamMember = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while inviting the team member.");
   }
 });
+
+
+export const acceptTeamInvitation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
+  }
+  const memberId = request.auth.uid;
+  const { agencyId } = request.data;
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+  
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const agencyDoc = await transaction.get(agencyDocRef);
+      if (!agencyDoc.exists) {
+        throw new HttpsError("not-found", "Agency not found.");
+      }
+      const agencyData = agencyDoc.data() as Agency;
+      const memberIndex = agencyData.members?.findIndex(m => m.userId === memberId && m.status === 'pending');
+      
+      if (memberIndex === -1 || memberIndex === undefined) {
+        throw new HttpsError("failed-precondition", "No pending team invitation found for this user.");
+      }
+      
+      const updatedMembers = [...(agencyData.members || [])];
+      const memberData = updatedMembers[memberIndex];
+      updatedMembers[memberIndex] = { ...memberData, status: 'active', joinedAt: admin.firestore.Timestamp.now() as any };
+      
+      transaction.update(agencyDocRef, { members: updatedMembers });
+      
+      // Set custom claims based on role
+      const currentClaims = (await admin.auth().getUser(memberId)).customClaims || {};
+      const role = memberData.role;
+      let newClaims = { ...currentClaims };
+      if (role === 'admin') {
+         newClaims.adminFor = [...(currentClaims.adminFor || []), agencyId];
+      } else if (role === 'member') {
+         newClaims.memberFor = [...(currentClaims.memberFor || []), agencyId];
+      }
+      
+      await admin.auth().setCustomUserClaims(memberId, newClaims);
+
+      return { success: true, message: "Team invitation accepted." };
+    });
+  } catch (error) {
+    logger.error(`Error accepting team invitation for user ${memberId} to agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An unexpected error occurred while accepting the invitation.");
+  }
+});
+
+
+export const declineTeamInvitation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
+  }
+  const memberId = request.auth.uid;
+  const { agencyId } = request.data;
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const agencyDoc = await transaction.get(agencyDocRef);
+      if (!agencyDoc.exists) {
+        throw new HttpsError("not-found", "Agency not found.");
+      }
+      const agencyData = agencyDoc.data() as Agency;
+      const updatedMembers = agencyData.members?.filter(m => m.userId !== memberId || m.status !== 'pending');
+      
+      transaction.update(agencyDocRef, { members: updatedMembers });
+    });
+    return { success: true, message: "Team invitation declined." };
+  } catch (error) {
+    logger.error(`Error declining team invitation for user ${memberId} to agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
+  }
+});
