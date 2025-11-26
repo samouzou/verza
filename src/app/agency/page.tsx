@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, AgencyMember, AgencyMembership, InternalPayout, Talent } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, documentId, orderBy, Timestamp, updateDoc, doc } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, getDocs, doc, getDoc, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -91,13 +91,12 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
   );
 }
 
-function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyUpdate: (updatedAgency: Partial<Agency>) => Promise<void> }) {
+function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Agency; onAgencyUpdate: (updatedAgency: Partial<Agency>) => Promise<void>, effectiveUser: UserProfile | null }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
   const [newCommissionRate, setNewCommissionRate] = useState<number>(0);
   
-  const { user } = useAuth();
   const { toast } = useToast();
   const inviteTalentCallable = httpsCallable(functions, 'inviteTalentToAgency');
   const inviteTeamMemberCallable = httpsCallable(functions, 'inviteTeamMember');
@@ -127,9 +126,10 @@ function AgencyDashboard({ agency, onAgencyUpdate }: { agency: Agency; onAgencyU
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
   const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
-  const talentLimit = user?.talentLimit ?? 0;
+  const talentLimit = effectiveUser?.talentLimit ?? 0;
   const atTalentLimit = activeTalentCount >= talentLimit;
-  const isNotOnAgencyPlan = !user?.subscriptionPlanId?.startsWith('agency_');
+  const isNotOnAgencyPlan = !effectiveUser?.subscriptionPlanId?.startsWith('agency_');
+
 
   const { platformFee, totalCharge } = useMemo(() => {
     const amountNum = parseFloat(payoutAmount);
@@ -676,6 +676,7 @@ export default function AgencyPage() {
   const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [activeMemberAgency, setActiveMemberAgency] = useState<Agency | null>(null);
+  const [agencyOwnerUser, setAgencyOwnerUser] = useState<UserProfile | null>(null); // State for owner's profile
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
   const { toast } = useToast();
@@ -703,6 +704,7 @@ export default function AgencyPage() {
     }
   
     setIsLoadingAgencies(true);
+    setAgencyOwnerUser(null);
     const agencyIdsFromMemberships = user.agencyMemberships?.map(mem => mem.agencyId) || [];
   
     if (agencyIdsFromMemberships.length === 0) {
@@ -715,26 +717,37 @@ export default function AgencyPage() {
   
     const agenciesQuery = query(collection(db, "agencies"), where(documentId(), "in", agencyIdsFromMemberships));
   
-    const unsubscribe = onSnapshot(agenciesQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(agenciesQuery, async (snapshot) => {
       const agenciesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
       
       const owned: Agency[] = [];
       const memberOf: Agency[] = [];
       let activeAgencyForMember: Agency | null = null;
   
-      agenciesData.forEach(agency => {
+      for (const agency of agenciesData) {
         const userMembership = user.agencyMemberships?.find(m => m.agencyId === agency.id);
         
         if (agency.ownerId === user.uid) {
           owned.push(agency);
         } else if (userMembership?.status === 'active' && userMembership.role === 'team') {
-          // It's an agency this user is an active team member of
           activeAgencyForMember = agency;
+          // Fetch the owner's user data for subscription info
+          try {
+            const ownerDocRef = doc(db, 'users', agency.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setAgencyOwnerUser(ownerDocSnap.data() as UserProfile);
+            } else {
+              setAgencyOwnerUser(null);
+            }
+          } catch (e) {
+            console.error("Could not fetch agency owner's user profile", e);
+            setAgencyOwnerUser(null);
+          }
         } else {
-          // For pending invites or if they are just talent
           memberOf.push(agency);
         }
-      });
+      }
   
       setOwnedAgencies(owned);
       setMemberAgencies(memberOf);
@@ -772,7 +785,10 @@ export default function AgencyPage() {
   const userOwnsAnAgency = ownedAgencies.length > 0;
   const isTeamMemberOfAnAgency = !!activeMemberAgency;
   const hasPendingInvitation = user.agencyMemberships?.some(m => m.status === 'pending');
+  
   const agencyToShow = userOwnsAnAgency ? ownedAgencies[0] : activeMemberAgency;
+  const effectiveUserForDashboard = userOwnsAnAgency ? user : agencyOwnerUser;
+
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
@@ -789,11 +805,11 @@ export default function AgencyPage() {
       <PageHeader
         title={pageTitle}
         description={pageDescription}
-        actions={userOwnsAnAgency ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
+        actions={(userOwnsAnAgency || isTeamMemberOfAnAgency) ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
       />
       <div className="space-y-6">
-        {agencyToShow ? (
-          <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} />
+        {agencyToShow && effectiveUserForDashboard ? (
+          <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} effectiveUser={effectiveUserForDashboard} />
         ) : hasPendingInvitation ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
