@@ -613,14 +613,10 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
       setProcessingId(null);
     }
   };
-
-  const {user} = useAuth();
-  const pendingTalentMemberships = memberships.filter(m => m.role === 'talent' && m.status === 'pending');
   
-  const pendingTeamMemberships = useMemo(() => {
-    if (!user) return [];
-    return agencies.filter(agency => agency.members?.some(m => m.userId === user.uid && m.status === 'pending'));
-  }, [agencies, user]);
+  const pendingInvitations = useMemo(() => {
+    return memberships.filter(m => m.status === 'pending');
+  }, [memberships]);
 
 
   return (
@@ -630,13 +626,13 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
         <CardDescription>You are a member of or have been invited to the following agencies.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {pendingTalentMemberships.length === 0 && pendingTeamMemberships.length === 0 && (
+        {pendingInvitations.length === 0 && (
           <p className="text-center text-muted-foreground py-6">You have no pending invitations.</p>
         )}
-        {[...pendingTalentMemberships, ...pendingTeamMemberships.map(a => ({agencyId: a.id, agencyName: a.name, role: 'team' as const, status: 'pending' as const}))].map(membership => {
+        {pendingInvitations.map(membership => {
           const agency = agencies.find(a => a.id === membership.agencyId);
           if (!agency) return null;
-          const isTeamInvite = 'role' in membership && membership.role === 'team';
+          const isTeamInvite = membership.role === 'team';
 
           return (
             <div key={agency.id + (isTeamInvite ? '-team' : '-talent')} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
@@ -701,55 +697,46 @@ export default function AgencyPage() {
       if (!authLoading) setIsLoadingAgencies(false);
       return;
     }
-
+  
     setIsLoadingAgencies(true);
-    let unsubscribeOwner: (() => void) | undefined;
-    let unsubscribeMemberships: (() => void) | undefined;
-
-    // Listen for owned agencies
-    const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
-    unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
-      const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-      setOwnedAgencies(agencies);
-      if (agencies.length === 0) {
-        setIsLoadingAgencies(false); // Not an owner, stop loading for this part.
-      } else {
-        setMemberAgencies(agencies); // Owner is also a member, show their agency.
-        setIsLoadingAgencies(false);
-      }
+    const agencyIdsFromMemberships = user.agencyMemberships?.map(mem => mem.agencyId) || [];
+  
+    if (agencyIdsFromMemberships.length === 0) {
+      setIsLoadingAgencies(false);
+      setOwnedAgencies([]);
+      setMemberAgencies([]);
+      return;
+    }
+  
+    const agenciesQuery = query(collection(db, "agencies"), where(documentId(), "in", agencyIdsFromMemberships));
+  
+    const unsubscribe = onSnapshot(agenciesQuery, (snapshot) => {
+      const agenciesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+      
+      const owned: Agency[] = [];
+      const memberOf: Agency[] = [];
+  
+      agenciesData.forEach(agency => {
+        if (agency.ownerId === user.uid) {
+          owned.push(agency);
+        } else {
+          memberOf.push(agency);
+        }
+      });
+  
+      setOwnedAgencies(owned);
+      setMemberAgencies(memberOf);
+      setIsLoadingAgencies(false);
+  
     }, (error) => {
-      console.error("Error fetching owned agencies:", error);
+      console.error("Error fetching agencies:", error);
+      toast({ title: "Error", description: "Could not fetch agency information.", variant: "destructive" });
       setIsLoadingAgencies(false);
     });
-
-    // Listen for agencies where the user is a member or has a pending invite
-    const agencyIdsFromMemberships = user.agencyMemberships?.map(mem => mem.agencyId) || [];
-    if (agencyIdsFromMemberships.length > 0) {
-      const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", agencyIdsFromMemberships));
-      unsubscribeMemberships = onSnapshot(memberQuery, (snapshot) => {
-        const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-        setMemberAgencies(prev => {
-          // Combine and deduplicate with any owned agencies
-          const allAgencies = [...prev, ...agencies];
-          return Array.from(new Map(allAgencies.map(a => [a.id, a])).values());
-        });
-        setIsLoadingAgencies(false);
-      }, (error) => {
-        console.error("Error fetching member agencies:", error);
-        setIsLoadingAgencies(false);
-      });
-    } else {
-      // If user has no memberships and is not an owner, we can stop loading.
-      if (ownedAgencies.length === 0) {
-          setIsLoadingAgencies(false);
-      }
-    }
-    
-    return () => {
-      if(unsubscribeOwner) unsubscribeOwner();
-      if(unsubscribeMemberships) unsubscribeMemberships();
-    };
-  }, [user, authLoading]);
+  
+    return () => unsubscribe();
+  
+  }, [user, authLoading, toast]);
   
   const handleAgencyCreated = () => {
     refreshAuthUser();
@@ -770,18 +757,14 @@ export default function AgencyPage() {
   }
   
   const userOwnsAnAgency = ownedAgencies.length > 0;
-  
-  // A user is a member if they have pending talent invitations OR pending team invitations.
-  const hasPendingTalentInvite = user.agencyMemberships?.some(m => m.role === 'talent' && m.status === 'pending');
-  const hasPendingTeamInvite = memberAgencies.some(a => a.members?.some(m => m.userId === user.uid && m.status === 'pending'));
-  const isMemberOfAnyAgency = hasPendingTalentInvite || hasPendingTeamInvite;
+  const hasPendingInvitation = user.agencyMemberships?.some(m => m.status === 'pending');
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
   if (userOwnsAnAgency) {
     pageTitle = ownedAgencies[0].name;
     pageDescription = "Manage your agency's talent, finances, and internal team.";
-  } else if (isMemberOfAnyAgency) {
+  } else if (hasPendingInvitation) {
     pageTitle = "My Agency Invitations";
     pageDescription = "View and respond to agency invitations.";
   }
@@ -796,7 +779,7 @@ export default function AgencyPage() {
       <div className="space-y-6">
         {userOwnsAnAgency ? (
           <AgencyDashboard agency={ownedAgencies[0]} onAgencyUpdate={handleUpdateAgency} />
-        ) : isMemberOfAnyAgency ? (
+        ) : hasPendingInvitation ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
           <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
@@ -805,3 +788,5 @@ export default function AgencyPage() {
     </>
   );
 }
+
+    

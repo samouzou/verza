@@ -456,11 +456,9 @@ export const inviteTeamMember = onCall(async (request) => {
     const agencyData = agencySnap.data() as Agency;
 
     if (!agencySnap.exists || agencyData.ownerId !== inviterId) {
-      // In a more complex system, we'd check if the inviter is an Admin. For now, only owner can invite.
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency's team.");
     }
 
-    // Check if user is already a member or talent
     if (agencyData.members?.some((m) => m.email === memberEmailCleaned) ||
       agencyData.talent?.some((t) => t.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already associated with the agency as a member or talent.");
@@ -471,26 +469,40 @@ export const inviteTeamMember = onCall(async (request) => {
       teamMemberUser = await admin.auth().getUserByEmail(memberEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        // Handle inviting a user not yet on the platform if desired
         throw new HttpsError("not-found", "The invited user must have a Verza account. Please ask them to sign up first.");
       }
       throw new HttpsError("internal", "Error looking up user by email.");
     }
+    
+    const teamMemberDocRef = db.collection("users").doc(teamMemberUser.uid);
 
     const newMember: AgencyMember = {
       userId: teamMemberUser.uid,
       email: memberEmailCleaned,
       displayName: teamMemberUser.displayName || "Invited Member",
       role: role,
-      status: "pending", // Invitation is pending acceptance
+      status: "pending",
+    };
+    
+    const teamAgencyMembership: AgencyMembership = {
+      agencyId: agencyId,
+      agencyName: agencyData.name,
+      role: 'team', // Use a distinct role for team members vs talent
+      status: "pending",
     };
 
-    await agencyDocRef.update({
+    const batch = db.batch();
+    batch.update(agencyDocRef, {
       members: admin.firestore.FieldValue.arrayUnion(newMember),
     });
+    // Add the membership to the user's document so they can find the invitation
+    batch.update(teamMemberDocRef, {
+        agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership)
+    });
+
+    await batch.commit();
 
     // TODO: Send an email notification to the invited team member
-    // await sendTeamInvitationEmail(memberEmailCleaned, agencyData.name, role);
 
     logger.info(`Team member ${memberEmailCleaned} invited to agency ${agencyId} as a ${role} by ${inviterId}.`);
     return {success: true, message: "Team member invited successfully."};
@@ -587,3 +599,5 @@ export const declineTeamInvitation = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   }
 });
+
+    

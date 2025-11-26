@@ -307,7 +307,7 @@ export interface Agency {
 export interface AgencyMembership {
   agencyId: string;
   agencyName: string;
-  role: 'owner' | 'talent';
+  role: 'owner' | 'talent' | 'team';
   status: 'pending' | 'active';
 }
 
@@ -342,3 +342,5 @@ export type Tour = {
   steps: TourStep[];
   onStop?: () => void;
 };
+
+    
