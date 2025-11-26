@@ -39,10 +39,10 @@ service cloud.firestore {
       // Allow user to update their own profile, including adding agency details
       allow update: if isUser(userId) && (
         // Allow general profile updates for common fields
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence', 'agencyMemberships']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'companyLogoUrl', 'address', 'tin', 'hasCompletedOnboarding', 'emailSequence', 'agencyMemberships'])) ||
         // OR, specifically allow the transition to agency owner
-        (request.resource.data.role == 'agency_owner' && 
-         request.resource.data.isAgencyOwner == true &&
+        (request.resource.data.isAgencyOwner == true && 
+         request.resource.data.role == 'agency_owner' &&
          request.resource.data.diff(resource.data).affectedKeys().hasAll(['role', 'isAgencyOwner', 'agencyMemberships']))
       );
     }
@@ -132,7 +132,7 @@ service cloud.firestore {
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||  // Payer
+                    request.auth.uid == resource.data.userId || // Payer
                     request.auth.uid == resource.data.creatorId // Creator/Recipient
                   );
       allow create, update, delete: if false; // Only backend via Admin SDK
@@ -193,3 +193,5 @@ service cloud.firestore {
      }
   }
 }
+
+    
