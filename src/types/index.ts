@@ -285,6 +285,15 @@ export interface Talent {
   commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
+export interface AgencyMember {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: 'owner' | 'admin' | 'member';
+  status: 'pending' | 'active';
+  joinedAt?: ClientTimestamp;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -292,6 +301,7 @@ export interface Agency {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   talent: Talent[];
+  members: AgencyMember[]; // NEW: Add members array for internal team
 }
 
 export interface AgencyMembership {
