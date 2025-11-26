@@ -29,6 +29,9 @@ export default function SettingsPage() {
     );
   }
 
+  const isTeamMember = user.agencyMemberships?.some(m => m.status === 'active' && m.role === 'team');
+  const isAgencyOwner = user.role === 'agency_owner';
+
   return (
     <>
       <PageHeader
@@ -36,8 +39,16 @@ export default function SettingsPage() {
         description="Manage your account, subscription, and payment preferences."
       />
       <div className="space-y-6">
-        <SubscriptionCard />
-        <StripeConnectCard />
+        {/* Subscription is managed by the agency owner */}
+        {!isTeamMember && <SubscriptionCard />}
+        {/* Stripe Connect is for receiving payouts, so owners and talents need it, but not team members */}
+        {!isTeamMember && <StripeConnectCard />}
+
+        {isTeamMember && (
+          <div className="p-4 border rounded-lg bg-muted text-muted-foreground text-sm">
+            Subscription and payment settings are managed by your agency owner.
+          </div>
+        )}
       </div>
     </>
   );

@@ -1,4 +1,6 @@
 
+"use client";
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -271,10 +273,13 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
     let userId: string | null = null;
     const emailForReceiptAndMetadata = contractData.clientEmail || null;
+    let authUser: admin.auth.DecodedIdToken | null = null;
 
     if (request.headers.authorization) {
       try {
-        userId = await verifyAuthToken(request.headers.authorization);
+        const idToken = request.headers.authorization.split("Bearer ")[1];
+        authUser = await admin.auth().verifyIdToken(idToken);
+        userId = authUser.uid;
       } catch {
         logger.info("No valid auth token, treating as public payment");
       }
@@ -288,45 +293,52 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       userId: userId || "",
       creatorId: contractData.userId,
       clientEmail: emailForReceiptAndMetadata,
-      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
+      paymentType: "public_payment", // Default
     };
 
     if (finalMilestoneId) {
       metadataForStripe.milestoneId = finalMilestoneId;
     }
 
+    // Determine the actual recipient's Stripe account ID
+    let finalStripeAccountId: string | undefined;
+
     if (contractData.ownerType === "agency" && contractData.ownerId) {
       metadataForStripe.agencyId = contractData.ownerId;
       metadataForStripe.paymentType = "agency_payment";
+      
+      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+      const agencyData = agencyDoc.data() as Agency;
 
-      paymentIntentParams = {
-        amount: amountInCents,
-        currency,
-        metadata: metadataForStripe,
-        receipt_email: emailForReceiptAndMetadata || undefined,
-      };
+      const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+      const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+      finalStripeAccountId = agencyOwnerData.stripeAccountId || undefined;
     } else {
-      const creatorDoc = await db.collection("users").doc(contractData.userId).get();
-      const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-        throw new Error("Creator does not have a valid Stripe account");
-      }
-
-      const platformFee = Math.round(amountInCents * 0.01);
-      const stripeFee = Math.round(amountInCents * 0.029) + 30;
-      const totalApplicationFee = platformFee + stripeFee;
-
-      paymentIntentParams = {
-        amount: amountInCents,
-        currency,
-        application_fee_amount: totalApplicationFee,
-        metadata: metadataForStripe,
-        receipt_email: emailForReceiptAndMetadata || undefined,
-        transfer_data: {
-          destination: creatorData.stripeAccountId,
-        },
-      };
+        metadataForStripe.paymentType = "creator_payment";
+        const creatorDoc = await db.collection("users").doc(contractData.userId).get();
+        const creatorData = creatorDoc.data() as UserProfileFirestoreData;
+        finalStripeAccountId = creatorData.stripeAccountId || undefined;
     }
+
+
+    if (!finalStripeAccountId) {
+      throw new Error("The recipient (creator or agency) does not have a valid Stripe account configured for payouts.");
+    }
+
+    const platformFee = Math.round(amountInCents * 0.01);
+    const stripeFee = Math.round(amountInCents * 0.029) + 30;
+    const totalApplicationFee = platformFee + stripeFee;
+
+    paymentIntentParams = {
+      amount: amountInCents,
+      currency,
+      application_fee_amount: totalApplicationFee,
+      metadata: metadataForStripe,
+      receipt_email: emailForReceiptAndMetadata || undefined,
+      transfer_data: {
+        destination: finalStripeAccountId,
+      },
+    };
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
@@ -340,7 +352,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       currency,
       status: paymentIntent.status,
       created: new Date(),
-      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
+      paymentType: metadataForStripe.paymentType,
     });
 
     response.json({clientSecret: paymentIntent.client_secret});
