@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout} from "../../../src/types";
+import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, AgencyMember} from "../../../src/types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 
@@ -40,6 +40,7 @@ export const createAgency = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
+  const userRecord = await admin.auth().getUser(userId);
   const userDocRef = db.collection("users").doc(userId);
   const agenciesColRef = db.collection("agencies");
 
@@ -52,6 +53,16 @@ export const createAgency = onCall(async (request) => {
 
     // Create new agency document
     const newAgencyRef = agenciesColRef.doc();
+    
+    const ownerAsMember: AgencyMember = {
+        userId: userId,
+        email: userRecord.email || "",
+        displayName: userRecord.displayName || "Agency Owner",
+        role: "owner",
+        status: "active",
+        joinedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    };
+
     const newAgency: Agency = {
       id: newAgencyRef.id,
       name: name.trim(),
@@ -59,6 +70,7 @@ export const createAgency = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
       updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
       talent: [],
+      members: [ownerAsMember], // Add the owner as the first member
     };
 
     // Update user's role and add agency membership
@@ -417,5 +429,76 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
+  }
+});
+
+
+export const inviteTeamMember = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  const inviterId = request.auth.uid;
+  const { agencyId, memberEmail, role } = request.data;
+
+  if (!agencyId || !memberEmail || !role) {
+    throw new HttpsError("invalid-argument", "Agency ID, member email, and role are required.");
+  }
+  
+  if (role === "owner") {
+      throw new HttpsError("permission-denied", "Cannot invite a user with the 'owner' role.");
+  }
+
+  const memberEmailCleaned = memberEmail.trim().toLowerCase();
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+    const agencyData = agencySnap.data() as Agency;
+
+    if (!agencySnap.exists || agencyData.ownerId !== inviterId) {
+      // In a more complex system, we'd check if the inviter is an Admin. For now, only owner can invite.
+      throw new HttpsError("permission-denied", "You do not have permission to manage this agency's team.");
+    }
+    
+    // Check if user is already a member or talent
+    if (agencyData.members.some(m => m.email === memberEmailCleaned) || agencyData.talent.some(t => t.email === memberEmailCleaned)) {
+        throw new HttpsError("already-exists", "This user is already associated with the agency as a member or talent.");
+    }
+
+    let teamMemberUser;
+    try {
+      teamMemberUser = await admin.auth().getUserByEmail(memberEmailCleaned);
+    } catch (error: any) {
+      if (error.code === "auth/user-not-found") {
+        // Handle inviting a user not yet on the platform if desired
+        throw new HttpsError("not-found", "The invited user must have a Verza account. Please ask them to sign up first.");
+      }
+      throw new HttpsError("internal", "Error looking up user by email.");
+    }
+
+    const newMember: AgencyMember = {
+      userId: teamMemberUser.uid,
+      email: memberEmailCleaned,
+      displayName: teamMemberUser.displayName || "Invited Member",
+      role: role,
+      status: "pending", // Invitation is pending acceptance
+    };
+
+    await agencyDocRef.update({
+      members: admin.firestore.FieldValue.arrayUnion(newMember),
+    });
+
+    // TODO: Send an email notification to the invited team member
+    // await sendTeamInvitationEmail(memberEmailCleaned, agencyData.name, role);
+
+    logger.info(`Team member ${memberEmailCleaned} invited to agency ${agencyId} as a ${role} by ${inviterId}.`);
+    return { success: true, message: "Team member invited successfully." };
+
+  } catch (error) {
+    logger.error(`Error inviting team member to agency ${agencyId}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", "An unexpected error occurred while inviting the team member.");
   }
 });
