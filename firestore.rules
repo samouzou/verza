@@ -15,7 +15,7 @@ service cloud.firestore {
 
     // Helper function to check if the user is an active team member of a specific agency
     function isTeamMemberOf(agencyId) {
-      return request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.members.filter(m, m.status == 'active').map(m, m.userId);
+      return request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.members.filter(m => m.status == 'active').map(m => m.userId);
     }
 
     // NEW: Helper function to check if the requesting user is a team member of an agency owned by the target user
@@ -25,8 +25,8 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              'agencyMemberships' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships
-               .filter(mem, mem.role == 'team' && mem.status == 'active').size() > 0 &&
-             get(/databases/$(database)/documents/agencies/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.filter(mem, mem.role == 'team' && mem.status == 'active')[0].agencyId)).data.ownerId == targetUserId;
+               .filter(mem => mem.role == 'team' && mem.status == 'active').size() > 0 &&
+             get(/databases/$(database)/documents/agencies/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.filter(mem => mem.role == 'team' && mem.status == 'active')[0].agencyId)).data.ownerId == targetUserId;
     }
 
 
@@ -74,7 +74,7 @@ service cloud.firestore {
       allow create: if request.auth != null && 
         (
           request.auth.uid == request.resource.data.userId || // Talent creating for themselves
-          (request.resource.data.ownerType == 'agency' && isAgencyOwner(request.auth.uid)) || // Agency owner creating for talent
+          (request.resource.data.ownerType == 'agency' && isOwnerOfAgency(request.resource.data.ownerId)) || // Agency owner creating for their talent
           (request.resource.data.ownerType == 'agency' && isTeamMemberOf(request.resource.data.ownerId)) // OR Team member creating for talent
         );
     }
