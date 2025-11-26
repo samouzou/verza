@@ -675,13 +675,17 @@ export default function AgencyPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
+  const [activeMemberAgency, setActiveMemberAgency] = useState<Agency | null>(null);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
   const { toast } = useToast();
 
   const handleUpdateAgency = async (agencyUpdates: Partial<Agency>) => {
-    if (!ownedAgencies[0]) return;
-    const agencyDocRef = doc(db, "agencies", ownedAgencies[0].id);
+    if (!ownedAgencies[0] && !activeMemberAgency) return;
+    const agencyId = ownedAgencies[0]?.id || activeMemberAgency?.id;
+    if (!agencyId) return;
+
+    const agencyDocRef = doc(db, "agencies", agencyId);
     try {
       await updateDoc(agencyDocRef, agencyUpdates);
       // Data will refresh automatically via onSnapshot
@@ -705,6 +709,7 @@ export default function AgencyPage() {
       setIsLoadingAgencies(false);
       setOwnedAgencies([]);
       setMemberAgencies([]);
+      setActiveMemberAgency(null);
       return;
     }
   
@@ -715,17 +720,25 @@ export default function AgencyPage() {
       
       const owned: Agency[] = [];
       const memberOf: Agency[] = [];
+      let activeAgencyForMember: Agency | null = null;
   
       agenciesData.forEach(agency => {
+        const userMembership = user.agencyMemberships?.find(m => m.agencyId === agency.id);
+        
         if (agency.ownerId === user.uid) {
           owned.push(agency);
+        } else if (userMembership?.status === 'active' && userMembership.role === 'team') {
+          // It's an agency this user is an active team member of
+          activeAgencyForMember = agency;
         } else {
+          // For pending invites or if they are just talent
           memberOf.push(agency);
         }
       });
   
       setOwnedAgencies(owned);
       setMemberAgencies(memberOf);
+      setActiveMemberAgency(activeAgencyForMember);
       setIsLoadingAgencies(false);
   
     }, (error) => {
@@ -757,12 +770,14 @@ export default function AgencyPage() {
   }
   
   const userOwnsAnAgency = ownedAgencies.length > 0;
+  const isTeamMemberOfAnAgency = !!activeMemberAgency;
   const hasPendingInvitation = user.agencyMemberships?.some(m => m.status === 'pending');
+  const agencyToShow = userOwnsAnAgency ? ownedAgencies[0] : activeMemberAgency;
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
-  if (userOwnsAnAgency) {
-    pageTitle = ownedAgencies[0].name;
+  if (agencyToShow) {
+    pageTitle = agencyToShow.name;
     pageDescription = "Manage your agency's talent, finances, and internal team.";
   } else if (hasPendingInvitation) {
     pageTitle = "My Agency Invitations";
@@ -777,8 +792,8 @@ export default function AgencyPage() {
         actions={userOwnsAnAgency ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
       />
       <div className="space-y-6">
-        {userOwnsAnAgency ? (
-          <AgencyDashboard agency={ownedAgencies[0]} onAgencyUpdate={handleUpdateAgency} />
+        {agencyToShow ? (
+          <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} />
         ) : hasPendingInvitation ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
@@ -788,5 +803,3 @@ export default function AgencyPage() {
     </>
   );
 }
-
-    
