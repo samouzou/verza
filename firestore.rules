@@ -14,10 +14,28 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
-    // NEW: Helper function to check if the user is an active team member of a specific agency
+    // Helper function to check if the user is an active team member of a specific agency
     function isTeamMemberOf(agencyId) {
       let agency = get(/databases/$(database)/documents/agencies/$(agencyId)).data;
       return request.auth.uid in agency.members.filter(m => m.status == 'active').map(m => m.userId);
+    }
+
+    // NEW: Helper function to check if the requesting user is a team member of an agency owned by the target user
+    function isTeamMemberOfAgencyOwnedBy(targetUserId) {
+        let userMemberships = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships;
+        // Check if the user has any active team memberships
+        if (!('agencyMemberships' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) || userMemberships.size() == 0) {
+            return false;
+        }
+        // Filter for active team memberships
+        let activeTeamMemberships = userMemberships.filter(mem => mem.role == 'team' && mem.status == 'active');
+        if (activeTeamMemberships.size() == 0) {
+            return false;
+        }
+        // Check if any of those agencies are owned by the target user
+        let agencyId = activeTeamMemberships[0].agencyId; // Assuming team member can only be in one agency for now
+        let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+        return agencyDoc.data.ownerId == targetUserId;
     }
 
     // Helper functions to allow user to access email logs
@@ -39,7 +57,8 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read, create: if isUser(userId);
+      allow read: if isUser(userId) || isTeamMemberOfAgencyOwnedBy(userId);
+      allow create: if isUser(userId);
       allow update: if isUser(userId) && 
                        !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
                        !(request.resource.data.isAgencyOwner == true && resource.data.isAgencyOwner == false);
