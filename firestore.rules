@@ -39,12 +39,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Helper to check direct user ownership or agency ownership of a contract
+    // Helper to check direct user ownership or agency ownership/membership of a contract
     function userOwnsContract(contractId) {
       let contractData = get(/databases/$(database)/documents/contracts/$(contractId)).data;
-      // Direct user owns the contract OR
-      // Contract is owned by an agency and the requester is the owner of that specific agency
-      return isUser(contractData.userId) || (contractData.ownerType == 'agency' && isOwnerOfAgency(contractData.ownerId));
+      // User is the talent on the contract OR
+      // Contract is owned by an agency and the requester is the owner of that specific agency OR
+      // Contract is owned by an agency and the requester is a team member of that agency
+      return isUser(contractData.userId) || 
+             (contractData.ownerType == 'agency' && isOwnerOfAgency(contractData.ownerId)) ||
+             (contractData.ownerType == 'agency' && isTeamMember(contractData.ownerId));
     }
 
     // Rules for the users collection
@@ -141,4 +144,3 @@ service cloud.firestore {
      }
   }
 }
-    
