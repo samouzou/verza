@@ -26,92 +26,74 @@ export default function ContractsPage() {
 
   useEffect(() => {
     if (!user || authLoading) {
-      if (!authLoading) setIsLoadingContracts(false);
-      return;
+        if (!authLoading) setIsLoadingContracts(false);
+        return;
     }
 
     setIsLoadingContracts(true);
 
-    const processAndSetContracts = (newContracts: Contract[]) => {
-      const processed = newContracts.map(data => {
-        // ... (Timestamp processing logic remains the same)
-        const effectiveDisplayStatus: Contract['status'] = data.status || 'pending';
-        // (Status calculation logic can be simplified or enhanced here if needed)
-        return { ...data, status: effectiveDisplayStatus } as Contract;
-      });
-
-      // Deduplicate and set contracts
-      const contractMap = new Map<string, Contract>();
-      processed.forEach(c => contractMap.set(c.id, c));
-      setContracts(Array.from(contractMap.values()));
-    };
-
     const contractsCol = collection(db, 'contracts');
-    let unsubscribe: () => void = () => {};
+    let q: any;
 
     if (user.isAgencyOwner) {
         const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-        if (agencyId) {
-            // Query for agency-owned contracts
-            const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
-            // Query for owner's personal contracts
-            const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
-
-            const agencyUnsubscribe = onSnapshot(agencyQuery, async (agencySnapshot) => {
-                const agencyContracts = agencySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
-                // Manually get personal contracts to merge, as combining onSnapshot is complex
-                const personalSnapshot = await getDocs(personalQuery);
-                const personalContracts = personalSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
-                processAndSetContracts([...agencyContracts, ...personalContracts]);
-                setIsLoadingContracts(false);
-            }, (error) => {
-                console.error("Error fetching agency contracts:", error);
-                toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
-                setIsLoadingContracts(false);
-            });
-            
-            // Also listen to personal contracts for real-time updates
-             const personalUnsubscribe = onSnapshot(personalQuery, async (personalSnapshot) => {
-                const personalContracts = personalSnapshot.docs.map(d => ({ id: d.id, ...d.data()} as Contract));
-                 const agencySnapshot = await getDocs(agencyQuery);
-                 const agencyContracts = agencySnapshot.docs.map(d => ({ id: d.id, ...d.data()} as Contract));
-                 processAndSetContracts([...agencyContracts, ...personalContracts]);
-            });
-            
-            unsubscribe = () => {
-              agencyUnsubscribe();
-              personalUnsubscribe();
-            }
-
-        } else {
-            // Fallback for agency owner without a proper agencyId (should not happen)
+        if (!agencyId) {
             setIsLoadingContracts(false);
-            setContracts([]);
+            return;
         }
+        
+        // This logic is complex for real-time, so we'll fetch once and merge
+        const fetchAllAgencyData = async () => {
+            try {
+                const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
+                const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
+                
+                const [agencySnapshot, personalSnapshot] = await Promise.all([
+                    getDocs(agencyQuery),
+                    getDocs(personalQuery),
+                ]);
+
+                const agencyContracts = agencySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
+                const personalContracts = personalSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
+
+                // Merge and deduplicate
+                const contractMap = new Map<string, Contract>();
+                [...agencyContracts, ...personalContracts].forEach(c => contractMap.set(c.id, c));
+                
+                setContracts(Array.from(contractMap.values()));
+            } catch (error) {
+                 console.error("Error fetching all agency/personal contracts:", error);
+                 toast({ title: "Error", description: "Could not fetch all contracts.", variant: "destructive" });
+            } finally {
+                setIsLoadingContracts(false);
+            }
+        };
+
+        fetchAllAgencyData();
+
+        // No real-time listener here due to complexity, it would require multiple listeners and state merges.
+        // For a production app, this could be refactored.
+        return () => {};
+
+
     } else if (user.primaryAgencyId) {
         // This is a team member
-        const q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
-        unsubscribe = onSnapshot(q, (snapshot) => {
-            processAndSetContracts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract)));
-            setIsLoadingContracts(false);
-        }, (error) => {
-            console.error("Error fetching team contracts:", error);
-            toast({ title: "Error", description: "Could not fetch team contracts.", variant: "destructive" });
-            setIsLoadingContracts(false);
-        });
+        q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
     } else {
         // This is an individual creator
-        const q = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
-        unsubscribe = onSnapshot(q, (snapshot) => {
-            processAndSetContracts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract)));
-            setIsLoadingContracts(false);
-        }, (error) => {
-            console.error("Error fetching personal contracts:", error);
-            toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
-            setIsLoadingContracts(false);
-        });
+        q = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
     }
     
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedContracts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
+        setContracts(fetchedContracts);
+        setIsLoadingContracts(false);
+    }, (error) => {
+        console.error("Error fetching contracts:", error);
+        toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
+        setIsLoadingContracts(false);
+    });
+
     return () => unsubscribe();
     
   }, [user, authLoading, toast]);

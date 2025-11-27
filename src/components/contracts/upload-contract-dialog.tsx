@@ -117,8 +117,11 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     if (!isOpen) {
       resetState();
     } else {
-        if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
-            const agencyId = user.agencyMemberships[0].agencyId;
+        const agencyId = user?.isAgencyOwner 
+          ? user.agencyMemberships?.[0]?.agencyId 
+          : user?.primaryAgencyId;
+
+        if (agencyId) {
             const agencyDocRef = doc(db, "agencies", agencyId);
             getDoc(agencyDocRef).then(docSnap => {
                 if (docSnap.exists()) {
@@ -305,12 +308,29 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     let finalUserId = user.uid;
     let talentName: string | undefined | null = undefined;
 
-    if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
+    if (agency) {
+      if (user.isAgencyOwner && selectedOwner !== 'personal') {
         ownerType = 'agency';
         ownerId = agency.id;
-        finalUserId = selectedOwner;
+        finalUserId = selectedOwner; // This is the talent's UID
         talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+      } else if (user.isAgencyOwner && selectedOwner === 'personal') {
+        ownerType = 'user'; // Still a personal contract
+        ownerId = user.uid;
+        finalUserId = user.uid;
+      } else if (!user.isAgencyOwner && user.primaryAgencyId) { // Team member creating
+        ownerType = 'agency';
+        ownerId = agency.id;
+        if (selectedOwner === 'agency') {
+          finalUserId = user.uid; // The team member is the point of contact
+          talentName = 'Agency';
+        } else {
+          finalUserId = selectedOwner; // The selected talent's UID
+          talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+        }
+      }
     }
+
 
     try {
       if (selectedFile) {
@@ -448,8 +468,20 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
           <ScrollArea className="h-full"><div className="space-y-6 pr-6">
-            {user?.role === 'agency_owner' && agency && (
-              <div><Label htmlFor="contractOwner">Contract For</Label><Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}><SelectTrigger className="mt-1"><SelectValue placeholder="Select who this contract is for..." /></SelectTrigger><SelectContent><SelectItem value="personal">My Agency ({agency.name})</SelectItem>{agency.talent?.filter(t => t.status === 'active').map(t => (<SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>))}</SelectContent></Select></div>
+            {agency && (
+              <div>
+                <Label htmlFor="contractOwner">Contract For</Label>
+                <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select who this contract is for..." /></SelectTrigger>
+                  <SelectContent>
+                    {user?.isAgencyOwner && <SelectItem value="personal">My Personal Contracts</SelectItem>}
+                    {!user?.isAgencyOwner && <SelectItem value="agency">Agency ({agency.name})</SelectItem>}
+                    {agency.talent?.filter(t => t.status === 'active').map(t => (
+                      <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <div><Label htmlFor="fileName">File Name (Optional)</Label><Input id="fileName" type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., BrandX_Sponsorship_Q4.pdf" className="mt-1" /></div>
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
@@ -489,7 +521,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 {parseError && (<div className="p-4 bg-background rounded-lg shadow-lg"><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>AI Error</AlertTitle><AlertDescription>{parseError}</AlertDescription></Alert></div>)}
               </div>
               <div id="container" style={{ height: '100%' }} className="border rounded-md">
-                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
+                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
               </div>
               {parsedDetails && (<div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}><ScrollArea className="h-full"><div className="space-y-4 pr-4">{renderAiAnalysis()}</div></ScrollArea></div>)}
             </div>
@@ -504,4 +536,3 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   );
 }
 
-    

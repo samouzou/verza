@@ -166,6 +166,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
       email: talentEmailCleaned,
       displayName: talentDocData?.displayName || talentUser.displayName || "Invited User",
       status: "pending",
+      commissionRate: 0, // Default commission rate
     };
 
     const talentAgencyMembership: AgencyMembership = {
@@ -641,4 +642,3 @@ export const declineTeamInvitation = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   }
 });
-
