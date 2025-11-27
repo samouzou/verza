@@ -83,20 +83,20 @@ export default function ContractsPage() {
     const contractsCol = collection(db, 'contracts');
     let q;
 
-    const agencyId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : user.primaryAgencyId;
-
-    if (agencyId) {
-      q = query(
-        contractsCol,
-        where('ownerId', '==', agencyId),
-        where('ownerType', '==', 'agency')
-      );
+    if (user.isAgencyOwner) {
+        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+        if (agencyId) {
+            q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
+        } else {
+            // This case should ideally not happen for an agency owner
+            q = query(contractsCol, where('userId', '==', 'impossible_query'));
+        }
+    } else if (user.primaryAgencyId) {
+        // This is a team member
+        q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
     } else {
-      q = query(
-        contractsCol,
-        where('userId', '==', user.uid),
-        where('ownerType', '==', 'user')
-      );
+        // This is an individual creator
+        q = query(contractsCol, where('userId', '==', user.uid), where('ownerType', '==', 'user'));
     }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
