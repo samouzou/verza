@@ -66,7 +66,7 @@ export default function ContractsPage() {
           effectiveDisplayStatus = 'overdue';
         } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
           effectiveDisplayStatus = 'invoiced';
-        } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) {
+        } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
           effectiveDisplayStatus = 'overdue';
         }
 
@@ -83,34 +83,22 @@ export default function ContractsPage() {
     const contractsCol = collection(db, 'contracts');
     let q;
 
-    // Agency Owner: See all their agency contracts and their personal contracts
-    if (user.isAgencyOwner) {
-       const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-       q = query(
-         contractsCol,
-         where('ownerId', '==', agencyId),
-         where('ownerType', '==', 'agency')
-         // Note: to also see personal contracts, we'd need a composite query or a separate listener.
-         // For now, focusing on the primary agency role.
-       );
-    } 
-    // Agency Team Member: See all contracts for their primary agency
-    else if (user.primaryAgencyId) {
+    const agencyId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : user.primaryAgencyId;
+
+    if (agencyId) {
       q = query(
         contractsCol,
-        where('ownerId', '==', user.primaryAgencyId),
+        where('ownerId', '==', agencyId),
         where('ownerType', '==', 'agency')
       );
-    } 
-    // Individual Creator: See only their personal contracts
-    else {
+    } else {
       q = query(
         contractsCol,
         where('userId', '==', user.uid),
-        where('ownerType', '==', 'user') // Explicitly check for personal contracts
+        where('ownerType', '==', 'user')
       );
     }
-
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const contractList = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
       setContracts(contractList);
