@@ -564,10 +564,10 @@ export const acceptTeamInvitation = onCall(async (request) => {
       // Update user document
       const updatedMemberships = [...(userData.agencyMemberships || [])];
       updatedMemberships[membershipIndex] = {...updatedMemberships[membershipIndex], status: "active"};
-      
+
       const userUpdates: Partial<UserProfileFirestoreData> = {
-          agencyMemberships: updatedMemberships,
-          primaryAgencyId: agencyId, // Set the primary agency ID
+        agencyMemberships: updatedMemberships,
+        primaryAgencyId: agencyId, // Set the primary agency ID
       };
       transaction.update(userDocRef, userUpdates);
 
@@ -627,10 +627,10 @@ export const declineTeamInvitation = onCall(async (request) => {
 
       // Remove membership from user's document
       const updatedMemberships = userData.agencyMemberships?.filter((m) => !(m.agencyId === agencyId && m.role === "team"));
-      
+
       const userUpdates: Partial<UserProfileFirestoreData> = {
-          agencyMemberships: updatedMemberships,
-          primaryAgencyId: null, // Clear the primary agency ID
+        agencyMemberships: updatedMemberships,
+        primaryAgencyId: null, // Clear the primary agency ID
       };
       transaction.update(userDocRef, userUpdates);
     });
@@ -642,4 +642,3 @@ export const declineTeamInvitation = onCall(async (request) => {
   }
 });
 
-    

@@ -15,8 +15,9 @@ service cloud.firestore {
     }
 
     // Helper function to check if the user is an active team member of a specific agency
-    function isTeamMemberOf(agencyId) {
-      return request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.members.filter(m => m.status == 'active').map(m => m.userId);
+    function isTeamMember(agencyId) {
+      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return requesterUser.data.primaryAgencyId == agencyId;
     }
 
     // Corrected Helper: Check if the requester is a team member of an agency owned by the target user.
@@ -67,14 +68,14 @@ service cloud.firestore {
         (
           request.auth.uid == resource.data.userId || // User is the talent on the contract
           (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || // User is the owner of the agency
-          (resource.data.ownerType == 'agency' && isTeamMemberOf(resource.data.ownerId))    // OR User is a team member of the agency
+          (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId))    // OR User is a team member of the agency
         );
       
       allow create: if request.auth != null && 
         (
           request.auth.uid == request.resource.data.userId || // Talent creating for themselves
           (request.resource.data.ownerType == 'agency' && isOwnerOfAgency(request.resource.data.ownerId)) || // Agency owner creating for their talent
-          (request.resource.data.ownerType == 'agency' && isTeamMemberOf(request.resource.data.ownerId)) // OR Team member creating for talent
+          (request.resource.data.ownerType == 'agency' && isTeamMember(request.resource.data.ownerId)) // OR Team member creating for talent
         );
     }
         
@@ -122,7 +123,7 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && (isOwnerOfAgency(agencyId) || isTeamMemberOf(agencyId));
+      allow update: if request.auth != null && (isOwnerOfAgency(agencyId) || isTeamMember(agencyId));
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
@@ -140,5 +141,4 @@ service cloud.firestore {
      }
   }
 }
-
     
