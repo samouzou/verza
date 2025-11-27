@@ -88,21 +88,24 @@ export default function EditContractPage() {
 
           if (contractSnap.exists()) {
             const data = contractSnap.data() as Contract;
-            const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-            const isOwner = data.userId === user.uid;
-            const isAgencyOwner = user.role === 'agency_owner' && data.ownerType === 'agency' && data.ownerId === agencyId;
+            const agencyOwnerId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : null;
+            const teamMemberAgencyId = user.primaryAgencyId;
+
+            const isDirectOwner = data.userId === user.uid;
+            const isAgencyOwner = user.isAgencyOwner && data.ownerType === 'agency' && data.ownerId === agencyOwnerId;
+            const isTeamMember = teamMemberAgencyId && data.ownerType === 'agency' && data.ownerId === teamMemberAgencyId;
             
-            if (isOwner || isAgencyOwner) {
+            if (isDirectOwner || isAgencyOwner || isTeamMember) {
                 const contractWithId = { ...data, id: contractSnap.id };
                 setContract(contractWithId);
                 setCurrentSummary(data.summary);
                 setCurrentNegotiationSuggestions(data.negotiationSuggestions);
             } else {
-                 toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+                 toast({ title: "Access Denied", description: "You don't have permission to edit this contract.", variant: "destructive" });
                  router.push('/contracts');
             }
           } else {
-            toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+            toast({ title: "Error", description: "Contract not found.", variant: "destructive" });
             router.push('/contracts');
           }
         } catch (error) {
@@ -464,5 +467,3 @@ export default function EditContractPage() {
     </>
   );
 }
-
-    

@@ -25,111 +25,104 @@ export default function ContractsPage() {
   const { startTour } = useTour();
 
   useEffect(() => {
-    if (user && !authLoading) {
-      setIsLoadingContracts(true);
-      const contractsCol = collection(db, 'contracts');
-      
-      const processAndSetContracts = (newContracts: Contract[]) => {
-          return newContracts.map(data => {
-            let createdAtTimestamp: Timestamp;
-            if (data.createdAt instanceof Timestamp) {
-              createdAtTimestamp = data.createdAt;
-            } else if (data.createdAt && typeof (data.createdAt as any).seconds === 'number') {
-              createdAtTimestamp = new Timestamp((data.createdAt as any).seconds, (data.createdAt as any).nanoseconds);
-            } else {
-              createdAtTimestamp = Timestamp.now();
-            }
-  
-            let updatedAtTimestamp: Timestamp | undefined = undefined;
-            if (data.updatedAt instanceof Timestamp) {
-              updatedAtTimestamp = data.updatedAt;
-            } else if (data.updatedAt && typeof (data.updatedAt as any).seconds === 'number') {
-               updatedAtTimestamp = new Timestamp((data.updatedAt as any).seconds, (data.updatedAt as any).nanoseconds);
-            }
-            
-            let effectiveDisplayStatus: Contract['status'] = data.status || 'pending';
-            const invoiceStatus = data.invoiceStatus || 'none';
-            const todayMidnight = new Date();
-            todayMidnight.setHours(0, 0, 0, 0);
-            const contractDueDate = data.dueDate ? new Date(data.dueDate + 'T00:00:00') : null;
-  
-            if (invoiceStatus === 'paid') {
-              effectiveDisplayStatus = 'paid';
-            } else if (invoiceStatus === 'overdue') {
-              effectiveDisplayStatus = 'overdue';
-            } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
-              effectiveDisplayStatus = 'overdue';
-            } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
-              effectiveDisplayStatus = 'invoiced';
-            } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) { 
-              effectiveDisplayStatus = 'overdue';
-            }
-  
-            return {
-              ...data,
-              createdAt: createdAtTimestamp, 
-              updatedAt: updatedAtTimestamp,
-              status: effectiveDisplayStatus, 
-              invoiceStatus: invoiceStatus,
-            } as Contract;
-          });
-      };
-      
-      let unsubscribe: (() => void) | undefined;
-  
-      // If user is part of an agency (owner, admin, or member)
-      if (user.agencyMemberships && user.agencyMemberships.length > 0) {
-        const activeAgencyIds = user.agencyMemberships.filter(m => m.status === 'active').map(m => m.agencyId);
-
-        if (activeAgencyIds.length > 0) {
-            // Fetch all contracts owned by any of the user's active agencies
-            const q = query(
-              contractsCol, 
-              where('ownerId', 'in', activeAgencyIds), 
-              where('ownerType', '==', 'agency'),
-              firestoreOrderBy('createdAt', 'desc')
-            );
-            unsubscribe = onSnapshot(q, (snapshot) => {
-              const contractList = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-              setContracts(contractList);
-              setIsLoadingContracts(false);
-            }, (error) => {
-              console.error("Error fetching agency contracts:", error);
-              toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
-              setIsLoadingContracts(false);
-            });
-        } else {
-            // User has pending invites but no active memberships, show nothing for now
-            setContracts([]);
-            setIsLoadingContracts(false);
-        }
-      } else {
-        // Individual creator or talent not in any agency
-        const q = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          firestoreOrderBy('createdAt', 'desc')
-        );
-        unsubscribe = onSnapshot(q, (snapshot) => {
-          const contractList = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-          setContracts(contractList);
-          setIsLoadingContracts(false);
-        }, (error) => {
-          console.error("Error fetching personal contracts:", error);
-          toast({ title: "Error Listening to Contracts", description: "Could not load contract updates in real-time. Please refresh.", variant: "destructive" });
-          setContracts([]);
-          setIsLoadingContracts(false);
-        });
-      }
-  
-      return () => {
-        if (unsubscribe) unsubscribe();
-      };
-  
-    } else if (!authLoading && !user) {
-      setContracts([]);
-      setIsLoadingContracts(false);
+    if (!user || authLoading) {
+      if (!authLoading) setIsLoadingContracts(false);
+      return;
     }
+
+    setIsLoadingContracts(true);
+
+    const processAndSetContracts = (newContracts: Contract[]) => {
+      return newContracts.map(data => {
+        let createdAtTimestamp: Timestamp;
+        if (data.createdAt instanceof Timestamp) {
+          createdAtTimestamp = data.createdAt;
+        } else if (data.createdAt && typeof (data.createdAt as any).seconds === 'number') {
+          createdAtTimestamp = new Timestamp((data.createdAt as any).seconds, (data.createdAt as any).nanoseconds);
+        } else {
+          createdAtTimestamp = Timestamp.now();
+        }
+
+        let updatedAtTimestamp: Timestamp | undefined = undefined;
+        if (data.updatedAt instanceof Timestamp) {
+          updatedAtTimestamp = data.updatedAt;
+        } else if (data.updatedAt && typeof (data.updatedAt as any).seconds === 'number') {
+            updatedAtTimestamp = new Timestamp((data.updatedAt as any).seconds, (data.updatedAt as any).nanoseconds);
+        } else if (typeof data.updatedAt === 'string') {
+            updatedAtTimestamp = Timestamp.fromDate(new Date(data.updatedAt));
+        }
+
+        let effectiveDisplayStatus: Contract['status'] = data.status || 'pending';
+        const invoiceStatus = data.invoiceStatus || 'none';
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0, 0, 0, 0);
+        const contractDueDate = data.dueDate ? new Date(data.dueDate + 'T00:00:00') : null;
+
+        if (invoiceStatus === 'paid') {
+          effectiveDisplayStatus = 'paid';
+        } else if (invoiceStatus === 'overdue') {
+          effectiveDisplayStatus = 'overdue';
+        } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
+          effectiveDisplayStatus = 'overdue';
+        } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
+          effectiveDisplayStatus = 'invoiced';
+        } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) {
+          effectiveDisplayStatus = 'overdue';
+        }
+
+        return {
+          ...data,
+          createdAt: createdAtTimestamp,
+          updatedAt: updatedAtTimestamp,
+          status: effectiveDisplayStatus,
+          invoiceStatus: invoiceStatus,
+        } as Contract;
+      });
+    };
+
+    const contractsCol = collection(db, 'contracts');
+    let q;
+
+    // Agency Owner: See all their agency contracts and their personal contracts
+    if (user.isAgencyOwner) {
+       const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+       q = query(
+         contractsCol,
+         where('ownerId', '==', agencyId),
+         where('ownerType', '==', 'agency')
+         // Note: to also see personal contracts, we'd need a composite query or a separate listener.
+         // For now, focusing on the primary agency role.
+       );
+    } 
+    // Agency Team Member: See all contracts for their primary agency
+    else if (user.primaryAgencyId) {
+      q = query(
+        contractsCol,
+        where('ownerId', '==', user.primaryAgencyId),
+        where('ownerType', '==', 'agency')
+      );
+    } 
+    // Individual Creator: See only their personal contracts
+    else {
+      q = query(
+        contractsCol,
+        where('userId', '==', user.uid),
+        where('ownerType', '==', 'user') // Explicitly check for personal contracts
+      );
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const contractList = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
+      setContracts(contractList);
+      setIsLoadingContracts(false);
+    }, (error) => {
+      console.error("Error fetching contracts:", error);
+      toast({ title: "Error", description: "Could not fetch contracts.", variant: "destructive" });
+      setIsLoadingContracts(false);
+    });
+
+    return () => unsubscribe();
+    
   }, [user, authLoading, toast]);
 
 

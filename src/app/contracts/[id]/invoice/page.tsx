@@ -263,11 +263,13 @@ export default function ManageInvoicePage() {
 
         if (contractSnap.exists()) {
           const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-          const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-          const isOwner = contractData.userId === user.uid;
-          const isAgencyOwner = user.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
+          const agencyOwnerId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : null;
+          const teamMemberAgencyId = user.primaryAgencyId;
+          const isDirectOwner = contractData.userId === user.uid;
+          const isAgencyOwner = user.isAgencyOwner && data.ownerType === 'agency' && data.ownerId === agencyOwnerId;
+          const isTeamMember = teamMemberAgencyId && data.ownerType === 'agency' && data.ownerId === teamMemberAgencyId;
           
-          if (isOwner || isAgencyOwner) {
+          if (isDirectOwner || isAgencyOwner || isTeamMember) {
               setContract(contractData);
               setInvoiceStatus(contractData.invoiceStatus || 'none');
               const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
@@ -312,11 +314,11 @@ export default function ManageInvoicePage() {
                 if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
               });
           } else {
-            toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+            toast({ title: "Access Denied", description: "You don't have permission to manage this invoice.", variant: "destructive" });
             router.push('/contracts');
           }
         } else {
-          toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+          toast({ title: "Error", description: "Contract not found.", variant: "destructive" });
           router.push('/contracts');
         }
       } catch (error) {
@@ -806,92 +808,6 @@ export default function ManageInvoicePage() {
           <Card>
             <CardHeader><CardTitle>Enter Payment Details</CardTitle><CardDescription>Securely enter your card information below.</CardDescription></CardHeader>
             <CardContent><Elements stripe={stripePromise} options={elementsOptions}><StripePaymentForm clientSecret={clientSecret} contractId={contract.id} /></Elements></CardContent>
-          </Card>
-        )}
-
-        {isEditingDetails && !clientSecret && (
-          <Card>
-            <CardHeader><CardTitle>Edit Invoice Details</CardTitle><CardDescription>Modify the fields below. The HTML preview will update when you click "Preview HTML".</CardDescription></CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                <div><Label htmlFor="edit-invNum">Invoice Number</Label><Input id="edit-invNum" value={editableInvoiceNumber} onChange={(e) => setEditableInvoiceNumber(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-invDate">Invoice Date</Label><Input id="edit-invDate" type="date" value={editableInvoiceDate} onChange={(e) => setEditableInvoiceDate(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-dueDate">Due Date</Label><Input id="edit-dueDate" type="date" value={editableDueDate} onChange={(e) => setEditableDueDate(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-projName">Project Name (Optional)</Label><Input id="edit-projName" value={editableProjectName} onChange={(e) => setEditableProjectName(e.target.value)} className="mt-1"/></div>
-              </div>
-              
-              <div className="border-t pt-4 mt-4">
-                <h4 className="text-md font-semibold mb-2">Creator Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div><Label htmlFor="edit-creatorName">Your Name/Company</Label><Input id="edit-creatorName" value={editableCreatorName} onChange={(e) => setEditableCreatorName(e.target.value)} className="mt-1"/></div>
-                    <div><Label htmlFor="edit-creatorEmail">Your Email</Label><Input id="edit-creatorEmail" type="email" value={editableCreatorEmail} onChange={(e) => setEditableCreatorEmail(e.target.value)} className="mt-1"/></div>
-                    <div className="md:col-span-2"><Label htmlFor="edit-creatorAddr">Your Address</Label><Textarea id="edit-creatorAddr" value={editableCreatorAddress} onChange={(e) => setEditableCreatorAddress(e.target.value)} rows={2} className="mt-1"/></div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4 mt-4">
-                <h4 className="text-md font-semibold mb-2">Client Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div><Label htmlFor="edit-clientName">Client Name</Label><Input id="edit-clientName" value={editableClientName} onChange={(e) => setEditableClientName(e.target.value)} className="mt-1"/></div>
-                    <div><Label htmlFor="edit-clientEmail">Client Email</Label><Input id="edit-clientEmail" type="email" value={editableClientEmail} onChange={(e) => setEditableClientEmail(e.target.value)} className="mt-1"/></div>
-                    <div className="md:col-span-2"><Label htmlFor="edit-clientAddr">Client Address</Label><Textarea id="edit-clientAddr" value={editableClientAddress} onChange={(e) => setEditableClientAddress(e.target.value)} rows={2} className="mt-1"/></div>
-                </div>
-              </div>
-              
-              <div className="border-t pt-4 mt-4">
-                <div className="mb-6"> 
-                  <h4 className="text-md font-semibold mb-2 flex items-center">
-                    <ReceiptText className="mr-2 h-5 w-5 text-primary" />
-                    Currently Linked Receipts ({contractReceipts.length})
-                  </h4>
-                  {contractReceipts.length > 0 ? (
-                    <ul className="space-y-2 rounded-md border bg-muted/50 p-3 max-h-40 overflow-y-auto">
-                      {contractReceipts.map((receipt, index) => (
-                        <li key={index} className="flex items-center justify-between text-sm p-1 hover:bg-muted rounded">
-                          <div className="flex items-center">
-                            <FileText className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="truncate" title={receipt.description || "Receipt"}>{receipt.description || "Receipt"}</span>
-                          </div>
-                          <a
-                            href={receipt.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline text-xs ml-2 flex-shrink-0"
-                          >
-                            View
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">No receipts currently linked to this contract.</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    These receipts will be included in the generated invoice. Manage receipts on the <Link href={`/receipts?contractId=${id}`} className="text-primary hover:underline">Receipts page</Link>.
-                  </p>
-                </div>
-              </div>
-
-              <div className="border-t pt-4 mt-4">
-                <h4 className="text-md font-semibold mb-2">Invoice Line Items</h4>
-                {editableDeliverables.map((item, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
-                    <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-6 md:col-span-2"><Label htmlFor={`price-${index}`}>Unit Price</Label><Input id={`price-${index}`} type="number" value={item.unitPrice} min="0" step="0.01" onChange={(e) => handleDeliverableChange(index, 'unitPrice', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
-                    <div className="col-span-10 md:col-span-2"><Label>Total</Label><Input value={!isNaN(item.quantity * item.unitPrice) ? (item.quantity * item.unitPrice).toFixed(2) : '0.00'} readOnly disabled className="mt-1 bg-muted"/></div>
-                    <div className="col-span-2 md:col-span-1"><Button type="button" variant="ghost" size="icon" onClick={() => removeDeliverable(index)} className="text-destructive hover:bg-destructive/10 w-full" disabled={item.isMilestone}><Trash2 className="h-4 w-4"/></Button></div>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={addDeliverable} size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Add Line Item</Button>
-                <div className="text-right font-semibold text-lg mt-4">Total Amount: ${calculatedTotalAmount.toFixed(2)}</div>
-              </div>
-
-              <div className="border-t pt-4 mt-4">
-                <Label htmlFor="edit-paymentInstr">Payment Instructions</Label>
-                <Textarea id="edit-paymentInstr" value={editablePaymentInstructions} onChange={(e) => setEditablePaymentInstructions(e.target.value)} rows={3} className="mt-1"/>
-              </div>
-            </CardContent>
           </Card>
         )}
 

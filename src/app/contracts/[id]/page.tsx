@@ -123,39 +123,48 @@ export default function ContractDetailPage() {
     let unsubscribeContract: (() => void) | undefined;
     let unsubscribeEmailLogs: (() => void) | undefined;
 
-
     if (id && user && !authLoading) {
       setIsLoading(true);
       setIsLoadingEmailLogs(true);
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
-        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
+        const agencyOwnerId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : null;
+        const teamMemberAgencyId = user.primaryAgencyId;
         const data = contractSnap.data();
 
-        if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
-          const processedData = {
-            ...data,
-            id: contractSnap.id,
-            createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
-            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
-            lastReminderSentAt: data.lastReminderSentAt instanceof Timestamp ? data.lastReminderSentAt : null,
-            invoiceStatus: data.invoiceStatus || 'none',
-            invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
-              ...entry,
-              timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
-            })) || [],
-            signatureStatus: data.signatureStatus || 'none',
-            lastSignatureEventAt: data.lastSignatureEventAt instanceof Timestamp ? data.lastSignatureEventAt : null,
-            milestones: data.milestones || [{ id: uuidv4(), description: 'Total Amount', amount: data.amount, dueDate: data.dueDate, status: 'pending' }],
-          } as Contract;
-          
-          setContract(processedData);
-          populateSidebarForms(processedData);
+        if (contractSnap.exists() && data) {
+            const isDirectOwner = data.userId === user.uid;
+            const isAgencyOwner = user.isAgencyOwner && data.ownerType === 'agency' && data.ownerId === agencyOwnerId;
+            const isTeamMember = teamMemberAgencyId && data.ownerType === 'agency' && data.ownerId === teamMemberAgencyId;
 
+            if (isDirectOwner || isAgencyOwner || isTeamMember) {
+                const processedData = {
+                  ...data,
+                  id: contractSnap.id,
+                  createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+                  updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
+                  lastReminderSentAt: data.lastReminderSentAt instanceof Timestamp ? data.lastReminderSentAt : null,
+                  invoiceStatus: data.invoiceStatus || 'none',
+                  invoiceHistory: data.invoiceHistory?.map((entry: any) => ({
+                    ...entry,
+                    timestamp: entry.timestamp instanceof Timestamp ? entry.timestamp : Timestamp.fromDate(new Date(entry.timestamp.seconds * 1000))
+                  })) || [],
+                  signatureStatus: data.signatureStatus || 'none',
+                  lastSignatureEventAt: data.lastSignatureEventAt instanceof Timestamp ? data.lastSignatureEventAt : null,
+                  milestones: data.milestones || [{ id: uuidv4(), description: 'Total Amount', amount: data.amount, dueDate: data.dueDate, status: 'pending' }],
+                } as Contract;
+                
+                setContract(processedData);
+                populateSidebarForms(processedData);
+            } else {
+                 setContract(null);
+                 toast({ title: "Access Denied", description: "You don't have permission to view this contract.", variant: "destructive" });
+                 router.push('/contracts');
+            }
         } else {
           setContract(null);
-          toast({ title: "Error", description: "Contract not found or you don't have permission to view it.", variant: "destructive" });
+          toast({ title: "Error", description: "Contract not found.", variant: "destructive" });
           router.push('/contracts');
         }
         setIsLoading(false);
@@ -266,7 +275,7 @@ export default function ContractDetailPage() {
             console.warn("Could not delete old file from storage:", deleteError.message);
           }
         }
-        const fileStorageRef = storageFileRef(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
+        const fileStorageRef = storageFileRef(storage, `contracts/${contract.ownerId}/${Date.now()}_${newSelectedFile.name}`);
         const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
         newFileUrl = await getDownloadURL(uploadResult.ref);
         newFileNameToSave = newSelectedFile.name;
