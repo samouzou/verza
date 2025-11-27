@@ -564,7 +564,12 @@ export const acceptTeamInvitation = onCall(async (request) => {
       // Update user document
       const updatedMemberships = [...(userData.agencyMemberships || [])];
       updatedMemberships[membershipIndex] = {...updatedMemberships[membershipIndex], status: "active"};
-      transaction.update(userDocRef, {agencyMemberships: updatedMemberships});
+      
+      const userUpdates: Partial<UserProfileFirestoreData> = {
+          agencyMemberships: updatedMemberships,
+          primaryAgencyId: agencyId, // Set the primary agency ID
+      };
+      transaction.update(userDocRef, userUpdates);
 
       // Set custom claims based on role
       const currentClaims = (await admin.auth().getUser(memberId)).customClaims || {};
@@ -622,7 +627,12 @@ export const declineTeamInvitation = onCall(async (request) => {
 
       // Remove membership from user's document
       const updatedMemberships = userData.agencyMemberships?.filter((m) => !(m.agencyId === agencyId && m.role === "team"));
-      transaction.update(userDocRef, {agencyMemberships: updatedMemberships});
+      
+      const userUpdates: Partial<UserProfileFirestoreData> = {
+          agencyMemberships: updatedMemberships,
+          primaryAgencyId: null, // Clear the primary agency ID
+      };
+      transaction.update(userDocRef, userUpdates);
     });
     return {success: true, message: "Team invitation declined."};
   } catch (error) {
@@ -631,3 +641,5 @@ export const declineTeamInvitation = onCall(async (request) => {
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   }
 });
+
+    

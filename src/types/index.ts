@@ -188,6 +188,7 @@ export interface UserProfileFirestoreData {
   role: 'individual_creator' | 'agency_owner';
   isAgencyOwner?: boolean;
   agencyMemberships?: AgencyMembership[];
+  primaryAgencyId?: string | null; // NEW: For team members to easily find their agency
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';

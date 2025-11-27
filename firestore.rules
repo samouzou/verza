@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -18,17 +19,15 @@ service cloud.firestore {
       return request.auth.uid in get(/databases/$(database)/documents/agencies/$(agencyId)).data.members.filter(m => m.status == 'active').map(m => m.userId);
     }
 
-    // NEW: Helper function to check if the requesting user is a team member of an agency owned by the target user
+    // Corrected Helper: Check if the requester is a team member of an agency owned by the target user.
     function isTeamMemberOfAgencyOwnedBy(targetUserId) {
-      // Check if the user has any active team memberships and if any of those agencies are owned by the target user.
-      // This is a single return statement composed of boolean logic.
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             'agencyMemberships' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships
-               .filter(mem => mem.role == 'team' && mem.status == 'active').size() > 0 &&
-             get(/databases/$(database)/documents/agencies/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.agencyMemberships.filter(mem => mem.role == 'team' && mem.status == 'active')[0].agencyId)).data.ownerId == targetUserId;
+      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let agencyId = requesterUser.data.primaryAgencyId;
+      
+      // Check if agencyId exists and the target user owns that agency
+      return agencyId != null && 
+             get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == targetUserId;
     }
-
 
     // Helper functions to allow user to access email logs
     function isSignedIn() {
@@ -141,3 +140,5 @@ service cloud.firestore {
      }
   }
 }
+
+    
