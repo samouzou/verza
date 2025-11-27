@@ -34,6 +34,7 @@ export default function ContractsPage() {
 
     const contractsCol = collection(db, 'contracts');
     let q: any;
+    let unsubscribe: (() => void) | undefined;
 
     if (user.isAgencyOwner) {
         const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
@@ -41,8 +42,7 @@ export default function ContractsPage() {
             setIsLoadingContracts(false);
             return;
         }
-        
-        // This logic is complex for real-time, so we'll fetch once and merge
+
         const fetchAllAgencyData = async () => {
             try {
                 const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
@@ -53,10 +53,14 @@ export default function ContractsPage() {
                     getDocs(personalQuery),
                 ]);
 
-                const agencyContracts = agencySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
-                const personalContracts = personalSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
+                const mapDocToContract = (doc: any): Contract => {
+                    const data = doc.data();
+                    return { id: doc.id, ...data } as Contract;
+                };
 
-                // Merge and deduplicate
+                const agencyContracts = agencySnapshot.docs.map(mapDocToContract);
+                const personalContracts = personalSnapshot.docs.map(mapDocToContract);
+
                 const contractMap = new Map<string, Contract>();
                 [...agencyContracts, ...personalContracts].forEach(c => contractMap.set(c.id, c));
                 
@@ -70,31 +74,35 @@ export default function ContractsPage() {
         };
 
         fetchAllAgencyData();
+        // For simplicity in this complex query scenario, we are not using a real-time listener.
+        // This means the user may need to refresh to see new contracts added by team members.
+        // A production app might implement a more sophisticated real-time solution.
 
-        // No real-time listener here due to complexity, it would require multiple listeners and state merges.
-        // For a production app, this could be refactored.
-        return () => {};
-
-
-    } else if (user.primaryAgencyId) {
-        // This is a team member
-        q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
     } else {
-        // This is an individual creator
-        q = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
+        if (user.primaryAgencyId) {
+            // This is a team member
+            q = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
+        } else {
+            // This is an individual creator
+            q = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
+        }
+        
+        unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedContracts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
+            setContracts(fetchedContracts);
+            setIsLoadingContracts(false);
+        }, (error) => {
+            console.error("Error fetching contracts:", error);
+            toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
+            setIsLoadingContracts(false);
+        });
     }
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const fetchedContracts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Contract));
-        setContracts(fetchedContracts);
-        setIsLoadingContracts(false);
-    }, (error) => {
-        console.error("Error fetching contracts:", error);
-        toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
-        setIsLoadingContracts(false);
-    });
-
-    return () => unsubscribe();
+    return () => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    };
     
   }, [user, authLoading, toast]);
 
