@@ -80,7 +80,7 @@ export function ContractList({ contracts }: ContractListProps) {
                     ) : (
                        <>
                         <User className="h-4 w-4 text-muted-foreground"/>
-                        <span>Personal</span>
+                        <span>{agencyName}</span>
                       </>
                     )}
                   </div>
