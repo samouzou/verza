@@ -112,7 +112,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-  const agencyOwnerId = request.auth.uid;
+  const inviterId = request.auth.uid;
   const {agencyId, talentEmail} = request.data;
 
   if (!agencyId || !talentEmail) {
@@ -124,10 +124,22 @@ export const inviteTalentToAgency = onCall(async (request) => {
   try {
     const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
-    if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
-      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
-    }
     const agencyData = agencySnap.data() as Agency;
+
+    if (!agencySnap.exists) {
+      throw new HttpsError("not-found", "The specified agency does not exist.");
+    }
+
+    const inviterDoc = await db.collection("users").doc(inviterId).get();
+    const inviterData = inviterDoc.data() as UserProfileFirestoreData;
+
+    const isOwner = agencyData.ownerId === inviterId;
+    const isTeamMember = inviterData.primaryAgencyId === agencyId && inviterData.agencyMemberships?.some(m => m.role === "team" && m.status === "active");
+
+    if (!isOwner && !isTeamMember) {
+      throw new HttpsError("permission-denied", "You do not have permission to invite talent to this agency.");
+    }
+
 
     let talentUser;
     try {
@@ -185,7 +197,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
     // Send email to existing user
     await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, true);
 
-    logger.info(`Talent ${talentEmailCleaned} invited to agency ${agencyId} by owner ${agencyOwnerId}.`);
+    logger.info(`Talent ${talentEmailCleaned} invited to agency ${agencyId} by inviter ${inviterId}.`);
     return {success: true, message: "Talent invited successfully."};
   } catch (error) {
     logger.error(`Error inviting talent to agency ${agencyId}:`, error);
