@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDocs, doc, getDoc } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDoc, doc } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -33,7 +33,6 @@ export default function ContractsPage() {
     }
 
     setIsLoadingContracts(true);
-    const contractsCol = collection(db, 'contracts');
     let unsubscribe: (() => void) | undefined;
 
     const mapDocToContract = (doc: any): Contract => {
@@ -51,8 +50,9 @@ export default function ContractsPage() {
         } as Contract;
     };
     
+    // Determine the agency ID for the dialog, whether owner or team member
     const agencyIdForDialog = user.isAgencyOwner 
-        ? user.agencyMemberships?.[0]?.agencyId 
+        ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId
         : user.primaryAgencyId;
         
     if (agencyIdForDialog) {
@@ -66,41 +66,47 @@ export default function ContractsPage() {
         setAgencyForDialog(null);
     }
 
+    const contractsCol = collection(db, 'contracts');
 
     if (user.isAgencyOwner) {
         const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
         if (!agencyId) {
             setIsLoadingContracts(false);
+            setContracts([]);
             return;
         }
         
-        const fetchAllAgencyData = async () => {
-            try {
-                const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
-                const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
-                
-                const [agencySnapshot, personalSnapshot] = await Promise.all([
-                    getDocs(agencyQuery),
-                    getDocs(personalQuery),
-                ]);
+        const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
+        const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
+        
+        const unsubAgency = onSnapshot(agencyQuery, (agencySnapshot) => {
+            const agencyContracts = agencySnapshot.docs.map(mapDocToContract);
+            setContracts(current => {
+                const otherContracts = current.filter(c => c.ownerType !== 'agency' || c.ownerId !== agencyId);
+                return [...otherContracts, ...agencyContracts].sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            });
+            setIsLoadingContracts(false);
+        }, (error) => {
+            console.error("Error fetching agency contracts:", error);
+            toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
+        });
 
-                const agencyContracts = agencySnapshot.docs.map(mapDocToContract);
-                const personalContracts = personalSnapshot.docs.map(mapDocToContract);
-                
-                const contractMap = new Map<string, Contract>();
-                [...agencyContracts, ...personalContracts].forEach(c => contractMap.set(c.id, c));
-                
-                const combinedContracts = Array.from(contractMap.values()).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-                setContracts(combinedContracts);
-
-            } catch (error) {
-                 console.error("Error fetching all agency/personal contracts:", error);
-                 toast({ title: "Error", description: "Could not fetch all contracts.", variant: "destructive" });
-            } finally {
-                setIsLoadingContracts(false);
-            }
+        const unsubPersonal = onSnapshot(personalQuery, (personalSnapshot) => {
+            const personalContracts = personalSnapshot.docs.map(mapDocToContract);
+            setContracts(current => {
+                const otherContracts = current.filter(c => c.ownerType !== 'user' || c.userId !== user.uid);
+                return [...otherContracts, ...personalContracts].sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            });
+            setIsLoadingContracts(false);
+        }, (error) => {
+            console.error("Error fetching personal contracts:", error);
+            toast({ title: "Error", description: "Could not fetch personal contracts.", variant: "destructive" });
+        });
+        
+        unsubscribe = () => {
+            unsubAgency();
+            unsubPersonal();
         };
-        fetchAllAgencyData();
 
     } else if (user.primaryAgencyId) { // Team Member
         const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
@@ -114,38 +120,9 @@ export default function ContractsPage() {
             setIsLoadingContracts(false);
         });
 
-    } else if (user.agencyMemberships?.some(m => m.role === 'talent')) { // Talent
-         const fetchTalentData = async () => {
-            try {
-                const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
-                const agencyTalentQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('userId', '==', user.uid));
-                
-                const [personalSnapshot, agencyTalentSnapshot] = await Promise.all([
-                    getDocs(personalQuery),
-                    getDocs(agencyTalentQuery),
-                ]);
-
-                const personalContracts = personalSnapshot.docs.map(mapDocToContract);
-                const agencyTalentContracts = agencyTalentSnapshot.docs.map(mapDocToContract);
-
-                const contractMap = new Map<string, Contract>();
-                [...personalContracts, ...agencyTalentContracts].forEach(c => contractMap.set(c.id, c));
-                
-                const combinedContracts = Array.from(contractMap.values()).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-                setContracts(combinedContracts);
-                
-            } catch (error) {
-                 console.error("Error fetching talent contracts:", error);
-                 toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
-            } finally {
-                setIsLoadingContracts(false);
-            }
-        };
-        fetchTalentData();
-
-    } else { // Individual Creator
-        const individualQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid), firestoreOrderBy('createdAt', 'desc'));
-        unsubscribe = onSnapshot(individualQuery, (snapshot) => {
+    } else { // Individual Creator or Talent (not part of a team)
+        const q = query(contractsCol, where('userId', '==', user.uid), firestoreOrderBy('createdAt', 'desc'));
+        unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
             setContracts(fetchedContracts);
             setIsLoadingContracts(false);

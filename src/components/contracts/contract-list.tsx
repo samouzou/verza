@@ -46,8 +46,8 @@ export function ContractList({ contracts }: ContractListProps) {
     }
   };
 
-  const isAgencyView = user?.isAgencyOwner || !!user?.primaryAgencyId;
-  const agencyName = user?.agencyMemberships?.find(m => m.agencyId === (user.primaryAgencyId || user.agencyMemberships?.[0]?.agencyId))?.agencyName;
+  const isAgencyView = user?.isAgencyOwner || (user?.agencyMemberships?.some(m => m.role === 'team' && m.status === 'active'));
+  const agencyName = user?.agencyMemberships?.find(m => m.agencyId === user.primaryAgencyId)?.agencyName;
 
 
   return (
@@ -80,7 +80,7 @@ export function ContractList({ contracts }: ContractListProps) {
                     ) : (
                        <>
                         <User className="h-4 w-4 text-muted-foreground"/>
-                        <span>{agencyName}</span>
+                        <span>{user?.displayName} (Personal)</span>
                       </>
                     )}
                   </div>
