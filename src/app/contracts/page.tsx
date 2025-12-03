@@ -38,20 +38,8 @@ export default function ContractsPage() {
 
     const mapDocToContract = (doc: any): Contract => {
         const data = doc.data();
-        // Ensure Timestamps are correctly handled, defaulting to now() if invalid/missing
-        let createdAt = data.createdAt;
-        if (createdAt && !(createdAt instanceof Timestamp)) {
-            createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
-        } else if (!createdAt) {
-            createdAt = Timestamp.now();
-        }
-
-        let updatedAt = data.updatedAt;
-         if (updatedAt && !(updatedAt instanceof Timestamp)) {
-            updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
-        } else if (!updatedAt) {
-            updatedAt = createdAt;
-        }
+        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt : (data.createdAt?.seconds ? new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds) : Timestamp.now());
+        const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt : (data.updatedAt?.seconds ? new Timestamp(data.updatedAt.seconds, data.updatedAt.nanoseconds) : createdAt);
         
         return { 
             id: doc.id, 
@@ -88,9 +76,7 @@ export default function ContractsPage() {
         
         const fetchAllAgencyData = async () => {
             try {
-                // Query for all contracts owned by the agency
                 const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
-                // Query for the owner's personal contracts
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
                 
                 const [agencySnapshot, personalSnapshot] = await Promise.all([
@@ -116,8 +102,8 @@ export default function ContractsPage() {
         };
         fetchAllAgencyData();
 
-    } else if (user.primaryAgencyId) {
-        const agencyQuery = query(contractsCol, where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
+    } else if (user.primaryAgencyId) { // Team Member
+        const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(agencyQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
             setContracts(fetchedContracts);
@@ -128,7 +114,7 @@ export default function ContractsPage() {
             setIsLoadingContracts(false);
         });
 
-    } else if (user.agencyMemberships?.some(m => m.role === 'talent')) {
+    } else if (user.agencyMemberships?.some(m => m.role === 'talent')) { // Talent
          const fetchTalentData = async () => {
             try {
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
@@ -157,7 +143,7 @@ export default function ContractsPage() {
         };
         fetchTalentData();
 
-    } else {
+    } else { // Individual Creator
         const individualQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(individualQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
