@@ -20,7 +20,7 @@ import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users, PlusCircle, Trash2, DollarSign, Save } from "lucide-react";
-import type { Agency, Contract, PaymentMilestone } from "@/types";
+import type { Agency, Contract, PaymentMilestone, UserProfile } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
@@ -47,9 +47,19 @@ interface UploadContractDialogProps {
   initialSFDT?: string;
   initialSelectedOwner?: string;
   initialFileName?: string;
+  agency?: Agency | null;
+  userProfile?: UserProfile | null;
 }
 
-export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange, initialSFDT, initialSelectedOwner, initialFileName }: UploadContractDialogProps) {
+export function UploadContractDialog({ 
+  isOpen: controlledIsOpen, 
+  onOpenChange: controlledOnOpenChange, 
+  initialSFDT, 
+  initialSelectedOwner, 
+  initialFileName,
+  agency,
+  userProfile
+}: UploadContractDialogProps) {
   const [isInternalOpen, setInternalOpen] = useState(false);
   
   const isOpen = controlledIsOpen ?? isInternalOpen;
@@ -63,7 +73,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { user, refreshAuthUser } = useAuth();
   
-  const [agency, setAgency] = useState<Agency | null>(null);
   const [selectedOwner, setSelectedOwner] = useState<string>("personal");
 
   const [parsedDetails, setParsedDetails] = useState<ExtractContractDetailsOutput | null>(null);
@@ -109,7 +118,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       setMilestones([{ id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
       setIsRecurring(false);
       setRecurrenceInterval(undefined);
-      setAgency(null);
       setSelectedOwner("personal");
   };
 
@@ -117,21 +125,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     if (!isOpen) {
       resetState();
     } else {
-        const agencyId = user?.isAgencyOwner 
-          ? user.agencyMemberships?.[0]?.agencyId 
-          : user?.primaryAgencyId;
-
-        if (agencyId) {
-            const agencyDocRef = doc(db, "agencies", agencyId);
-            getDoc(agencyDocRef).then(docSnap => {
-                if (docSnap.exists()) {
-                    setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
-                }
-            });
-        } else {
-            setAgency(null); // Explicitly set to null if no agency
-        }
-
         if (initialSFDT) {
             if (editorRef.current?.documentEditor) {
                 editorRef.current.documentEditor.open(initialSFDT);
@@ -152,8 +145,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             setFileName(initialFileName);
         }
     }
-  // This dependency array is crucial. It ensures the effect reruns if the user's agency status changes after initial load.
-  }, [isOpen, user?.uid, user?.isAgencyOwner, user?.primaryAgencyId, initialSFDT, initialSelectedOwner, initialFileName]);
+  }, [isOpen, initialSFDT, initialSelectedOwner, initialFileName]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });

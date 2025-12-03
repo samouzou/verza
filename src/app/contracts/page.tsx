@@ -5,12 +5,12 @@ import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ContractList } from "@/components/contracts/contract-list";
 import { UploadContractDialog } from "@/components/contracts/upload-contract-dialog";
-import type { Contract } from "@/types";
+import type { Agency, Contract, UserProfile } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDocs } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDocs, doc } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -23,6 +23,8 @@ export default function ContractsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
+  
+  const [agencyForDialog, setAgencyForDialog] = useState<Agency | null>(null);
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -49,6 +51,23 @@ export default function ContractsPage() {
             invoiceStatus: data.invoiceStatus || 'none',
         } as Contract;
     };
+    
+    // Determine the agency context first
+    const agencyId = user.isAgencyOwner 
+        ? user.agencyMemberships?.[0]?.agencyId 
+        : user.primaryAgencyId;
+        
+    if (agencyId) {
+        const agencyDocRef = doc(db, "agencies", agencyId);
+        getDoc(agencyDocRef).then(docSnap => {
+            if (docSnap.exists()) {
+                setAgencyForDialog({ id: docSnap.id, ...docSnap.data() } as Agency);
+            }
+        });
+    } else {
+        setAgencyForDialog(null);
+    }
+
 
     if (user.isAgencyOwner) {
         const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
@@ -58,10 +77,9 @@ export default function ContractsPage() {
         }
         
         // Agency owners need to see their personal contracts AND all agency contracts.
-        // We perform two separate queries and merge them.
         const fetchAllAgencyData = async () => {
             try {
-                const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
+                const agencyQuery = query(contractsCol, where('ownerId', '==', agencyId));
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
                 
                 const [agencySnapshot, personalSnapshot] = await Promise.all([
@@ -73,7 +91,6 @@ export default function ContractsPage() {
                 const personalContracts = personalSnapshot.docs.map(mapDocToContract);
                 
                 const contractMap = new Map<string, Contract>();
-                // Add all contracts to a map to handle potential duplicates and ensure a single list
                 [...agencyContracts, ...personalContracts].forEach(c => contractMap.set(c.id, c));
                 
                 const combinedContracts = Array.from(contractMap.values()).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
@@ -86,12 +103,11 @@ export default function ContractsPage() {
                 setIsLoadingContracts(false);
             }
         };
-
         fetchAllAgencyData();
 
     } else if (user.primaryAgencyId) {
         // This is a team member, they see all agency contracts
-        const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
+        const agencyQuery = query(contractsCol, where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(agencyQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
             setContracts(fetchedContracts);
@@ -188,7 +204,7 @@ export default function ContractsPage() {
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => startTour(contractsTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>
-            {user && <UploadContractDialog />}
+            {user && <UploadContractDialog userProfile={user} agency={agencyForDialog}/>}
           </div>
         }
       />
