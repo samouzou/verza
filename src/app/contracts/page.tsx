@@ -39,8 +39,19 @@ export default function ContractsPage() {
     const mapDocToContract = (doc: any): Contract => {
         const data = doc.data();
         // Ensure Timestamps are correctly handled, defaulting to now() if invalid/missing
-        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt : (data.createdAt?.seconds ? new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds) : Timestamp.now());
-        const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt : (data.updatedAt?.seconds ? new Timestamp(data.updatedAt.seconds, data.updatedAt.nanoseconds) : createdAt);
+        let createdAt = data.createdAt;
+        if (createdAt && !(createdAt instanceof Timestamp)) {
+            createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds);
+        } else if (!createdAt) {
+            createdAt = Timestamp.now();
+        }
+
+        let updatedAt = data.updatedAt;
+         if (updatedAt && !(updatedAt instanceof Timestamp)) {
+            updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds);
+        } else if (!updatedAt) {
+            updatedAt = createdAt;
+        }
         
         return { 
             id: doc.id, 
@@ -52,12 +63,12 @@ export default function ContractsPage() {
         } as Contract;
     };
     
-    const agencyId = user.isAgencyOwner 
+    const agencyIdForDialog = user.isAgencyOwner 
         ? user.agencyMemberships?.[0]?.agencyId 
         : user.primaryAgencyId;
         
-    if (agencyId) {
-        const agencyDocRef = doc(db, "agencies", agencyId);
+    if (agencyIdForDialog) {
+        const agencyDocRef = doc(db, "agencies", agencyIdForDialog);
         getDoc(agencyDocRef).then(docSnap => {
             if (docSnap.exists()) {
                 setAgencyForDialog({ id: docSnap.id, ...docSnap.data() } as Agency);
@@ -78,7 +89,7 @@ export default function ContractsPage() {
         const fetchAllAgencyData = async () => {
             try {
                 // Query for all contracts owned by the agency
-                const agencyQuery = query(contractsCol, where('ownerId', '==', agencyId));
+                const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
                 // Query for the owner's personal contracts
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
                 
