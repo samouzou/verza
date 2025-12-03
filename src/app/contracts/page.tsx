@@ -36,15 +36,17 @@ export default function ContractsPage() {
 
     const mapDocToContract = (doc: any): Contract => {
         const data = doc.data();
+        // Ensure Timestamps are correctly handled, defaulting to now() if invalid/missing
         const createdAt = data.createdAt instanceof Timestamp ? data.createdAt : (data.createdAt?.seconds ? new Timestamp(data.createdAt.seconds, data.createdAt.nanoseconds) : Timestamp.now());
         const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt : (data.updatedAt?.seconds ? new Timestamp(data.updatedAt.seconds, data.updatedAt.nanoseconds) : createdAt);
+        
         return { 
             id: doc.id, 
-            ...data, 
+            ...data,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
             status: data.status || 'pending',
             invoiceStatus: data.invoiceStatus || 'none',
-            createdAt,
-            updatedAt,
         } as Contract;
     };
 
@@ -55,6 +57,8 @@ export default function ContractsPage() {
             return;
         }
         
+        // Agency owners need to see their personal contracts AND all agency contracts.
+        // We perform two separate queries and merge them.
         const fetchAllAgencyData = async () => {
             try {
                 const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', agencyId));
@@ -69,9 +73,12 @@ export default function ContractsPage() {
                 const personalContracts = personalSnapshot.docs.map(mapDocToContract);
                 
                 const contractMap = new Map<string, Contract>();
+                // Add all contracts to a map to handle potential duplicates and ensure a single list
                 [...agencyContracts, ...personalContracts].forEach(c => contractMap.set(c.id, c));
                 
-                setContracts(Array.from(contractMap.values()));
+                const combinedContracts = Array.from(contractMap.values()).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+                setContracts(combinedContracts);
+
             } catch (error) {
                  console.error("Error fetching all agency/personal contracts:", error);
                  toast({ title: "Error", description: "Could not fetch all contracts.", variant: "destructive" });
@@ -84,7 +91,7 @@ export default function ContractsPage() {
 
     } else if (user.primaryAgencyId) {
         // This is a team member, they see all agency contracts
-        const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId));
+        const agencyQuery = query(contractsCol, where('ownerType', '==', 'agency'), where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(agencyQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
             setContracts(fetchedContracts);
@@ -113,7 +120,9 @@ export default function ContractsPage() {
                 const contractMap = new Map<string, Contract>();
                 [...personalContracts, ...agencyTalentContracts].forEach(c => contractMap.set(c.id, c));
                 
-                setContracts(Array.from(contractMap.values()));
+                const combinedContracts = Array.from(contractMap.values()).sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+                setContracts(combinedContracts);
+                
             } catch (error) {
                  console.error("Error fetching talent contracts:", error);
                  toast({ title: "Error", description: "Could not fetch your contracts.", variant: "destructive" });
@@ -125,7 +134,7 @@ export default function ContractsPage() {
 
     } else {
         // This is an individual creator with no agency affiliations
-        const individualQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
+        const individualQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(individualQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
             setContracts(fetchedContracts);
