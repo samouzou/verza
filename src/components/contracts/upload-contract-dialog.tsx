@@ -128,7 +128,10 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                     setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
                 }
             });
+        } else {
+            setAgency(null); // Explicitly set to null if no agency
         }
+
         if (initialSFDT) {
             if (editorRef.current?.documentEditor) {
                 editorRef.current.documentEditor.open(initialSFDT);
@@ -149,8 +152,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             setFileName(initialFileName);
         }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user, initialSFDT, initialSelectedOwner, initialFileName]);
+  // This dependency array is crucial. It ensures the effect reruns if the user's agency status changes after initial load.
+  }, [isOpen, user?.uid, user?.isAgencyOwner, user?.primaryAgencyId, initialSFDT, initialSelectedOwner, initialFileName]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -246,7 +249,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         const sfdtPayload = {
           "sections": [
             {
-              "blocks": ocrResult.extractedText.split('\n').map(paragraph => ({
+              "blocks": ocrResult.extractedText.split('\\n').map(paragraph => ({
                 "inlines": [{ "text": paragraph }]
               }))
             }
@@ -535,4 +538,3 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     </Dialog>
   );
 }
-
