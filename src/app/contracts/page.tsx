@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDocs, doc } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp, getDocs, doc, getDoc } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -52,7 +52,6 @@ export default function ContractsPage() {
         } as Contract;
     };
     
-    // Determine the agency context first
     const agencyId = user.isAgencyOwner 
         ? user.agencyMemberships?.[0]?.agencyId 
         : user.primaryAgencyId;
@@ -76,10 +75,11 @@ export default function ContractsPage() {
             return;
         }
         
-        // Agency owners need to see their personal contracts AND all agency contracts.
         const fetchAllAgencyData = async () => {
             try {
+                // Query for all contracts owned by the agency
                 const agencyQuery = query(contractsCol, where('ownerId', '==', agencyId));
+                // Query for the owner's personal contracts
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
                 
                 const [agencySnapshot, personalSnapshot] = await Promise.all([
@@ -106,7 +106,6 @@ export default function ContractsPage() {
         fetchAllAgencyData();
 
     } else if (user.primaryAgencyId) {
-        // This is a team member, they see all agency contracts
         const agencyQuery = query(contractsCol, where('ownerId', '==', user.primaryAgencyId), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(agencyQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
@@ -119,7 +118,6 @@ export default function ContractsPage() {
         });
 
     } else if (user.agencyMemberships?.some(m => m.role === 'talent')) {
-        // This is a talent, they see their personal contracts AND agency contracts where they are the talent
          const fetchTalentData = async () => {
             try {
                 const personalQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid));
@@ -149,7 +147,6 @@ export default function ContractsPage() {
         fetchTalentData();
 
     } else {
-        // This is an individual creator with no agency affiliations
         const individualQuery = query(contractsCol, where('ownerType', '==', 'user'), where('userId', '==', user.uid), firestoreOrderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(individualQuery, (snapshot) => {
             const fetchedContracts = snapshot.docs.map(mapDocToContract);
