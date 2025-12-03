@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -11,15 +10,17 @@ service cloud.firestore {
     
     // Helper function to check if the requesting user is the owner of a specific agency
     function isOwnerOfAgency(agencyId) {
-      return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc.data.ownerId == request.auth.uid;
     }
-
+    
     // Helper function to check if the user is an active team member of a specific agency
     function isTeamMember(agencyId) {
       let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
       return requesterUser.data.primaryAgencyId == agencyId;
     }
 
+    
     // Corrected Helper: Check if the requester is a team member of an agency owned by the target user.
     function isTeamMemberOfAgencyOwnedBy(targetUserId) {
       let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
@@ -29,6 +30,7 @@ service cloud.firestore {
       return agencyId != null && 
              get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == targetUserId;
     }
+
 
     // Helper functions to allow user to access email logs
     function isSignedIn() {
@@ -67,25 +69,32 @@ service cloud.firestore {
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-      allow read, update, delete: if request.auth != null && 
-        (
-          request.auth.uid == resource.data.userId || // User is the talent on the contract
-          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || // User is the owner of the agency
-          (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId))    // OR User is a team member of the agency
-        );
+      // READ/UPDATE/DELETE: Allow if...
+      // 1. You are the talent on the contract (covers personal contracts AND talent-assigned agency contracts)
+      // 2. You are the owner of the agency that owns the contract
+      // 3. You are a team member of the agency that owns the contract
+      allow read, update, delete: if request.auth != null && (
+          isUser(resource.data.userId) || 
+          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || 
+          (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId))
+      );
       
-      allow create: if request.auth != null && 
-        (
-          request.auth.uid == request.resource.data.userId || // Talent creating for themselves
-          (request.resource.data.ownerType == 'agency' && isOwnerOfAgency(request.resource.data.ownerId)) || // Agency owner creating for their talent
-          (request.resource.data.ownerType == 'agency' && isTeamMember(request.resource.data.ownerId)) // OR Team member creating for talent
-        );
+      // CREATE: Allow if...
+      // 1. You are creating a contract for yourself (personal)
+      // 2. You are an owner of the agency you're creating the contract for
+      // 3. You are a team member of the agency you're creating the contract for
+      allow create: if request.auth != null && (
+          isUser(request.resource.data.userId) ||
+          (request.resource.data.ownerType == 'agency' && isOwnerOfAgency(request.resource.data.ownerId)) ||
+          (request.resource.data.ownerType == 'agency' && isTeamMember(request.resource.data.ownerId))
+      );
     }
-        
+    
+
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || // Payer
+                    request.auth.uid == resource.data.userId ||  // Payer
                     request.auth.uid == resource.data.creatorId // Creator/Recipient
                   );
       allow create, update, delete: if false; // Only backend via Admin SDK
