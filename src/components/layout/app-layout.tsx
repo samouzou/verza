@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { MailWarning, Send } from "lucide-react";
+import { FirebaseErrorListener } from '@/components/firebase-error-listener'; // Import the listener
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, resendVerificationEmail, isLoading: authIsLoading } = useAuth();
@@ -36,6 +37,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
           </div>
         </div>
+        
+        <FirebaseErrorListener />
 
         {showVerificationBanner && (
             <Alert variant="default" className="mb-6 border-yellow-500/50 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700/50 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">

@@ -33,6 +33,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { v4 as uuidv4 } from 'uuid';
+import { errorEmitter } from '@/lib/firebase-error-emitter';
+import { FirestorePermissionError } from '@/lib/firebase-errors';
+
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -372,15 +375,26 @@ export function UploadContractDialog({
       const trimmedPaymentInstructions = paymentInstructions.trim();
       if (trimmedPaymentInstructions) { contractDataForFirestore.paymentInstructions = trimmedPaymentInstructions; }
       if (isRecurring) { contractDataForFirestore.isRecurring = true; if (recurrenceInterval) { contractDataForFirestore.recurrenceInterval = recurrenceInterval; }}
+      
+      const contractsCol = collection(db, 'contracts');
+      addDoc(contractsCol, contractDataForFirestore)
+        .then(async (docRef) => {
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, { hasCreatedContract: true });
+          await refreshAuthUser();
+          
+          toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
+          onOpenChange(false);
+        })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: contractsCol.path,
+            operation: 'create',
+            requestResourceData: contractDataForFirestore,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
 
-      await addDoc(collection(db, 'contracts'), contractDataForFirestore);
-      
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, { hasCreatedContract: true });
-      await refreshAuthUser();
-      
-      toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
-      onOpenChange(false);
     } catch (error) {
       console.error("Error saving contract:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
