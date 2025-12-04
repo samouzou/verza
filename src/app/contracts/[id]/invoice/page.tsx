@@ -266,8 +266,8 @@ export default function ManageInvoicePage() {
           const agencyOwnerId = user.isAgencyOwner ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId : null;
           const teamMemberAgencyId = user.primaryAgencyId;
           const isDirectOwner = contractData.userId === user.uid;
-          const isAgencyOwner = user.isAgencyOwner && data.ownerType === 'agency' && data.ownerId === agencyOwnerId;
-          const isTeamMember = teamMemberAgencyId && data.ownerType === 'agency' && data.ownerId === teamMemberAgencyId;
+          const isAgencyOwner = user.isAgencyOwner && contractData.ownerType === 'agency' && contractData.ownerId === agencyOwnerId;
+          const isTeamMember = teamMemberAgencyId && contractData.ownerType === 'agency' && contractData.ownerId === teamMemberAgencyId;
           
           if (isDirectOwner || isAgencyOwner || isTeamMember) {
               setContract(contractData);
