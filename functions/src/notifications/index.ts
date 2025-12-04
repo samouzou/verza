@@ -238,6 +238,61 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
 }
 
 /**
+ * Sends an invitation email to a prospective team member.
+ * @param {string} memberEmail The email of the person to invite.
+ * @param {string} agencyName The name of the agency.
+ * @param {boolean} isExistingUser Whether the person is already a Verza user.
+ * @return {Promise<void>}
+ */
+export async function sendTeamInvitationEmail(memberEmail: string, agencyName: string, isExistingUser: boolean): Promise<void> {
+  const appUrl = process.env.APP_URL || "http://localhost:9002";
+  const subject = `You've been invited to join the ${agencyName} team on Verza`;
+  let text;
+  let html;
+  const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
+  const actionText = isExistingUser ? "View Invitation" : "Sign Up & Join Team";
+
+  if (isExistingUser) {
+    text = `You've been invited to join the team at ${agencyName} on Verza.
+    Log in to your account to accept the invitation. Visit: ${actionUrl}`;
+    html = `
+      <h2>Invitation to Join the ${agencyName} Team</h2>
+      <p>Hello,</p>
+      <p>You've been invited to join the internal team at <strong>${agencyName}</strong> on Verza.
+      Log in to your account to view and accept your invitation.</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>Thanks,<br/>The Verza Team</p>
+    `;
+  } else {
+    text = `${agencyName} has invited you to join their team on Verza.
+    Sign up to create your account and join the team. Visit: ${actionUrl}`;
+    html = `
+      <h2>You're Invited to the ${agencyName} Team on Verza</h2>
+      <p>Hello,</p>
+      <p>You've been invited to join the team at <strong>${agencyName}</strong> on the Verza platform.
+      Create your free Verza account to get started.</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>Thanks,<br/>The Verza Team</p>
+    `;
+  }
+
+  const msg = {
+    to: memberEmail,
+    from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+    subject,
+    text,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Team invitation email sent to ${memberEmail} for agency ${agencyName}.`);
+  } catch (error) {
+    logger.error(`Failed to send team invitation email to ${memberEmail}:`, error);
+  }
+}
+
+/**
  * Sends a specific email from a sequence to a user.
  * @param {string} toEmail The recipient's email address.
  * @param {string} name The recipient's name.

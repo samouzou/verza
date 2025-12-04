@@ -5,7 +5,7 @@ import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, AgencyMember} from "../../../src/types";
 import Stripe from "stripe";
-import {sendAgencyInvitationEmail} from "../notifications";
+import {sendAgencyInvitationEmail, sendTeamInvitationEmail} from "../notifications";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -329,16 +329,16 @@ export const createInternalPayout = onCall(async (request) => {
     const agencyData = agencySnap.data() as Agency;
 
     if (!agencySnap.exists) {
-        throw new HttpsError("not-found", "Agency not found.");
+      throw new HttpsError("not-found", "Agency not found.");
     }
-    
+
     const isOwner = agencyData.ownerId === requesterId;
-    const isTeamMember = agencyData.members?.some(m => m.userId === requesterId && m.status === 'active');
+    const isTeamMember = agencyData.members?.some((m) => m.userId === requesterId && m.status === "active");
 
     if (!isOwner && !isTeamMember) {
-        throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
+      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
-    
+
     // The payment must come from the owner's Stripe account
     const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
@@ -476,15 +476,15 @@ export const inviteTeamMember = onCall(async (request) => {
     const agencyData = agencySnap.data() as Agency;
 
     if (!agencySnap.exists) {
-        throw new HttpsError("not-found", "Agency not found.");
+      throw new HttpsError("not-found", "Agency not found.");
     }
-    
+
     // Check if inviter is owner or admin
     const inviterIsOwner = agencyData.ownerId === inviterId;
-    const inviterIsAdmin = agencyData.members?.some(m => m.userId === inviterId && m.role === 'admin' && m.status === 'active');
-    
+    const inviterIsAdmin = agencyData.members?.some((m) => m.userId === inviterId && m.role === "admin" && m.status === "active");
+
     if (!inviterIsOwner && !inviterIsAdmin) {
-        throw new HttpsError("permission-denied", "You must be an owner or admin to invite team members.");
+      throw new HttpsError("permission-denied", "You must be an owner or admin to invite team members.");
     }
 
     if (agencyData.members?.some((m) => m.email === memberEmailCleaned) ||
@@ -497,7 +497,19 @@ export const inviteTeamMember = onCall(async (request) => {
       teamMemberUser = await admin.auth().getUserByEmail(memberEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        throw new HttpsError("not-found", "The invited user must have a Verza account. Please ask them to sign up first.");
+        const invitationsRef = db.collection("teamInvitations").doc(memberEmailCleaned);
+        await invitationsRef.set({
+          agencyId: agencyId,
+          agencyName: agencyData.name,
+          memberEmail: memberEmailCleaned,
+          role: role,
+          status: "pending",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await sendTeamInvitationEmail(memberEmailCleaned, agencyData.name, false);
+        logger.info(`Team invitation sent to new user ${memberEmailCleaned} for agency ${agencyData.name}.`);
+        return {success: true, message: "Invitation sent successfully to the new user."};
       }
       throw new HttpsError("internal", "Error looking up user by email.");
     }
@@ -530,7 +542,7 @@ export const inviteTeamMember = onCall(async (request) => {
 
     await batch.commit();
 
-    // TODO: Send an email notification to the invited team member
+    await sendTeamInvitationEmail(memberEmailCleaned, agencyData.name, true);
 
     logger.info(`Team member ${memberEmailCleaned} invited to agency ${agencyId} as a ${role} by ${inviterId}.`);
     return {success: true, message: "Team member invited successfully."};
@@ -658,8 +670,12 @@ export const declineTeamInvitation = onCall(async (request) => {
 
       const userUpdates: Partial<UserProfileFirestoreData> = {
         agencyMemberships: updatedMemberships,
-        primaryAgencyId: null, // Clear the primary agency ID
       };
+
+      if (userData.primaryAgencyId === agencyId) {
+        userUpdates.primaryAgencyId = null;
+      }
+      
       transaction.update(userDocRef, userUpdates);
     });
     return {success: true, message: "Team invitation declined."};

@@ -3,7 +3,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
-import type {AgencyMembership, Talent, UserProfileFirestoreData} from "../../../src/types";
+import type {AgencyMembership, Talent, UserProfileFirestoreData, AgencyMember} from "../../../src/types";
 import {sendEmailSequence} from "../notifications";
 
 
@@ -62,61 +62,97 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     return null;
   }
 
-  // Check for pending agency invitations
-  const invitationRef = db.collection("agencyInvitations").doc(email);
-  const invitationDoc = await invitationRef.get();
+  // --- Check for and process any pending invitations ---
+  const talentInvitationRef = db.collection("agencyInvitations").doc(email);
+  const teamInvitationRef = db.collection("teamInvitations").doc(email);
 
-  if (invitationDoc.exists) {
-    logger.info(`Found pending invitation for new user ${email}.`);
-    const invitationData = invitationDoc.data();
+  const [talentInvitationDoc, teamInvitationDoc] = await Promise.all([
+    talentInvitationRef.get(),
+    teamInvitationRef.get(),
+  ]);
+
+  if (talentInvitationDoc.exists) {
+    logger.info(`Found pending talent invitation for new user ${email}.`);
+    const invitationData = talentInvitationDoc.data();
     if (invitationData && invitationData.status === "pending") {
-      const {agencyId, agencyName} = invitationData;
-      const agencyDocRef = db.collection("agencies").doc(agencyId);
+      await processTalentInvitation(user, invitationData);
+    }
+  }
 
-      const newTalentMember: Talent = {
-        userId: uid,
-        email: email,
-        displayName: displayName || "New Talent",
-        status: "pending",
-      };
-
-      const talentAgencyMembership: AgencyMembership = {
-        agencyId: agencyId,
-        agencyName: agencyName,
-        role: "talent",
-        status: "pending",
-      };
-
-      // Use a batch to perform updates atomically
-      const batch = db.batch();
-
-      // Update the user's document with the membership
-      const userUpdate: Partial<UserProfileFirestoreData> = {
-        agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership) as any,
-      };
-      // Note: userDocRef already exists from the set() above, so we update
-      batch.update(userDocRef, userUpdate);
-
-      // Add the user to the agency's talent array
-      batch.update(agencyDocRef, {
-        talent: admin.firestore.FieldValue.arrayUnion(newTalentMember),
-      });
-
-      // Mark the invitation as claimed
-      batch.update(invitationRef, {
-        status: "claimed",
-        claimedBy: uid,
-        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      try {
-        await batch.commit();
-        logger.info(`Successfully linked new user ${email} to agency ${agencyName} (${agencyId}).`);
-      } catch (error) {
-        logger.error(`Error processing new user invitation for ${email}:`, error);
-      }
+  if (teamInvitationDoc.exists) {
+    logger.info(`Found pending team invitation for new user ${email}.`);
+    const invitationData = teamInvitationDoc.data();
+    if (invitationData && invitationData.status === "pending") {
+        await processTeamInvitation(user, invitationData);
     }
   }
 
   return null;
 });
+
+async function processTalentInvitation(user: functions.auth.UserRecord, invitationData: any) {
+  const {agencyId, agencyName} = invitationData;
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(user.uid);
+  const talentInvitationRef = db.collection("agencyInvitations").doc(user.email!);
+
+  const newTalentMember: Talent = {
+    userId: user.uid,
+    email: user.email!,
+    displayName: user.displayName || "New Talent",
+    status: "pending",
+  };
+
+  const talentAgencyMembership: AgencyMembership = {
+    agencyId: agencyId,
+    agencyName: agencyName,
+    role: "talent",
+    status: "pending",
+  };
+
+  const batch = db.batch();
+  batch.update(userDocRef, { agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership) });
+  batch.update(agencyDocRef, { talent: admin.firestore.FieldValue.arrayUnion(newTalentMember) });
+  batch.update(talentInvitationRef, { status: "claimed", claimedBy: user.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  try {
+    await batch.commit();
+    logger.info(`Successfully linked new user ${user.email} as TALENT to agency ${agencyName} (${agencyId}).`);
+  } catch (error) {
+    logger.error(`Error processing new user talent invitation for ${user.email}:`, error);
+  }
+}
+
+async function processTeamInvitation(user: functions.auth.UserRecord, invitationData: any) {
+    const { agencyId, agencyName, role } = invitationData;
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const userDocRef = db.collection("users").doc(user.uid);
+    const teamInvitationRef = db.collection("teamInvitations").doc(user.email!);
+
+    const newMember: AgencyMember = {
+        userId: user.uid,
+        email: user.email!,
+        displayName: user.displayName || "Invited Member",
+        role: role,
+        status: "pending",
+    };
+
+    const teamAgencyMembership: AgencyMembership = {
+        agencyId: agencyId,
+        agencyName: agencyName,
+        role: "team",
+        status: "pending",
+    };
+
+    const batch = db.batch();
+    batch.update(userDocRef, { agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership) });
+    batch.update(agencyDocRef, { members: admin.firestore.FieldValue.arrayUnion(newMember) });
+    batch.update(teamInvitationRef, { status: "claimed", claimedBy: user.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+    try {
+        await batch.commit();
+        logger.info(`Successfully linked new user ${user.email} as a TEAM MEMBER to agency ${agencyName} (${agencyId}).`);
+    } catch (error) {
+        logger.error(`Error processing new user team invitation for ${user.email}:`, error);
+    }
+}
