@@ -138,7 +138,7 @@ export function UploadContractDialog({
                       editorRef.current.documentEditor.open(initialSFDT);
                       handleFullAnalysis(initialSFDT);
                     }
-                }, 500);
+                }, 1500);
             }
         }
         if (initialSelectedOwner) {
@@ -223,7 +223,7 @@ export function UploadContractDialog({
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
-            }, 1000);
+            }, 1500);
           } catch (editorError) {
             console.error("Error opening DOCX in editor:", editorError);
             throw new Error("The editor could not process this .docx file.");
