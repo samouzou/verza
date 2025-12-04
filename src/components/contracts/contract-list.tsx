@@ -46,6 +46,41 @@ export function ContractList({ contracts }: ContractListProps) {
     }
   };
 
+  const getEffectiveStatus = (contract: Contract): Contract['status'] => {
+    let effectiveDisplayStatus: Contract['status'] = contract.status || 'pending';
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const contractDueDate = contract.dueDate ? new Date(contract.dueDate + 'T00:00:00') : null;
+    const invoiceStatus = contract.invoiceStatus || 'none';
+
+    if (contract.milestones && contract.milestones.length > 0) {
+      const paidCount = contract.milestones.filter(m => m.status === 'paid').length;
+      if (paidCount === contract.milestones.length) {
+        return 'paid';
+      } else if (paidCount > 0) {
+        return 'partially_paid' as any;
+      } else if (contract.milestones.every(m => m.status === 'invoiced')) {
+        return 'invoiced';
+      } else if (contractDueDate && contractDueDate < todayMidnight && effectiveDisplayStatus !== 'paid') {
+        return 'overdue';
+      }
+    } else {
+      if (invoiceStatus === 'paid') {
+        return 'paid';
+      } else if (invoiceStatus === 'overdue') {
+        return 'overdue';
+      } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
+        return 'overdue';
+      } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
+        return 'invoiced';
+      } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) {
+        return 'overdue';
+      }
+    }
+    return effectiveDisplayStatus;
+  };
+
+
   const isAgencyView = user?.isAgencyOwner || (user?.agencyMemberships?.some(m => m.role === 'team' && m.status === 'active'));
   const agencyName = user?.agencyMemberships?.find(m => m.agencyId === user.primaryAgencyId)?.agencyName;
 
@@ -66,7 +101,9 @@ export function ContractList({ contracts }: ContractListProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {contracts.map((contract, index) => (
+          {contracts.map((contract, index) => {
+            const effectiveStatus = getEffectiveStatus(contract);
+            return (
             <TableRow key={contract.id} onClick={() => handleRowClick(contract.id)} className="cursor-pointer">
               <TableCell className="font-medium">{contract.brand}</TableCell>
               {isAgencyView && (
@@ -90,7 +127,7 @@ export function ContractList({ contracts }: ContractListProps) {
               <TableCell className="text-right">${contract.amount.toLocaleString()}</TableCell>
               <TableCell className="hidden sm:table-cell">{formatDate(contract.dueDate)}</TableCell>
               <TableCell>
-                <ContractStatusBadge status={contract.status} />
+                <ContractStatusBadge status={effectiveStatus} />
               </TableCell>
               <TableCell className="hidden lg:table-cell text-sm text-card-foreground/70 truncate max-w-[150px]">
                 {contract.fileName || 'N/A'}
@@ -123,7 +160,7 @@ export function ContractList({ contracts }: ContractListProps) {
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          ))}
+          )})}
         </TableBody>
       </Table>
     </div>
