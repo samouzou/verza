@@ -134,7 +134,8 @@ export const inviteTalentToAgency = onCall(async (request) => {
     const inviterData = inviterDoc.data() as UserProfileFirestoreData;
 
     const isOwner = agencyData.ownerId === inviterId;
-    const isTeamMember = inviterData.primaryAgencyId === agencyId && inviterData.agencyMemberships?.some(m => m.role === "team" && m.status === "active");
+    const isTeamMember = inviterData.primaryAgencyId === agencyId &&
+    inviterData.agencyMemberships?.some((m) => m.role === "team" && m.status === "active");
 
     if (!isOwner && !isTeamMember) {
       throw new HttpsError("permission-denied", "You do not have permission to invite talent to this agency.");
