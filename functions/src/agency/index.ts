@@ -139,6 +139,16 @@ export const inviteTalentToAgency = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to invite talent to this agency.");
     }
 
+    // Check if there's already a pending invitation for a non-user
+    const existingInvitationQuery = await db.collection("agencyInvitations")
+      .where("agencyId", "==", agencyId)
+      .where("talentEmail", "==", talentEmailCleaned)
+      .limit(1).get();
+
+    if (!existingInvitationQuery.empty) {
+      throw new HttpsError("already-exists", "An invitation has already been sent to this email address.");
+    }
+
 
     let talentUser;
     try {
@@ -146,8 +156,9 @@ export const inviteTalentToAgency = onCall(async (request) => {
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
         // User does not exist, send an email to invite them to sign up
-        const invitationsRef = db.collection("agencyInvitations").doc(talentEmailCleaned);
+        const invitationsRef = db.collection("agencyInvitations").doc(); // Use auto-ID
         await invitationsRef.set({
+          id: invitationsRef.id,
           agencyId: agencyId,
           agencyName: agencyData.name,
           talentEmail: talentEmailCleaned,
@@ -491,14 +502,25 @@ export const inviteTeamMember = onCall(async (request) => {
       agencyData.talent?.some((t) => t.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already associated with the agency as a member or talent.");
     }
+    
+    // Check for existing non-user invitation
+    const existingInvitationQuery = await db.collection("teamInvitations")
+      .where("agencyId", "==", agencyId)
+      .where("memberEmail", "==", memberEmailCleaned)
+      .limit(1).get();
+
+    if (!existingInvitationQuery.empty) {
+      throw new HttpsError("already-exists", "An invitation has already been sent to this team member's email.");
+    }
 
     let teamMemberUser;
     try {
       teamMemberUser = await admin.auth().getUserByEmail(memberEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        const invitationsRef = db.collection("teamInvitations").doc(memberEmailCleaned);
+        const invitationsRef = db.collection("teamInvitations").doc(); // Auto-ID
         await invitationsRef.set({
+          id: invitationsRef.id,
           agencyId: agencyId,
           agencyName: agencyData.name,
           memberEmail: memberEmailCleaned,

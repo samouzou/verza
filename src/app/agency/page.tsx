@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy, Wand2, Shield, UserCog } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, PlusCircle, UserPlus, Mail, Briefcase, Check, X, Send, DollarSign, Calendar, Sparkles, ExternalLink, Percent, LifeBuoy, Wand2, Shield, UserCog, MailWarning } from 'lucide-react';
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -121,6 +121,11 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
   const [teamInviteEmail, setTeamInviteEmail] = useState("");
   const [teamInviteRole, setTeamInviteRole] = useState<'admin' | 'member'>('member');
   const [isInvitingTeamMember, setIsInvitingTeamMember] = useState(false);
+  
+  // Pending invitations state
+  const [pendingTalentInvites, setPendingTalentInvites] = useState<{id: string; email: string}[]>([]);
+  const [pendingTeamInvites, setPendingTeamInvites] = useState<{id: string; email: string; role: string}[]>([]);
+
 
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
@@ -133,6 +138,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
   const isAdmin = agency.members?.some(m => m.userId === currentUser?.uid && m.role === 'admin' && m.status === 'active');
   const canManageTeam = isOwner || isAdmin;
   const canManagePayoutsAndContracts = isOwner || agency.members?.some(m => m.userId === currentUser?.uid && m.status === 'active');
+  const canInviteTalent = isOwner || isAdmin || (currentUser && agency.members?.some(m => m.userId === currentUser.uid && m.status === 'active'));
 
 
   const { platformFee, totalCharge } = useMemo(() => {
@@ -149,13 +155,15 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
 
   useEffect(() => {
     if (!agency.id) return;
+    
+    // Fetch payout history
     setIsLoadingHistory(true);
     const payoutsQuery = query(
         collection(db, "internalPayouts"), 
         where("agencyId", "==", agency.id),
         orderBy("initiatedAt", "desc")
     );
-    const unsubscribe = onSnapshot(payoutsQuery, (snapshot) => {
+    const unsubPayouts = onSnapshot(payoutsQuery, (snapshot) => {
         const history = snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as InternalPayout));
         setPayoutHistory(history);
         setIsLoadingHistory(false);
@@ -164,8 +172,26 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
         toast({ title: "History Error", description: "Could not fetch payout history.", variant: "destructive" });
         setIsLoadingHistory(false);
     });
+    
+    // Fetch pending talent invitations
+    const talentInvitesQuery = query(collection(db, "agencyInvitations"), where("agencyId", "==", agency.id), where("status", "==", "pending"));
+    const unsubTalentInvites = onSnapshot(talentInvitesQuery, (snapshot) => {
+      const invites = snapshot.docs.map(doc => ({ id: doc.id, email: doc.data().talentEmail as string }));
+      setPendingTalentInvites(invites);
+    });
 
-    return () => unsubscribe();
+    // Fetch pending team invitations
+    const teamInvitesQuery = query(collection(db, "teamInvitations"), where("agencyId", "==", agency.id), where("status", "==", "pending"));
+    const unsubTeamInvites = onSnapshot(teamInvitesQuery, (snapshot) => {
+      const invites = snapshot.docs.map(doc => ({ id: doc.id, email: doc.data().memberEmail as string, role: doc.data().role as string }));
+      setPendingTeamInvites(invites);
+    });
+
+    return () => {
+      unsubPayouts();
+      unsubTalentInvites();
+      unsubTeamInvites();
+    };
   }, [agency.id, toast]);
 
   const handleInviteTalent = async () => {
@@ -441,25 +467,27 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
                 <CardDescription>Invite and manage creators in your agency. ({activeTalentCount} / {talentLimit} talents)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-grow">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                      type="email" 
-                      placeholder="creator@example.com" 
-                      className="pl-10"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={isInviting || atTalentLimit || isNotOnAgencyPlan || !canManagePayoutsAndContracts}
-                  />
+                {canInviteTalent && (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-grow">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        type="email" 
+                        placeholder="creator@example.com" 
+                        className="pl-10"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        disabled={isInviting || atTalentLimit || isNotOnAgencyPlan}
+                    />
+                    </div>
+                    <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan}>
+                    {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                    Invite Talent
+                    </Button>
                   </div>
-                  <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan || !canManagePayoutsAndContracts}>
-                  {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Invite Talent
-                  </Button>
-                </div>
+                )}
                 <Separator />
-                {agency.talent && agency.talent.length > 0 ? (
+                {(agency.talent && agency.talent.length > 0) || pendingTalentInvites.length > 0 ? (
                   <Table>
                     <TableHeader><TableRow><TableHead>Creator</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead>Commission</TableHead></TableRow></TableHeader>
                     <TableBody>
@@ -492,6 +520,17 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
                               </div>
                             )}
                           </TableCell>
+                        </TableRow>
+                      ))}
+                      {pendingTalentInvites.map(invite => (
+                         <TableRow key={invite.id} className="bg-muted/30 opacity-70">
+                          <TableCell className="font-medium flex items-center gap-2">
+                            <Avatar className="h-8 w-8"><MailWarning className="h-5 w-5 text-muted-foreground"/></Avatar>
+                            (Invited)
+                          </TableCell>
+                          <TableCell>{invite.email}</TableCell>
+                          <TableCell><Badge variant="outline">Email Sent</Badge></TableCell>
+                          <TableCell>—</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -531,7 +570,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
                     </div>
                   )}
                   <Separator />
-                  {agency.members && agency.members.length > 0 ? (
+                  {(agency.members && agency.members.length > 0) || pendingTeamInvites.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow><TableHead>Team Member</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                       <TableBody>
@@ -545,6 +584,17 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
                               <TableCell>{m.email}</TableCell>
                               <TableCell className="capitalize">{m.role}</TableCell>
                               <TableCell><Badge variant={m.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${m.status === 'active' ? 'bg-green-500' : ''}`}>{m.status}</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                         {pendingTeamInvites.map(invite => (
+                          <TableRow key={invite.id} className="bg-muted/30 opacity-70">
+                            <TableCell className="font-medium flex items-center gap-2">
+                              <Avatar className="h-8 w-8"><MailWarning className="h-5 w-5 text-muted-foreground"/></Avatar>
+                              (Invited)
+                            </TableCell>
+                            <TableCell>{invite.email}</TableCell>
+                            <TableCell className="capitalize">{invite.role}</TableCell>
+                            <TableCell><Badge variant="outline">Email Sent</Badge></TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -814,7 +864,7 @@ export default function AgencyPage() {
 
   return (
     <>
-      <PageHeader
+       <PageHeader
         title={pageTitle}
         description={pageDescription}
         actions={(userOwnsAnAgency || isTeamMemberOfAnAgency) ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
