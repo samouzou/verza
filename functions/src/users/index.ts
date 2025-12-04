@@ -83,14 +83,19 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     logger.info(`Found pending team invitation for new user ${email}.`);
     const invitationData = teamInvitationDoc.data();
     if (invitationData && invitationData.status === "pending") {
-        await processTeamInvitation(user, invitationData);
+      await processTeamInvitation(user, invitationData);
     }
   }
 
   return null;
 });
 
-async function processTalentInvitation(user: functions.auth.UserRecord, invitationData: any) {
+/**
+ * Processes a pending talent invitation for a newly signed-up user.
+ * @param {functions.auth.UserRecord} user The newly created user record.
+ * @param {admin.firestore.DocumentData} invitationData The data from the pending invitation document.
+ */
+async function processTalentInvitation(user: functions.auth.UserRecord, invitationData: admin.firestore.DocumentData) {
   const {agencyId, agencyName} = invitationData;
   const agencyDocRef = db.collection("agencies").doc(agencyId);
   const userDocRef = db.collection("users").doc(user.uid);
@@ -111,9 +116,10 @@ async function processTalentInvitation(user: functions.auth.UserRecord, invitati
   };
 
   const batch = db.batch();
-  batch.update(userDocRef, { agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership) });
-  batch.update(agencyDocRef, { talent: admin.firestore.FieldValue.arrayUnion(newTalentMember) });
-  batch.update(talentInvitationRef, { status: "claimed", claimedBy: user.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+  batch.update(userDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership)});
+  batch.update(agencyDocRef, {talent: admin.firestore.FieldValue.arrayUnion(newTalentMember)});
+  batch.update(talentInvitationRef, {status: "claimed", claimedBy: user.uid,
+    claimedAt: admin.firestore.FieldValue.serverTimestamp()});
 
   try {
     await batch.commit();
@@ -123,36 +129,42 @@ async function processTalentInvitation(user: functions.auth.UserRecord, invitati
   }
 }
 
-async function processTeamInvitation(user: functions.auth.UserRecord, invitationData: any) {
-    const { agencyId, agencyName, role } = invitationData;
-    const agencyDocRef = db.collection("agencies").doc(agencyId);
-    const userDocRef = db.collection("users").doc(user.uid);
-    const teamInvitationRef = db.collection("teamInvitations").doc(user.email!);
+/**
+ * Processes a pending team invitation for a newly signed-up user.
+ * @param {functions.auth.UserRecord} user The newly created user record.
+ * @param {admin.firestore.DocumentData} invitationData The data from the pending invitation document.
+ */
+async function processTeamInvitation(user: functions.auth.UserRecord, invitationData: admin.firestore.DocumentData) {
+  const {agencyId, agencyName, role} = invitationData;
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const userDocRef = db.collection("users").doc(user.uid);
+  const teamInvitationRef = db.collection("teamInvitations").doc(user.email!);
 
-    const newMember: AgencyMember = {
-        userId: user.uid,
-        email: user.email!,
-        displayName: user.displayName || "Invited Member",
-        role: role,
-        status: "pending",
-    };
+  const newMember: AgencyMember = {
+    userId: user.uid,
+    email: user.email!,
+    displayName: user.displayName || "Invited Member",
+    role: role,
+    status: "pending",
+  };
 
-    const teamAgencyMembership: AgencyMembership = {
-        agencyId: agencyId,
-        agencyName: agencyName,
-        role: "team",
-        status: "pending",
-    };
+  const teamAgencyMembership: AgencyMembership = {
+    agencyId: agencyId,
+    agencyName: agencyName,
+    role: "team",
+    status: "pending",
+  };
 
-    const batch = db.batch();
-    batch.update(userDocRef, { agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership) });
-    batch.update(agencyDocRef, { members: admin.firestore.FieldValue.arrayUnion(newMember) });
-    batch.update(teamInvitationRef, { status: "claimed", claimedBy: user.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp() });
+  const batch = db.batch();
+  batch.update(userDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership)});
+  batch.update(agencyDocRef, {members: admin.firestore.FieldValue.arrayUnion(newMember)});
+  batch.update(teamInvitationRef, {status: "claimed",
+    claimedBy: user.uid, claimedAt: admin.firestore.FieldValue.serverTimestamp()});
 
-    try {
-        await batch.commit();
-        logger.info(`Successfully linked new user ${user.email} as a TEAM MEMBER to agency ${agencyName} (${agencyId}).`);
-    } catch (error) {
-        logger.error(`Error processing new user team invitation for ${user.email}:`, error);
-    }
+  try {
+    await batch.commit();
+    logger.info(`Successfully linked new user ${user.email} as a TEAM MEMBER to agency ${agencyName} (${agencyId}).`);
+  } catch (error) {
+    logger.error(`Error processing new user team invitation for ${user.email}:`, error);
+  }
 }

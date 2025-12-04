@@ -260,7 +260,8 @@ export async function sendTeamInvitationEmail(memberEmail: string, agencyName: s
       <p>Hello,</p>
       <p>You've been invited to join the internal team at <strong>${agencyName}</strong> on Verza.
       Log in to your account to view and accept your invitation.</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff;
+      color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   } else {
@@ -271,7 +272,8 @@ export async function sendTeamInvitationEmail(memberEmail: string, agencyName: s
       <p>Hello,</p>
       <p>You've been invited to join the team at <strong>${agencyName}</strong> on the Verza platform.
       Create your free Verza account to get started.</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #007bff;
+      color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   }

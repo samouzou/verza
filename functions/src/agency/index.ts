@@ -675,7 +675,7 @@ export const declineTeamInvitation = onCall(async (request) => {
       if (userData.primaryAgencyId === agencyId) {
         userUpdates.primaryAgencyId = null;
       }
-      
+
       transaction.update(userDocRef, userUpdates);
     });
     return {success: true, message: "Team invitation declined."};
