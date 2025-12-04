@@ -130,14 +130,12 @@ export const inviteTalentToAgency = onCall(async (request) => {
       throw new HttpsError("not-found", "The specified agency does not exist.");
     }
 
-    const inviterDoc = await db.collection("users").doc(inviterId).get();
-    const inviterData = inviterDoc.data() as UserProfileFirestoreData;
+    const inviterIsOwner = agencyData.ownerId === inviterId;
+    const inviterIsTeamMember = agencyData.members?.some(
+      (m) => m.userId === inviterId && m.status === "active"
+    );
 
-    const isOwner = agencyData.ownerId === inviterId;
-    const isTeamMember = inviterData.primaryAgencyId === agencyId &&
-    inviterData.agencyMemberships?.some((m) => m.role === "team" && m.status === "active");
-
-    if (!isOwner && !isTeamMember) {
+    if (!inviterIsOwner && !inviterIsTeamMember) {
       throw new HttpsError("permission-denied", "You do not have permission to invite talent to this agency.");
     }
 
@@ -312,7 +310,7 @@ export const createInternalPayout = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-  const agencyOwnerId = request.auth.uid;
+  const requesterId = request.auth.uid;
   const {agencyId, talentId, amount, description, paymentDate} = request.data;
 
   if (!agencyId || !talentId || !amount || !description || !paymentDate) {
@@ -328,13 +326,21 @@ export const createInternalPayout = onCall(async (request) => {
   try {
     const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
-
-    if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
-      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
-    }
     const agencyData = agencySnap.data() as Agency;
 
-    // Get agency owner's Stripe customer ID to charge them
+    if (!agencySnap.exists) {
+        throw new HttpsError("not-found", "Agency not found.");
+    }
+    
+    const isOwner = agencyData.ownerId === requesterId;
+    const isTeamMember = agencyData.members?.some(m => m.userId === requesterId && m.status === 'active');
+
+    if (!isOwner && !isTeamMember) {
+        throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
+    }
+    
+    // The payment must come from the owner's Stripe account
+    const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
@@ -469,8 +475,16 @@ export const inviteTeamMember = onCall(async (request) => {
     const agencySnap = await agencyDocRef.get();
     const agencyData = agencySnap.data() as Agency;
 
-    if (!agencySnap.exists || agencyData.ownerId !== inviterId) {
-      throw new HttpsError("permission-denied", "You do not have permission to manage this agency's team.");
+    if (!agencySnap.exists) {
+        throw new HttpsError("not-found", "Agency not found.");
+    }
+    
+    // Check if inviter is owner or admin
+    const inviterIsOwner = agencyData.ownerId === inviterId;
+    const inviterIsAdmin = agencyData.members?.some(m => m.userId === inviterId && m.role === 'admin' && m.status === 'active');
+    
+    if (!inviterIsOwner && !inviterIsAdmin) {
+        throw new HttpsError("permission-denied", "You must be an owner or admin to invite team members.");
     }
 
     if (agencyData.members?.some((m) => m.email === memberEmailCleaned) ||

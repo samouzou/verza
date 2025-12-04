@@ -91,7 +91,7 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
   );
 }
 
-function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Agency; onAgencyUpdate: (updatedAgency: Partial<Agency>) => Promise<void>, effectiveUser: UserProfile | null }) {
+function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }: { agency: Agency; onAgencyUpdate: (updatedAgency: Partial<Agency>) => Promise<void>, effectiveUser: UserProfile | null, currentUser: UserProfile | null }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
@@ -122,13 +122,17 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
   const [teamInviteRole, setTeamInviteRole] = useState<'admin' | 'member'>('member');
   const [isInvitingTeamMember, setIsInvitingTeamMember] = useState(false);
 
-
   const createInternalPayoutCallable = httpsCallable(functions, 'createInternalPayout');
   
   const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
   const talentLimit = effectiveUser?.talentLimit ?? 0;
   const atTalentLimit = activeTalentCount >= talentLimit;
   const isNotOnAgencyPlan = !effectiveUser?.subscriptionPlanId?.startsWith('agency_');
+
+  const isOwner = currentUser?.uid === agency.ownerId;
+  const isAdmin = agency.members?.some(m => m.userId === currentUser?.uid && m.role === 'admin' && m.status === 'active');
+  const canManageTeam = isOwner || isAdmin;
+  const canManagePayoutsAndContracts = isOwner || agency.members?.some(m => m.userId === currentUser?.uid && m.status === 'active');
 
 
   const { platformFee, totalCharge } = useMemo(() => {
@@ -289,7 +293,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
 
   return (
     <div className="space-y-6">
-      {(isNotOnAgencyPlan || atTalentLimit) && (
+      {(isNotOnAgencyPlan || atTalentLimit) && isOwner && (
         <Alert className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
           <Sparkles className="h-5 w-5" />
           <AlertTitle className="font-semibold text-primary">
@@ -311,6 +315,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
         </Alert>
       )}
 
+      {canManagePayoutsAndContracts && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card id="create-payout-card">
           <CardHeader>
@@ -412,6 +417,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
           </CardContent>
         </Card>
       </div>
+      )}
 
       {generatedContractData && (
         <UploadContractDialog 
@@ -444,10 +450,10 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
                       className="pl-10"
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={isInviting || atTalentLimit || isNotOnAgencyPlan}
+                      disabled={isInviting || atTalentLimit || isNotOnAgencyPlan || !canManagePayoutsAndContracts}
                   />
                   </div>
-                  <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan}>
+                  <Button onClick={handleInviteTalent} disabled={isInviting || !inviteEmail.trim() || atTalentLimit || isNotOnAgencyPlan || !canManagePayoutsAndContracts}>
                   {isInviting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                   Invite Talent
                   </Button>
@@ -478,9 +484,11 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
                             ) : (
                               <div className="flex items-center gap-2">
                                 <span>{t.commissionRate ?? 0}%</span>
+                                {isOwner && (
                                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingTalent(t); setNewCommissionRate(t.commissionRate ?? 0); }}>
                                   <Percent className="h-4 w-4"/>
                                 </Button>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -499,27 +507,29 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
                 <CardDescription>Invite and manage your internal agency team.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input 
-                      type="email" 
-                      placeholder="teammate@youragency.com" 
-                      className="flex-grow"
-                      value={teamInviteEmail}
-                      onChange={(e) => setTeamInviteEmail(e.target.value)}
-                      disabled={isInvitingTeamMember}
-                    />
-                    <Select value={teamInviteRole} onValueChange={(v) => setTeamInviteRole(v as any)} disabled={isInvitingTeamMember}>
-                      <SelectTrigger className="w-full sm:w-[120px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleInviteTeamMember} disabled={isInvitingTeamMember || !teamInviteEmail}>
-                      {isInvitingTeamMember ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserPlus className="mr-2 h-4 w-4" />}
-                      Invite Teammate
-                    </Button>
-                  </div>
+                  {canManageTeam && (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input 
+                        type="email" 
+                        placeholder="teammate@youragency.com" 
+                        className="flex-grow"
+                        value={teamInviteEmail}
+                        onChange={(e) => setTeamInviteEmail(e.target.value)}
+                        disabled={isInvitingTeamMember}
+                      />
+                      <Select value={teamInviteRole} onValueChange={(v) => setTeamInviteRole(v as any)} disabled={isInvitingTeamMember}>
+                        <SelectTrigger className="w-full sm:w-[120px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={handleInviteTeamMember} disabled={isInvitingTeamMember || !teamInviteEmail}>
+                        {isInvitingTeamMember ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserPlus className="mr-2 h-4 w-4" />}
+                        Invite Teammate
+                      </Button>
+                    </div>
+                  )}
                   <Separator />
                   {agency.members && agency.members.length > 0 ? (
                     <Table>
@@ -546,7 +556,8 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
             </Card>
         </TabsContent>
       </Tabs>
-
+      
+      {canManagePayoutsAndContracts && (
        <Card id="payout-history-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
@@ -573,6 +584,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser }: { agency: Ag
            ) : <p className="text-center text-muted-foreground py-6">No internal payouts have been made.</p>}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
@@ -808,8 +820,8 @@ export default function AgencyPage() {
         actions={(userOwnsAnAgency || isTeamMemberOfAnAgency) ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
       />
       <div className="space-y-6">
-        {agencyToShow && effectiveUserForDashboard ? (
-          <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} effectiveUser={effectiveUserForDashboard} />
+        {agencyToShow ? (
+          <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} effectiveUser={effectiveUserForDashboard} currentUser={user} />
         ) : hasPendingInvitation ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
