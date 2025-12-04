@@ -219,6 +219,7 @@ export function UploadContractDialog({
           try {
             const base64Content = (event.target?.result as string).split(',')[1];
             editorRef.current!.documentEditor.open(base64Content);
+            // Add a delay to ensure the document editor has time to process the file
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
