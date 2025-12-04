@@ -676,9 +676,8 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
     }
   };
   
-  const pendingInvitations = useMemo(() => {
-    return memberships.filter(m => m.status === 'pending');
-  }, [memberships]);
+  const pendingInvitations = useMemo(() => memberships.filter(m => m.status === 'pending'), [memberships]);
+  const activeMemberships = useMemo(() => memberships.filter(m => m.status === 'active'), [memberships]);
 
 
   return (
@@ -687,46 +686,72 @@ function TalentAgencyView({ agencies, memberships }: { agencies: Agency[], membe
         <CardTitle className="flex items-center gap-2"><Briefcase className="text-primary"/> Your Agencies</CardTitle>
         <CardDescription>You are a member of or have been invited to the following agencies.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {pendingInvitations.length === 0 && (
-          <p className="text-center text-muted-foreground py-6">You have no pending invitations.</p>
-        )}
-        {pendingInvitations.map(membership => {
-          const agency = agencies.find(a => a.id === membership.agencyId);
-          if (!agency) return null;
-          const isTeamInvite = membership.role === 'team';
+      <CardContent className="space-y-4">
+        {pendingInvitations.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Pending Invitations</h3>
+            <div className="space-y-3">
+              {pendingInvitations.map(membership => {
+                const agency = agencies.find(a => a.id === membership.agencyId);
+                if (!agency) return null;
+                const isTeamInvite = membership.role === 'team';
 
-          return (
-            <div key={agency.id + (isTeamInvite ? '-team' : '-talent')} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
-              <div className="flex-grow">
-                <div className="font-medium">{agency.name}</div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="h-4 w-4"/>
-                    <span>Invitation to join as {isTeamInvite ? 'a Team Member' : 'Talent'}</span>
-                </div>
-              </div>
-              <div className="flex-shrink-0 flex items-center gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="destructive_outline"
-                      onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'decline')}
-                      disabled={processingId === agency.id}
-                    >
-                      {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="mr-1 h-3 w-3" />}
-                      Decline
-                    </Button>
-                    <Button 
-                      size="sm"
-                      onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'accept')}
-                      disabled={processingId === agency.id}
-                    >
-                       {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="mr-1 h-3 w-3" />}
-                      Accept
-                    </Button>
-              </div>
+                return (
+                  <div key={agency.id + (isTeamInvite ? '-team' : '-talent')} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
+                    <div className="flex-grow">
+                      <div className="font-medium">{agency.name}</div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Users className="h-4 w-4"/>
+                          <span>Invitation to join as {isTeamInvite ? 'a Team Member' : 'Talent'}</span>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="destructive_outline"
+                            onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'decline')}
+                            disabled={processingId === agency.id}
+                          >
+                            {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="mr-1 h-3 w-3" />}
+                            Decline
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleInvitationAction(agency.id, isTeamInvite ? 'team' : 'talent', 'accept')}
+                            disabled={processingId === agency.id}
+                          >
+                            {processingId === agency.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="mr-1 h-3 w-3" />}
+                            Accept
+                          </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
+        
+        {activeMemberships.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-2 mt-6">Active Memberships</h3>
+            <div className="space-y-3">
+              {activeMemberships.map(membership => {
+                  const agency = agencies.find(a => a.id === membership.agencyId);
+                  if (!agency) return null;
+                   return (
+                      <div key={agency.id} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="font-medium">{agency.name}</div>
+                        <Badge className="bg-green-500">Active {membership.role === 'talent' ? 'Talent' : 'Team Member'}</Badge>
+                      </div>
+                   )
+              })}
+            </div>
+          </div>
+        )}
+
+        {pendingInvitations.length === 0 && activeMemberships.length === 0 && (
+          <p className="text-center text-muted-foreground py-6">You are not part of any agencies yet.</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -738,6 +763,7 @@ export default function AgencyPage() {
   const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [activeMemberAgency, setActiveMemberAgency] = useState<Agency | null>(null);
+  const [isTalentOfAnAgency, setIsTalentOfAnAgency] = useState(false);
   const [agencyOwnerUser, setAgencyOwnerUser] = useState<UserProfile | null>(null); // State for owner's profile
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
@@ -774,6 +800,7 @@ export default function AgencyPage() {
       setOwnedAgencies([]);
       setMemberAgencies([]);
       setActiveMemberAgency(null);
+      setIsTalentOfAnAgency(false);
       return;
     }
   
@@ -785,6 +812,7 @@ export default function AgencyPage() {
       const owned: Agency[] = [];
       const memberOf: Agency[] = [];
       let activeAgencyForMember: Agency | null = null;
+      let isAlsoTalent = false;
   
       for (const agency of agenciesData) {
         const userMembership = user.agencyMemberships?.find(m => m.agencyId === agency.id);
@@ -793,27 +821,28 @@ export default function AgencyPage() {
           owned.push(agency);
         } else if (userMembership?.status === 'active' && userMembership.role === 'team') {
           activeAgencyForMember = agency;
-          // Fetch the owner's user data for subscription info
           try {
             const ownerDocRef = doc(db, 'users', agency.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
             if (ownerDocSnap.exists()) {
               setAgencyOwnerUser(ownerDocSnap.data() as UserProfile);
-            } else {
-              setAgencyOwnerUser(null);
-            }
+            } else { setAgencyOwnerUser(null); }
           } catch (e) {
             console.error("Could not fetch agency owner's user profile", e);
             setAgencyOwnerUser(null);
           }
+        } else if (userMembership?.status === 'active' && userMembership.role === 'talent') {
+            isAlsoTalent = true;
+            memberOf.push(agency);
         } else {
-          memberOf.push(agency);
+            memberOf.push(agency);
         }
       }
   
       setOwnedAgencies(owned);
       setMemberAgencies(memberOf);
       setActiveMemberAgency(activeAgencyForMember);
+      setIsTalentOfAnAgency(isAlsoTalent);
       setIsLoadingAgencies(false);
   
     }, (error) => {
@@ -847,19 +876,19 @@ export default function AgencyPage() {
   const userOwnsAnAgency = ownedAgencies.length > 0;
   const isTeamMemberOfAnAgency = !!activeMemberAgency;
   const hasPendingInvitation = user.agencyMemberships?.some(m => m.status === 'pending');
+  const showTalentView = isTalentOfAnAgency && !userOwnsAnAgency && !isTeamMemberOfAnAgency;
   
   const agencyToShow = userOwnsAnAgency ? ownedAgencies[0] : activeMemberAgency;
   const effectiveUserForDashboard = userOwnsAnAgency ? user : agencyOwnerUser;
-
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
   if (agencyToShow) {
     pageTitle = agencyToShow.name;
     pageDescription = "Manage your agency's talent, finances, and internal team.";
-  } else if (hasPendingInvitation) {
-    pageTitle = "My Agency Invitations";
-    pageDescription = "View and respond to agency invitations.";
+  } else if (showTalentView || hasPendingInvitation) {
+    pageTitle = "My Agency Memberships";
+    pageDescription = "View your agency affiliations and invitations.";
   }
 
   return (
@@ -872,7 +901,7 @@ export default function AgencyPage() {
       <div className="space-y-6">
         {agencyToShow ? (
           <AgencyDashboard agency={agencyToShow} onAgencyUpdate={handleUpdateAgency} effectiveUser={effectiveUserForDashboard} currentUser={user} />
-        ) : hasPendingInvitation ? (
+        ) : (showTalentView || hasPendingInvitation) ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
           <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
@@ -881,5 +910,7 @@ export default function AgencyPage() {
     </>
   );
 }
+
+    
 
     
