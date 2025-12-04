@@ -502,7 +502,7 @@ export const inviteTeamMember = onCall(async (request) => {
       agencyData.talent?.some((t) => t.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already associated with the agency as a member or talent.");
     }
-    
+
     // Check for existing non-user invitation
     const existingInvitationQuery = await db.collection("teamInvitations")
       .where("agencyId", "==", agencyId)

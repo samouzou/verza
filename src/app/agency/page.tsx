@@ -138,7 +138,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
   const isAdmin = agency.members?.some(m => m.userId === currentUser?.uid && m.role === 'admin' && m.status === 'active');
   const canManageTeam = isOwner || isAdmin;
   const canManagePayoutsAndContracts = isOwner || agency.members?.some(m => m.userId === currentUser?.uid && m.status === 'active');
-  const canInviteTalent = isOwner || isAdmin || (currentUser && agency.members?.some(m => m.userId === currentUser.uid && m.status === 'active'));
+  const canInviteTalent = isOwner || agency.members?.some(m => m.userId === currentUser?.uid && m.status === 'active');
 
 
   const { platformFee, totalCharge } = useMemo(() => {
@@ -512,7 +512,7 @@ function AgencyDashboard({ agency, onAgencyUpdate, effectiveUser, currentUser }:
                             ) : (
                               <div className="flex items-center gap-2">
                                 <span>{t.commissionRate ?? 0}%</span>
-                                {isOwner && (
+                                {canManagePayoutsAndContracts && (
                                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingTalent(t); setNewCommissionRate(t.commissionRate ?? 0); }}>
                                   <Percent className="h-4 w-4"/>
                                 </Button>
@@ -881,3 +881,5 @@ export default function AgencyPage() {
     </>
   );
 }
+
+    
