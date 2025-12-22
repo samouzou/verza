@@ -13,18 +13,6 @@ interface TeamRosterCardProps {
 }
 
 export function TeamRosterCard({ agency }: TeamRosterCardProps) {
-  
-  const teamWithSelf = [
-    { 
-      userId: agency.ownerId, 
-      displayName: "You (Owner)", 
-      email: "", 
-      role: 'owner', 
-      status: 'active' 
-    },
-    ...(agency.team || [])
-  ];
-
   return (
     <Card id="team-roster-card">
       <CardHeader>
@@ -32,7 +20,7 @@ export function TeamRosterCard({ agency }: TeamRosterCardProps) {
         <CardDescription>Your agency's administrative members.</CardDescription>
       </CardHeader>
       <CardContent>
-         {agency.team && agency.team.length > 0 ? (
+         {(agency.team && agency.team.length > 0) ? (
           <Table>
             <TableHeader>
               <TableRow>
