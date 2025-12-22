@@ -35,7 +35,7 @@ export function StripeConnectCard() {
         <CardContent>
           <div className="p-4 border rounded-lg bg-muted/50">
             <p className="text-sm text-muted-foreground">
-              As a team member, all invoices you send on behalf of the agency will use the agency owner's connected Stripe account for payments. You do not need to connect a personal Stripe account.
+              As a team member, all invoices you send on behalf of the agency will use the agency owner's connected bank account for payments. You do not need to connect a personal account.
             </p>
           </div>
         </CardContent>
@@ -47,7 +47,7 @@ export function StripeConnectCard() {
     setIsProcessing(true);
     toast({
       title: "Connecting to Stripe...",
-      description: "Attempting to create your Stripe Connected Account.",
+      description: "You will be redirected to Stripe to securely connect your bank account.",
     });
     try {
       const idToken = await getUserIdToken();
@@ -70,16 +70,14 @@ export function StripeConnectCard() {
 
       const result = await response.json();
       if (result.stripeAccountId) {
-        toast({ title: "Stripe Account Created", description: "Your Stripe account ID has been created. Please complete onboarding." });
-        await refreshAuthUser(); // Refresh user data to get new stripeAccountId and status
-        // The UI should update, and the button might change to "Complete Onboarding"
-        // If it does, the user can click it to get the account link.
+        toast({ title: "Stripe Account Created", description: "Please complete onboarding to link your bank account." });
+        await refreshAuthUser(); 
       } else {
         throw new Error("Stripe Account ID not returned from backend.");
       }
     } catch (error: any) {
       console.error("Error creating Stripe Connected Account:", error);
-      toast({ title: "Stripe Connection Failed", description: error.message || "Could not create Stripe account.", variant: "destructive" });
+      toast({ title: "Connection Failed", description: error.message || "Could not start the bank connection process.", variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -88,8 +86,8 @@ export function StripeConnectCard() {
   const handleManageStripeAccount = async () => {
     setIsProcessing(true);
     toast({
-      title: "Fetching Stripe Link...",
-      description: "Attempting to generate your Stripe account link.",
+      title: "Redirecting to Stripe...",
+      description: "Opening the Stripe portal to manage your account.",
     });
     try {
       const idToken = await getUserIdToken();
@@ -103,7 +101,6 @@ export function StripeConnectCard() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        // Body is not strictly needed if backend gets stripeAccountId from authenticated user's Firestore doc
       });
 
       if (!response.ok) {
@@ -118,7 +115,7 @@ export function StripeConnectCard() {
       }
     } catch (error: any) {
       console.error("Error creating Stripe Account Link:", error);
-      toast({ title: "Stripe Link Failed", description: error.message || "Could not generate Stripe account link.", variant: "destructive" });
+      toast({ title: "Redirection Failed", description: error.message || "Could not generate a link to Stripe.", variant: "destructive" });
     } finally {
       // If redirection happens, this might not be reached immediately
       setIsProcessing(false);
@@ -180,21 +177,20 @@ export function StripeConnectCard() {
   const getButtonAction = () => {
     if (!user.stripeAccountId || user.stripeAccountStatus === 'none') {
       return {
-        text: "Connect Stripe Account",
+        text: "Connect Bank Account",
         handler: handleConnectStripe,
         Icon: LinkIcon,
       };
     }
     if (user.stripeAccountStatus === 'onboarding_incomplete' || user.stripeAccountStatus === 'pending_verification') {
       return {
-        text: "Complete Stripe Onboarding",
-        handler: handleManageStripeAccount, // This function gets the account link for onboarding
+        text: "Complete Onboarding",
+        handler: handleManageStripeAccount,
         Icon: ExternalLink,
       };
     }
-    // For 'active', 'restricted', 'restricted_soon', etc.
     return {
-      text: "Manage Stripe Account",
+      text: "Manage Account via Stripe",
       handler: handleManageStripeAccount,
       Icon: ExternalLink,
     };
@@ -211,9 +207,9 @@ export function StripeConnectCard() {
             <path d="M5.13333 2.86667C3.83333 2.86667 2.76667 3.93333 2.76667 5.23333V17.6C2.76667 18.9 3.83333 20 5.13333 20H16.7667C18.0667 20 19.1333 18.9 19.1333 17.6V5.23333C19.1333 3.93333 18.0667 2.86667 16.7667 2.86667H5.13333ZM11.1 14.8333C8.63333 14.8333 6.63333 12.8333 6.63333 10.3667C6.63333 7.9 8.63333 5.9 11.1 5.9C13.5667 5.9 15.5667 7.9 15.5667 10.3667C15.5667 12.8333 13.5667 14.8333 11.1 14.8333Z" fill="#635BFF"></path>
             <path d="M39.6333 2.86667H25.0667C24.4667 2.86667 23.9667 3.23333 23.7667 3.8L22.1 8.5C22.0333 8.66667 22 8.86667 22 9.03333V17.6C22 18.9 23.0667 20 24.3667 20H38.9333C39.5333 20 40.0333 19.6333 40.2333 19.1L41.9 14.4333C41.9667 14.2667 42 14.0667 42 13.9V5.23333C42 3.93333 40.9333 2.86667 39.6333 2.86667Z" fill="#635BFF"></path>
           </svg>
-          Connect with Stripe
+          Get Paid with Stripe
         </CardTitle>
-        <CardDescription>Connect your Stripe account to receive payments directly from your clients for invoices.</CardDescription>
+        <CardDescription>Connect your bank account via Stripe to receive payments directly from your clients.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="p-4 border rounded-lg bg-muted/50">
@@ -234,8 +230,8 @@ export function StripeConnectCard() {
         </Button>
 
         <p className="text-xs text-muted-foreground">
-          By connecting your Stripe account, you agree to Stripe's <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Connected Account Agreement</a>.
-          Verza facilitates this connection but does not store your sensitive Stripe credentials.
+          By connecting your account, you agree to Stripe's <a href="https://stripe.com/connect-account/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Connected Account Agreement</a>.
+          Verza uses Stripe for secure payment processing and does not store your sensitive financial details.
         </p>
       </CardContent>
     </Card>
