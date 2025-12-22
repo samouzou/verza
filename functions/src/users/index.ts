@@ -32,6 +32,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
         
         // Determine the user's top-level role from the invitation
         if (type === 'team' && (inviteRole === 'admin' || inviteRole === 'member')) {
+            // Type-safe assignment
             finalRole = `agency_${inviteRole}`;
         }
         
