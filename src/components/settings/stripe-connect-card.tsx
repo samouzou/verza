@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // URLs for your Firebase Cloud Functions (onRequest type)
@@ -20,6 +20,28 @@ export function StripeConnectCard() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!user) return null;
+
+  // New logic for team members
+  if (user.role === 'agency_admin' || user.role === 'agency_member') {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building className="h-6 w-6 text-primary" />
+            Agency Payments
+          </CardTitle>
+          <CardDescription>Agency payment settings are managed by the owner.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 border rounded-lg bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              As a team member, all invoices you send on behalf of the agency will use the agency owner's connected Stripe account for payments. You do not need to connect a personal Stripe account.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleConnectStripe = async () => {
     setIsProcessing(true);
