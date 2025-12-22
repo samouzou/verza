@@ -13,6 +13,8 @@ import { CreatePayoutCard } from './create-payout-card';
 import { AIGeneratorCard } from './ai-generator-card';
 import { TalentRosterCard } from './talent-roster-card';
 import { PayoutHistoryCard } from './payout-history-card';
+import { InviteTeamMemberCard } from './invite-team-member-card';
+import { TeamRosterCard } from './team-roster-card';
 
 interface AgencyDashboardProps {
   agency: Agency;
@@ -52,12 +54,16 @@ export function AgencyDashboard({ agency }: AgencyDashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit || isNotOnAgencyPlan} />
-        <CreatePayoutCard agency={agency} disabled={isNotOnAgencyPlan} />
+        <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan} />
       </div>
-
-      <AIGeneratorCard agency={agency} disabled={isNotOnAgencyPlan} />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CreatePayoutCard agency={agency} disabled={isNotOnAgencyPlan} />
+        <AIGeneratorCard agency={agency} disabled={isNotOnAgencyPlan} />
+      </div>
       
       <TalentRosterCard agency={agency} />
+      <TeamRosterCard agency={agency} />
       
       <PayoutHistoryCard agencyId={agency.id} />
     </div>
