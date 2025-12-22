@@ -62,6 +62,7 @@ export const createAgency = onCall(async (request) => {
     const userUpdate: Partial<UserProfileFirestoreData> = {
       role: "agency_owner",
       isAgencyOwner: true,
+      primaryAgencyId: newAgency.id, // Set primaryAgencyId on creation
       agencyMemberships: admin.firestore.FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
@@ -74,7 +75,7 @@ export const createAgency = onCall(async (request) => {
     batch.set(newAgencyRef, newAgency);
     batch.update(userDocRef, userUpdate);
 
-    await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true});
+    await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true, primaryAgencyId: newAgency.id});
 
     await batch.commit();
 
@@ -308,16 +309,21 @@ export const acceptAgencyInvitation = onCall(async (request) => {
             transaction.update(agencyDocRef, { team: updatedTeamArray });
             
             // Set custom claim for admin
+            const claimsUpdate: {[key: string]: any} = { primaryAgencyId: agencyId };
             if (membership.role === 'admin') {
-              const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-              await admin.auth().setCustomUserClaims(userId, {...currentClaims, isAgencyAdmin: true});
+              claimsUpdate.isAgencyAdmin = true;
             }
+            const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+            await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
         }
     } else {
        throw new HttpsError("invalid-argument", "Invalid membership role found.");
     }
 
-    transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
+    transaction.update(userDocRef, { 
+      agencyMemberships: updatedMembershipsArray,
+      primaryAgencyId: agencyId, // Set the primary agency ID on the user document
+    });
 
     return { success: true, message: "Invitation accepted successfully." };
   }).catch((error) => {
@@ -353,7 +359,10 @@ export const declineAgencyInvitation = onCall(async (request) => {
     const membership = userData.agencyMemberships?.find((m) => m.agencyId === agencyId);
 
     const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
-    transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
+    transaction.update(userDocRef, { 
+      agencyMemberships: updatedMembershipsArray,
+      primaryAgencyId: null, // Clear the primary agency ID
+    });
     
     if (membership?.role === 'talent') {
       const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== userId);
