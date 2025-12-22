@@ -13,7 +13,7 @@ import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, AgencyMembership } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, documentId } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, getDocs, documentId, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useTour } from '@/hooks/use-tour';
 import { agencyTour } from '@/lib/tours';
@@ -72,7 +72,7 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
 
 export default function AgencyPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
-  const [ownedAgencies, setOwnedAgencies] = useState<Agency[]>([]);
+  const [managedAgency, setManagedAgency] = useState<Agency | null>(null);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
@@ -84,28 +84,37 @@ export default function AgencyPage() {
     }
 
     setIsLoadingAgencies(true);
+    
+    // Determine the primary agency to manage (owned or admin)
+    const primaryAgencyId = user.isAgencyOwner 
+      ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId 
+      : user.primaryAgencyId;
 
-    const ownerQuery = query(collection(db, "agencies"), where("ownerId", "==", user.uid));
-    const unsubscribeOwner = onSnapshot(ownerQuery, (snapshot) => {
-      const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-      setOwnedAgencies(agencies);
-      // Don't stop loading until member agencies are also checked
-    }, (error) => {
-      console.error("Error fetching owned agencies:", error);
-      setIsLoadingAgencies(false);
-    });
-
+    let unsubscribeManagedAgency: (() => void) | undefined;
+    if (primaryAgencyId) {
+      const agencyDocRef = doc(db, "agencies", primaryAgencyId);
+      unsubscribeManagedAgency = onSnapshot(agencyDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setManagedAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+        } else {
+          setManagedAgency(null);
+        }
+      }, (error) => {
+        console.error("Error fetching managed agency:", error);
+        setManagedAgency(null);
+      });
+    } else {
+        setManagedAgency(null);
+    }
+    
+    // Fetch all agencies the user is a member of (for the talent view)
     const fetchMemberAgencies = async () => {
-      const memberAgencyIds = user.agencyMemberships
-        ?.map(mem => mem.agencyId)
-        .filter(id => !!id) || [];
-
+      const memberAgencyIds = user.agencyMemberships?.map(mem => mem.agencyId).filter(id => !!id) || [];
       if (memberAgencyIds.length > 0) {
         try {
           const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", memberAgencyIds));
           const snapshot = await getDocs(memberQuery);
-          const agencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
-          setMemberAgencies(agencies);
+          setMemberAgencies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency)));
         } catch (error) {
           console.error("Error fetching member agencies:", error);
           setMemberAgencies([]);
@@ -113,13 +122,13 @@ export default function AgencyPage() {
       } else {
         setMemberAgencies([]);
       }
-      setIsLoadingAgencies(false); // Stop loading after both queries are done or attempted
+      setIsLoadingAgencies(false);
     };
 
     fetchMemberAgencies();
 
     return () => {
-      unsubscribeOwner();
+      if (unsubscribeManagedAgency) unsubscribeManagedAgency();
     };
   }, [user, authLoading]);
   
@@ -141,15 +150,18 @@ export default function AgencyPage() {
     );
   }
   
-  const userOwnsAnAgency = ownedAgencies.length > 0;
-  const isMemberOfAnyAgency = (user.agencyMemberships?.filter(m => memberAgencies.some(a => a.id === m.agencyId)).length ?? 0) > 0;
+  // Determine user's highest role
+  const isOwner = !!user.isAgencyOwner;
+  const isAdmin = user.agencyMemberships?.some(m => m.role === 'admin' && m.status === 'active');
+  const canManage = isOwner || isAdmin;
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
-  if (userOwnsAnAgency) {
-    pageTitle = ownedAgencies[0].name;
-    pageDescription = "Manage your agency's talent, contracts, and finances.";
-  } else if (isMemberOfAnyAgency) {
+
+  if (managedAgency && canManage) {
+    pageTitle = managedAgency.name;
+    pageDescription = "Manage your agency's talent, team, and finances.";
+  } else if (memberAgencies.length > 0) {
     pageTitle = "My Agencies";
     pageDescription = "View and respond to agency invitations.";
   }
@@ -159,12 +171,12 @@ export default function AgencyPage() {
       <PageHeader
         title={pageTitle}
         description={pageDescription}
-        actions={userOwnsAnAgency ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
+        actions={canManage && managedAgency ? <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button> : undefined}
       />
       <div className="space-y-6">
-        {userOwnsAnAgency ? (
-          <AgencyDashboard agency={ownedAgencies[0]} />
-        ) : isMemberOfAnyAgency ? (
+        {canManage && managedAgency ? (
+          <AgencyDashboard agency={managedAgency} />
+        ) : memberAgencies.length > 0 ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (
           <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
