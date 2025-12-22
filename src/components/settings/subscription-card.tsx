@@ -7,13 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/use-auth";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket } from "lucide-react";
+import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { loadStripe } from '@stripe/stripe-js';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createshareablecontractversion-cpmccwbluq-uc.a.run.app";
 
@@ -169,6 +170,25 @@ export function SubscriptionCard() {
     .filter(([id]) => id.endsWith(billingFrequency))
     .filter(([id]) => user.isAgencyOwner ? id.startsWith('agency') : id.startsWith('individual'));
 
+  if (user.role === 'agency_admin' || user.role === 'agency_member') {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-6 w-6 text-primary" />
+            Agency Subscription
+          </CardTitle>
+          <CardDescription>Your plan is managed by your agency.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 border rounded-lg bg-muted/50 text-center">
+             <p className="font-semibold text-lg">Your subscription is managed by your agency.</p>
+             <p className="text-sm text-muted-foreground mt-2">Please contact your agency owner to make any changes to the subscription plan or billing details.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Render view for agency owners
   if (user.isAgencyOwner) {
