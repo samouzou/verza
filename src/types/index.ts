@@ -187,8 +187,8 @@ export interface UserProfileFirestoreData {
   createdAt?: ClientTimestamp;
   role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
+  primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
-  primaryAgencyId?: string | null; // ID of the agency this user is an active member/admin/owner of
 
   // Subscription Fields
   stripeCustomerId?: string | null;

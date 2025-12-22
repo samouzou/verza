@@ -187,7 +187,8 @@ export const handleSendGridEmailWebhook = onRequest(async (request, response) =>
  * @param {'admin' | 'member'} [role] The role if it's a team invitation.
  * @return {Promise<void>}
  */
-export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName: string, isExistingUser: boolean, type: 'talent' | 'team', role?: 'admin' | 'member'): Promise<void> {
+export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName: string,
+  isExistingUser: boolean, type: "talent" | "team", role?: "admin" | "member"): Promise<void> {
   const appUrl = process.env.APP_URL || "http://localhost:9002";
   const subject = `You've been invited to join ${agencyName} on Verza`;
   const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
@@ -195,27 +196,34 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
 
   let html: string;
 
-  if (type === 'talent') {
+  if (type === "talent") {
     html = `
       <h2>You've been invited to join ${agencyName}'s Roster!</h2>
       <p>Hello,</p>
-      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join their talent roster. ${isExistingUser ? 'Log in to your account to view and accept your invitation.' : 'Create your free Verza account to accept the invitation and start collaborating.'}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join their talent roster.
+      ${isExistingUser ? "Log in to your account to view and accept your invitation." :
+    "Create your free Verza account to accept the invitation and start collaborating."}</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   } else { // Team member
     html = `
       <h2>You've been invited to join the ${agencyName} Team!</h2>
       <p>Hello,</p>
-      <p>You have been invited to join the management team for <strong>${agencyName}</strong> on Verza as an <strong>${role}</strong>. ${isExistingUser ? 'Log in to your account to view and accept your invitation.' : 'Create your free Verza account to accept the invitation and start collaborating.'}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white; text-decoration: none; border-radius: 5px;">${actionText}</a></p>
+      <p>You have been invited to join the management team for <strong>${agencyName}</strong>
+      on Verza as an <strong>${role}</strong>.
+      ${isExistingUser ? "Log in to your account to view and accept your invitation." :
+    "Create your free Verza account to accept the invitation and start collaborating."}</p>
+      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
+      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
       <p>Thanks,<br/>The Verza Team</p>
     `;
   }
 
   const msg = {
     to: inviteeEmail,
-    from: { name: "Verza", email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com" },
+    from: {name: "Verza", email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
     subject,
     html,
   };

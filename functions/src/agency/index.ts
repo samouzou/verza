@@ -15,7 +15,7 @@ try {
     throw new Error("STRIPE_SECRET_KEY is not set");
   }
   stripe = new Stripe(stripeKey, {
-    apiVersion: "2025-05-28", // Use a fixed API version
+    apiVersion: "2025-05-28.basil", // Use a fixed API version
   });
 } catch (error) {
   logger.error("Error initializing Stripe:", error);
@@ -54,7 +54,7 @@ export const createAgency = onCall(async (request) => {
       id: newAgencyRef.id,
       name: name.trim(),
       ownerId: userId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
+      createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
       talent: [],
       team: [], // Initialize team array
     };
@@ -266,7 +266,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
   }
   const userId = request.auth.uid;
-  const { agencyId } = request.data;
+  const {agencyId} = request.data;
 
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
@@ -289,43 +289,45 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     if (membershipIndex === -1 || membershipIndex === undefined) {
       throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
     }
-    
+
     const membership = userData.agencyMemberships![membershipIndex];
     const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
-    updatedMembershipsArray[membershipIndex] = { ...membership, status: "active" };
-    
-    if (membership.role === 'talent') {
-        const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
-        if (talentIndex !== -1) {
-            const updatedTalentArray = [...agencyData.talent];
-            updatedTalentArray[talentIndex] = { ...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() };
-            transaction.update(agencyDocRef, { talent: updatedTalentArray });
+    updatedMembershipsArray[membershipIndex] = {...membership, status: "active"};
+
+    if (membership.role === "talent") {
+      const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
+      if (talentIndex !== -1) {
+        const updatedTalentArray = [...agencyData.talent];
+        updatedTalentArray[talentIndex] = {...updatedTalentArray[talentIndex], status: "active",
+          joinedAt: admin.firestore.Timestamp.now() as any};
+        transaction.update(agencyDocRef, {talent: updatedTalentArray});
+      }
+    } else if (membership.role === "admin" || membership.role === "member") {
+      const teamMemberIndex = agencyData.team.findIndex((t) => t.userId === userId && t.status === "pending");
+      if (teamMemberIndex !== -1) {
+        const updatedTeamArray = [...agencyData.team];
+        updatedTeamArray[teamMemberIndex] = {...updatedTeamArray[teamMemberIndex], status: "active",
+          joinedAt: admin.firestore.Timestamp.now() as any};
+        transaction.update(agencyDocRef, {team: updatedTeamArray});
+
+        // Set custom claim for admin
+        const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
+        if (membership.role === "admin") {
+          claimsUpdate.isAgencyAdmin = true;
         }
-    } else if (membership.role === 'admin' || membership.role === 'member') {
-        const teamMemberIndex = agencyData.team.findIndex((t) => t.userId === userId && t.status === "pending");
-        if (teamMemberIndex !== -1) {
-            const updatedTeamArray = [...agencyData.team];
-            updatedTeamArray[teamMemberIndex] = { ...updatedTeamArray[teamMemberIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() };
-            transaction.update(agencyDocRef, { team: updatedTeamArray });
-            
-            // Set custom claim for admin
-            const claimsUpdate: {[key: string]: any} = { primaryAgencyId: agencyId };
-            if (membership.role === 'admin') {
-              claimsUpdate.isAgencyAdmin = true;
-            }
-            const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-            await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
-        }
+        const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+        await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
+      }
     } else {
-       throw new HttpsError("invalid-argument", "Invalid membership role found.");
+      throw new HttpsError("invalid-argument", "Invalid membership role found.");
     }
 
-    transaction.update(userDocRef, { 
+    transaction.update(userDocRef, {
       agencyMemberships: updatedMembershipsArray,
       primaryAgencyId: agencyId, // Set the primary agency ID on the user document
     });
 
-    return { success: true, message: "Invitation accepted successfully." };
+    return {success: true, message: "Invitation accepted successfully."};
   }).catch((error) => {
     logger.error(`Error accepting invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
@@ -338,7 +340,7 @@ export const declineAgencyInvitation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
   }
   const userId = request.auth.uid;
-  const { agencyId } = request.data;
+  const {agencyId} = request.data;
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
   }
@@ -355,24 +357,24 @@ export const declineAgencyInvitation = onCall(async (request) => {
 
     const agencyData = agencyDoc.data() as Agency;
     const userData = userDoc.data() as UserProfileFirestoreData;
-    
+
     const membership = userData.agencyMemberships?.find((m) => m.agencyId === agencyId);
 
     const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
-    transaction.update(userDocRef, { 
+    transaction.update(userDocRef, {
       agencyMemberships: updatedMembershipsArray,
       primaryAgencyId: null, // Clear the primary agency ID
     });
-    
-    if (membership?.role === 'talent') {
+
+    if (membership?.role === "talent") {
       const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== userId);
-      transaction.update(agencyDocRef, { talent: updatedTalentArray });
-    } else if (membership?.role === 'admin' || membership?.role === 'member') {
+      transaction.update(agencyDocRef, {talent: updatedTalentArray});
+    } else if (membership?.role === "admin" || membership?.role === "member") {
       const updatedTeamArray = agencyData.team.filter((t) => t.userId !== userId);
-      transaction.update(agencyDocRef, { team: updatedTeamArray });
+      transaction.update(agencyDocRef, {team: updatedTeamArray});
     }
 
-    return { success: true, message: "Invitation declined successfully." };
+    return {success: true, message: "Invitation declined successfully."};
   }).catch((error) => {
     logger.error(`Error declining invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
@@ -409,7 +411,7 @@ export const createInternalPayout = onCall(async (request) => {
     if (!agencySnap.exists || !requesterIsAdmin) {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
-    
+
     // The person initiating the payout must be an admin, but the payment comes from the owner's account.
     const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
@@ -420,7 +422,7 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
 
-    const paymentMethods = await stripe.paymentMethods.list({ customer: agencyOwnerData.stripeCustomerId });
+    const paymentMethods = await stripe.paymentMethods.list({customer: agencyOwnerData.stripeCustomerId});
     const bankAccount = paymentMethods.data.find((pm) => pm.type === "us_bank_account");
     const card = paymentMethods.data.find((pm) => pm.type === "card");
     let paymentMethodId: string | undefined;
@@ -457,8 +459,8 @@ export const createInternalPayout = onCall(async (request) => {
       amount,
       description,
       status: "processing",
-      initiatedAt: admin.firestore.Timestamp.now(),
-      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)),
+      initiatedAt: admin.firestore.Timestamp.now() as any,
+      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
       platformFee: 0,
     };
 
@@ -490,7 +492,7 @@ export const createInternalPayout = onCall(async (request) => {
       },
     });
 
-    const finalPayout: InternalPayout = { ...newPayout, stripeChargeId: paymentIntent.id };
+    const finalPayout: InternalPayout = {...newPayout, stripeChargeId: paymentIntent.id};
     await payoutDocRef.set(finalPayout);
 
     logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);

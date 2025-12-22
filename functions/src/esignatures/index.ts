@@ -11,7 +11,6 @@ import * as os from "os";
 import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
-import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 
 const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
@@ -516,7 +515,7 @@ export const helloSignWebhookHandler = onRequest(async (request, response) => {
 
       const updates: Partial<Contract> = {
         signatureStatus: newStatus,
-        lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as unknown as ClientTimestamp,
+        lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as any,
         invoiceHistory: admin.firestore.FieldValue.arrayUnion({
           timestamp: admin.firestore.Timestamp.now(),
           action: historyAction,
