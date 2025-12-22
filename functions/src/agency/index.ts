@@ -15,7 +15,7 @@ try {
     throw new Error("STRIPE_SECRET_KEY is not set");
   }
   stripe = new Stripe(stripeKey, {
-    apiVersion: "2025-05-28.basil",
+    apiVersion: "2025-05-28", // Use a fixed API version
   });
 } catch (error) {
   logger.error("Error initializing Stripe:", error);
@@ -56,15 +56,14 @@ export const createAgency = onCall(async (request) => {
       id: newAgencyRef.id,
       name: name.trim(),
       ownerId: userId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp() as any,
+      createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
       talent: [],
     };
 
     // Update user's role and add agency membership
     const userUpdate: Partial<UserProfileFirestoreData> = {
       role: "agency_owner",
-      isAgencyOwner: true, // Add the isAgencyOwner field to the Firestore document
+      isAgencyOwner: true, 
       agencyMemberships: admin.firestore.FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
@@ -73,12 +72,10 @@ export const createAgency = onCall(async (request) => {
       }) as any,
     };
 
-    // Use a batch to ensure both writes succeed or fail together
     const batch = db.batch();
     batch.set(newAgencyRef, newAgency);
     batch.update(userDocRef, userUpdate);
 
-    // Set a custom claim on the user to identify them as an agency owner
     await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true});
 
     await batch.commit();
@@ -219,7 +216,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
 
     const updatedTalentArray = [...agencyData.talent];
     updatedTalentArray[talentIndex] =
-      {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
+      {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now()};
 
     const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
     updatedMembershipsArray[membershipIndex] = {...updatedMembershipsArray[membershipIndex], status: "active"};
@@ -322,7 +319,6 @@ export const createInternalPayout = onCall(async (request) => {
       customer: agencyOwnerData.stripeCustomerId,
     });
 
-    // Prioritize bank account, then card. Ignore others.
     const bankAccount = paymentMethods.data.find((pm) => pm.type === "us_bank_account");
     const card = paymentMethods.data.find((pm) => pm.type === "card");
 
@@ -364,12 +360,11 @@ export const createInternalPayout = onCall(async (request) => {
       amount, // The amount the talent receives
       description,
       status: "processing", // This will be updated by a webhook later
-      initiatedAt: admin.firestore.Timestamp.now() as any,
-      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
+      initiatedAt: admin.firestore.Timestamp.now(),
+      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)),
       platformFee: 0, // Will be calculated next
     };
 
-    // Calculate platform fee (Stripe fees + 1% Verza fee) and total charge amount
     const payoutAmountInCents = Math.round(amount * 100);
     // Platform fee is 4% (3% for Stripe + 1% for Verza) + 30 cents
     const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
@@ -377,14 +372,14 @@ export const createInternalPayout = onCall(async (request) => {
     newPayout.platformFee = platformFeeInCents / 100;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalChargeInCents, // Charge the agency the total amount
+      amount: totalChargeInCents, 
       currency: "usd",
       customer: agencyOwnerData.stripeCustomerId,
       payment_method: paymentMethodId,
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
       transfer_data: {
         destination: talentUserData.stripeAccountId,
-        amount: payoutAmountInCents, // Specify the exact amount to transfer to the talent
+        amount: payoutAmountInCents,
       },
       confirm: true,
       off_session: true,
@@ -395,7 +390,7 @@ export const createInternalPayout = onCall(async (request) => {
         paymentDate: paymentDate,
         payout_amount: (amount).toString(),
         platform_fee: (newPayout.platformFee).toString(),
-        internalPayoutId: newPayout.id, // Add this crucial piece of metadata
+        internalPayoutId: newPayout.id,
       },
     });
 
@@ -409,7 +404,7 @@ export const createInternalPayout = onCall(async (request) => {
     logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
     return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
   } catch (error: any) {
-    logger.error(`Error creating internal payout by agency ${agencyId}:`, error);
+    logger.error(`Error creating internal payout for agency ${agencyId}:`, error);
     if (error instanceof HttpsError) {
       throw error;
     }

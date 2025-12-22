@@ -222,7 +222,7 @@ export async function sendAgencyInvitationEmail(talentEmail: string, agencyName:
 
   const msg = {
     to: talentEmail,
-    from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+    from: { name: "Verza", email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com" },
     subject,
     text,
     html,
