@@ -84,7 +84,14 @@ export default function DashboardPage() {
       const fetchAllContracts = async () => {
         try {
           const contractsCol = collection(db, 'contracts');
-          const q = query(contractsCol, where('userId', '==', user.uid));
+          let q;
+
+          if (user.isAgencyOwner && user.primaryAgencyId) {
+             q = query(contractsCol, where('ownerId', '==', user.primaryAgencyId));
+          } else {
+             q = query(contractsCol, where('userId', '==', user.uid));
+          }
+          
           const contractSnapshot = await getDocs(q);
           
           const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
