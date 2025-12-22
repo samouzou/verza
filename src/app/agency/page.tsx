@@ -86,9 +86,7 @@ export default function AgencyPage() {
     setIsLoadingAgencies(true);
     
     // Determine the primary agency to manage (owned or admin)
-    const primaryAgencyId = user.isAgencyOwner 
-      ? user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId 
-      : user.primaryAgencyId;
+    const primaryAgencyId = user.primaryAgencyId;
 
     let unsubscribeManagedAgency: (() => void) | undefined;
     if (primaryAgencyId) {
@@ -153,7 +151,9 @@ export default function AgencyPage() {
   // Determine user's highest role
   const isOwner = !!user.isAgencyOwner;
   const isAdmin = user.agencyMemberships?.some(m => m.role === 'admin' && m.status === 'active');
-  const canManage = isOwner || isAdmin;
+  const isMember = user.agencyMemberships?.some(m => m.role === 'member' && m.status === 'active');
+  const canManage = isOwner || isAdmin || isMember;
+
 
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";

@@ -200,9 +200,17 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
     const agencySnap = await agencyDocRef.get();
     const agencyData = agencySnap.data() as Agency;
 
-    if (!agencySnap.exists || agencyData.ownerId !== requesterId) {
-      throw new HttpsError("permission-denied", "Only the agency owner can invite team members.");
+    const isOwner = agencyData.ownerId === requesterId;
+    const isAdmin = agencyData.team?.some(m => m.userId === requesterId && m.role === 'admin');
+
+    if (!agencySnap.exists || (!isOwner && !isAdmin)) {
+      throw new HttpsError("permission-denied", "Only agency owners or admins can invite team members.");
     }
+    
+    if (isOwner !== true && role === 'admin') {
+      throw new HttpsError("permission-denied", "Only agency owners can invite new admins.");
+    }
+
     if ((agencyData.team || []).some((m) => m.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already on the team.");
     }

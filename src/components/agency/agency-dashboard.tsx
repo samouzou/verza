@@ -28,6 +28,8 @@ export function AgencyDashboard({ agency }: AgencyDashboardProps) {
   const atTalentLimit = activeTalentCount >= talentLimit;
   const isNotOnAgencyPlan = !user?.subscriptionPlanId?.startsWith('agency_');
 
+  const canInviteTeam = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin');
+
   return (
     <div className="space-y-6">
       {(isNotOnAgencyPlan || atTalentLimit) && (
@@ -54,7 +56,7 @@ export function AgencyDashboard({ agency }: AgencyDashboardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit || isNotOnAgencyPlan} />
-        <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan} />
+        <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan || !canInviteTeam} />
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
