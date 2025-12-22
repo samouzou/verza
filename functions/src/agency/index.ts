@@ -203,7 +203,7 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
     if (!agencySnap.exists || agencyData.ownerId !== requesterId) {
       throw new HttpsError("permission-denied", "Only the agency owner can invite team members.");
     }
-    if (agencyData.team.some((m) => m.email === memberEmailCleaned) || agencyData.ownerId === requesterId) {
+    if ((agencyData.team || []).some((m) => m.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already on the team.");
     }
 
@@ -370,7 +370,7 @@ export const declineAgencyInvitation = onCall(async (request) => {
       const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== userId);
       transaction.update(agencyDocRef, {talent: updatedTalentArray});
     } else if (membership?.role === "admin" || membership?.role === "member") {
-      const updatedTeamArray = agencyData.team.filter((t) => t.userId !== userId);
+      const updatedTeamArray = (agencyData.team || []).filter((t) => t.userId !== userId);
       transaction.update(agencyDocRef, {team: updatedTeamArray});
     }
 
