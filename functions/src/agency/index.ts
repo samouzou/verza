@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout} from "../../../src/types";
+import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, TeamMember} from "../../../src/types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 
@@ -44,13 +44,11 @@ export const createAgency = onCall(async (request) => {
   const agenciesColRef = db.collection("agencies");
 
   try {
-    // Check if user already owns an agency to prevent creating multiple
     const existingAgencyQuery = await agenciesColRef.where("ownerId", "==", userId).limit(1).get();
     if (!existingAgencyQuery.empty) {
       throw new HttpsError("already-exists", "You already own an agency.");
     }
 
-    // Create new agency document
     const newAgencyRef = agenciesColRef.doc();
     const newAgency: Agency = {
       id: newAgencyRef.id,
@@ -58,12 +56,12 @@ export const createAgency = onCall(async (request) => {
       ownerId: userId,
       createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
       talent: [],
+      team: [], // Initialize team array
     };
 
-    // Update user's role and add agency membership
     const userUpdate: Partial<UserProfileFirestoreData> = {
       role: "agency_owner",
-      isAgencyOwner: true, 
+      isAgencyOwner: true,
       agencyMemberships: admin.firestore.FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
@@ -109,33 +107,36 @@ export const inviteTalentToAgency = onCall(async (request) => {
   try {
     const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
-    if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
+    const agencyData = agencySnap.data() as Agency;
+
+    const requesterIsAdmin = agencyData.ownerId === agencyOwnerId ||
+      agencyData.team?.some((m) => m.userId === agencyOwnerId && m.role === "admin");
+
+    if (!agencySnap.exists || !requesterIsAdmin) {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
-    const agencyData = agencySnap.data() as Agency;
 
     let talentUser;
     try {
       talentUser = await admin.auth().getUserByEmail(talentEmailCleaned);
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
-        // User does not exist, send an email to invite them to sign up
         const invitationsRef = db.collection("agencyInvitations").doc(talentEmailCleaned);
         await invitationsRef.set({
           agencyId: agencyId,
           agencyName: agencyData.name,
-          talentEmail: talentEmailCleaned,
+          inviteeEmail: talentEmailCleaned,
+          type: "talent",
           status: "pending",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, false);
+        await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, false, "talent");
         logger.info(`Invitation sent to new user ${talentEmailCleaned} for agency ${agencyData.name}.`);
         return {success: true, message: "Invitation sent successfully to the new user."};
       }
       throw new HttpsError("internal", "Error checking for user by email.");
     }
 
-    // User exists
     const talentUserId = talentUser.uid;
     const talentUserDocRef = db.collection("users").doc(talentUserId);
 
@@ -166,33 +167,112 @@ export const inviteTalentToAgency = onCall(async (request) => {
 
     await batch.commit();
 
-    // Send email to existing user
-    await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, true);
+    await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, true, "talent");
 
-    logger.info(`Talent ${talentEmailCleaned} invited to agency ${agencyId} by owner ${agencyOwnerId}.`);
+    logger.info(`Talent ${talentEmailCleaned} invited to agency ${agencyId} by ${agencyOwnerId}.`);
     return {success: true, message: "Talent invited successfully."};
   } catch (error) {
     logger.error(`Error inviting talent to agency ${agencyId}:`, error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
+    if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while inviting talent.");
   }
 });
+
+
+export const inviteTeamMemberToAgency = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+  const requesterId = request.auth.uid;
+  const {agencyId, memberEmail, role} = request.data;
+  if (!agencyId || !memberEmail || !role) {
+    throw new HttpsError("invalid-argument", "Agency ID, member email, and role are required.");
+  }
+  if (!["admin", "member"].includes(role)) {
+    throw new HttpsError("invalid-argument", "Role must be 'admin' or 'member'.");
+  }
+
+  const memberEmailCleaned = memberEmail.trim().toLowerCase();
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+    const agencyData = agencySnap.data() as Agency;
+
+    if (!agencySnap.exists || agencyData.ownerId !== requesterId) {
+      throw new HttpsError("permission-denied", "Only the agency owner can invite team members.");
+    }
+    if (agencyData.team.some((m) => m.email === memberEmailCleaned) || agencyData.ownerId === requesterId) {
+      throw new HttpsError("already-exists", "This user is already on the team.");
+    }
+
+    let memberUser;
+    try {
+      memberUser = await admin.auth().getUserByEmail(memberEmailCleaned);
+    } catch (error: any) {
+      if (error.code === "auth/user-not-found") {
+        const invitationsRef = db.collection("agencyInvitations").doc(memberEmailCleaned);
+        await invitationsRef.set({
+          agencyId: agencyId,
+          agencyName: agencyData.name,
+          inviteeEmail: memberEmailCleaned,
+          type: "team",
+          role,
+          status: "pending",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await sendAgencyInvitationEmail(memberEmailCleaned, agencyData.name, false, "team", role);
+        return {success: true, message: `Invitation sent to new user ${memberEmailCleaned}.`};
+      }
+      throw new HttpsError("internal", "Error checking for user by email.");
+    }
+
+    const memberUserId = memberUser.uid;
+    const memberUserDocRef = db.collection("users").doc(memberUserId);
+
+    const newTeamMember: TeamMember = {
+      userId: memberUserId,
+      email: memberEmailCleaned,
+      displayName: memberUser.displayName || "Invited Member",
+      role,
+      status: "pending",
+    };
+    const teamAgencyMembership: AgencyMembership = {
+      agencyId,
+      agencyName: agencyData.name,
+      role,
+      status: "pending",
+    };
+
+    const batch = db.batch();
+    batch.update(agencyDocRef, {team: admin.firestore.FieldValue.arrayUnion(newTeamMember)});
+    batch.update(memberUserDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership)});
+    await batch.commit();
+
+    await sendAgencyInvitationEmail(memberEmailCleaned, agencyData.name, true, "team", role);
+
+    return {success: true, message: "Team member invited successfully."};
+  } catch (error) {
+    logger.error("Error inviting team member:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "An unexpected error occurred.");
+  }
+});
+
 
 export const acceptAgencyInvitation = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
   }
-  const talentUserId = request.auth.uid;
-  const {agencyId} = request.data;
+  const userId = request.auth.uid;
+  const { agencyId } = request.data;
 
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
   }
 
   const agencyDocRef = db.collection("agencies").doc(agencyId);
-  const userDocRef = db.collection("users").doc(talentUserId);
+  const userDocRef = db.collection("users").doc(userId);
 
   return db.runTransaction(async (transaction) => {
     const agencyDoc = await transaction.get(agencyDocRef);
@@ -204,30 +284,44 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     const agencyData = agencyDoc.data() as Agency;
     const userData = userDoc.data() as UserProfileFirestoreData;
 
-    const talentIndex = agencyData.talent.findIndex((t) => t.userId === talentUserId && t.status === "pending");
-    if (talentIndex === -1) {
-      throw new HttpsError("failed-precondition", "No pending invitation found for this user in the specified agency.");
-    }
-
     const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
     if (membershipIndex === -1 || membershipIndex === undefined) {
-      throw new HttpsError("failed-precondition", "User does not have a corresponding pending membership.");
+      throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
+    }
+    
+    const membership = userData.agencyMemberships![membershipIndex];
+    const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
+    updatedMembershipsArray[membershipIndex] = { ...membership, status: "active" };
+    
+    if (membership.role === 'talent') {
+        const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
+        if (talentIndex !== -1) {
+            const updatedTalentArray = [...agencyData.talent];
+            updatedTalentArray[talentIndex] = { ...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() };
+            transaction.update(agencyDocRef, { talent: updatedTalentArray });
+        }
+    } else if (membership.role === 'admin' || membership.role === 'member') {
+        const teamMemberIndex = agencyData.team.findIndex((t) => t.userId === userId && t.status === "pending");
+        if (teamMemberIndex !== -1) {
+            const updatedTeamArray = [...agencyData.team];
+            updatedTeamArray[teamMemberIndex] = { ...updatedTeamArray[teamMemberIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() };
+            transaction.update(agencyDocRef, { team: updatedTeamArray });
+            
+            // Set custom claim for admin
+            if (membership.role === 'admin') {
+              const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+              await admin.auth().setCustomUserClaims(userId, {...currentClaims, isAgencyAdmin: true});
+            }
+        }
+    } else {
+       throw new HttpsError("invalid-argument", "Invalid membership role found.");
     }
 
-    const updatedTalentArray = [...agencyData.talent];
-    updatedTalentArray[talentIndex] =
-      {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now()};
+    transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
 
-    const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
-    updatedMembershipsArray[membershipIndex] = {...updatedMembershipsArray[membershipIndex], status: "active"};
-
-
-    transaction.update(agencyDocRef, {talent: updatedTalentArray});
-    transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
-
-    return {success: true, message: "Invitation accepted successfully."};
+    return { success: true, message: "Invitation accepted successfully." };
   }).catch((error) => {
-    logger.error(`Error accepting invitation for user ${talentUserId} to agency ${agencyId}:`, error);
+    logger.error(`Error accepting invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while accepting the invitation.");
   });
@@ -237,14 +331,14 @@ export const declineAgencyInvitation = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
   }
-  const talentUserId = request.auth.uid;
-  const {agencyId} = request.data;
+  const userId = request.auth.uid;
+  const { agencyId } = request.data;
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
   }
 
   const agencyDocRef = db.collection("agencies").doc(agencyId);
-  const userDocRef = db.collection("users").doc(talentUserId);
+  const userDocRef = db.collection("users").doc(userId);
 
   return db.runTransaction(async (transaction) => {
     const agencyDoc = await transaction.get(agencyDocRef);
@@ -255,35 +349,34 @@ export const declineAgencyInvitation = onCall(async (request) => {
 
     const agencyData = agencyDoc.data() as Agency;
     const userData = userDoc.data() as UserProfileFirestoreData;
+    
+    const membership = userData.agencyMemberships?.find((m) => m.agencyId === agencyId);
 
-    const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== talentUserId);
     const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
-
-    // Only update if there's a change to be made
-    if (updatedTalentArray.length < agencyData.talent.length) {
-      transaction.update(agencyDocRef, {talent: updatedTalentArray});
+    transaction.update(userDocRef, { agencyMemberships: updatedMembershipsArray });
+    
+    if (membership?.role === 'talent') {
+      const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== userId);
+      transaction.update(agencyDocRef, { talent: updatedTalentArray });
+    } else if (membership?.role === 'admin' || membership?.role === 'member') {
+      const updatedTeamArray = agencyData.team.filter((t) => t.userId !== userId);
+      transaction.update(agencyDocRef, { team: updatedTeamArray });
     }
 
-    if (userData.agencyMemberships && updatedMembershipsArray.length < userData.agencyMemberships.length) {
-      transaction.update(userDocRef, {agencyMemberships: updatedMembershipsArray});
-    } else if (userData.agencyMemberships && updatedMembershipsArray.length === 0) {
-      // If the array becomes empty, ensure it's set to an empty array
-      transaction.update(userDocRef, {agencyMemberships: []});
-    }
-
-    return {success: true, message: "Invitation declined successfully."};
+    return { success: true, message: "Invitation declined successfully." };
   }).catch((error) => {
-    logger.error(`Error declining invitation for user ${talentUserId} to agency ${agencyId}:`, error);
+    logger.error(`Error declining invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
   });
 });
 
+
 export const createInternalPayout = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-  const agencyOwnerId = request.auth.uid;
+  const requesterId = request.auth.uid;
   const {agencyId, talentId, amount, description, paymentDate} = request.data;
 
   if (!agencyId || !talentId || !amount || !description || !paymentDate) {
@@ -299,13 +392,17 @@ export const createInternalPayout = onCall(async (request) => {
   try {
     const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
-
-    if (!agencySnap.exists || agencySnap.data()?.ownerId !== agencyOwnerId) {
-      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
-    }
     const agencyData = agencySnap.data() as Agency;
 
-    // Get agency owner's Stripe customer ID to charge them
+    const requesterIsAdmin = agencyData.ownerId === requesterId ||
+      agencyData.team?.some((m) => m.userId === requesterId && m.role === "admin");
+
+    if (!agencySnap.exists || !requesterIsAdmin) {
+      throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
+    }
+    
+    // The person initiating the payout must be an admin, but the payment comes from the owner's account.
+    const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
@@ -314,20 +411,12 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
     }
 
-    // Fetch all payment methods and find a suitable one
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: agencyOwnerData.stripeCustomerId,
-    });
-
+    const paymentMethods = await stripe.paymentMethods.list({ customer: agencyOwnerData.stripeCustomerId });
     const bankAccount = paymentMethods.data.find((pm) => pm.type === "us_bank_account");
     const card = paymentMethods.data.find((pm) => pm.type === "card");
-
     let paymentMethodId: string | undefined;
-    if (bankAccount) {
-      paymentMethodId = bankAccount.id;
-    } else if (card) {
-      paymentMethodId = card.id;
-    }
+    if (bankAccount) paymentMethodId = bankAccount.id;
+    else if (card) paymentMethodId = card.id;
 
     if (!paymentMethodId) {
       throw new HttpsError("failed-precondition",
@@ -339,7 +428,6 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("not-found", "The selected talent is not a member of this agency.");
     }
 
-    // Get talent's Stripe Connect account ID
     const talentUserDocRef = db.collection("users").doc(talentId);
     const talentUserSnap = await talentUserDocRef.get();
     const talentUserData = talentUserSnap.data() as UserProfileFirestoreData;
@@ -357,22 +445,21 @@ export const createInternalPayout = onCall(async (request) => {
       agencyOwnerId,
       talentId,
       talentName: talentInfo.displayName || "N/A",
-      amount, // The amount the talent receives
+      amount,
       description,
-      status: "processing", // This will be updated by a webhook later
+      status: "processing",
       initiatedAt: admin.firestore.Timestamp.now(),
       paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)),
-      platformFee: 0, // Will be calculated next
+      platformFee: 0,
     };
 
     const payoutAmountInCents = Math.round(amount * 100);
-    // Platform fee is 4% (3% for Stripe + 1% for Verza) + 30 cents
     const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
     const totalChargeInCents = payoutAmountInCents + platformFeeInCents;
     newPayout.platformFee = platformFeeInCents / 100;
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalChargeInCents, 
+      amount: totalChargeInCents,
       currency: "usd",
       customer: agencyOwnerData.stripeCustomerId,
       payment_method: paymentMethodId,
@@ -384,30 +471,24 @@ export const createInternalPayout = onCall(async (request) => {
       confirm: true,
       off_session: true,
       metadata: {
-        agencyId: agencyId,
-        talentId: talentId,
+        agencyId,
+        talentId,
         payout_description: description,
-        paymentDate: paymentDate,
+        paymentDate,
         payout_amount: (amount).toString(),
         platform_fee: (newPayout.platformFee).toString(),
         internalPayoutId: newPayout.id,
       },
     });
 
-    const finalPayout: InternalPayout = {
-      ...newPayout,
-      stripeChargeId: paymentIntent.id,
-    };
-
+    const finalPayout: InternalPayout = { ...newPayout, stripeChargeId: paymentIntent.id };
     await payoutDocRef.set(finalPayout);
 
     logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
     return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
   } catch (error: any) {
     logger.error(`Error creating internal payout for agency ${agencyId}:`, error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
+    if (error instanceof HttpsError) throw error;
     if (error.type === "StripeCardError") {
       throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
     }

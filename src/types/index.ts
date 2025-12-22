@@ -185,7 +185,7 @@ export interface UserProfileFirestoreData {
   address?: string | null;
   tin?: string | null;
   createdAt?: ClientTimestamp;
-  role: 'individual_creator' | 'agency_owner';
+  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
   agencyMemberships?: AgencyMembership[];
   stripeCustomerId?: string | null;
@@ -285,6 +285,15 @@ export interface Talent {
   commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
+export interface TeamMember {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: 'admin' | 'member';
+  status: 'pending' | 'active';
+  joinedAt?: ClientTimestamp;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -292,12 +301,13 @@ export interface Agency {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   talent: Talent[];
+  team: TeamMember[]; // Array for team members
 }
 
 export interface AgencyMembership {
   agencyId: string;
   agencyName: string;
-  role: 'owner' | 'talent';
+  role: 'owner' | 'admin' | 'member' | 'talent';
   status: 'pending' | 'active';
 }
 
