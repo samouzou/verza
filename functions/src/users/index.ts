@@ -31,9 +31,12 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
         const { agencyId, agencyName, type, role: inviteRole } = invitationData;
         
         // Determine the user's top-level role from the invitation
-        if (type === 'team' && (inviteRole === 'admin' || inviteRole === 'member')) {
-            // Type-safe assignment
-            finalRole = `agency_${inviteRole}`;
+        if (type === 'team') {
+            if (inviteRole === 'admin') {
+                finalRole = 'agency_admin';
+            } else if (inviteRole === 'member') {
+                finalRole = 'agency_member';
+            }
         }
         
         // Prepare the membership object to be added to the user's document
