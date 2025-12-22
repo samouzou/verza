@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, AgencyMembership } from '@/types';
-import { onSnapshot, collection, query, where, getDocs, documentId, doc } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, getDocs, documentId, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useTour } from '@/hooks/use-tour';
 import { agencyTour } from '@/lib/tours';
@@ -73,14 +73,14 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
 export default function AgencyPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const [managedAgency, setManagedAgency] = useState<Agency | null>(null);
+  const [agencyOwnerData, setAgencyOwnerData] = useState<UserProfile | null>(null);
   const [memberAgencies, setMemberAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
 
   const isOwner = user?.isAgencyOwner ?? false;
-  const isAdmin = user?.agencyMemberships?.some(m => m.role === 'admin' && m.status === 'active') ?? false;
-  const isMember = user?.agencyMemberships?.some(m => m.role === 'member' && m.status === 'active') ?? false;
-  const canManage = isOwner || isAdmin || isMember;
+  const isMemberOrAdmin = user?.agencyMemberships?.some(m => (m.role === 'admin' || m.role === 'member') && m.status === 'active') ?? false;
+  const canManage = isOwner || isMemberOrAdmin;
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -96,16 +96,30 @@ export default function AgencyPage() {
 
     if (canManage && managementAgencyId) {
       const agencyDocRef = doc(db, "agencies", managementAgencyId);
-      unsubscribe = onSnapshot(agencyDocRef, (docSnap) => {
+      unsubscribe = onSnapshot(agencyDocRef, async (docSnap) => {
         if (docSnap.exists()) {
-          setManagedAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+          const agencyData = { id: docSnap.id, ...docSnap.data() } as Agency;
+          setManagedAgency(agencyData);
+          
+          // Fetch the agency owner's user data for subscription info
+          if (agencyData.ownerId) {
+            const ownerDocRef = doc(db, "users", agencyData.ownerId);
+            const ownerDocSnap = await getDoc(ownerDocRef);
+            if (ownerDocSnap.exists()) {
+              setAgencyOwnerData(ownerDocSnap.data() as UserProfile);
+            } else {
+              setAgencyOwnerData(null);
+            }
+          }
         } else {
           setManagedAgency(null);
+          setAgencyOwnerData(null);
         }
         setIsLoadingAgencies(false);
       }, (error) => {
         console.error("Error fetching managed agency:", error);
         setManagedAgency(null);
+        setAgencyOwnerData(null);
         setIsLoadingAgencies(false);
       });
     } else {
@@ -168,7 +182,7 @@ export default function AgencyPage() {
       />
       <div className="space-y-6">
         {canManage && managedAgency ? (
-          <AgencyDashboard agency={managedAgency} />
+          <AgencyDashboard agency={managedAgency} agencyOwner={agencyOwnerData} />
         ) : memberAgencies.length > 0 ? (
           <TalentAgencyView agencies={memberAgencies} memberships={user.agencyMemberships || []} />
         ) : (

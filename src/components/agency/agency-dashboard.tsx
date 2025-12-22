@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Agency } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
@@ -18,15 +18,19 @@ import { TeamRosterCard } from './team-roster-card';
 
 interface AgencyDashboardProps {
   agency: Agency;
+  agencyOwner: UserProfile | null;
 }
 
-export function AgencyDashboard({ agency }: AgencyDashboardProps) {
+export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
   const { user } = useAuth();
   
+  // Use the agency owner's subscription data if available, otherwise fall back to the current user's
+  const subscriptionHolder = agencyOwner || user;
+  
   const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
-  const talentLimit = user?.talentLimit ?? 0;
+  const talentLimit = subscriptionHolder?.talentLimit ?? 0;
   const atTalentLimit = activeTalentCount >= talentLimit;
-  const isNotOnAgencyPlan = !user?.subscriptionPlanId?.startsWith('agency_');
+  const isNotOnAgencyPlan = !subscriptionHolder?.subscriptionPlanId?.startsWith('agency_');
 
   const canInviteTeam = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin');
 
@@ -44,13 +48,15 @@ export function AgencyDashboard({ agency }: AgencyDashboardProps) {
                : `You are not on an agency plan. Please upgrade to manage talent.`
              }
           </AlertDescription>
-          <div className="mt-3">
-            <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/settings">
-                Manage Subscription <ExternalLink className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
+          {user?.isAgencyOwner && (
+            <div className="mt-3">
+              <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Link href="/settings">
+                  Manage Subscription <ExternalLink className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </Alert>
       )}
 
