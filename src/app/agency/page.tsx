@@ -77,58 +77,58 @@ export default function AgencyPage() {
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const { startTour } = useTour();
 
+  const isOwner = user?.isAgencyOwner ?? false;
+  const isAdmin = user?.agencyMemberships?.some(m => m.role === 'admin' && m.status === 'active') ?? false;
+  const isMember = user?.agencyMemberships?.some(m => m.role === 'member' && m.status === 'active') ?? false;
+  const canManage = isOwner || isAdmin || isMember;
+
   useEffect(() => {
     if (!user || authLoading) {
       if (!authLoading) setIsLoadingAgencies(false);
       return;
     }
-
-    setIsLoadingAgencies(true);
     
-    // Determine the primary agency to manage (owned or admin)
-    const primaryAgencyId = user.primaryAgencyId;
+    setIsLoadingAgencies(true);
+    let unsubscribe: (() => void) | undefined;
+    
+    const managementMembership = user.agencyMemberships?.find(m => m.role === 'owner' || m.role === 'admin' || m.role === 'member');
+    const managementAgencyId = user.primaryAgencyId || managementMembership?.agencyId;
 
-    let unsubscribeManagedAgency: (() => void) | undefined;
-    if (primaryAgencyId) {
-      const agencyDocRef = doc(db, "agencies", primaryAgencyId);
-      unsubscribeManagedAgency = onSnapshot(agencyDocRef, (docSnap) => {
+    if (canManage && managementAgencyId) {
+      const agencyDocRef = doc(db, "agencies", managementAgencyId);
+      unsubscribe = onSnapshot(agencyDocRef, (docSnap) => {
         if (docSnap.exists()) {
           setManagedAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
         } else {
           setManagedAgency(null);
         }
+        setIsLoadingAgencies(false);
       }, (error) => {
         console.error("Error fetching managed agency:", error);
         setManagedAgency(null);
+        setIsLoadingAgencies(false);
       });
     } else {
-        setManagedAgency(null);
-    }
-    
-    // Fetch all agencies the user is a member of (for the talent view)
-    const fetchMemberAgencies = async () => {
-      const memberAgencyIds = user.agencyMemberships?.map(mem => mem.agencyId).filter(id => !!id) || [];
-      if (memberAgencyIds.length > 0) {
-        try {
+        const memberAgencyIds = user.agencyMemberships?.map(mem => mem.agencyId).filter(id => !!id) || [];
+        if (memberAgencyIds.length > 0) {
           const memberQuery = query(collection(db, "agencies"), where(documentId(), "in", memberAgencyIds));
-          const snapshot = await getDocs(memberQuery);
-          setMemberAgencies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency)));
-        } catch (error) {
-          console.error("Error fetching member agencies:", error);
-          setMemberAgencies([]);
+          unsubscribe = onSnapshot(memberQuery, (snapshot) => {
+             setMemberAgencies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency)));
+             setIsLoadingAgencies(false);
+          }, (error) => {
+            console.error("Error fetching member agencies:", error);
+            setMemberAgencies([]);
+            setIsLoadingAgencies(false);
+          });
+        } else {
+            setIsLoadingAgencies(false);
         }
-      } else {
-        setMemberAgencies([]);
-      }
-      setIsLoadingAgencies(false);
-    };
-
-    fetchMemberAgencies();
+    }
 
     return () => {
-      if (unsubscribeManagedAgency) unsubscribeManagedAgency();
+      if (unsubscribe) unsubscribe();
     };
-  }, [user, authLoading]);
+  }, [user, authLoading, canManage]);
   
   const handleAgencyCreated = () => {
     refreshAuthUser();
@@ -148,13 +148,6 @@ export default function AgencyPage() {
     );
   }
   
-  // Determine user's highest role
-  const isOwner = !!user.isAgencyOwner;
-  const isAdmin = user.agencyMemberships?.some(m => m.role === 'admin' && m.status === 'active');
-  const isMember = user.agencyMemberships?.some(m => m.role === 'member' && m.status === 'active');
-  const canManage = isOwner || isAdmin || isMember;
-
-
   let pageTitle = "Agency Management";
   let pageDescription = "Create or manage your creator agency.";
 
