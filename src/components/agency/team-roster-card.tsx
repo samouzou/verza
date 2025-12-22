@@ -22,7 +22,7 @@ export function TeamRosterCard({ agency }: TeamRosterCardProps) {
       role: 'owner', 
       status: 'active' 
     },
-    ...agency.team
+    ...(agency.team || [])
   ];
 
   return (
