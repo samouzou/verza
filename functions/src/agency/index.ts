@@ -206,7 +206,7 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
     if (!agencySnap.exists || (!isOwner && !isAdmin)) {
       throw new HttpsError("permission-denied", "Only agency owners or admins can invite team members.");
     }
-    
+
     if (isOwner !== true && role === "admin") {
       throw new HttpsError("permission-denied", "Only agency owners can invite new admins.");
     }
