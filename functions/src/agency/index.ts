@@ -301,38 +301,40 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     const membership = userData.agencyMemberships![membershipIndex];
     const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
     updatedMembershipsArray[membershipIndex] = {...membership, status: "active"};
+    
+    // Set custom claims and update Firestore user document
+    const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
+    let userRoleUpdate: UserProfileFirestoreData['role'] = userData.role;
 
     if (membership.role === "talent") {
       const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
       if (talentIndex !== -1) {
         const updatedTalentArray = [...agencyData.talent];
-        updatedTalentArray[talentIndex] = {...updatedTalentArray[talentIndex], status: "active",
-          joinedAt: admin.firestore.Timestamp.now() as any};
+        updatedTalentArray[talentIndex] = {...updatedTalentArray[talentIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
         transaction.update(agencyDocRef, {talent: updatedTalentArray});
       }
     } else if (membership.role === "admin" || membership.role === "member") {
-      const teamMemberIndex = agencyData.team.findIndex((t) => t.userId === userId && t.status === "pending");
-      if (teamMemberIndex !== -1) {
-        const updatedTeamArray = [...agencyData.team];
-        updatedTeamArray[teamMemberIndex] = {...updatedTeamArray[teamMemberIndex], status: "active",
-          joinedAt: admin.firestore.Timestamp.now() as any};
-        transaction.update(agencyDocRef, {team: updatedTeamArray});
-      }
+        const teamMemberIndex = (agencyData.team || []).findIndex((t) => t.userId === userId && t.status === "pending");
+        if (teamMemberIndex !== -1) {
+            const updatedTeamArray = [...agencyData.team];
+            updatedTeamArray[teamMemberIndex] = {...updatedTeamArray[teamMemberIndex], status: "active", joinedAt: admin.firestore.Timestamp.now() as any};
+            transaction.update(agencyDocRef, {team: updatedTeamArray});
+            userRoleUpdate = membership.role === 'admin' ? 'agency_admin' : 'agency_member';
+            if (membership.role === 'admin') {
+                claimsUpdate.isAgencyAdmin = true;
+            }
+        }
     } else {
       throw new HttpsError("invalid-argument", "Invalid membership role found.");
     }
     
-    // Set custom claim for all accepted members, including talent
-    const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
-    if (membership.role === "admin") {
-      claimsUpdate.isAgencyAdmin = true;
-    }
     const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
     await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
 
     transaction.update(userDocRef, {
       agencyMemberships: updatedMembershipsArray,
       primaryAgencyId: agencyId, // Set the primary agency ID on the user document
+      role: userRoleUpdate,
     });
 
     return {success: true, message: "Invitation accepted successfully."};
