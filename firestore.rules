@@ -14,9 +14,10 @@ service cloud.firestore {
       return request.auth != null && agencyDoc.data.ownerId == request.auth.uid;
     }
     
-    // Helper function to check if the user is an active team member of a specific agency using custom claims (more efficient)
-    function isTeamMember(agencyId) {
-      return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
+    // Corrected Helper: Check if the requester is a team member of the agency that owns the contract
+    // This is now the single source of truth for any agency member (owner, admin, or member)
+    function isMemberOfAgency(agencyId) {
+      return request.auth.token.primaryAgencyId == agencyId;
     }
     
     // Corrected Helper: Check if the requester is a team member of an agency owned by the target user.
@@ -41,11 +42,9 @@ service cloud.firestore {
     function userOwnsContract(contractId) {
       let contractData = get(/databases/$(database)/documents/contracts/$(contractId)).data;
       // User is the talent on the contract OR
-      // Contract is owned by an agency and the requester is the owner of that specific agency OR
-      // Contract is owned by an agency and the requester is a team member of that agency
+      // Contract is owned by an agency and the requester is an active member of that agency
       return isUser(contractData.userId) || 
-             (contractData.ownerType == 'agency' && isOwnerOfAgency(contractData.ownerId)) ||
-             (contractData.ownerType == 'agency' && isTeamMember(contractData.ownerId));
+             (contractData.ownerType == 'agency' && isMemberOfAgency(contractData.ownerId));
     }
 
     // Rules for the users collection
@@ -66,23 +65,19 @@ service cloud.firestore {
     // Rules for the contracts collection
     match /contracts/{contractId} {
       // READ/UPDATE/DELETE: Allow if...
-      // 1. You are the talent on the contract (covers personal contracts AND talent-assigned agency contracts)
-      // 2. You are the owner of the agency that owns the contract
-      // 3. You are a team member of the agency that owns the contract (using custom token)
+      // 1. You are the talent on the contract (covers personal contracts)
+      // 2. The contract is owned by an agency and you are a member of that agency (owner, admin, or member)
       allow read, update, delete: if request.auth != null && (
           isUser(resource.data.userId) || 
-          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || 
-          (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId))
+          (resource.data.ownerType == 'agency' && isMemberOfAgency(resource.data.ownerId))
       );
       
       // CREATE: Allow if...
       // 1. You are creating a contract for yourself (personal)
-      // 2. You are an owner of the agency you're creating the contract for
-      // 3. You are a team member of the agency you're creating the contract for (using custom token)
+      // 2. You are a member of the agency you're creating the contract for
       allow create: if request.auth != null && (
           isUser(request.resource.data.userId) ||
-          (request.resource.data.ownerType == 'agency' && isOwnerOfAgency(request.resource.data.ownerId)) ||
-          (request.resource.data.ownerType == 'agency' && isTeamMember(request.resource.data.ownerId))
+          (request.resource.data.ownerType == 'agency' && isMemberOfAgency(request.resource.data.ownerId))
       );
     }
     
@@ -131,14 +126,13 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && (isOwnerOfAgency(agencyId) || isTeamMember(agencyId));
+      allow update: if request.auth != null && isMemberOfAgency(agencyId);
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
     }
     
     // Rules for internal agency payouts
     match /internalPayouts/{payoutId} {
-      allow read: if isOwnerOfAgency(resource.data.agencyId) || 
-                     isTeamMember(resource.data.agencyId) ||
+      allow read: if isMemberOfAgency(resource.data.agencyId) || 
                      request.auth.uid == resource.data.talentId;
       allow create: if request.auth.uid == request.resource.data.agencyOwnerId;
       allow update, delete: if false; // Payouts are immutable for now
