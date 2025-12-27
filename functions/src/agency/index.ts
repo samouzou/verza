@@ -317,18 +317,18 @@ export const acceptAgencyInvitation = onCall(async (request) => {
         updatedTeamArray[teamMemberIndex] = {...updatedTeamArray[teamMemberIndex], status: "active",
           joinedAt: admin.firestore.Timestamp.now() as any};
         transaction.update(agencyDocRef, {team: updatedTeamArray});
-
-        // Set custom claim for admin
-        const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
-        if (membership.role === "admin") {
-          claimsUpdate.isAgencyAdmin = true;
-        }
-        const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-        await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
       }
     } else {
       throw new HttpsError("invalid-argument", "Invalid membership role found.");
     }
+    
+    // Set custom claim for all accepted members, including talent
+    const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
+    if (membership.role === "admin") {
+      claimsUpdate.isAgencyAdmin = true;
+    }
+    const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+    await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
 
     transaction.update(userDocRef, {
       agencyMemberships: updatedMembershipsArray,

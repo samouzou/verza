@@ -14,23 +14,24 @@ service cloud.firestore {
 
     // Agency specific helper functions
     function isAgencyOwner(agencyId) {
-      return get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
+      // Use custom claim for efficiency. Avoids a get() call.
+      return request.auth.token.isAgencyOwner == true && request.auth.token.primaryAgencyId == agencyId;
     }
 
     function isAgencyAdmin(agencyId) {
-      let agency = get(/databases/$(database)/documents/agencies/$(agencyId)).data;
-      let userIsAdmin = agency.team.exists(member => member.userId == request.auth.uid && member.role == 'admin' && member.status == 'active');
-      return isAgencyOwner(agencyId) || userIsAdmin;
+      // Use custom claims for efficiency.
+      return request.auth.token.primaryAgencyId == agencyId && (request.auth.token.isAgencyOwner == true || request.auth.token.isAgencyAdmin == true);
     }
     
     function isTeamMember(agencyId) {
+      // Efficiently check if user belongs to the agency via custom claim
        return request.auth.token.primaryAgencyId == agencyId;
     }
 
     function userOwnsContract(contractId) {
       let contract = get(/databases/$(database)/documents/contracts/$(contractId)).data;
       // Direct user owns the contract OR user is an admin of the agency that owns the contract
-      return isUser(contract.userId) || (contract.ownerType == 'agency' && isAgencyAdmin(contract.ownerId));
+      return isUser(contract.userId) || (contract.ownerType == 'agency' && isTeamMember(contract.ownerId));
     }
 
     // Rules for the users collection
@@ -41,7 +42,12 @@ service cloud.firestore {
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-      allow read, update, delete: if isSignedIn() && userOwnsContract(contractId);
+      allow read: if isSignedIn() && 
+                    (
+                      isUser(resource.data.userId) || // User owns the contract directly
+                      (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId)) // User is part of the agency that owns it
+                    );
+      allow update, delete: if isSignedIn() && userOwnsContract(contractId);
       allow create: if isSignedIn() && 
         (
           request.resource.data.userId == request.auth.uid || // Talent creating for themselves
