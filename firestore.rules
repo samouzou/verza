@@ -27,6 +27,12 @@ service cloud.firestore {
       return agencyId != null && 
              get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == targetUserId;
     }
+    
+    // Helper function to check if the user is an active team member of a specific agency
+    function isTeamMember(agencyId) {
+      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return request.auth != null && requesterUser.data.primaryAgencyId == agencyId;
+    }
 
 
     // Helper functions to allow user to access email logs
@@ -69,7 +75,9 @@ service cloud.firestore {
       // 2. The contract is owned by an agency and you are a member of that agency (owner, admin, or member)
       allow read, update, delete: if request.auth != null && (
           isUser(resource.data.userId) || 
-          (resource.data.ownerType == 'agency' && isMemberOfAgency(resource.data.ownerId))
+          (resource.data.ownerType == 'agency' && isMemberOfAgency(resource.data.ownerId)) ||
+          (resource.data.ownerType == 'agency' && isOwnerOfAgency(resource.data.ownerId)) || 
+          (resource.data.ownerType == 'agency' && isTeamMember(resource.data.ownerId))
       );
       
       // CREATE: Allow if...

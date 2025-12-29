@@ -26,7 +26,7 @@ try {
       },
       checkout: {
         sessions: {
-          create: async () => ({id: "mock_session_id"}),
+          create: async () => ({id: "mock_session_id", url: "https://mock-checkout-url"}),
         },
       },
       billingPortal: {
@@ -179,7 +179,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       allow_promotion_codes: true,
     });
 
-    return {sessionId: session.id};
+    return { sessionId: session.id, url: session.url };
   } catch (error) {
     logger.error("Error creating subscription checkout session:", error);
     throw new Error("Failed to create subscription checkout session");
