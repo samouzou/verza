@@ -78,9 +78,6 @@ export default function ContractsPage() {
           });
       };
   
-      // ** THE FIX IS HERE **
-      // Instead of checking for a specific role, we now check for the presence of primaryAgencyId.
-      // This correctly includes agency owners, admins, and members.
       if (user.primaryAgencyId) {
         let personalContracts: Contract[] = [];
         let agencyContracts: Contract[] = [];
