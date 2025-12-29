@@ -42,15 +42,9 @@ service cloud.firestore {
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-        // Allow read access if the user's UID is a key in the 'access' map
-        allow read: if request.auth.uid in resource.data.access;
-
-        // Allow list access if the query is filtering by the user's UID in the access map
-        allow list: if request.auth.uid != null && request.query.filters[0].field.string_value == "access." + request.auth.uid;
-
-        // Allow write access (e.g., update/delete) only for specific roles
-        allow write: if request.auth.uid in resource.data.access &&
-                       resource.data.access[request.auth.uid] == 'owner';
+        // Allow read, create, update, and delete access if the user's UID is a key in the 'access' map.
+        // This grants full CRUD permissions to anyone associated with the contract.
+        allow read, write: if request.auth.uid in resource.data.access || request.auth.uid in request.resource.data.access;
     }
     
 
