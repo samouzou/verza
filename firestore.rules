@@ -20,12 +20,13 @@ service cloud.firestore {
       return request.auth.token.primaryAgencyId == agencyId;
     }
     
-    // Corrected Helper: Check if the requester is a team member of an agency owned by the target user.
-    function isTeamMemberOfAgencyOwnedBy(targetUserId) {
-      let agencyId = request.auth.token.primaryAgencyId; // Use token
-      // Check if agencyId exists in the token and the target user owns that agency
-      return agencyId != null && 
-             get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == targetUserId;
+    // This helper function checks if the user trying to read a document (targetUserId)
+    // is a talent member of the agency that the requester belongs to.
+    function isTalentInMyAgency(targetUserId) {
+        let requesterAgencyId = request.auth.token.primaryAgencyId;
+        let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
+        // Allow if requester has an agency and the target user's primary agency matches.
+        return requesterAgencyId != null && targetUser.primaryAgencyId == requesterAgencyId;
     }
     
     // Helper function to check if the user is an active team member of a specific agency
@@ -56,7 +57,7 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read: if isUser(userId) || isTeamMemberOfAgencyOwnedBy(userId);
+      allow read: if isUser(userId) || isTalentInMyAgency(userId);
       allow create: if isUser(userId);
       allow update: if isUser(userId) && 
                        !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
