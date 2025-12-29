@@ -24,7 +24,7 @@ import type { Agency, Contract, PaymentMilestone } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc } from '@/lib/firebase';
+import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc, getDocs } from '@/lib/firebase';
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -305,12 +305,34 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     let finalUserId = user.uid;
     let talentName: string | undefined | null = undefined;
 
+    const accessMap: { [key: string]: 'owner' | 'viewer' | 'talent' } = {};
+    accessMap[user.uid] = 'owner'; // The creator is always an owner
+
     if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
         ownerType = 'agency';
         ownerId = agency.id;
         finalUserId = selectedOwner;
         talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+        
+        // Add talent to access map
+        accessMap[finalUserId] = 'talent';
+        // Add all agency team members to access map
+        agency.team?.forEach(member => {
+            accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+        });
+
+    } else if (user.role === 'agency_owner' && selectedOwner === 'personal' && agency) {
+        // Contract is for the agency itself, not a specific talent
+        ownerType = 'agency';
+        ownerId = agency.id;
+        finalUserId = user.uid; // Creator is the agency owner
+        
+        // Add all agency team members to access map
+        agency.team?.forEach(member => {
+            accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+        });
     }
+
 
     try {
       if (selectedFile) {
@@ -324,7 +346,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
       const finalMilestones: PaymentMilestone[] = milestones.map(m => ({ ...m, status: 'pending' }));
 
-      const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+      const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, access: any } = {
         userId: finalUserId,
         talentName: talentName || null,
         ownerType: ownerType,
@@ -342,6 +364,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         negotiationSuggestions: negotiationSuggestions ? JSON.parse(JSON.stringify(negotiationSuggestions)) : null,
         milestones: finalMilestones,
         invoiceStatus: 'none', 
+        access: accessMap,
         createdAt: firebaseServerTimestamp(),
         updatedAt: firebaseServerTimestamp(),
       };
@@ -503,5 +526,3 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     </Dialog>
   );
 }
-
-    

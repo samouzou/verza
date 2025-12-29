@@ -32,72 +32,34 @@ export default function ContractsPage() {
   
     setIsLoadingContracts(true);
     const contractsCol = collection(db, 'contracts');
-    const unsubscribes: (() => void)[] = [];
+    
+    const q = query(
+      contractsCol, 
+      where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent'])
+    );
   
-    const processAndSetContracts = (newContracts: Contract[], existingContracts: Contract[]) => {
-      const processed = newContracts.map(data => {
-        // ... (your existing timestamp processing logic)
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedContracts = snapshot.docs.map(doc => {
+        const data = doc.data();
         return {
+          id: doc.id,
           ...data,
-          // ... (ensure timestamps are valid)
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
         } as Contract;
       });
-  
-      // Combine and deduplicate
-      const contractMap = new Map<string, Contract>();
-      existingContracts.forEach(c => contractMap.set(c.id, c));
-      processed.forEach(c => contractMap.set(c.id, c));
       
-      const all = Array.from(contractMap.values());
-      all.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
-      setContracts(all);
-    };
-  
-    // Listener for personal contracts
-    const personalQuery = query(contractsCol, where('userId', '==', user.uid));
-    const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
-      const personalContracts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contract));
-      setContracts(prev => {
-        const contractMap = new Map(prev.map(c => [c.id, c]));
-        personalContracts.forEach(c => contractMap.set(c.id, c));
-        const all = Array.from(contractMap.values());
-        all.sort((a,b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
-        return all;
-      });
+      fetchedContracts.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
+      setContracts(fetchedContracts);
       setIsLoadingContracts(false);
     }, (error) => {
-      console.error("Error fetching personal contracts:", error);
-      toast({ title: "Error", description: "Could not fetch personal contracts.", variant: "destructive" });
+      console.error("Error fetching contracts:", error);
+      toast({ title: "Error", description: "Could not fetch contracts. Please check your connection and permissions.", variant: "destructive" });
       setIsLoadingContracts(false);
     });
-    unsubscribes.push(personalUnsubscribe);
-  
-    // Listener for agency contracts if user is part of an agency
-    if (user.primaryAgencyId) {
-      const agencyQuery = query(contractsCol, where('ownerId', '==', user.primaryAgencyId));
-      const agencyUnsubscribe = onSnapshot(agencyQuery, (snapshot) => {
-        const agencyContracts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contract));
-        setContracts(prev => {
-          const contractMap = new Map(prev.map(c => [c.id, c]));
-          agencyContracts.forEach(c => contractMap.set(c.id, c));
-          const all = Array.from(contractMap.values());
-          all.sort((a,b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
-          return all;
-        });
-        setIsLoadingContracts(false); 
-      }, (error) => {
-        console.error("Error fetching agency contracts:", error);
-        toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
-        setIsLoadingContracts(false);
-      });
-      unsubscribes.push(agencyUnsubscribe);
-    } else {
-       // If not in an agency, we can set loading to false after personal query is setup
-       // The personal listener's callback will handle it
-    }
   
     return () => {
-      unsubscribes.forEach(unsub => unsub());
+      unsubscribe();
     };
   
   }, [user, authLoading, toast]);

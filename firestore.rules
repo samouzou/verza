@@ -42,12 +42,15 @@ service cloud.firestore {
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-        // Allow a user to read a contract if they are the direct owner OR if they are a member of the owning agency
-        allow read: if isOwner(resource.data.userId) || isMemberOfAgency(resource.data.ownerId);
+        // Allow read access if the user's UID is a key in the 'access' map
+        allow read: if request.auth.uid in resource.data.access;
 
-        // WRITE rules: For creating, updating, deleting single documents.
-        // Allow write if user is direct owner OR a member of the owning agency (covers creation, update, delete)
-        allow write: if isOwner(request.resource.data.userId) || isMemberOfAgency(request.resource.data.ownerId);
+        // Allow list access if the query is filtering by the user's UID in the access map
+        allow list: if request.auth.uid != null && request.query.filters[0].field.string_value == "access." + request.auth.uid;
+
+        // Allow write access (e.g., update/delete) only for specific roles
+        allow write: if request.auth.uid in resource.data.access &&
+                       resource.data.access[request.auth.uid] == 'owner';
     }
     
 
@@ -66,7 +69,7 @@ service cloud.firestore {
     // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
       // A user can read logs for contracts they own/are part of
-      allow read: if get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.userId == request.auth.uid;
+      allow read: if get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.access[request.auth.uid] != null;
       allow write: if false; // Only backend via Admin SDK
     }
     
