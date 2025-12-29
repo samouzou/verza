@@ -78,8 +78,10 @@ export default function ContractsPage() {
           });
       };
   
-      if (user.role === 'agency_owner' && user.agencyMemberships && user.agencyMemberships.length > 0) {
-        const agencyId = user.agencyMemberships.find(m => m.role === 'owner')?.agencyId;
+      // ** THE FIX IS HERE **
+      // Instead of checking for a specific role, we now check for the presence of primaryAgencyId.
+      // This correctly includes agency owners, admins, and members.
+      if (user.primaryAgencyId) {
         let personalContracts: Contract[] = [];
         let agencyContracts: Contract[] = [];
         let personalLoaded = false;
@@ -105,37 +107,32 @@ export default function ContractsPage() {
           personalLoaded = true;
           combineContracts();
         }, (error) => {
-          console.error("Error fetching personal contracts for agency owner:", error);
+          console.error("Error fetching personal contracts for agency user:", error);
           toast({ title: "Error", description: "Could not fetch your personal contracts.", variant: "destructive" });
           personalLoaded = true;
           combineContracts();
         });
   
         // Query for agency contracts
-        if (agencyId) {
-          const agencyQuery = query(
-            contractsCol,
-            where('ownerId', '==', agencyId),
-            where('ownerType', '==', 'agency'),
-            firestoreOrderBy('createdAt', 'desc')
-          );
-          agencyContractsUnsubscribe = onSnapshot(agencyQuery, (snapshot) => {
-            agencyContracts = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-            agencyLoaded = true;
-            combineContracts();
-          }, (error) => {
-            console.error("Error fetching agency contracts:", error);
-            toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
-            agencyLoaded = true;
-            combineContracts();
-          });
-        } else {
-            agencyLoaded = true;
-            combineContracts();
-        }
+        const agencyQuery = query(
+          contractsCol,
+          where('ownerId', '==', user.primaryAgencyId),
+          where('ownerType', '==', 'agency'),
+          firestoreOrderBy('createdAt', 'desc')
+        );
+        agencyContractsUnsubscribe = onSnapshot(agencyQuery, (snapshot) => {
+          agencyContracts = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
+          agencyLoaded = true;
+          combineContracts();
+        }, (error) => {
+          console.error("Error fetching agency contracts:", error);
+          toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
+          agencyLoaded = true;
+          combineContracts();
+        });
   
       } else {
-        // Talent or individual creator fetches contracts assigned to them
+        // Individual creator fetches contracts assigned to them
         const q = query(
           contractsCol,
           where('userId', '==', user.uid),
