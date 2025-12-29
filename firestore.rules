@@ -3,147 +3,112 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is an agency owner
-    function isAgencyOwner(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.isAgencyOwner == true;
+    // Helper function to check if the requester is the owner of the document
+    function isUser(uid) {
+      return request.auth != null && request.auth.uid == uid;
     }
     
-    // Helper function to check if the requesting user is the owner of a specific agency
-    function isOwnerOfAgency(agencyId) {
-      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
-      return request.auth != null && agencyDoc.data.ownerId == request.auth.uid;
-    }
-    
-    // Corrected Helper: Check if the requester is a team member of the agency that owns the contract
-    // This is now the single source of truth for any agency member (owner, admin, or member)
+    // Helper function to check if the requester is a member of a specific agency
     function isMemberOfAgency(agencyId) {
-      return request.auth.token.primaryAgencyId == agencyId;
+      // This is secure for `get` operations. For `list`, we rely on query validation.
+      return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
     }
-    
-    // This helper function checks if the user trying to read a document (targetUserId)
-    // is a talent member of the agency that the requester belongs to.
+
+    // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
         let requesterAgencyId = request.auth.token.primaryAgencyId;
+        // Ensure the requester actually belongs to an agency.
+        if (requesterAgencyId == null) {
+          return false;
+        }
         let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-        // Allow if requester has an agency and the target user's primary agency matches.
-        return requesterAgencyId != null && targetUser.primaryAgencyId == requesterAgencyId;
-    }
-    
-    // Helper function to check if the user is an active team member of a specific agency
-    function isTeamMember(agencyId) {
-      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return request.auth != null && requesterUser.data.primaryAgencyId == agencyId;
-    }
-
-
-    // Helper functions to allow user to access email logs
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isUser(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-
-    // Helper to check direct user ownership or agency ownership/membership of a contract
-    function userOwnsContract(contractId) {
-      let contractData = get(/databases/$(database)/documents/contracts/$(contractId)).data;
-      // User is the talent on the contract OR
-      // Contract is owned by an agency and the requester is the owner of that specific agency OR
-      // Contract is owned by an agency and the requester is a team member of that agency
-      return isUser(contractData.userId) || 
-             (contractData.ownerType == 'agency' && isMemberOfAgency(contractData.ownerId));
+        // Allow if the target user's primary agency matches the requester's.
+        return targetUser.primaryAgencyId == requesterAgencyId;
     }
 
     // Rules for the users collection
     match /users/{userId} {
+      // Allow a user to read their own profile,
+      // OR allow an agency member to read the profile of a talent in their agency.
       allow read: if isUser(userId) || isTalentInMyAgency(userId);
       allow create: if isUser(userId);
       allow update: if isUser(userId) && 
+                       // Prevent users from elevating their own role to agency_owner
                        !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
+                       // Prevent users from making themselves an agency owner directly
                        !(request.resource.data.isAgencyOwner == true && resource.data.isAgencyOwner == false);
       
-      // Rules for private credentials subcollection
       match /private_credentials/{credId} {
-          // NO client read/write access. Only backend functions can access this.
-          allow read, write: if false;
+          allow read, write: if false; // Only backend functions
       }
     }
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-        // READ rule must NOT use get() to be compatible with list queries.
-        allow read: if request.auth != null && 
-                      (request.auth.uid == resource.data.userId || 
-                       (resource.data.ownerType == 'agency' && request.auth.token.primaryAgencyId == resource.data.ownerId));
-    
-        // UPDATE/DELETE can use get() because they operate on a single document.
-        allow update, delete: if request.auth != null && userOwnsContract(contractId);
+        // GET rule: For fetching a single document. Can use `get()` for more complex checks.
+        // Allow if the user is the direct owner OR if they are a member of the owning agency.
+        allow get: if isUser(resource.data.userId) || isMemberOfAgency(resource.data.ownerId);
+
+        // LIST rule for PERSONAL contracts: Allows `where('userId', '==', uid)` queries.
+        // The query from the client MUST exactly match this condition.
+        allow list: if isUser(request.query.filters[0][2]);
         
-        // CREATE: Allow if...
-        // 1. You are creating a contract for yourself (personal)
-        // 2. You are a member of the agency you're creating the contract for
-        allow create: if request.auth != null && (
-            isUser(request.resource.data.userId) ||
-            (request.resource.data.ownerType == 'agency' && isMemberOfAgency(request.resource.data.ownerId))
-        );
+        // LIST rule for AGENCY contracts: Allows `where('ownerId', '==', agencyId)` queries.
+        // The query from the client MUST exactly match this condition.
+        allow list: if isMemberOfAgency(request.query.filters[0][2]);
+
+        // WRITE rules: For creating, updating, deleting single documents.
+        allow create: if isUser(request.resource.data.userId) || isMemberOfAgency(request.resource.data.ownerId);
+        allow update, delete: if isUser(resource.data.userId) || isMemberOfAgency(resource.data.ownerId);
     }
     
 
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
-      allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId ||  // Payer
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient
-                  );
+      allow read: if isUser(resource.data.userId) || isUser(resource.data.creatorId);
       allow create, update, delete: if false; // Only backend via Admin SDK
     }
     
     // Rules for payments log (server-side only access)
     match /payments/{paymentId} {
-       allow read: if request.auth != null && (
-                    request.auth.uid == resource.data.userId || // Payer mentioned in metadata
-                    request.auth.uid == resource.data.creatorId // Creator/Recipient if you add this field
-                  );
+       allow read: if isUser(resource.data.userId) || isUser(resource.data.creatorId);
       allow create, update, delete: if false; // Only backend via Admin SDK
     }
     
     // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
-      allow read: if userOwnsContract(resource.data.contractId); // User can read logs for their own contracts
+      // A user can read logs for contracts they own/are part of
+      allow read: if get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.userId == request.auth.uid;
       allow write: if false; // Only backend via Admin SDK
     }
     
     // Rules for bank accounts (user-specific access)
     match /users/{userId}/bankAccounts/{accountId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isUser(userId);
     }
     
     // Rules for bank transactions (user-specific access)
     match /users/{userId}/bankTransactions/{transactionId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isUser(userId);
     }
     
     // Rules for receipts (user-specific access)
     match /receipts/{receiptId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, create, update, delete: if isUser(request.resource.data.userId) || isUser(resource.data.userId);
     }
     
     // Rules for agencies
     match /agencies/{agencyId} {
-      allow read: if request.auth != null; // Allow any authenticated user to read agency details (e.g., for invitations)
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId; // Allow user to create agency for themselves
-      allow update: if request.auth != null && (isOwnerOfAgency(agencyId) || isTeamMember(agencyId));
-      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; // Only owner can manage
+      allow read: if request.auth != null; // Allow any authenticated user to see basic agency details (e.g., for invitations)
+      allow create: if isUser(request.resource.data.ownerId); // User can create an agency for themselves
+      allow update: if isMemberOfAgency(agencyId); // Any member can update (e.g., talent updating commission)
+      allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid; // Only owner can delete
     }
     
     // Rules for internal agency payouts
     match /internalPayouts/{payoutId} {
-      allow read: if isOwnerOfAgency(resource.data.agencyId) || 
-                     isTeamMember(resource.data.agencyId) ||
-                     request.auth.uid == resource.data.talentId;
-      allow create: if request.auth.uid == request.resource.data.agencyOwnerId || (request.auth.token.isAgencyAdmin == true && request.auth.token.primaryAgencyId == request.resource.data.agencyId);
+      allow read: if isMemberOfAgency(resource.data.agencyId) || isUser(resource.data.talentId);
+      allow create: if get(/databases/$(database)/documents/agencies/$(request.resource.data.agencyId)).data.ownerId == request.auth.uid || (request.auth.token.isAgencyAdmin == true && request.auth.token.primaryAgencyId == request.resource.data.agencyId);
       allow update, delete: if false; // Payouts are immutable for now
     }
     
