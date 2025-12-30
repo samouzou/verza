@@ -694,6 +694,8 @@ export default function ManageInvoicePage() {
   const pageTitle = milestoneBeingInvoiced
     ? `Invoice for: ${milestoneBeingInvoiced.description}`
     : `Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`;
+    
+  const canSave = (isEditingDetails || !!invoiceHtmlContent) && !!editableInvoiceNumber;
 
   return (
     <>
@@ -744,7 +746,7 @@ export default function ManageInvoicePage() {
                 {isEditingDetails ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
                 {isEditingDetails ? "Preview HTML" : "Edit Invoice Details"}
               </Button>
-              <Button onClick={handleSaveInvoice} disabled={isSaving || isGeneratingAi || !editableInvoiceNumber || isFetchingClientSecret || isSending || !!clientSecret || !isEditingDetails}>
+              <Button onClick={handleSaveInvoice} disabled={isSaving || isGeneratingAi || isFetchingClientSecret || isSending || !!clientSecret || !canSave}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Details & HTML
               </Button>
@@ -917,5 +919,3 @@ export default function ManageInvoicePage() {
     </>
   );
 }
-
-    
