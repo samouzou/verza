@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, TeamMember} from "../../../src/types";
+import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, TeamMember, Contract} from "../../../src/types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 
@@ -164,7 +164,10 @@ export const inviteTalentToAgency = onCall(async (request) => {
 
     const batch = db.batch();
     batch.update(agencyDocRef, {talent: admin.firestore.FieldValue.arrayUnion(newTalentMember)});
-    batch.update(talentUserDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership)});
+    batch.update(talentUserDocRef, {
+      agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership),
+      primaryAgencyId: agencyId // Set primary agency ID on invite for existing users
+    });
 
     await batch.commit();
 
@@ -274,7 +277,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
   }
   const userId = request.auth.uid;
-  const {agencyId} = request.data;
+  const { agencyId } = request.data;
 
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
@@ -283,69 +286,91 @@ export const acceptAgencyInvitation = onCall(async (request) => {
   const agencyDocRef = db.collection("agencies").doc(agencyId);
   const userDocRef = db.collection("users").doc(userId);
 
-  return db.runTransaction(async (transaction) => {
-    const agencyDoc = await transaction.get(agencyDocRef);
-    const userDoc = await transaction.get(userDocRef);
+  try {
+    await db.runTransaction(async (transaction) => {
+      const agencyDoc = await transaction.get(agencyDocRef);
+      const userDoc = await transaction.get(userDocRef);
 
-    if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
-    if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
+      if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
+      if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
 
-    const agencyData = agencyDoc.data() as Agency;
-    const userData = userDoc.data() as UserProfileFirestoreData;
+      const agencyData = agencyDoc.data() as Agency;
+      const userData = userDoc.data() as UserProfileFirestoreData;
 
-    const membershipIndex = userData.agencyMemberships?.findIndex((m) => m.agencyId === agencyId && m.status === "pending");
-    if (membershipIndex === -1 || membershipIndex === undefined) {
-      throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
-    }
-
-    const membership = userData.agencyMemberships![membershipIndex];
-    const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
-    updatedMembershipsArray[membershipIndex] = {...membership, status: "active"};
-
-    // Set custom claims and update Firestore user document
-    const claimsUpdate: {[key: string]: any} = {primaryAgencyId: agencyId};
-    let userRoleUpdate: UserProfileFirestoreData["role"] = userData.role;
-
-    if (membership.role === "talent") {
-      const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
-      if (talentIndex !== -1) {
-        const updatedTalentArray = [...agencyData.talent];
-        updatedTalentArray[talentIndex] = {...updatedTalentArray[talentIndex], status: "active",
-          joinedAt: admin.firestore.Timestamp.now() as any};
-        transaction.update(agencyDocRef, {talent: updatedTalentArray});
+      const membershipIndex = userData.agencyMemberships?.findIndex(
+        (m) => m.agencyId === agencyId && m.status === "pending"
+      );
+      if (membershipIndex === -1 || membershipIndex === undefined) {
+        throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
       }
-    } else if (membership.role === "admin" || membership.role === "member") {
-      const teamMemberIndex = (agencyData.team || []).findIndex((t) => t.userId === userId && t.status === "pending");
-      if (teamMemberIndex !== -1) {
-        const updatedTeamArray = [...agencyData.team];
-        updatedTeamArray[teamMemberIndex] = {...updatedTeamArray[teamMemberIndex], status: "active",
-          joinedAt: admin.firestore.Timestamp.now() as any};
-        transaction.update(agencyDocRef, {team: updatedTeamArray});
-        userRoleUpdate = membership.role === "admin" ? "agency_admin" : "agency_member";
-        if (membership.role === "admin") {
-          claimsUpdate.isAgencyAdmin = true;
+
+      const membership = userData.agencyMemberships![membershipIndex];
+      const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
+      updatedMembershipsArray[membershipIndex] = { ...membership, status: "active" };
+
+      const claimsUpdate: { [key: string]: any } = { primaryAgencyId: agencyId };
+      let userRoleUpdate: UserProfileFirestoreData["role"] = userData.role;
+
+      if (membership.role === "talent") {
+        const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
+        if (talentIndex !== -1) {
+          const updatedTalentArray = [...agencyData.talent];
+          updatedTalentArray[talentIndex] = {
+            ...updatedTalentArray[talentIndex],
+            status: "active",
+            joinedAt: admin.firestore.Timestamp.now() as any,
+          };
+          transaction.update(agencyDocRef, { talent: updatedTalentArray });
+        }
+      } else if (membership.role === "admin" || membership.role === "member") {
+        const teamMemberIndex = (agencyData.team || []).findIndex((t) => t.userId === userId && t.status === "pending");
+        if (teamMemberIndex !== -1) {
+          const updatedTeamArray = [...agencyData.team];
+          updatedTeamArray[teamMemberIndex] = {
+            ...updatedTeamArray[teamMemberIndex],
+            status: "active",
+            joinedAt: admin.firestore.Timestamp.now() as any,
+          };
+          transaction.update(agencyDocRef, { team: updatedTeamArray });
+          userRoleUpdate = membership.role === "admin" ? "agency_admin" : "agency_member";
+          if (membership.role === "admin") {
+            claimsUpdate.isAgencyAdmin = true;
+          }
         }
       }
-    } else {
-      throw new HttpsError("invalid-argument", "Invalid membership role found.");
-    }
 
-    const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-    await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
+      const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+      await admin.auth().setCustomUserClaims(userId, { ...currentClaims, ...claimsUpdate });
 
-    transaction.update(userDocRef, {
-      agencyMemberships: updatedMembershipsArray,
-      primaryAgencyId: agencyId, // Set the primary agency ID on the user document
-      role: userRoleUpdate,
+      transaction.update(userDocRef, {
+        agencyMemberships: updatedMembershipsArray,
+        primaryAgencyId: agencyId,
+        role: userRoleUpdate,
+      });
+
+      // **CRITICAL FIX**: After accepting, add the user to the `access` map of all existing agency contracts.
+      const contractsRef = db.collection("contracts");
+      const agencyContractsQuery = contractsRef.where("ownerId", "==", agencyId);
+      const agencyContractsSnap = await transaction.get(agencyContractsQuery);
+
+      logger.info(`Found ${agencyContractsSnap.docs.length} contracts to update for new member ${userId} in agency ${agencyId}.`);
+
+      agencyContractsSnap.forEach((doc) => {
+        const newAccessRole = membership.role === 'admin' ? 'owner' : 'viewer'; // Or tailor as needed
+        transaction.update(doc.ref, {
+            [`access.${userId}`]: newAccessRole
+        });
+      });
     });
 
-    return {success: true, message: "Invitation accepted successfully."};
-  }).catch((error) => {
+    return { success: true, message: "Invitation accepted successfully." };
+  } catch (error) {
     logger.error(`Error accepting invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while accepting the invitation.");
-  });
+  }
 });
+
 
 export const declineAgencyInvitation = onCall(async (request) => {
   if (!request.auth) {
