@@ -87,8 +87,8 @@ export default function ManageInvoicePage() {
   const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
 
   // Form Data State
-  const [invoiceDetails, setInvoiceDetails] = useState<EditableInvoiceDetails | null>(null); // Single state for all invoice details
-  const [formData, setFormData] = useState<EditableInvoiceDetails | null>(null); // Temporary state for the edit form
+  const [invoiceDetails, setInvoiceDetails] = useState<EditableInvoiceDetails | null>(null);
+  const [formData, setFormData] = useState<EditableInvoiceDetails | null>(null);
 
   const [invoiceHtmlContent, setInvoiceHtmlContent] = useState<string>("");
   const [invoiceStatus, setInvoiceStatus] = useState<Contract['invoiceStatus']>('none');
@@ -108,20 +108,22 @@ export default function ManageInvoicePage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState<boolean>(false);
+
+  const totalAmount = useMemo(() => calculateTotal(invoiceDetails?.deliverables || []), [invoiceDetails]);
+  const formDataTotalAmount = useMemo(() => calculateTotal(formData?.deliverables || []), [formData]);
   
   // Derived State
-  const totalAmount = useMemo(() => calculateTotal(invoiceDetails?.deliverables || []), [invoiceDetails]);
   const payUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
-  const milestoneBeingInvoiced = milestoneId ? contract?.milestones?.find(m => m.id === milestoneId) : undefined;
-  const pageTitle = milestoneBeingInvoiced
+  const milestoneBeingInvoiced = useMemo(() => milestoneId ? contract?.milestones?.find(m => m.id === milestoneId) : undefined, [contract, milestoneId]);
+  const pageTitle = useMemo(() => milestoneBeingInvoiced
     ? `Invoice for: ${milestoneBeingInvoiced.description}`
-    : `Invoice for ${contract?.brand || ''} - ${contract?.projectName || contract?.id?.substring(0,6) || ''}`;
+    : `Invoice for ${contract?.brand || ''} - ${contract?.projectName || contract?.id?.substring(0,6) || ''}`, [milestoneBeingInvoiced, contract]);
+  
   const canSave = (isEditingDetails || !!invoiceHtmlContent) && !!invoiceDetails?.invoiceNumber;
   const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue' || invoiceStatus === 'partially_paid') && totalAmount > 0 && !clientSecret;
   const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
-  const formDataTotalAmount = useMemo(() => calculateTotal(formData?.deliverables || []), [formData]);
 
 
   useEffect(() => {
@@ -277,7 +279,7 @@ export default function ManageInvoicePage() {
     } else { // Was previewing, now switching to edit
         setFormData(invoiceDetails); // Populate form with current details
     }
-    setIsEditingDetails(prev => !prev);
+    setIsEditingDetails(prev => !isEditingDetails);
   }, [isEditingDetails, formData, invoiceDetails, contract, creatorProfile, contractReceipts, generateAndSetHtmlFromForm]);
   
   const handleSaveInvoice = async () => {
@@ -534,7 +536,7 @@ export default function ManageInvoicePage() {
     <>
       <PageHeader
         title={pageTitle}
-        description={invoiceDetails?.invoiceNumber ? `Invoice #: ${invoiceDetails.invoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
+        description={invoiceDetails?.invoiceNumber ? `Invoice #: ${invoiceDetails.invoiceNumber}` : "Generate, edit, and manage the invoice."}
         actions={<Button variant="outline" asChild><Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Contract</Link></Button>}
       />
 
@@ -545,7 +547,8 @@ export default function ManageInvoicePage() {
             <CardDescription>Update invoice details, status, content, and process payments.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <div className="flex-grow flex flex-wrap gap-2">
               <Button onClick={toggleEditMode} variant="outline" disabled={isSaving || isGeneratingAi || isSending || !!clientSecret}>
                 {isEditingDetails ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
                 {isEditingDetails ? "Preview Changes" : "Edit Invoice Details"}
@@ -600,6 +603,22 @@ export default function ManageInvoicePage() {
                 </Button>
               )}
             </div>
+            <div className="flex-shrink-0">
+               <Select value={invoiceStatus} onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])} disabled={isSaving}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Set Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+            </div>
+          </div>
             {(!invoiceDetails?.clientEmail) && canSend && (
                 <p className="text-xs text-destructive">Client email is missing. Please add it to enable sending.</p>
             )}
@@ -697,3 +716,4 @@ export default function ManageInvoicePage() {
   );
 }
 
+    
