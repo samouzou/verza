@@ -223,6 +223,7 @@ export default function ManageInvoicePage() {
                 detailsToUse = savedDetails;
             } else {
                 detailsToUse = buildDefaultEditableDetails(contract, creatorProfile, contract.id, contract.invoiceNumber, targetMilestone);
+                setInvoiceStatus('draft'); // Set default status for new invoice
             }
 
             setInvoiceDetails(detailsToUse);
@@ -279,7 +280,7 @@ export default function ManageInvoicePage() {
     } else { // Was previewing, now switching to edit
         setFormData(invoiceDetails); // Populate form with current details
     }
-    setIsEditingDetails(prev => !isEditingDetails);
+    setIsEditingDetails(prev => !prev);
   }, [isEditingDetails, formData, invoiceDetails, contract, creatorProfile, contractReceipts, generateAndSetHtmlFromForm]);
   
   const handleSaveInvoice = async () => {
@@ -715,5 +716,3 @@ export default function ManageInvoicePage() {
     </>
   );
 }
-
-    
