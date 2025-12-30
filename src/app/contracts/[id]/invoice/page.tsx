@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,6 @@ const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotificatio
 
 const getDefaultLineItem = (): EditableInvoiceLineItem => ({ description: "", quantity: 1, unitPrice: 0 });
 
-// Helper function defined outside the component
 const buildDefaultEditableDetails = (
   currentContract: Contract,
   creatorProfile: UserProfile | null,
@@ -78,29 +77,24 @@ export default function ManageInvoicePage() {
   const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
+  // Core Data State
   const [contract, setContract] = useState<Contract | null>(null);
   const [creatorProfile, setCreatorProfile] = useState<UserProfile | null>(null);
-  const [isLoadingData, setIsLoadingData] = useState(true);
   const [contractReceipts, setContractReceipts] = useState<Array<{url: string; description?: string;}>>([]);
-  
+
+  // Loading and UI State
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReadyForGeneration, setIsReadyForGeneration] = useState(false);
   const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
-  const [editableCreatorName, setEditableCreatorName] = useState<string>("");
-  const [editableCreatorAddress, setEditableCreatorAddress] = useState<string>("");
-  const [editableCreatorEmail, setEditableCreatorEmail] = useState<string>("");
-  const [editableClientName, setEditableClientName] = useState<string>("");
-  const [editableClientAddress, setEditableClientAddress] = useState<string>("");
-  const [editableClientEmail, setEditableClientEmail] = useState<string>("");
-  const [editableInvoiceNumber, setEditableInvoiceNumber] = useState<string>("");
-  const [editableInvoiceDate, setEditableInvoiceDate] = useState<string>("");
-  const [editableDueDate, setEditableDueDate] = useState<string>("");
-  const [editableProjectName, setEditableProjectName] = useState<string>("");
-  const [editableDeliverables, setEditableDeliverables] = useState<EditableInvoiceLineItem[]>([getDefaultLineItem()]);
-  const [editablePaymentInstructions, setEditablePaymentInstructions] = useState<string>("");
-  const [calculatedTotalAmount, setCalculatedTotalAmount] = useState<number>(0);
+
+  // Form Data State
+  const [invoiceDetails, setInvoiceDetails] = useState<EditableInvoiceDetails | null>(null); // Single state for all invoice details
+  const [formData, setFormData] = useState<EditableInvoiceDetails | null>(null); // Temporary state for the edit form
 
   const [invoiceHtmlContent, setInvoiceHtmlContent] = useState<string>("");
   const [invoiceStatus, setInvoiceStatus] = useState<Contract['invoiceStatus']>('none');
   
+  // Action states
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -115,7 +109,20 @@ export default function ManageInvoicePage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState<boolean>(false);
-  const [payUrl, setPayUrl] = useState<string>("");
+  
+  // Derived State
+  const totalAmount = useMemo(() => calculateTotal(invoiceDetails?.deliverables || []), [invoiceDetails]);
+  const payUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
+  const milestoneBeingInvoiced = milestoneId ? contract?.milestones?.find(m => m.id === milestoneId) : undefined;
+  const pageTitle = milestoneBeingInvoiced
+    ? `Invoice for: ${milestoneBeingInvoiced.description}`
+    : `Invoice for ${contract?.brand || ''} - ${contract?.projectName || contract?.id?.substring(0,6) || ''}`;
+  const canSave = (isEditingDetails || !!invoiceHtmlContent) && !!invoiceDetails?.invoiceNumber;
+  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue' || invoiceStatus === 'partially_paid') && totalAmount > 0 && !clientSecret;
+  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
+  const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
+  const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
+
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
@@ -126,43 +133,121 @@ export default function ManageInvoicePage() {
     }
   }, [toast]);
   
+  // Main data loading effect
   useEffect(() => {
-    setCalculatedTotalAmount(calculateTotal(editableDeliverables));
-  }, [editableDeliverables]);
+    if (!id || !user?.uid) {
+        if (!authLoading && !user?.uid) router.push('/login');
+        return;
+    }
 
-  const populateFormFromEditableDetails = useCallback((details: EditableInvoiceDetails, contractDataToUse?: Contract, creatorDataToUse?: UserProfile | null) => {
-    setEditableCreatorName(details.creatorName || creatorDataToUse?.displayName || "");
-    setEditableCreatorAddress(details.creatorAddress || creatorDataToUse?.address || "");
-    setEditableCreatorEmail(details.creatorEmail || creatorDataToUse?.email || "");
-    setEditableClientName(details.clientName || contractDataToUse?.clientName || "");
-    setEditableClientAddress(details.clientAddress || contractDataToUse?.clientAddress || "");
-    setEditableClientEmail(details.clientEmail || contractDataToUse?.clientEmail || "");
-    setEditableInvoiceNumber(details.invoiceNumber);
-    setEditableInvoiceDate(details.invoiceDate);
-    setEditableDueDate(details.dueDate);
-    setEditableProjectName(details.projectName || contractDataToUse?.projectName || "");
-    setEditableDeliverables(details.deliverables && details.deliverables.length > 0 ? details.deliverables.map(d => ({...d})) : [getDefaultLineItem()]);
-    setEditablePaymentInstructions(details.paymentInstructions || contractDataToUse?.paymentInstructions || "");
-  }, []);
+    let isMounted = true;
+    let unsubscribeContract: (() => void) | undefined;
+    let unsubscribeCreator: (() => void) | undefined;
+    let unsubscribeReceipts: (() => void) | undefined;
+    
+    setIsLoading(true);
 
-  const getStructuredDataFromForm = useCallback((): EditableInvoiceDetails => ({
-    creatorName: editableCreatorName,
-    creatorAddress: editableCreatorAddress,
-    creatorEmail: editableCreatorEmail,
-    clientName: editableClientName,
-    clientAddress: editableClientAddress,
-    clientEmail: editableClientEmail,
-    invoiceNumber: editableInvoiceNumber,
-    invoiceDate: editableInvoiceDate,
-    dueDate: editableDueDate,
-    projectName: editableProjectName,
-    deliverables: editableDeliverables.map(d => ({...d})), 
-    paymentInstructions: editablePaymentInstructions,
-  }), [editableCreatorName, editableCreatorAddress, editableCreatorEmail, editableClientName, editableClientAddress, editableClientEmail, editableInvoiceNumber, editableInvoiceDate, editableDueDate, editableProjectName, editableDeliverables, editablePaymentInstructions]);
+    const contractDocRef = doc(db, 'contracts', id);
+    unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
+        if (!isMounted) return;
+        if (!contractSnap.exists()) {
+            toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
+            router.push('/contracts');
+            return;
+        }
+
+        const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
+        setContract(contractData);
+        setInvoiceStatus(contractData.invoiceStatus || 'none');
+
+        // Once we have the contract, we can get the creator and receipts
+        const creatorDocRef = doc(db, 'users', contractData.userId);
+        unsubscribeCreator = onSnapshot(creatorDocRef, (creatorSnap) => {
+            if (!isMounted) return;
+            if (creatorSnap.exists()) {
+                setCreatorProfile(creatorSnap.data() as UserProfile);
+            } else {
+                toast({ title: "Error", description: "Could not load creator's profile.", variant: "destructive" });
+            }
+        });
+
+        const receiptsQuery = query(collection(db, 'receipts'), where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
+        unsubscribeReceipts = onSnapshot(receiptsQuery, (receiptsSnap) => {
+            if (!isMounted) return;
+            const fetchedReceipts = receiptsSnap.docs.map(docSnap => {
+                const data = docSnap.data() as ReceiptType;
+                return { url: data.receiptImageUrl, description: data.description || data.receiptFileName || "Uploaded Receipt"};
+            });
+            setContractReceipts(fetchedReceipts);
+            // This is the final piece of data. Now we are ready.
+            if(contractData && creatorProfile) {
+                setIsReadyForGeneration(true);
+            }
+        });
+
+    }, (error) => {
+        if (isMounted) {
+            console.error("Error fetching contract:", error);
+            toast({ title: "Fetch Error", description: "Failed to load contract.", variant: "destructive" });
+            setIsLoading(false);
+        }
+    });
+
+    return () => { 
+        isMounted = false; 
+        if (unsubscribeContract) unsubscribeContract();
+        if (unsubscribeCreator) unsubscribeCreator();
+        if (unsubscribeReceipts) unsubscribeReceipts();
+    };
+}, [id, user?.uid, authLoading, router, toast, creatorProfile]);
+
+
+  // Effect to trigger initial AI generation once all data is ready
+  useEffect(() => {
+    if (!isReadyForGeneration || !contract || !creatorProfile) {
+      return;
+    }
+
+    const handleInitialSetup = async () => {
+        setIsLoading(true);
+        try {
+            const savedDetails = contract.editableInvoiceDetails;
+            const isMilestoneInvoice = !!milestoneId;
+            const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
+            const milestoneInSavedDetails = savedDetails?.deliverables?.some(d => d.isMilestone && d.description === targetMilestone?.description);
+
+            let detailsToUse: EditableInvoiceDetails;
+
+            if (savedDetails && (!isMilestoneInvoice || milestoneInSavedDetails)) {
+                detailsToUse = savedDetails;
+            } else {
+                detailsToUse = buildDefaultEditableDetails(contract, creatorProfile, contract.id, contract.invoiceNumber, targetMilestone);
+            }
+
+            setInvoiceDetails(detailsToUse);
+            await generateAndSetHtmlFromForm(detailsToUse, contractReceipts, contract.id, creatorProfile.companyLogoUrl);
+
+            // Only toast if it's a fresh generation
+            if (!savedDetails || (isMilestoneInvoice && !milestoneInSavedDetails)) {
+                toast({ title: "Invoice Drafted by AI", description: "Review and edit as needed before saving or sending." });
+            }
+        } catch (error) {
+            console.error("Error during initial invoice setup:", error);
+            toast({ title: "Initialization Error", description: "Failed to generate initial invoice draft.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+            setIsReadyForGeneration(false); // Reset ready state after running once
+        }
+    };
+
+    handleInitialSetup();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReadyForGeneration, contract, creatorProfile, contractReceipts, milestoneId]);
+
 
   const generateAndSetHtmlFromForm = useCallback(async (detailsToUse: EditableInvoiceDetails, receiptsToUse: Array<{url: string; description?: string;}>, contractIdToUse: string, logoUrl?: string | null) => {
+    setIsGeneratingAi(true);
     const totalAmount = calculateTotal(detailsToUse.deliverables);
-    const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contractIdToUse}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
     
     const inputForAI: GenerateInvoiceHtmlInput = {
       ...detailsToUse,
@@ -170,7 +255,7 @@ export default function ManageInvoicePage() {
       totalAmount: totalAmount,
       companyLogoUrl: logoUrl || undefined,
       deliverables: detailsToUse.deliverables.map(d => ({ ...d, total: d.quantity * d.unitPrice })),
-      payInvoiceLink: currentPayUrl || undefined,
+      payInvoiceLink: payUrl || undefined,
       receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
     };
 
@@ -181,246 +266,63 @@ export default function ManageInvoicePage() {
       console.error("Error generating HTML from form data:", error);
       toast({ title: "Preview Error", description: "Could not generate HTML preview from current details.", variant: "destructive" });
       setInvoiceHtmlContent("<p>Error generating preview.</p>");
-    }
-  }, [toast, milestoneId]); 
-
-  // Main data loading effect
-  useEffect(() => {
-    if (!id || !user?.uid || authLoading) {
-        if (!authLoading && !user?.uid) router.push('/login');
-        setIsLoadingData(id ? true : false);
-        return;
-    }
-
-    let isMounted = true;
-    let unsubscribeReceipts: (() => void) | undefined = undefined;
-    
-    const loadAllData = async () => {
-        setIsLoadingData(true);
-        try {
-            const contractDocRef = doc(db, 'contracts', id);
-            const contractSnap = await getDoc(contractDocRef);
-    
-            if (!isMounted) return;
-    
-            if (contractSnap.exists()) {
-                const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-                
-                const creatorDocRef = doc(db, 'users', contractData.userId);
-                const creatorDocSnap = await getDoc(creatorDocRef);
-
-                if (!isMounted) return;
-
-                if (creatorDocSnap.exists()) {
-                    const creatorData = creatorDocSnap.data() as UserProfile;
-                    setContract(contractData);
-                    setCreatorProfile(creatorData);
-                    
-                    const receiptsCol = collection(db, 'receipts');
-                    const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
-                    
-                    unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-                      if (!isMounted) return;
-                      const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
-                        const receiptData = docSnap.data() as ReceiptType;
-                        return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
-                      });
-                      setContractReceipts(fetchedReceiptsUpdate);
-                    }, (error) => {
-                      if (isMounted) console.error("Error fetching receipts:", error);
-                    });
-
-                } else {
-                     if (isMounted) throw new Error("Could not load creator's profile.");
-                }
-            } else {
-                if (isMounted) {
-                    toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
-                    router.push('/contracts');
-                }
-            }
-        } catch (error) {
-            console.error("Error fetching initial data:", error);
-            if (isMounted) {
-                toast({ title: "Initialization Error", description: "Failed to set up invoice generator.", variant: "destructive" });
-                setIsLoadingData(false);
-            }
-        }
-    };
-  
-    loadAllData();
-  
-    return () => { 
-      isMounted = false; 
-      if (unsubscribeReceipts) unsubscribeReceipts();
-    };
-  }, [id, user?.uid, authLoading, router, toast]);
-
-  // Effect to trigger initial AI generation once all data is loaded
-  useEffect(() => {
-    if (contract && creatorProfile && contractReceipts) {
-        const handleInitialSetup = async () => {
-            setIsLoadingData(true);
-            try {
-                const savedDetails = contract.editableInvoiceDetails;
-                const isMilestoneInvoice = !!milestoneId;
-                const milestoneMatchesSavedDetails = isMilestoneInvoice && savedDetails?.deliverables?.some(d => d.isMilestone);
-
-                if (savedDetails && (!isMilestoneInvoice || milestoneMatchesSavedDetails)) {
-                    populateFormFromEditableDetails(savedDetails, contract, creatorProfile);
-                    if (contract.invoiceHtmlContent && !isMilestoneInvoice) {
-                        setInvoiceHtmlContent(contract.invoiceHtmlContent);
-                    } else {
-                        await generateAndSetHtmlFromForm(savedDetails, contractReceipts, id, creatorProfile.companyLogoUrl);
-                    }
-                } else {
-                    const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-                    const aiInputDetails = buildDefaultEditableDetails(contract, creatorProfile, id, contract.invoiceNumber, targetMilestone);
-                    populateFormFromEditableDetails(aiInputDetails, contract, creatorProfile);
-                    await generateAndSetHtmlFromForm(aiInputDetails, contractReceipts, id, creatorProfile.companyLogoUrl);
-                    if (!savedDetails) { // Only toast if it's the very first generation
-                        toast({ title: "Invoice Drafted by AI", description: "Review and edit as needed before saving or sending." });
-                    }
-                }
-                
-                // Set common page state
-                setInvoiceHtmlContent("");
-                setClientSecret(null);
-                setShowPaymentForm(false);
-                setIsEditingDetails(false);
-                const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
-                setPayUrl(currentPayUrlValue);
-                setInvoiceStatus(contract.invoiceStatus || 'none');
-
-            } catch (error) {
-                console.error("Error during initial invoice setup:", error);
-                toast({ title: "Initialization Error", description: "Failed to generate initial invoice draft.", variant: "destructive" });
-            } finally {
-                setIsLoadingData(false);
-            }
-        };
-
-        handleInitialSetup();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contract, creatorProfile, contractReceipts, id, milestoneId]);
-
-
-  const handleAiRegenerationRequest = useCallback(async () => {
-    if (!contract || !creatorProfile) {
-        toast({ title: "Cannot Generate", description: "Contract or creator details missing.", variant: "destructive" });
-        return;
-    }
-    if (!editableInvoiceNumber) {
-        toast({ title: "Cannot Generate", description: "Invoice number missing. Please ensure it's set.", variant: "destructive" });
-        return;
-    }
-    
-    setIsGeneratingAi(true);
-    try {
-        const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-        const aiInputDetails = buildDefaultEditableDetails(contract, creatorProfile, contract.id, editableInvoiceNumber, targetMilestone);
-        populateFormFromEditableDetails(aiInputDetails, contract, creatorProfile);
-        await generateAndSetHtmlFromForm(aiInputDetails, contractReceipts, contract.id, creatorProfile.companyLogoUrl);
-        toast({ title: "Invoice Re-drafted by AI", description: "Review and edit as needed." });
-        setIsEditingDetails(false); 
-    } catch (error) {
-        console.error("Error during AI re-generation request:", error);
-        toast({ title: "AI Re-generation Failed", description: "Could not re-generate invoice draft.", variant: "destructive" });
     } finally {
         setIsGeneratingAi(false);
     }
-  }, [contract, creatorProfile, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, editableInvoiceNumber, contractReceipts, milestoneId]);
+  }, [toast, payUrl]); 
 
   const toggleEditMode = useCallback(async () => {
-    if (isEditingDetails) { 
-      if (contract && creatorProfile) {
-        const currentFormData = getStructuredDataFromForm();
-        setIsGeneratingAi(true); 
-        await generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id, creatorProfile.companyLogoUrl);
-        setIsGeneratingAi(false);
+    if (isEditingDetails) { // Was editing, now switching to preview
+      if (formData && contract && creatorProfile) {
+        setInvoiceDetails(formData); // Apply form changes to main state
+        await generateAndSetHtmlFromForm(formData, contractReceipts, contract.id, creatorProfile.companyLogoUrl);
       }
-    } else { 
-      if (contract && creatorProfile) {
-        const targetMilestone = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-        const detailsToPopulate = contract.editableInvoiceDetails && (!milestoneId || (milestoneId && contract.editableInvoiceDetails.deliverables?.some(d => d.isMilestone))) 
-            ? contract.editableInvoiceDetails 
-            : buildDefaultEditableDetails(contract, creatorProfile, contract.id, contract.invoiceNumber, targetMilestone);
-        populateFormFromEditableDetails(detailsToPopulate, contract, creatorProfile);
-      }
+      setFormData(null); // Clear form data
+    } else { // Was previewing, now switching to edit
+        setFormData(invoiceDetails); // Populate form with current details
     }
     setIsEditingDetails(prev => !prev);
-  }, [isEditingDetails, contract, creatorProfile, contractReceipts, getStructuredDataFromForm, generateAndSetHtmlFromForm, populateFormFromEditableDetails, milestoneId]);
+  }, [isEditingDetails, formData, invoiceDetails, contract, creatorProfile, contractReceipts, generateAndSetHtmlFromForm]);
   
   const handleSaveInvoice = async () => {
-    if (!contract || !editableInvoiceNumber) {
+    if (!contract || !invoiceDetails?.invoiceNumber) {
       toast({ title: "Cannot Save", description: "Invoice number or core contract data missing.", variant: "destructive" });
-      return;
-    }
-    if (!user) {
-      toast({ title: "Authentication Error", description: "User not authenticated.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
     try {
-      const currentFormData = getStructuredDataFromForm();
-      const finalTotalAmount = calculateTotal(currentFormData.deliverables);
-      
-      const currentPayUrl = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
-      const inputForAI: GenerateInvoiceHtmlInput = {
-        ...currentFormData,
-        contractId: contract.id,
-        totalAmount: finalTotalAmount,
-        companyLogoUrl: creatorProfile?.companyLogoUrl || undefined,
-        deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
-        payInvoiceLink: currentPayUrl || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
-      };
-      const htmlResult = await generateInvoiceHtml(inputForAI);
-      const finalHtmlToSave = htmlResult.invoiceHtml;
-      setInvoiceHtmlContent(finalHtmlToSave); 
+      const finalHtmlToSave = invoiceHtmlContent;
+      const finalDetailsToSave = invoiceDetails;
 
       const contractDocRef = doc(db, 'contracts', contract.id);
       
-      const freshContractSnap = await getDoc(contractDocRef);
-      const freshContractData = freshContractSnap.data() as Contract;
+      const milestoneDescription = milestoneId 
+        ? contract.milestones?.find(m => m.id === milestoneId)?.description
+        : 'General Invoice';
       
-      let updatedMilestones = freshContractData.milestones || [];
-      if (milestoneId) {
-        const milestoneExists = updatedMilestones.some(m => m.id === milestoneId);
-        if (milestoneExists) {
-            updatedMilestones = updatedMilestones.map(m => 
-            m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
-            );
-        }
-      }
+      const newStatus = (invoiceStatus === 'none' || invoiceStatus === '') ? 'draft' : invoiceStatus;
 
-      let newStatus: Contract['invoiceStatus'] = freshContractData.invoiceStatus || 'none';
-       if (newStatus === 'none' || newStatus === '') {
-        newStatus = 'draft';
-      }
-      
       const historyEntry = {
         timestamp: Timestamp.now(),
-        action: `Invoice Draft Saved for ${milestoneId ? `Milestone: ${currentFormData.deliverables.find(d=>d.isMilestone)?.description}` : 'General Invoice'}`,
-        details: `Invoice #: ${editableInvoiceNumber}. Status: ${newStatus}. Total: $${finalTotalAmount.toFixed(2)}`,
+        action: `Invoice Draft Saved for ${milestoneId ? `Milestone: ${milestoneDescription}` : 'General Invoice'}`,
+        details: `Invoice #: ${finalDetailsToSave.invoiceNumber}. Status: ${newStatus}. Total: $${totalAmount.toFixed(2)}`,
       };
 
       const updatesToSave: Partial<Contract> & {[key: string]: any} = { 
-        milestones: updatedMilestones,
         invoiceHtmlContent: finalHtmlToSave,
-        invoiceNumber: editableInvoiceNumber,
+        invoiceNumber: finalDetailsToSave.invoiceNumber,
         invoiceStatus: newStatus, 
-        editableInvoiceDetails: currentFormData, 
+        editableInvoiceDetails: finalDetailsToSave, 
         invoiceHistory: arrayUnion(historyEntry), 
         updatedAt: serverTimestamp(), 
       };
 
       await updateDoc(contractDocRef, updatesToSave);
       
-      setInvoiceStatus(newStatus); 
-      setIsEditingDetails(false); 
+      // Update local state without causing a full reload
       setContract(prev => prev ? ({ ...prev, ...updatesToSave, invoiceStatus: newStatus }) as Contract : null);
+      setInvoiceStatus(newStatus);
+      setIsEditingDetails(false); 
 
       toast({ title: "Invoice Saved", description: "Invoice details and HTML have been saved." });
     } catch (error) {
@@ -463,8 +365,8 @@ export default function ManageInvoicePage() {
   };
 
   const handleSendInvoice = async () => {
-    if (!contract || !user) {
-      toast({ title: "Cannot Send", description: "No contract or user session available.", variant: "destructive" });
+    if (!contract || !user || !invoiceDetails) {
+      toast({ title: "Cannot Send", description: "No contract, user, or invoice details available.", variant: "destructive" });
       return;
     }
     
@@ -473,34 +375,15 @@ export default function ManageInvoicePage() {
       const idToken = await getUserIdToken();
       if (!idToken) throw new Error("Could not get user token.");
 
-      const finalClientName = editableClientName || contract.clientName || contract.brand;
-      const finalProjectName = editableProjectName || contract.projectName || 'services rendered';
-      const finalInvoiceNumber = editableInvoiceNumber || contract.invoiceNumber;
-      
-      const currentFormData = getStructuredDataFromForm();
-      const totalAmountForEmail = calculateTotal(currentFormData.deliverables);
-      
-      const noteHtml = invoiceNote ? `<p>${invoiceNote.replace(/\n/g, '<br>')}</p>` : "";
+      let htmlToSend = invoiceHtmlContent;
 
-      const currentPayUrlForEmail = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${contract.id}${milestoneId ? `?milestoneId=${milestoneId}` : ''}` : "";
-      const inputForAISend: GenerateInvoiceHtmlInput = {
-        ...currentFormData,
-        contractId: contract.id,
-        totalAmount: totalAmountForEmail,
-        companyLogoUrl: creatorProfile?.companyLogoUrl || undefined,
-        deliverables: currentFormData.deliverables.map(d => ({...d, total: d.quantity * d.unitPrice})),
-        payInvoiceLink: currentPayUrlForEmail || undefined,
-        receipts: contractReceipts.length > 0 ? contractReceipts.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
-      };
-      const htmlResultForSend = await generateInvoiceHtml(inputForAISend);
-      let htmlToSend = htmlResultForSend.invoiceHtml;
-
-      if (noteHtml) {
+      if (invoiceNote) {
+        const noteHtml = `<p>${invoiceNote.replace(/\n/g, '<br>')}</p>`;
         const instructionsMarker = '<!-- Payment Instructions Section -->';
         if (htmlToSend.includes(instructionsMarker)) {
            htmlToSend = htmlToSend.replace(instructionsMarker, `
             <div class="notes-section" style="margin-bottom: 20px;">
-              <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">Note from ${currentFormData.creatorName}</h3>
+              <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px;">Note from ${invoiceDetails.creatorName}</h3>
               ${noteHtml}
             </div>
             ${instructionsMarker}
@@ -511,9 +394,9 @@ export default function ManageInvoicePage() {
       }
 
       const emailBody = {
-        to: editableClientEmail || contract.clientEmail,
-        subject: `Invoice ${finalInvoiceNumber} from ${currentFormData.creatorName}`,
-        text: `Hello ${finalClientName},\n\nPlease find attached your invoice ${finalInvoiceNumber} for ${finalProjectName}.\n\nTotal Amount Due: $${totalAmountForEmail.toFixed(2)}\n\n${invoiceNote ? `Note: ${invoiceNote}\n\n` : ''}Click here to pay: ${currentPayUrlForEmail}\n\nThank you,\n${currentFormData.creatorName}`,
+        to: invoiceDetails.clientEmail,
+        subject: `Invoice ${invoiceDetails.invoiceNumber} from ${invoiceDetails.creatorName}`,
+        text: `Hello ${invoiceDetails.clientName},\n\nPlease find attached your invoice ${invoiceDetails.invoiceNumber} for ${invoiceDetails.projectName}.\n\nTotal Amount Due: $${totalAmount.toFixed(2)}\n\n${invoiceNote ? `Note: ${invoiceNote}\n\n` : ''}Click here to pay: ${payUrl}\n\nThank you,\n${invoiceDetails.creatorName}`,
         html: htmlToSend, 
         contractId: contract.id,
       };
@@ -534,14 +417,12 @@ export default function ManageInvoicePage() {
       let updatedMilestones = contract.milestones;
       if (milestoneId && updatedMilestones) {
         updatedMilestones = updatedMilestones.map(m => 
-          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: editableInvoiceNumber } : m
+          m.id === milestoneId ? { ...m, status: 'invoiced', invoiceId: invoiceDetails.invoiceNumber } : m
         );
       }
       
-      const allMilestonesPaid = updatedMilestones?.every(m => m.status === 'paid');
       const allMilestonesDone = updatedMilestones?.every(m => m.status === 'invoiced' || m.status === 'paid');
-      const newOverallStatus = allMilestonesPaid ? 'paid' : (allMilestonesDone ? 'invoiced' : 'sent');
-
+      const newOverallStatus = allMilestonesDone ? 'invoiced' : 'sent';
 
       await updateDoc(contractDocRef, { 
         invoiceStatus: newOverallStatus, 
@@ -552,10 +433,7 @@ export default function ManageInvoicePage() {
       });
 
       setInvoiceStatus(newOverallStatus);
-      setInvoiceHtmlContent(htmlToSend); 
-      setContract(prev => prev ? ({ ...prev, invoiceStatus: newOverallStatus, milestones: updatedMilestones }) as Contract : null);
-
-      toast({ title: "Invoice Sent", description: `Invoice ${finalInvoiceNumber} sent to ${emailBody.to}.` });
+      toast({ title: "Invoice Sent", description: `Invoice ${invoiceDetails.invoiceNumber} sent to ${emailBody.to}.` });
       setIsSendDialogOpen(false);
       setInvoiceNote("");
 
@@ -586,30 +464,20 @@ export default function ManageInvoicePage() {
   };
 
   const handleInitiatePayment = async () => {
-    if (!contract || !user) {
-      toast({ title: "Error", description: "Contract or user data missing.", variant: "destructive" });
-      return;
-    }
-    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-      toast({ title: "Stripe Error", description: "Stripe publishable key is not configured.", variant: "destructive" });
-      return;
-    }
-
+    if (!contract || !user) return;
     setIsFetchingClientSecret(true); setClientSecret(null);
     try {
       const idToken = await getUserIdToken();
       if (!idToken) throw new Error("Could not get user token for payment.");
 
-      const amountForPayment = calculateTotal(editableDeliverables);
-
       const response = await fetch(CREATE_PAYMENT_INTENT_FUNCTION_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify({
-          amount: amountForPayment, 
+          amount: totalAmount, 
           currency: 'usd', 
           contractId: contract.id,
           milestoneId: milestoneId,
-          clientEmail: editableClientEmail || contract.clientEmail || undefined,
+          clientEmail: invoiceDetails?.clientEmail || contract.clientEmail || undefined,
         }),
       });
 
@@ -630,68 +498,52 @@ export default function ManageInvoicePage() {
     }
   };
 
+  const handleFormInputChange = (field: keyof EditableInvoiceDetails, value: string | number | EditableInvoiceLineItem[]) => {
+    setFormData(prev => prev ? { ...prev, [field]: value } : null);
+  };
+  
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
-    const newDeliverables = [...editableDeliverables];
+    if (!formData) return;
+    const newDeliverables = [...(formData.deliverables || [])];
+    const item = { ...newDeliverables[index] };
     if (field === 'quantity' || field === 'unitPrice') {
         const numericValue = parseFloat(value as string);
-        newDeliverables[index] = { ...newDeliverables[index], [field]: isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue) };
+        item[field] = isNaN(numericValue) ? 0 : (numericValue < 0 ? 0 : numericValue);
     } else {
-        newDeliverables[index] = { ...newDeliverables[index], [field]: value as string };
+        item[field] = value as string;
     }
-    setEditableDeliverables(newDeliverables);
+    newDeliverables[index] = item;
+    handleFormInputChange('deliverables', newDeliverables);
   };
 
-  const addDeliverable = () => setEditableDeliverables([...editableDeliverables, getDefaultLineItem()]);
+  const addDeliverable = () => {
+    if (!formData) return;
+    handleFormInputChange('deliverables', [...(formData.deliverables || []), getDefaultLineItem()]);
+  };
+
   const removeDeliverable = (index: number) => {
-    if (editableDeliverables[index]?.isMilestone) {
+    if (!formData || !formData.deliverables) return;
+    if (formData.deliverables[index]?.isMilestone) {
         toast({ title: "Cannot Remove", description: "The main milestone line item cannot be removed.", variant: "default" });
         return;
     }
-    setEditableDeliverables(editableDeliverables.filter((_, i) => i !== index));
+    handleFormInputChange('deliverables', formData.deliverables.filter((_, i) => i !== index));
   };
-  
-  useEffect(() => {
-    if (!isEditingDetails && contract && creatorProfile && contractReceipts) {
-      const currentFormData = getStructuredDataFromForm();
-      generateAndSetHtmlFromForm(currentFormData, contractReceipts, contract.id, creatorProfile.companyLogoUrl)
-        .catch(error => {
-          console.error("Auto-regeneration of preview failed on receipt change:", error);
-        });
-    }
-  }, [
-    contractReceipts, 
-    isEditingDetails, 
-    contract,         
-    creatorProfile,             
-    getStructuredDataFromForm, 
-    generateAndSetHtmlFromForm 
-  ]);
 
-
-  if (isLoadingData || authLoading) {
+  if (isLoading || authLoading) {
     return <div className="space-y-4 p-4"><PageHeader title="Manage Invoice" description="Loading..." /><Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
   }
-  if (!contract) {
+  if (!contract || !creatorProfile) {
     return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4"/>Back</Link></Button></div>;
   }
 
-  const canPay = (invoiceStatus === 'draft' || invoiceStatus === 'sent' || invoiceStatus === 'overdue' || invoiceStatus === 'partially_paid') && calculatedTotalAmount > 0 && !clientSecret;
-  const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
-  const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
-  const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
-
-  const milestoneBeingInvoiced = milestoneId ? contract.milestones?.find(m => m.id === milestoneId) : undefined;
-  const pageTitle = milestoneBeingInvoiced
-    ? `Invoice for: ${milestoneBeingInvoiced.description}`
-    : `Invoice for ${contract.brand} - ${contract.projectName || contract.id.substring(0,6)}`;
-    
-  const canSave = (isEditingDetails || !!invoiceHtmlContent) && !!editableInvoiceNumber;
-
+  const formDataTotalAmount = useMemo(() => calculateTotal(formData?.deliverables || []), [formData]);
+  
   return (
     <>
       <PageHeader
         title={pageTitle}
-        description={editableInvoiceNumber ? `Invoice #: ${editableInvoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
+        description={invoiceDetails?.invoiceNumber ? `Invoice #: ${invoiceDetails.invoiceNumber} | Status: ${invoiceStatus || 'None'}` : "Generate, edit, and manage the invoice."}
         actions={<Button variant="outline" asChild><Link href={`/contracts/${id}`}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Contract</Link></Button>}
       />
 
@@ -702,39 +554,10 @@ export default function ManageInvoicePage() {
             <CardDescription>Update invoice details, status, content, and process payments.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-              <div>
-                <Label htmlFor="invoiceNumberInput">Invoice Number</Label>
-                <Input id="invoiceNumberInput" value={editableInvoiceNumber} onChange={(e) => setEditableInvoiceNumber(e.target.value)} placeholder="e.g. INV-001" className="max-w-sm mt-1" disabled={isSaving || isSending || !!clientSecret || !isEditingDetails} />
-              </div>
-              <div>
-                <Label htmlFor="invoiceStatusSelect">Invoice Status</Label>
-                 <Select value={invoiceStatus || 'none'} onValueChange={(value) => handleStatusChange(value as Contract['invoiceStatus'])} disabled={isSaving || isLoadingData || isSending || !!clientSecret || isEditingDetails}>
-                  <SelectTrigger className="max-w-sm mt-1" id="invoiceStatusSelect"><SelectValue placeholder="Set Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="viewed">Viewed</SelectItem>
-                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button 
-                onClick={handleAiRegenerationRequest} 
-                disabled={isGeneratingAi || isSaving || isFetchingClientSecret || isSending || !editableInvoiceNumber || !!clientSecret}
-              >
-                {isGeneratingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                Re-generate with AI
-              </Button>
               <Button onClick={toggleEditMode} variant="outline" disabled={isSaving || isGeneratingAi || isSending || !!clientSecret}>
                 {isEditingDetails ? <Eye className="mr-2 h-4 w-4" /> : <Edit className="mr-2 h-4 w-4" />}
-                {isEditingDetails ? "Preview HTML" : "Edit Invoice Details"}
+                {isEditingDetails ? "Preview Changes" : "Edit Invoice Details"}
               </Button>
               <Button onClick={handleSaveInvoice} disabled={isSaving || isGeneratingAi || isFetchingClientSecret || isSending || !!clientSecret || !canSave}>
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -743,16 +566,14 @@ export default function ManageInvoicePage() {
               {canSend && (
                  <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
                   <DialogTrigger asChild>
-                     <Button disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || (!editableClientEmail && !contract.clientEmail) || isEditingDetails}>
+                     <Button disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || !invoiceDetails?.clientEmail || isEditingDetails}>
                       <Send className="mr-2 h-4 w-4" /> Send to Client
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                       <DialogTitle>Send Invoice to Client</DialogTitle>
-                      <DialogDescription>
-                        Add an optional note to your client. The full invoice will be attached.
-                      </DialogDescription>
+                      <DialogDescription>Add an optional note to your client. The full invoice will be attached.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div>
@@ -784,12 +605,12 @@ export default function ManageInvoicePage() {
                {canPay && (
                 <Button onClick={handleInitiatePayment} disabled={isFetchingClientSecret || isGeneratingAi || isSaving || isSending || !stripePromise || isEditingDetails} variant="default">
                   {isFetchingClientSecret ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                  Pay Invoice (${calculatedTotalAmount.toLocaleString()})
+                  Pay Invoice (${totalAmount.toLocaleString()})
                 </Button>
               )}
             </div>
-            {(!editableClientEmail && !contract.clientEmail) && canSend && (
-                <p className="text-xs text-destructive">Client email is missing. Please add it to edit mode to enable sending.</p>
+            {(!invoiceDetails?.clientEmail) && canSend && (
+                <p className="text-xs text-destructive">Client email is missing. Please add it to enable sending.</p>
             )}
           </CardContent>
         </Card>
@@ -801,72 +622,47 @@ export default function ManageInvoicePage() {
           </Card>
         )}
 
-        {isEditingDetails && !clientSecret && (
+        {isEditingDetails && !clientSecret && formData && (
           <Card>
-            <CardHeader><CardTitle>Edit Invoice Details</CardTitle><CardDescription>Modify the fields below. The HTML preview will update when you click "Preview HTML".</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Edit Invoice Details</CardTitle><CardDescription>Modify the fields below. The HTML preview will update when you click "Preview Changes".</CardDescription></CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                <div><Label htmlFor="edit-invNum">Invoice Number</Label><Input id="edit-invNum" value={editableInvoiceNumber} onChange={(e) => setEditableInvoiceNumber(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-invDate">Invoice Date</Label><Input id="edit-invDate" type="date" value={editableInvoiceDate} onChange={(e) => setEditableInvoiceDate(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-dueDate">Due Date</Label><Input id="edit-dueDate" type="date" value={editableDueDate} onChange={(e) => setEditableDueDate(e.target.value)} className="mt-1"/></div>
-                <div><Label htmlFor="edit-projName">Project Name (Optional)</Label><Input id="edit-projName" value={editableProjectName} onChange={(e) => setEditableProjectName(e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-invNum">Invoice Number</Label><Input id="edit-invNum" value={formData.invoiceNumber} onChange={(e) => handleFormInputChange('invoiceNumber', e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-invDate">Invoice Date</Label><Input id="edit-invDate" type="date" value={formData.invoiceDate} onChange={(e) => handleFormInputChange('invoiceDate', e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-dueDate">Due Date</Label><Input id="edit-dueDate" type="date" value={formData.dueDate} onChange={(e) => handleFormInputChange('dueDate', e.target.value)} className="mt-1"/></div>
+                <div><Label htmlFor="edit-projName">Project Name (Optional)</Label><Input id="edit-projName" value={formData.projectName} onChange={(e) => handleFormInputChange('projectName', e.target.value)} className="mt-1"/></div>
               </div>
               
               <div className="border-t pt-4 mt-4">
                 <h4 className="text-md font-semibold mb-2">Creator Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div><Label htmlFor="edit-creatorName">Your Name/Company</Label><Input id="edit-creatorName" value={editableCreatorName} onChange={(e) => setEditableCreatorName(e.target.value)} className="mt-1"/></div>
-                    <div><Label htmlFor="edit-creatorEmail">Your Email</Label><Input id="edit-creatorEmail" type="email" value={editableCreatorEmail} onChange={(e) => setEditableCreatorEmail(e.target.value)} className="mt-1"/></div>
-                    <div className="md:col-span-2"><Label htmlFor="edit-creatorAddr">Your Address</Label><Textarea id="edit-creatorAddr" value={editableCreatorAddress} onChange={(e) => setEditableCreatorAddress(e.target.value)} rows={2} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-creatorName">Your Name/Company</Label><Input id="edit-creatorName" value={formData.creatorName} onChange={(e) => handleFormInputChange('creatorName', e.target.value)} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-creatorEmail">Your Email</Label><Input id="edit-creatorEmail" type="email" value={formData.creatorEmail} onChange={(e) => handleFormInputChange('creatorEmail', e.target.value)} className="mt-1"/></div>
+                    <div className="md:col-span-2"><Label htmlFor="edit-creatorAddr">Your Address</Label><Textarea id="edit-creatorAddr" value={formData.creatorAddress} onChange={(e) => handleFormInputChange('creatorAddress', e.target.value)} rows={2} className="mt-1"/></div>
                 </div>
               </div>
 
               <div className="border-t pt-4 mt-4">
                 <h4 className="text-md font-semibold mb-2">Client Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div><Label htmlFor="edit-clientName">Client Name</Label><Input id="edit-clientName" value={editableClientName} onChange={(e) => setEditableClientName(e.target.value)} className="mt-1"/></div>
-                    <div><Label htmlFor="edit-clientEmail">Client Email</Label><Input id="edit-clientEmail" type="email" value={editableClientEmail} onChange={(e) => setEditableClientEmail(e.target.value)} className="mt-1"/></div>
-                    <div className="md:col-span-2"><Label htmlFor="edit-clientAddr">Client Address</Label><Textarea id="edit-clientAddr" value={editableClientAddress} onChange={(e) => setEditableClientAddress(e.target.value)} rows={2} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-clientName">Client Name</Label><Input id="edit-clientName" value={formData.clientName} onChange={(e) => handleFormInputChange('clientName', e.target.value)} className="mt-1"/></div>
+                    <div><Label htmlFor="edit-clientEmail">Client Email</Label><Input id="edit-clientEmail" type="email" value={formData.clientEmail} onChange={(e) => handleFormInputChange('clientEmail', e.target.value)} className="mt-1"/></div>
+                    <div className="md:col-span-2"><Label htmlFor="edit-clientAddr">Client Address</Label><Textarea id="edit-clientAddr" value={formData.clientAddress} onChange={(e) => handleFormInputChange('clientAddress', e.target.value)} rows={2} className="mt-1"/></div>
                 </div>
               </div>
               
               <div className="border-t pt-4 mt-4">
                 <div className="mb-6"> 
-                  <h4 className="text-md font-semibold mb-2 flex items-center">
-                    <ReceiptText className="mr-2 h-5 w-5 text-primary" />
-                    Currently Linked Receipts ({contractReceipts.length})
-                  </h4>
-                  {contractReceipts.length > 0 ? (
-                    <ul className="space-y-2 rounded-md border bg-muted/50 p-3 max-h-40 overflow-y-auto">
-                      {contractReceipts.map((receipt, index) => (
-                        <li key={index} className="flex items-center justify-between text-sm p-1 hover:bg-muted rounded">
-                          <div className="flex items-center">
-                            <FileText className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="truncate" title={receipt.description || "Receipt"}>{receipt.description || "Receipt"}</span>
-                          </div>
-                          <a
-                            href={receipt.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline text-xs ml-2 flex-shrink-0"
-                          >
-                            View
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">No receipts currently linked to this contract.</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    These receipts will be included in the generated invoice. Manage receipts on the <Link href={`/receipts?contractId=${id}`} className="text-primary hover:underline">Receipts page</Link>.
-                  </p>
+                  <h4 className="text-md font-semibold mb-2 flex items-center"><ReceiptText className="mr-2 h-5 w-5 text-primary" />Linked Receipts ({contractReceipts.length})</h4>
+                  {contractReceipts.length > 0 ? (<ul className="space-y-2 rounded-md border bg-muted/50 p-3 max-h-40 overflow-y-auto">{contractReceipts.map((receipt, index) => (<li key={index} className="flex items-center justify-between text-sm p-1 hover:bg-muted rounded"><div className="flex items-center"><FileText className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" /><span className="truncate" title={receipt.description || "Receipt"}>{receipt.description || "Receipt"}</span></div><a href={receipt.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs ml-2 flex-shrink-0">View</a></li>))}</ul>) 
+                  : (<p className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">No receipts linked.</p>)}
+                  <p className="text-xs text-muted-foreground mt-2">Manage linked receipts on the <Link href={`/receipts?contractId=${id}`} className="text-primary hover:underline">Receipts page</Link>.</p>
                 </div>
               </div>
 
               <div className="border-t pt-4 mt-4">
                 <h4 className="text-md font-semibold mb-2">Invoice Line Items</h4>
-                {editableDeliverables.map((item, index) => (
+                {formData.deliverables?.map((item, index) => (
                   <div key={index} className="grid grid-cols-12 gap-2 items-end mb-3 p-3 border rounded-md">
                     <div className="col-span-12 md:col-span-5"><Label htmlFor={`desc-${index}`}>Description</Label><Input id={`desc-${index}`} value={item.description} onChange={(e) => handleDeliverableChange(index, 'description', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
                     <div className="col-span-6 md:col-span-2"><Label htmlFor={`qty-${index}`}>Quantity</Label><Input id={`qty-${index}`} type="number" value={item.quantity} min="1" onChange={(e) => handleDeliverableChange(index, 'quantity', e.target.value)} className="mt-1" disabled={item.isMilestone}/></div>
@@ -876,12 +672,12 @@ export default function ManageInvoicePage() {
                   </div>
                 ))}
                 <Button type="button" variant="outline" onClick={addDeliverable} size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Add Line Item</Button>
-                <div className="text-right font-semibold text-lg mt-4">Total Amount: ${calculatedTotalAmount.toFixed(2)}</div>
+                <div className="text-right font-semibold text-lg mt-4">Total Amount: ${formDataTotalAmount.toFixed(2)}</div>
               </div>
 
               <div className="border-t pt-4 mt-4">
                 <Label htmlFor="edit-paymentInstr">Payment Instructions</Label>
-                <Textarea id="edit-paymentInstr" value={editablePaymentInstructions} onChange={(e) => setEditablePaymentInstructions(e.target.value)} rows={3} className="mt-1"/>
+                <Textarea id="edit-paymentInstr" value={formData.paymentInstructions} onChange={(e) => handleFormInputChange('paymentInstructions', e.target.value)} rows={3} className="mt-1"/>
               </div>
             </CardContent>
           </Card>
@@ -890,17 +686,17 @@ export default function ManageInvoicePage() {
         {!clientSecret && !isEditingDetails && (
           invoiceHtmlContent ? (
             <Card>
-              <CardHeader><CardTitle>Invoice HTML Preview</CardTitle><CardDescription>Current HTML. Copy or use browser print-to-PDF.</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Invoice HTML Preview</CardTitle><CardDescription>This is a preview of the invoice that will be sent.</CardDescription></CardHeader>
               <CardContent><div className="prose dark:prose-invert max-w-none p-4 border rounded-md bg-background overflow-auto max-h-[60vh]" dangerouslySetInnerHTML={{ __html: invoiceHtmlContent }} /></CardContent>
             </Card>
           ) : (
             <Card>
               <CardHeader><CardTitle>No Invoice Content</CardTitle></CardHeader>
               <CardContent><p className="text-muted-foreground">
-                {isLoadingData || isGeneratingAi ? <Loader2 className="inline animate-spin mr-2 h-4 w-4" /> : ''}
-                {isLoadingData ? 'Loading data...' : 
+                {isLoading || isGeneratingAi ? <Loader2 className="inline animate-spin mr-2 h-4 w-4" /> : ''}
+                {isLoading ? 'Loading invoice data...' : 
                  isGeneratingAi ? 'Generating AI preview...' : 
-                 'Click "Re-generate with AI" to start, or switch to \'Edit Invoice Details\' to manually create one.'}
+                 'No invoice has been generated for this milestone yet. Click "Edit Details" to start.'}
               </p></CardContent>
             </Card>
           )
