@@ -81,16 +81,16 @@ export default function AgencyPage() {
   const isOwner = user?.isAgencyOwner ?? false;
   const isMemberOrAdmin = user?.agencyMemberships?.some(m => (m.role === 'admin' || m.role === 'member') && m.status === 'active') ?? false;
   const canManage = isOwner || isMemberOrAdmin;
-
+  
   useEffect(() => {
     if (!user || authLoading) {
       if (!authLoading) setIsLoadingAgencies(false);
       return;
     }
-    
+
     setIsLoadingAgencies(true);
     let unsubscribe: (() => void) | undefined;
-    
+
     const managementMembership = user.agencyMemberships?.find(m => m.role === 'owner' || m.role === 'admin' || m.role === 'member');
     const managementAgencyId = user.primaryAgencyId || managementMembership?.agencyId;
 
@@ -101,7 +101,6 @@ export default function AgencyPage() {
           const agencyData = { id: docSnap.id, ...docSnap.data() } as Agency;
           setManagedAgency(agencyData);
           
-          // Fetch the agency owner's user data for subscription info
           if (agencyData.ownerId) {
             const ownerDocRef = doc(db, "users", agencyData.ownerId);
             const ownerDocSnap = await getDoc(ownerDocRef);
