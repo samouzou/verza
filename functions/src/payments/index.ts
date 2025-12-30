@@ -1,4 +1,6 @@
 
+"use client";
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -298,6 +300,23 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     if (contractData.ownerType === "agency" && contractData.ownerId) {
       metadataForStripe.agencyId = contractData.ownerId;
       metadataForStripe.paymentType = "agency_payment";
+
+      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+      const agencyData = agencyDoc.data() as Agency;
+
+      const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+      const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+      const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+      const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+
+      if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
+        throw new Error("Agency owner does not have a valid," +
+              " active bank account for receiving payments.");
+      }
+      if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
+        throw new Error("The creator/talent for this contract does not have a valid," +
+              " active bank account for receiving payouts.");
+      }
 
       paymentIntentParams = {
         amount: amountInCents,

@@ -304,35 +304,32 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     let ownerId = user.uid;
     let finalUserId = user.uid;
     let talentName: string | undefined | null = undefined;
-
     const accessMap: { [key: string]: 'owner' | 'viewer' | 'talent' } = {};
-    accessMap[user.uid] = 'owner'; // The creator is always an owner
+    accessMap[user.uid] = 'owner';
 
-    if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
-        ownerType = 'agency';
-        ownerId = agency.id;
-        finalUserId = selectedOwner;
-        talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
-        
-        // Add talent to access map
-        accessMap[finalUserId] = 'talent';
-        // Add all agency team members to access map
+    if (!user.isAgencyOwner) {
+        ownerType = 'user';
+        ownerId = user.uid;
+        finalUserId = user.uid;
+    } else if (user.isAgencyOwner && agency) {
+        if (selectedOwner === 'personal') {
+            ownerType = 'agency';
+            ownerId = agency.id;
+            finalUserId = user.uid; 
+        } else {
+            ownerType = 'agency';
+            ownerId = agency.id;
+            finalUserId = selectedOwner; // This is the talent's UID
+            talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+            accessMap[finalUserId] = 'talent';
+        }
+        // Add all team members to access map for agency-owned contracts
         agency.team?.forEach(member => {
-            accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
-        });
-
-    } else if (user.role === 'agency_owner' && selectedOwner === 'personal' && agency) {
-        // Contract is for the agency itself, not a specific talent
-        ownerType = 'agency';
-        ownerId = agency.id;
-        finalUserId = user.uid; // Creator is the agency owner
-        
-        // Add all agency team members to access map
-        agency.team?.forEach(member => {
-            accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+            if (member.userId !== user.uid) { // Owner is already in
+                accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+            }
         });
     }
-
 
     try {
       if (selectedFile) {
@@ -512,7 +509,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 {parseError && (<div className="p-4 bg-background rounded-lg shadow-lg"><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>AI Error</AlertTitle><AlertDescription>{parseError}</AlertDescription></Alert></div>)}
               </div>
               <div id="container" style={{ height: '100%' }} className="border rounded-md">
-                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
+                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
               </div>
               {parsedDetails && (<div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}><ScrollArea className="h-full"><div className="space-y-4 pr-4">{renderAiAnalysis()}</div></ScrollArea></div>)}
             </div>
