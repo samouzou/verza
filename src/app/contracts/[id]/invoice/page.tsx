@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -84,7 +84,6 @@ export default function ManageInvoicePage() {
 
   // Loading and UI State
   const [isLoading, setIsLoading] = useState(true);
-  const [isReadyForGeneration, setIsReadyForGeneration] = useState(false);
   const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
 
   // Form Data State
@@ -148,7 +147,7 @@ export default function ManageInvoicePage() {
     setIsLoading(true);
 
     const contractDocRef = doc(db, 'contracts', id);
-    unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
+    unsubscribeContract = onSnapshot(contractDocRef, async (contractSnap) => {
         if (!isMounted) return;
         if (!contractSnap.exists()) {
             toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
@@ -160,7 +159,8 @@ export default function ManageInvoicePage() {
         setContract(contractData);
         setInvoiceStatus(contractData.invoiceStatus || 'none');
 
-        // Once we have the contract, we can get the creator and receipts
+        // Once we have the contract, get the creator and receipts
+        if(unsubscribeCreator) unsubscribeCreator();
         const creatorDocRef = doc(db, 'users', contractData.userId);
         unsubscribeCreator = onSnapshot(creatorDocRef, (creatorSnap) => {
             if (!isMounted) return;
@@ -168,9 +168,12 @@ export default function ManageInvoicePage() {
                 setCreatorProfile(creatorSnap.data() as UserProfile);
             } else {
                 toast({ title: "Error", description: "Could not load creator's profile.", variant: "destructive" });
+                setCreatorProfile(null);
             }
+             setIsLoading(false); // Stop loading once core contract/creator data is here
         });
 
+        if(unsubscribeReceipts) unsubscribeReceipts();
         const receiptsQuery = query(collection(db, 'receipts'), where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
         unsubscribeReceipts = onSnapshot(receiptsQuery, (receiptsSnap) => {
             if (!isMounted) return;
@@ -179,10 +182,6 @@ export default function ManageInvoicePage() {
                 return { url: data.receiptImageUrl, description: data.description || data.receiptFileName || "Uploaded Receipt"};
             });
             setContractReceipts(fetchedReceipts);
-            // This is the final piece of data. Now we are ready.
-            if(contractData && creatorProfile) {
-                setIsReadyForGeneration(true);
-            }
         });
 
     }, (error) => {
@@ -199,17 +198,16 @@ export default function ManageInvoicePage() {
         if (unsubscribeCreator) unsubscribeCreator();
         if (unsubscribeReceipts) unsubscribeReceipts();
     };
-}, [id, user?.uid, authLoading, router, toast, creatorProfile]);
+}, [id, user?.uid, authLoading, router, toast]);
 
 
   // Effect to trigger initial AI generation once all data is ready
   useEffect(() => {
-    if (!isReadyForGeneration || !contract || !creatorProfile) {
+    if (isLoading || !contract || !creatorProfile) {
       return;
     }
 
     const handleInitialSetup = async () => {
-        setIsLoading(true);
         try {
             const savedDetails = contract.editableInvoiceDetails;
             const isMilestoneInvoice = !!milestoneId;
@@ -233,16 +231,13 @@ export default function ManageInvoicePage() {
             }
         } catch (error) {
             console.error("Error during initial invoice setup:", error);
-            toast({ title: "Initialization Error", description: "Failed to generate initial invoice draft.", variant: "destructive" });
-        } finally {
-            setIsLoading(false);
-            setIsReadyForGeneration(false); // Reset ready state after running once
+            toast({ title: "Initialization Error", description: "Failed to set up invoice generator.", variant: "destructive" });
         }
     };
 
     handleInitialSetup();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReadyForGeneration, contract, creatorProfile, contractReceipts, milestoneId]);
+  }, [isLoading, contract, creatorProfile]);
 
 
   const generateAndSetHtmlFromForm = useCallback(async (detailsToUse: EditableInvoiceDetails, receiptsToUse: Array<{url: string; description?: string;}>, contractIdToUse: string, logoUrl?: string | null) => {
@@ -319,8 +314,7 @@ export default function ManageInvoicePage() {
 
       await updateDoc(contractDocRef, updatesToSave);
       
-      // Update local state without causing a full reload
-      setContract(prev => prev ? ({ ...prev, ...updatesToSave, invoiceStatus: newStatus }) as Contract : null);
+      // No need to setContract, onSnapshot will handle it.
       setInvoiceStatus(newStatus);
       setIsEditingDetails(false); 
 
@@ -353,8 +347,7 @@ export default function ManageInvoicePage() {
         invoiceHistory: arrayUnion(historyEntry),
         updatedAt: serverTimestamp(),
       });
-      setInvoiceStatus(newStatusValue);
-      setContract(prev => prev ? { ...prev, invoiceStatus: newStatusValue } : null);
+      // No need to setInvoiceStatus or setContract, onSnapshot listener will update state
       toast({ title: "Status Updated", description: `Invoice status changed to ${newStatusValue}.` });
     } catch (error) {
       console.error("Error updating status:", error);
@@ -432,7 +425,6 @@ export default function ManageInvoicePage() {
         updatedAt: serverTimestamp(), 
       });
 
-      setInvoiceStatus(newOverallStatus);
       toast({ title: "Invoice Sent", description: `Invoice ${invoiceDetails.invoiceNumber} sent to ${emailBody.to}.` });
       setIsSendDialogOpen(false);
       setInvoiceNote("");
@@ -566,7 +558,7 @@ export default function ManageInvoicePage() {
               {canSend && (
                  <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
                   <DialogTrigger asChild>
-                     <Button disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || !invoiceDetails?.clientEmail || isEditingDetails}>
+                     <Button disabled={isSending || isGeneratingAi || isSaving || isFetchingClientSecret || !!clientSecret || isEditingDetails}>
                       <Send className="mr-2 h-4 w-4" /> Send to Client
                     </Button>
                   </DialogTrigger>
@@ -705,3 +697,5 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+
+    
