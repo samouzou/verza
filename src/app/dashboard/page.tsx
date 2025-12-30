@@ -97,10 +97,10 @@ export default function DashboardPage() {
         const unsubscribeAgency = onSnapshot(agencyRef, async (agencySnap) => {
             if (agencySnap.exists()) {
                 const agencyData = agencySnap.data() as Agency;
-                const ownerRef = doc(db, 'users', agencyData.ownerId);
-                const ownerSnap = await getDoc(ownerRef);
-                if (ownerSnap.exists()) {
-                    setSubscriptionUser(ownerSnap.data() as UserProfile);
+                const ownerDocRef = doc(db, 'users', agencyData.ownerId);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    setSubscriptionUser(ownerDocSnap.data() as UserProfile);
                 } else {
                     setSubscriptionUser(user); // Fallback to self
                 }
@@ -116,9 +116,9 @@ export default function DashboardPage() {
     const contractsCol = collection(db, 'contracts');
     let q;
 
-    if (user.primaryAgencyId) { // Agency Owner or Team Member
+    if (user.primaryAgencyId) { // Agency Owner or Team Member sees all agency contracts
       q = query(contractsCol, where('ownerId', '==', user.primaryAgencyId));
-    } else { // Individual Creator
+    } else { // Individual Creator sees their own contracts
       q = query(contractsCol, where('userId', '==', user.uid));
     }
     
