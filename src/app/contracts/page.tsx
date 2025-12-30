@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, Timestamp } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -29,15 +29,24 @@ export default function ContractsPage() {
       if (!authLoading) setIsLoadingContracts(false);
       return;
     }
-  
+
     setIsLoadingContracts(true);
     const contractsCol = collection(db, 'contracts');
-    
-    const q = query(
-      contractsCol, 
-      where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent'])
-    );
-  
+    let q;
+
+    // A talent user should only see contracts where they are the primary subject (userId).
+    if (user.role === 'talent' && user.agencyMemberships && user.agencyMemberships.length > 0) {
+      q = query(contractsCol, where('userId', '==', user.uid));
+    } 
+    // Agency owners and admins get a broader view of all contracts they have access to.
+    // Solo creators will also fall into this category, as they have 'owner' access to their own contracts.
+    else {
+      q = query(
+        contractsCol, 
+        where(`access.${user.uid}`, 'in', ['owner', 'viewer'])
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedContracts = snapshot.docs.map(doc => {
         const data = doc.data();
