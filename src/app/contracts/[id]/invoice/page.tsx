@@ -79,7 +79,7 @@ export default function ManageInvoicePage() {
   const { toast } = useToast();
 
   const [contract, setContract] = useState<Contract | null>(null);
-  const [creatorProfile, setCreatorProfile] = useState<UserProfile | null>(null); // State to hold the creator's profile
+  const [creatorProfile, setCreatorProfile] = useState<UserProfile | null>(null);
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [contractReceipts, setContractReceipts] = useState<Array<{url: string; description?: string;}>>([]);
   
@@ -245,94 +245,110 @@ export default function ManageInvoicePage() {
       setIsLoadingContract(id ? true : false);
       return;
     }
-
+  
     let isMounted = true;
     let unsubscribeReceipts: (() => void) | undefined = undefined;
-    setIsLoadingContract(true);
     
-    setInvoiceHtmlContent("");
-    setClientSecret(null);
-    setShowPaymentForm(false);
-    setIsEditingDetails(false);
-
-    const loadInitialData = async () => {
+    const loadContractAndCreator = async () => {
       try {
         const contractDocRef = doc(db, 'contracts', id);
         const contractSnap = await getDoc(contractDocRef);
-
+  
         if (!isMounted) return;
-
+  
         if (contractSnap.exists()) {
-          // Security check: Since getDoc succeeded, Firestore rules have already validated read access.
           const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-          
           setContract(contractData);
-          setInvoiceStatus(contractData.invoiceStatus || 'none');
-          const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
-          setPayUrl(currentPayUrlValue);
-
+  
           // Fetch the creator's profile
           const creatorDocRef = doc(db, 'users', contractData.userId);
           const creatorDocSnap = await getDoc(creatorDocRef);
-          const creatorData = creatorDocSnap.exists() ? creatorDocSnap.data() as UserProfile : null;
-          if (isMounted) setCreatorProfile(creatorData);
-
-          const receiptsCol = collection(db, 'receipts');
-          const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
-          
-          const initialReceiptSnapshot = await getDocs(qReceipts);
-          const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
-            const receiptData = docSnap.data() as ReceiptType;
-            return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
-          });
-          
-          if (isMounted) {
-            setContractReceipts(initialFetchedReceipts);
+          if (isMounted && creatorDocSnap.exists()) {
+            setCreatorProfile(creatorDocSnap.data() as UserProfile);
+          } else if (isMounted) {
+             throw new Error("Could not load creator's profile.");
           }
-
-          const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
-          const savedDetails = contractData.editableInvoiceDetails;
-
-          if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
-            populateFormFromEditableDetails(savedDetails, contractData, creatorData);
-            if (contractData.invoiceHtmlContent && !milestoneId) { // Only load old HTML for general invoice
-              setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-            } else {
-              await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id, creatorData?.companyLogoUrl);
-            }
-          } else {
-            await handleInitialAiGeneration(contractData, initialFetchedReceipts, creatorData, id, contractData.invoiceNumber);
-          }
-          
-          unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-            if (!isMounted) return;
-            const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
-              const receiptData = docSnap.data() as ReceiptType;
-              return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
-            });
-            if(isMounted) setContractReceipts(fetchedReceiptsUpdate);
-          }, (error) => {
-            console.error("Error listening to receipts:", error);
-            if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
-          });
+  
         } else {
           toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
           router.push('/contracts');
         }
       } catch (error) {
-        console.error("Error fetching initial contract data:", error);
-        if (isMounted) toast({ title: "Fetch Error", description: "Could not load contract details.", variant: "destructive" });
-      } finally {
-        if (isMounted) setIsLoadingContract(false);
+        console.error("Error fetching initial contract and creator data:", error);
+        if (isMounted) toast({ title: "Fetch Error", description: "Could not load contract and creator details.", variant: "destructive" });
       }
     };
-
-    loadInitialData();
+  
+    loadContractAndCreator();
+  
     return () => { 
       isMounted = false; 
       if (unsubscribeReceipts) unsubscribeReceipts();
     };
-  }, [id, user, authLoading, router, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration, milestoneId]);
+  }, [id, user, authLoading, router, toast]);
+
+  useEffect(() => {
+    if (!contract || !creatorProfile || !id) return;
+    
+    let isMounted = true;
+    let unsubscribeReceipts: (() => void) | undefined = undefined;
+    
+    const loadSecondaryDataAndGenerate = async () => {
+        try {
+            const receiptsCol = collection(db, 'receipts');
+            const qReceipts = query(receiptsCol, where('userId', '==', contract.userId), where('linkedContractId', '==', id));
+            
+            const initialReceiptSnapshot = await getDocs(qReceipts);
+            if (!isMounted) return;
+            const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
+                const receiptData = docSnap.data() as ReceiptType;
+                return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+            });
+            setContractReceipts(initialFetchedReceipts);
+
+            const savedDetails = contract.editableInvoiceDetails;
+            if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
+                populateFormFromEditableDetails(savedDetails, contract, creatorProfile);
+                if (contract.invoiceHtmlContent && !milestoneId) {
+                    setInvoiceHtmlContent(contract.invoiceHtmlContent);
+                } else {
+                    await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id, creatorProfile.companyLogoUrl);
+                }
+            } else {
+                await handleInitialAiGeneration(contract, initialFetchedReceipts, creatorProfile, id, contract.invoiceNumber);
+            }
+            
+            unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
+              if (!isMounted) return;
+              const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
+                const receiptData = docSnap.data() as ReceiptType;
+                return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
+              });
+              setContractReceipts(fetchedReceiptsUpdate);
+            });
+        } catch (error) {
+            console.error("Error in secondary data fetch / AI generation:", error);
+            if(isMounted) toast({ title: "Initialization Error", description: "Failed to set up invoice generator.", variant: "destructive" });
+        } finally {
+            if (isMounted) setIsLoadingContract(false);
+        }
+    };
+
+    setInvoiceHtmlContent("");
+    setClientSecret(null);
+    setShowPaymentForm(false);
+    setIsEditingDetails(false);
+    const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
+    setPayUrl(currentPayUrlValue);
+    setInvoiceStatus(contract.invoiceStatus || 'none');
+
+    loadSecondaryDataAndGenerate();
+
+    return () => { 
+        isMounted = false; 
+        if (unsubscribeReceipts) unsubscribeReceipts();
+    };
+}, [contract, creatorProfile, id, milestoneId, toast, populateFormFromEditableDetails, generateAndSetHtmlFromForm, handleInitialAiGeneration]);
 
 
   const toggleEditMode = useCallback(async () => {
