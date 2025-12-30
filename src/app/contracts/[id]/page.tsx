@@ -132,7 +132,9 @@ export default function ContractDetailPage() {
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
         const data = contractSnap.data();
 
-        if (contractSnap.exists() && data && data.access && data.access[user.uid]) {
+        // The permission check is now implicitly handled by Firestore rules.
+        // If contractSnap.exists() is true, the user has access.
+        if (contractSnap.exists() && data) {
           const processedData = {
             ...data,
             id: contractSnap.id,
@@ -388,6 +390,9 @@ export default function ContractDetailPage() {
         effectiveDisplayStatus = 'overdue';
       }
   }
+  
+  // New simplified permission check
+  const canEdit = contract.access && user && contract.access[user.uid];
 
 
   return (
@@ -447,7 +452,7 @@ export default function ContractDetailPage() {
                               <div className="flex items-center gap-4 w-full sm:w-auto">
                                 <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
                                 <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
-                                <Button size="sm" asChild disabled={milestone.status === 'invoiced' || milestone.status === 'paid'}>
+                                <Button size="sm" asChild disabled={!canEdit || milestone.status === 'invoiced' || milestone.status === 'paid'}>
                                   <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
                                     Generate Invoice
                                   </Link>
@@ -699,5 +704,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
-    
