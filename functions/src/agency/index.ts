@@ -3,7 +3,8 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership, InternalPayout, TeamMember, Contract} from "../../../src/types";
+import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
+  InternalPayout, TeamMember} from "../../../src/types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 
@@ -166,7 +167,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
     batch.update(agencyDocRef, {talent: admin.firestore.FieldValue.arrayUnion(newTalentMember)});
     batch.update(talentUserDocRef, {
       agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership),
-      primaryAgencyId: agencyId // Set primary agency ID on invite for existing users
+      primaryAgencyId: agencyId, // Set primary agency ID on invite for existing users
     });
 
     await batch.commit();
@@ -277,7 +278,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Must be authenticated to accept an invitation.");
   }
   const userId = request.auth.uid;
-  const { agencyId } = request.data;
+  const {agencyId} = request.data;
 
   if (!agencyId) {
     throw new HttpsError("invalid-argument", "Agency ID is required.");
@@ -285,12 +286,17 @@ export const acceptAgencyInvitation = onCall(async (request) => {
 
   const agencyDocRef = db.collection("agencies").doc(agencyId);
   const userDocRef = db.collection("users").doc(userId);
+  const contractsRef = db.collection("contracts");
 
   try {
     await db.runTransaction(async (transaction) => {
+      // 1. ALL READS FIRST
       const agencyDoc = await transaction.get(agencyDocRef);
       const userDoc = await transaction.get(userDocRef);
+      const agencyContractsQuery = contractsRef.where("ownerId", "==", agencyId);
+      const agencyContractsSnap = await transaction.get(agencyContractsQuery);
 
+      // 2. VALIDATION
       if (!agencyDoc.exists) throw new HttpsError("not-found", "Agency not found.");
       if (!userDoc.exists) throw new HttpsError("not-found", "User profile not found.");
 
@@ -304,34 +310,37 @@ export const acceptAgencyInvitation = onCall(async (request) => {
         throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
       }
 
+      // 3. PREPARE WRITES
       const membership = userData.agencyMemberships![membershipIndex];
       const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
-      updatedMembershipsArray[membershipIndex] = { ...membership, status: "active" };
+      updatedMembershipsArray[membershipIndex] = {...membership, status: "active"};
 
-      const claimsUpdate: { [key: string]: any } = { primaryAgencyId: agencyId };
+      const claimsUpdate: { [key: string]: any } = {primaryAgencyId: agencyId};
       let userRoleUpdate: UserProfileFirestoreData["role"] = userData.role;
+
+      // Prepare Agency document update
+      let updatedTalentArray: Talent[] | null = null;
+      let updatedTeamArray: TeamMember[] | null = null;
 
       if (membership.role === "talent") {
         const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
         if (talentIndex !== -1) {
-          const updatedTalentArray = [...agencyData.talent];
+          updatedTalentArray = [...agencyData.talent];
           updatedTalentArray[talentIndex] = {
             ...updatedTalentArray[talentIndex],
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };
-          transaction.update(agencyDocRef, { talent: updatedTalentArray });
         }
       } else if (membership.role === "admin" || membership.role === "member") {
         const teamMemberIndex = (agencyData.team || []).findIndex((t) => t.userId === userId && t.status === "pending");
         if (teamMemberIndex !== -1) {
-          const updatedTeamArray = [...agencyData.team];
+          updatedTeamArray = [...(agencyData.team || [])];
           updatedTeamArray[teamMemberIndex] = {
             ...updatedTeamArray[teamMemberIndex],
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };
-          transaction.update(agencyDocRef, { team: updatedTeamArray });
           userRoleUpdate = membership.role === "admin" ? "agency_admin" : "agency_member";
           if (membership.role === "admin") {
             claimsUpdate.isAgencyAdmin = true;
@@ -339,31 +348,36 @@ export const acceptAgencyInvitation = onCall(async (request) => {
         }
       }
 
-      const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
-      await admin.auth().setCustomUserClaims(userId, { ...currentClaims, ...claimsUpdate });
+      // 4. PERFORM ALL WRITES
+      // Update Agency doc
+      if (updatedTalentArray) {
+        transaction.update(agencyDocRef, {talent: updatedTalentArray});
+      }
+      if (updatedTeamArray) {
+        transaction.update(agencyDocRef, {team: updatedTeamArray});
+      }
 
+      // Update User doc
       transaction.update(userDocRef, {
         agencyMemberships: updatedMembershipsArray,
         primaryAgencyId: agencyId,
         role: userRoleUpdate,
       });
 
-      // **CRITICAL FIX**: After accepting, add the user to the `access` map of all existing agency contracts.
-      const contractsRef = db.collection("contracts");
-      const agencyContractsQuery = contractsRef.where("ownerId", "==", agencyId);
-      const agencyContractsSnap = await transaction.get(agencyContractsQuery);
-
-      logger.info(`Found ${agencyContractsSnap.docs.length} contracts to update for new member ${userId} in agency ${agencyId}.`);
-
+      // Update all relevant contracts
       agencyContractsSnap.forEach((doc) => {
-        const newAccessRole = membership.role === 'admin' ? 'owner' : 'viewer'; // Or tailor as needed
+        const newAccessRole = membership.role === "admin" ? "owner" : "viewer";
         transaction.update(doc.ref, {
-            [`access.${userId}`]: newAccessRole
+          [`access.${userId}`]: newAccessRole,
         });
       });
+
+      // NOTE: Setting custom claims is done outside the transaction as it's an external operation.
+      const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+      await admin.auth().setCustomUserClaims(userId, {...currentClaims, ...claimsUpdate});
     });
 
-    return { success: true, message: "Invitation accepted successfully." };
+    return {success: true, message: "Invitation accepted successfully."};
   } catch (error) {
     logger.error(`Error accepting invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
