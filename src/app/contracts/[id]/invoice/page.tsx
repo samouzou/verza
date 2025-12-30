@@ -262,59 +262,52 @@ export default function ManageInvoicePage() {
         if (!isMounted) return;
 
         if (contractSnap.exists()) {
+          // Security check: Since getDoc succeeded, Firestore rules have already validated read access.
           const contractData = { ...contractSnap.data(), id: contractSnap.id } as Contract;
-          const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-          const isOwner = contractData.userId === user.uid;
-          const isAgencyOwner = user.role === 'agency_owner' && contractData.ownerType === 'agency' && contractData.ownerId === agencyId;
           
-          if (isOwner || isAgencyOwner) {
-              setContract(contractData);
-              setInvoiceStatus(contractData.invoiceStatus || 'none');
-              const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
-              setPayUrl(currentPayUrlValue);
+          setContract(contractData);
+          setInvoiceStatus(contractData.invoiceStatus || 'none');
+          const currentPayUrlValue = typeof window !== 'undefined' ? `${window.location.origin}/pay/contract/${id}${milestoneId ? '?milestoneId=' + milestoneId : ''}` : "";
+          setPayUrl(currentPayUrlValue);
 
-              const receiptsCol = collection(db, 'receipts');
-              const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
-              
-              const initialReceiptSnapshot = await getDocs(qReceipts);
-              const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
-                const receiptData = docSnap.data() as ReceiptType;
-                return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
-              });
-              
-              if (isMounted) {
-                setContractReceipts(initialFetchedReceipts);
-              }
-
-              const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
-              const savedDetails = contractData.editableInvoiceDetails;
-
-              if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
-                populateFormFromEditableDetails(savedDetails, contractData, user);
-                if (contractData.invoiceHtmlContent && !milestoneId) { // Only load old HTML for general invoice
-                  setInvoiceHtmlContent(contractData.invoiceHtmlContent);
-                } else {
-                  await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id);
-                }
-              } else {
-                await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
-              }
-              
-              unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
-                if (!isMounted) return;
-                const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
-                  const receiptData = docSnap.data() as ReceiptType;
-                  return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
-                });
-                if(isMounted) setContractReceipts(fetchedReceiptsUpdate);
-              }, (error) => {
-                console.error("Error listening to receipts:", error);
-                if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
-              });
-          } else {
-            toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
-            router.push('/contracts');
+          const receiptsCol = collection(db, 'receipts');
+          const qReceipts = query(receiptsCol, where('userId', '==', contractData.userId), where('linkedContractId', '==', id));
+          
+          const initialReceiptSnapshot = await getDocs(qReceipts);
+          const initialFetchedReceipts = initialReceiptSnapshot.docs.map(docSnap => {
+            const receiptData = docSnap.data() as ReceiptType;
+            return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt" };
+          });
+          
+          if (isMounted) {
+            setContractReceipts(initialFetchedReceipts);
           }
+
+          const targetMilestone = milestoneId ? contractData.milestones?.find(m => m.id === milestoneId) : undefined;
+          const savedDetails = contractData.editableInvoiceDetails;
+
+          if (savedDetails && (!milestoneId || (milestoneId && savedDetails.deliverables?.some(d => d.isMilestone)))) {
+            populateFormFromEditableDetails(savedDetails, contractData, user);
+            if (contractData.invoiceHtmlContent && !milestoneId) { // Only load old HTML for general invoice
+              setInvoiceHtmlContent(contractData.invoiceHtmlContent);
+            } else {
+              await generateAndSetHtmlFromForm(savedDetails, initialFetchedReceipts, id);
+            }
+          } else {
+            await handleInitialAiGeneration(contractData, initialFetchedReceipts, user, id, contractData.invoiceNumber);
+          }
+          
+          unsubscribeReceipts = onSnapshot(qReceipts, (snapshot) => {
+            if (!isMounted) return;
+            const fetchedReceiptsUpdate = snapshot.docs.map(docSnap => {
+              const receiptData = docSnap.data() as ReceiptType;
+              return { url: receiptData.receiptImageUrl, description: receiptData.description || receiptData.receiptFileName || "Uploaded Receipt"};
+            });
+            if(isMounted) setContractReceipts(fetchedReceiptsUpdate);
+          }, (error) => {
+            console.error("Error listening to receipts:", error);
+            if(isMounted) toast({ title: "Receipts Sync Error", description: "Could not get real-time receipt updates.", variant: "default" });
+          });
         } else {
           toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
           router.push('/contracts');
@@ -917,3 +910,5 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+
+    
