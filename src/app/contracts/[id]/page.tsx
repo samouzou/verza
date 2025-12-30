@@ -130,10 +130,9 @@ export default function ContractDetailPage() {
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
-        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
         const data = contractSnap.data();
 
-        if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
+        if (contractSnap.exists() && data && data.access && data.access[user.uid]) {
           const processedData = {
             ...data,
             id: contractSnap.id,
@@ -266,7 +265,7 @@ export default function ContractDetailPage() {
             console.warn("Could not delete old file from storage:", deleteError.message);
           }
         }
-        const fileStorageRef = storageFileRef(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
+        const fileStorageRef = storageFileRef(storage, `contracts/${contract.ownerId}/${Date.now()}_${newSelectedFile.name}`);
         const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
         newFileUrl = await getDownloadURL(uploadResult.ref);
         newFileNameToSave = newSelectedFile.name;
@@ -700,3 +699,5 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
+    

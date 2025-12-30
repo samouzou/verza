@@ -46,7 +46,7 @@ export function ContractList({ contracts }: ContractListProps) {
     }
   };
 
-  const isAgencyView = user?.role === 'agency_owner';
+  const isAgencyView = user?.agencyMemberships && user.agencyMemberships.length > 0;
 
   return (
     <div id="contract-list-container" className="overflow-hidden rounded-lg border shadow-sm bg-card text-card-foreground">
@@ -73,7 +73,7 @@ export function ContractList({ contracts }: ContractListProps) {
                     {contract.ownerType === 'agency' ? (
                       <>
                         <Briefcase className="h-4 w-4 text-muted-foreground"/>
-                        <span>{contract.talentName || 'Talent'}</span>
+                        <span>{contract.talentName || 'Agency'}</span>
                       </>
                     ) : (
                        <>
@@ -127,3 +127,5 @@ export function ContractList({ contracts }: ContractListProps) {
     </div>
   );
 }
+
+    
