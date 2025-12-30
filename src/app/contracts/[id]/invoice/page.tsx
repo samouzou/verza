@@ -121,6 +121,7 @@ export default function ManageInvoicePage() {
   const canSend = !!invoiceHtmlContent && (invoiceStatus === 'draft' || invoiceStatus === 'none' || invoiceStatus === 'sent' || invoiceStatus === 'partially_paid');
   const appearance = { theme: 'stripe' as const, variables: { colorPrimary: '#3F8CFF' }}; 
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
+  const formDataTotalAmount = useMemo(() => calculateTotal(formData?.deliverables || []), [formData]);
 
 
   useEffect(() => {
@@ -521,15 +522,13 @@ export default function ManageInvoicePage() {
     }
     handleFormInputChange('deliverables', formData.deliverables.filter((_, i) => i !== index));
   };
-
+  
   if (isLoading || authLoading) {
     return <div className="space-y-4 p-4"><PageHeader title="Manage Invoice" description="Loading..." /><Card><CardContent className="p-6"><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
   }
   if (!contract || !creatorProfile) {
     return <div className="flex flex-col items-center justify-center h-full p-4"><AlertTriangle className="w-16 h-16 text-destructive mb-4" /><h2 className="text-2xl font-semibold mb-2">Contract Not Found</h2><Button asChild variant="outline" onClick={() => router.push('/contracts')}><Link href="/contracts"><ArrowLeft className="mr-2 h-4 w-4"/>Back</Link></Button></div>;
   }
-
-  const formDataTotalAmount = useMemo(() => calculateTotal(formData?.deliverables || []), [formData]);
   
   return (
     <>
@@ -698,4 +697,3 @@ export default function ManageInvoicePage() {
   );
 }
 
-    
