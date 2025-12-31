@@ -1,7 +1,13 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o { // This matches all files in your bucket
+
+    // Helper function to check if the requester is part of the specified agency via custom claims
+    function isMemberOfAgency(agencyId) {
+      return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
+    }
 
     // Rules for user avatars
     match /avatars/{userId}/{allPaths=**} {
@@ -28,11 +34,12 @@ service firebase.storage {
     // The {ownerId} can be either a user's UID or an agency's ID
     match /contracts/{ownerId}/{allPaths=**} {
       allow write: if request.auth != null && (
-        // Allow if user is writing to their own folder
+        // Allow if user is writing to their own personal folder
         request.auth.uid == ownerId ||
-        // OR if the user has the 'isAgencyOwner' custom claim.
-        // This is set when they create an agency.
-        request.auth.token.isAgencyOwner == true
+        // OR if the user is the designated owner of the agency folder
+        request.auth.token.isAgencyOwner == true && get(/databases/$(database)/documents/agencies/$(ownerId)).data.ownerId == request.auth.uid ||
+        // OR if the user is a member of the agency they are trying to upload to
+        isMemberOfAgency(ownerId)
       );
 
       // Read access is more complex. Allow if:
