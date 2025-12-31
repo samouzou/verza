@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
 import { useAuth, type UserProfile } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc, onSnapshot } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc, onSnapshot, getDoc } from '@/lib/firebase';
 import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
@@ -471,3 +471,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
