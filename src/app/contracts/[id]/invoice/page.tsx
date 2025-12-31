@@ -18,7 +18,7 @@ import { getFunctions, httpsCallableFromURL } from 'firebase/functions';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import { StripePaymentForm } from '@/components/payments/stripe-payment-form';
-import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType, PaymentMilestone } from '@/types';
+import type { Contract, EditableInvoiceDetails, EditableInvoiceLineItem, Receipt as ReceiptType, PaymentMilestone, Agency } from '@/types';
 import { generateInvoiceHtml, type GenerateInvoiceHtmlInput } from '@/ai/flows/generate-invoice-html-flow';
 import { editInvoiceNote } from '@/ai/flows/edit-invoice-note-flow';
 import { ArrowLeft, FileText, Loader2, Wand2, Save, AlertTriangle, CreditCard, Send, Edit, Eye, PlusCircle, Trash2, ReceiptText, Bot } from 'lucide-react';
@@ -162,15 +162,31 @@ export default function ManageInvoicePage() {
         setContract(contractData);
         setInvoiceStatus(contractData.invoiceStatus || 'none');
 
-        // Once we have the contract, get the creator and receipts
-        if(unsubscribeCreator) unsubscribeCreator();
-        const creatorDocRef = doc(db, 'users', contractData.userId);
+        // Once we have the contract, get the creator profile for the invoice
+        if (unsubscribeCreator) unsubscribeCreator();
+        
+        let profileUserId = contractData.userId; // Default to the direct creator
+        
+        // **NEW LOGIC**: If it's an agency contract, get the agency owner's profile
+        if (contractData.ownerType === 'agency' && contractData.ownerId) {
+            try {
+                const agencyDoc = await getDoc(doc(db, 'agencies', contractData.ownerId));
+                if (agencyDoc.exists()) {
+                    const agencyData = agencyDoc.data() as Agency;
+                    profileUserId = agencyData.ownerId; // Use agency owner's ID for profile
+                }
+            } catch (agencyError) {
+                console.error("Could not fetch agency to get owner profile, falling back to creator.", agencyError);
+            }
+        }
+        
+        const creatorDocRef = doc(db, 'users', profileUserId);
         unsubscribeCreator = onSnapshot(creatorDocRef, (creatorSnap) => {
             if (!isMounted) return;
             if (creatorSnap.exists()) {
                 setCreatorProfile(creatorSnap.data() as UserProfile);
             } else {
-                toast({ title: "Error", description: "Could not load creator's profile.", variant: "destructive" });
+                toast({ title: "Error", description: "Could not load the profile for the invoice owner.", variant: "destructive" });
                 setCreatorProfile(null);
             }
              setIsLoading(false); // Stop loading once core contract/creator data is here
@@ -500,7 +516,7 @@ export default function ManageInvoicePage() {
   
   const handleDeliverableChange = (index: number, field: keyof EditableInvoiceLineItem, value: string | number) => {
     if (!formData) return;
-    const newDeliverables = [...(formData.deliverables || [])];
+    const newDeliverables = [...(formData.deliverables ||[])];
     const item = { ...newDeliverables[index] };
     if (field === 'quantity' || field === 'unitPrice') {
         const numericValue = parseFloat(value as string);
@@ -716,3 +732,5 @@ export default function ManageInvoicePage() {
     </>
   );
 }
+
+    

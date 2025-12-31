@@ -298,41 +298,42 @@ export const createPaymentIntent = onRequest(async (request, response) => {
     }
 
     if (contractData.ownerType === "agency" && contractData.ownerId) {
-        metadataForStripe.agencyId = contractData.ownerId;
-        metadataForStripe.paymentType = "agency_payment";
+      metadataForStripe.agencyId = contractData.ownerId;
+      metadataForStripe.paymentType = "agency_payment";
 
-        const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
-        const agencyData = agencyDoc.data() as Agency;
-        const agencyOwnerId = agencyData.ownerId;
+      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+      const agencyData = agencyDoc.data() as Agency;
+      const agencyOwnerId = agencyData.ownerId;
 
-        const agencyOwnerUserDoc = await db.collection("users").doc(agencyOwnerId).get();
-        const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+      const agencyOwnerUserDoc = await db.collection("users").doc(agencyOwnerId).get();
+      const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
 
-        if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-            throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
+      if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
+        throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
+      }
+
+      // This is a contract for a specific talent, not the agency itself
+      if (contractData.userId !== agencyOwnerId) {
+        const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+        const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+
+        if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
+          throw new Error("The creator/talent for this contract does not have a valid," +
+            "active bank account for receiving payouts.");
         }
-        
-        // This is a contract for a specific talent, not the agency itself
-        if (contractData.userId !== agencyOwnerId) {
-            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+      }
 
-            if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
-                throw new Error("The creator/talent for this contract does not have a valid, active bank account for receiving payouts.");
-            }
-        }
-        
-        paymentIntentParams = {
-            amount: amountInCents,
-            currency,
-            metadata: metadataForStripe,
-            receipt_email: emailForReceiptAndMetadata || undefined,
-            // For agency payments, capture the money in the agency's platform account first.
-            // The webhook will handle the split transfer to talent if applicable.
-            transfer_data: {
-              destination: agencyOwnerData.stripeAccountId,
-            },
-        };
+      paymentIntentParams = {
+        amount: amountInCents,
+        currency,
+        metadata: metadataForStripe,
+        receipt_email: emailForReceiptAndMetadata || undefined,
+        // For agency payments, capture the money in the agency's platform account first.
+        // The webhook will handle the split transfer to talent if applicable.
+        transfer_data: {
+          destination: agencyOwnerData.stripeAccountId,
+        },
+      };
     } else {
       const creatorDoc = await db.collection("users").doc(contractData.userId).get();
       const creatorData = creatorDoc.data() as UserProfileFirestoreData;
