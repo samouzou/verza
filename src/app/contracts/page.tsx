@@ -32,20 +32,13 @@ export default function ContractsPage() {
 
     setIsLoadingContracts(true);
     const contractsCol = collection(db, 'contracts');
-    let q;
-
-    // A talent user should only see contracts where they are the primary subject (userId).
-    if (user.role === 'talent' && user.agencyMemberships && user.agencyMemberships.length > 0) {
-      q = query(contractsCol, where('userId', '==', user.uid));
-    } 
-    // Agency owners and admins get a broader view of all contracts they have access to.
-    // Solo creators will also fall into this category, as they have 'owner' access to their own contracts.
-    else {
-      q = query(
-        contractsCol, 
-        where(`access.${user.uid}`, 'in', ['owner', 'viewer'])
-      );
-    }
+    
+    // Unified query for all user roles based on the 'access' map.
+    // This correctly handles solo creators (owner), agency members (owner/viewer), and talent.
+    const q = query(
+      contractsCol,
+      where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent'])
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedContracts = snapshot.docs.map(doc => {
