@@ -117,12 +117,16 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     if (!isOpen) {
       resetState();
     } else {
-        if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
-            const agencyId = user.agencyMemberships[0].agencyId;
-            const agencyDocRef = doc(db, "agencies", agencyId);
+        const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+        if (isAgencyUser && user?.primaryAgencyId) {
+            const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
             getDoc(agencyDocRef).then(docSnap => {
                 if (docSnap.exists()) {
                     setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+                    // For agency owner creating a personal contract for the agency
+                    if (user.isAgencyOwner && !initialSelectedOwner) {
+                      setSelectedOwner('personal');
+                    }
                 }
             });
         }
@@ -307,15 +311,18 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     const accessMap: { [key: string]: 'owner' | 'viewer' | 'talent' } = {};
     accessMap[user.uid] = 'owner';
 
-    if (!user.isAgencyOwner) {
+    const isAgencyUser = user.isAgencyOwner || user.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+
+    if (!isAgencyUser) {
         ownerType = 'user';
         ownerId = user.uid;
         finalUserId = user.uid;
-    } else if (user.isAgencyOwner && agency) {
+    } else if (agency) {
+        // This logic now applies to any agency member (owner, admin, member)
         if (selectedOwner === 'personal') {
             ownerType = 'agency';
             ownerId = agency.id;
-            finalUserId = user.uid; 
+            finalUserId = user.uid; // The creator is the agency member making the contract
         } else {
             ownerType = 'agency';
             ownerId = agency.id;
@@ -325,11 +332,16 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         }
         // Add all team members to access map for agency-owned contracts
         agency.team?.forEach(member => {
-            if (member.userId !== user.uid) { // Owner is already in
+            if (member.userId !== user.uid) { // Requesting user is already in as owner
                 accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
             }
         });
+        // Ensure agency owner is always an owner on the contract
+        if(agency.ownerId !== user.uid) {
+          accessMap[agency.ownerId] = 'owner';
+        }
     }
+
 
     try {
       if (selectedFile) {
@@ -414,6 +426,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   };
 
   const totalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+  
+  const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
 
   const renderAiAnalysis = () => (
     <>
@@ -468,8 +482,21 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
           <ScrollArea className="h-full"><div className="space-y-6 pr-6">
-            {user?.role === 'agency_owner' && agency && (
-              <div><Label htmlFor="contractOwner">Contract For</Label><Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}><SelectTrigger className="mt-1"><SelectValue placeholder="Select who this contract is for..." /></SelectTrigger><SelectContent><SelectItem value="personal">My Agency ({agency.name})</SelectItem>{agency.talent?.filter(t => t.status === 'active').map(t => (<SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>))}</SelectContent></Select></div>
+            {isAgencyUser && agency && (
+              <div>
+                <Label htmlFor="contractOwner">Contract For</Label>
+                <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select who this contract is for..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
+                    {agency.talent?.filter(t => t.status === 'active').map(t => (
+                      <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <div><Label htmlFor="fileName">File Name (Optional)</Label><Input id="fileName" type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., BrandX_Sponsorship_Q4.pdf" className="mt-1" /></div>
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
