@@ -221,7 +221,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
-            }, 1000);
+            }, 1500);
           } catch (editorError) {
             console.error("Error opening DOCX in editor:", editorError);
             throw new Error("The editor could not process this .docx file.");
