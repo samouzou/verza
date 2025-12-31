@@ -114,13 +114,7 @@ export default function DashboardPage() {
     }
     
     const contractsCol = collection(db, 'contracts');
-    let q;
-
-    if (user.primaryAgencyId) { // Agency Owner or Team Member sees all agency contracts
-      q = query(contractsCol, where('ownerId', '==', user.primaryAgencyId));
-    } else { // Individual Creator sees their own contracts
-      q = query(contractsCol, where('userId', '==', user.uid));
-    }
+    const q = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
     
     const unsubscribe = onSnapshot(q, (contractSnapshot) => {
       const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
@@ -471,5 +465,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
