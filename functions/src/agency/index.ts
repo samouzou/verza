@@ -364,13 +364,15 @@ export const acceptAgencyInvitation = onCall(async (request) => {
         role: userRoleUpdate,
       });
 
-      // Update all relevant contracts
-      agencyContractsSnap.forEach((doc) => {
-        const newAccessRole = membership.role === "admin" ? "owner" : "viewer";
-        transaction.update(doc.ref, {
-          [`access.${userId}`]: newAccessRole,
+      // Update all relevant contracts, but ONLY for new team members, not talent.
+      if (membership.role === "admin" || membership.role === "member") {
+        agencyContractsSnap.forEach((doc) => {
+          const newAccessRole = membership.role === "admin" ? "owner" : "viewer";
+          transaction.update(doc.ref, {
+            [`access.${userId}`]: newAccessRole,
+          });
         });
-      });
+      }
 
       // NOTE: Setting custom claims is done outside the transaction as it's an external operation.
       const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
