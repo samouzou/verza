@@ -312,29 +312,33 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
       }
 
-      // This is a contract for a specific talent, not the agency itself
-      if (contractData.userId !== agencyOwnerId) {
+      // Check if the contract is for a specific talent in the agency roster
+      const isForTalent = agencyData.talent.some(t => t.userId === contractData.userId);
+
+      if (isForTalent) {
         const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
         const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
         if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
-          throw new Error("The creator/talent for this contract does not have a valid," +
-            "active bank account for receiving payouts.");
+          throw new Error("The creator/talent for this contract does not have a valid, active bank account for receiving payouts.");
         }
       }
-
+      
+      // For ALL agency payments (whether for talent or for the agency itself),
+      // we route the funds to the agency owner's connected account first.
+      // The webhook will handle the split transfer to talent if applicable.
       paymentIntentParams = {
         amount: amountInCents,
         currency,
         metadata: metadataForStripe,
         receipt_email: emailForReceiptAndMetadata || undefined,
-        // For agency payments, capture the money in the agency's platform account first.
-        // The webhook will handle the split transfer to talent if applicable.
         transfer_data: {
           destination: agencyOwnerData.stripeAccountId,
         },
       };
+
     } else {
+      // Logic for individual creator contracts
       const creatorDoc = await db.collection("users").doc(contractData.userId).get();
       const creatorData = creatorDoc.data() as UserProfileFirestoreData;
       if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
