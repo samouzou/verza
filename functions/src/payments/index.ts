@@ -303,46 +303,46 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
       const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
       const agencyData = agencyDoc.data() as Agency;
-      const agencyOwnerId = agencyData.ownerId;
 
-      const agencyOwnerUserDoc = await db.collection("users").doc(agencyOwnerId).get();
-      const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+      const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+      const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
       
       const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
 
-      if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-        throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
-      }
+      const platformFee = Math.round(amountInCents * 0.01);
+      const stripeFee = Math.round(amountInCents * 0.029) + 30;
+      const totalApplicationFee = platformFee + stripeFee;
 
       if (isForTalent) {
-        const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-        const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
         if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
           throw new Error("The creator/talent for this contract does not have a valid," +
             " active bank account for receiving payouts.");
         }
-        
         // For talent contracts, charge the client and hold funds on the platform balance
         // The webhook will handle splitting the funds.
         paymentIntentParams = {
-            amount: amountInCents,
-            currency,
-            metadata: metadataForStripe,
-            receipt_email: emailForReceiptAndMetadata || undefined,
-            // REMOVED transfer_data to allow for separate transfers in webhook
+          amount: amountInCents,
+          currency,
+          application_fee_amount: totalApplicationFee,
+          metadata: metadataForStripe,
+          receipt_email: emailForReceiptAndMetadata || undefined,
         };
-
       } else { // Contract is for the agency itself (created by owner or team member)
-          paymentIntentParams = {
-              amount: amountInCents,
-              currency,
-              metadata: metadataForStripe,
-              receipt_email: emailForReceiptAndMetadata || undefined,
-              transfer_data: {
-                  destination: agencyOwnerData.stripeAccountId,
-              },
-          };
+          const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+          const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+          if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
+            throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
+          }
+        paymentIntentParams = {
+          amount: amountInCents,
+          currency,
+          application_fee_amount: totalApplicationFee,
+          metadata: metadataForStripe,
+          receipt_email: emailForReceiptAndMetadata || undefined,
+          transfer_data: {
+            destination: agencyOwnerData.stripeAccountId,
+          },
+        };
       }
     } else {
       // Logic for individual creator contracts
@@ -464,7 +464,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
           const agencyDoc = await db.collection("agencies").doc(agencyId).get();
           const agencyData = agencyDoc.data() as Agency;
-          
+
           const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
 
           // This logic now correctly handles transfers for talent contracts
