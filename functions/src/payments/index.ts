@@ -306,7 +306,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
       const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
       const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-      
+
       const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
 
       const platformFee = Math.round(amountInCents * 0.01);
@@ -323,16 +323,15 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         paymentIntentParams = {
           amount: amountInCents,
           currency,
-          application_fee_amount: totalApplicationFee,
           metadata: metadataForStripe,
           receipt_email: emailForReceiptAndMetadata || undefined,
         };
       } else { // Contract is for the agency itself (created by owner or team member)
-          const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-          const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-          if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-            throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
-          }
+        const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+        const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+        if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
+          throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
+        }
         paymentIntentParams = {
           amount: amountInCents,
           currency,
