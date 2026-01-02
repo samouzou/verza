@@ -12,6 +12,10 @@ export function SetupGuideCard() {
   const { steps, isLoading, completedStepsCount, totalSteps } = useSetupSteps();
   const progressPercentage = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
 
+  if (!isLoading && progressPercentage === 100) {
+    return null; // Hide the component if all steps are completed
+  }
+
   return (
     <Card className="mb-6 shadow-lg border-primary/20 bg-gradient-to-br from-primary/10 to-background">
       <CardHeader>
