@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Download, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, onSnapshot, orderBy as firestoreOrderBy, Timestamp } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, Timestamp } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -25,143 +25,45 @@ export default function ContractsPage() {
   const { startTour } = useTour();
 
   useEffect(() => {
-    if (user && !authLoading) {
-      setIsLoadingContracts(true);
-      const contractsCol = collection(db, 'contracts');
-      
-      let personalContractsUnsubscribe: (() => void) | undefined;
-      let agencyContractsUnsubscribe: (() => void) | undefined;
-  
-      const processAndSetContracts = (newContracts: Contract[]) => {
-          return newContracts.map(data => {
-            let createdAtTimestamp: Timestamp;
-            if (data.createdAt instanceof Timestamp) {
-              createdAtTimestamp = data.createdAt;
-            } else if (data.createdAt && typeof (data.createdAt as any).seconds === 'number') {
-              createdAtTimestamp = new Timestamp((data.createdAt as any).seconds, (data.createdAt as any).nanoseconds);
-            } else {
-              createdAtTimestamp = Timestamp.now();
-            }
-  
-            let updatedAtTimestamp: Timestamp | undefined = undefined;
-            if (data.updatedAt instanceof Timestamp) {
-              updatedAtTimestamp = data.updatedAt;
-            } else if (data.updatedAt && typeof (data.updatedAt as any).seconds === 'number') {
-               updatedAtTimestamp = new Timestamp((data.updatedAt as any).seconds, (data.updatedAt as any).nanoseconds);
-            }
-            
-            let effectiveDisplayStatus: Contract['status'] = data.status || 'pending';
-            const invoiceStatus = data.invoiceStatus || 'none';
-            const todayMidnight = new Date();
-            todayMidnight.setHours(0, 0, 0, 0);
-            const contractDueDate = data.dueDate ? new Date(data.dueDate + 'T00:00:00') : null;
-  
-            if (invoiceStatus === 'paid') {
-              effectiveDisplayStatus = 'paid';
-            } else if (invoiceStatus === 'overdue') {
-              effectiveDisplayStatus = 'overdue';
-            } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
-              effectiveDisplayStatus = 'overdue';
-            } else if (invoiceStatus === 'sent' || invoiceStatus === 'viewed') {
-              effectiveDisplayStatus = 'invoiced';
-            } else if (effectiveDisplayStatus === 'pending' && contractDueDate && contractDueDate < todayMidnight) {
-              effectiveDisplayStatus = 'overdue';
-            }
-  
-            return {
-              ...data,
-              createdAt: createdAtTimestamp, 
-              updatedAt: updatedAtTimestamp,
-              status: effectiveDisplayStatus, 
-              invoiceStatus: invoiceStatus,
-            } as Contract;
-          });
-      };
-  
-      if (user.role === 'agency_owner' && user.agencyMemberships && user.agencyMemberships.length > 0) {
-        const agencyId = user.agencyMemberships.find(m => m.role === 'owner')?.agencyId;
-        let personalContracts: Contract[] = [];
-        let agencyContracts: Contract[] = [];
-        let personalLoaded = false;
-        let agencyLoaded = false;
-  
-        const combineContracts = () => {
-          if (!personalLoaded || !agencyLoaded) return;
-          const all = [...personalContracts, ...agencyContracts];
-          const unique = Array.from(new Map(all.map(c => [c.id, c])).values());
-          unique.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-          setContracts(unique);
-          setIsLoadingContracts(false);
-        };
-  
-        // Query for personal contracts
-        const personalQuery = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          firestoreOrderBy('createdAt', 'desc')
-        );
-        personalContractsUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
-          personalContracts = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-          personalLoaded = true;
-          combineContracts();
-        }, (error) => {
-          console.error("Error fetching personal contracts for agency owner:", error);
-          toast({ title: "Error", description: "Could not fetch your personal contracts.", variant: "destructive" });
-          personalLoaded = true;
-          combineContracts();
-        });
-  
-        // Query for agency contracts
-        if (agencyId) {
-          const agencyQuery = query(
-            contractsCol,
-            where('ownerId', '==', agencyId),
-            where('ownerType', '==', 'agency'),
-            firestoreOrderBy('createdAt', 'desc')
-          );
-          agencyContractsUnsubscribe = onSnapshot(agencyQuery, (snapshot) => {
-            agencyContracts = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-            agencyLoaded = true;
-            combineContracts();
-          }, (error) => {
-            console.error("Error fetching agency contracts:", error);
-            toast({ title: "Error", description: "Could not fetch agency contracts.", variant: "destructive" });
-            agencyLoaded = true;
-            combineContracts();
-          });
-        } else {
-            agencyLoaded = true;
-            combineContracts();
-        }
-  
-      } else {
-        // Talent or individual creator fetches contracts assigned to them
-        const q = query(
-          contractsCol,
-          where('userId', '==', user.uid),
-          firestoreOrderBy('createdAt', 'desc')
-        );
-        personalContractsUnsubscribe = onSnapshot(q, (snapshot) => {
-          const contractList = processAndSetContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-          setContracts(contractList);
-          setIsLoadingContracts(false);
-        }, (error) => {
-          console.error("Error fetching contracts:", error);
-          toast({ title: "Error Listening to Contracts", description: "Could not load contract updates in real-time. Please refresh.", variant: "destructive" });
-          setContracts([]);
-          setIsLoadingContracts(false);
-        });
-      }
-  
-      return () => {
-        if (personalContractsUnsubscribe) personalContractsUnsubscribe();
-        if (agencyContractsUnsubscribe) agencyContractsUnsubscribe();
-      };
-  
-    } else if (!authLoading && !user) {
-      setContracts([]);
-      setIsLoadingContracts(false);
+    if (!user || authLoading) {
+      if (!authLoading) setIsLoadingContracts(false);
+      return;
     }
+
+    setIsLoadingContracts(true);
+    const contractsCol = collection(db, 'contracts');
+    
+    // Unified query for all user roles based on the 'access' map.
+    // This correctly handles solo creators (owner), agency members (owner/viewer), and talent.
+    const q = query(
+      contractsCol,
+      where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedContracts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : Timestamp.now(),
+        } as Contract;
+      });
+      
+      fetchedContracts.sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
+      setContracts(fetchedContracts);
+      setIsLoadingContracts(false);
+    }, (error) => {
+      console.error("Error fetching contracts:", error);
+      toast({ title: "Error", description: "Could not fetch contracts. Please check your connection and permissions.", variant: "destructive" });
+      setIsLoadingContracts(false);
+    });
+  
+    return () => {
+      unsubscribe();
+    };
+  
   }, [user, authLoading, toast]);
 
 

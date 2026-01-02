@@ -24,7 +24,7 @@ import type { Agency, Contract, PaymentMilestone } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc } from '@/lib/firebase';
+import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc, getDocs } from '@/lib/firebase';
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -117,12 +117,16 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     if (!isOpen) {
       resetState();
     } else {
-        if (user?.role === 'agency_owner' && user.agencyMemberships?.[0]?.agencyId) {
-            const agencyId = user.agencyMemberships[0].agencyId;
-            const agencyDocRef = doc(db, "agencies", agencyId);
+        const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+        if (isAgencyUser && user?.primaryAgencyId) {
+            const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
             getDoc(agencyDocRef).then(docSnap => {
                 if (docSnap.exists()) {
                     setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+                    // For agency owner creating a personal contract for the agency
+                    if (user.isAgencyOwner && !initialSelectedOwner) {
+                      setSelectedOwner('personal');
+                    }
                 }
             });
         }
@@ -221,7 +225,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             setTimeout(async () => {
               const sfdtString = editorRef.current!.documentEditor.serialize();
               await handleFullAnalysis(sfdtString);
-            }, 1000);
+            }, 1500);
           } catch (editorError) {
             console.error("Error opening DOCX in editor:", editorError);
             throw new Error("The editor could not process this .docx file.");
@@ -304,13 +308,40 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     let ownerId = user.uid;
     let finalUserId = user.uid;
     let talentName: string | undefined | null = undefined;
+    const accessMap: { [key: string]: 'owner' | 'viewer' | 'talent' } = {};
+    accessMap[user.uid] = 'owner';
 
-    if (user.role === 'agency_owner' && selectedOwner !== 'personal' && agency) {
-        ownerType = 'agency';
-        ownerId = agency.id;
-        finalUserId = selectedOwner;
-        talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+    const isAgencyUser = user.isAgencyOwner || user.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+
+    if (!isAgencyUser) {
+        ownerType = 'user';
+        ownerId = user.uid;
+        finalUserId = user.uid;
+    } else if (agency) {
+        // This logic now applies to any agency member (owner, admin, member)
+        if (selectedOwner === 'personal') {
+            ownerType = 'agency';
+            ownerId = agency.id;
+            finalUserId = user.uid; // The creator is the agency member making the contract
+        } else {
+            ownerType = 'agency';
+            ownerId = agency.id;
+            finalUserId = selectedOwner; // This is the talent's UID
+            talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+            accessMap[finalUserId] = 'talent';
+        }
+        // Add all team members to access map for agency-owned contracts
+        agency.team?.forEach(member => {
+            if (member.userId !== user.uid) { // Requesting user is already in as owner
+                accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+            }
+        });
+        // Ensure agency owner is always an owner on the contract
+        if(agency.ownerId !== user.uid) {
+          accessMap[agency.ownerId] = 'owner';
+        }
     }
+
 
     try {
       if (selectedFile) {
@@ -324,7 +355,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
       const finalMilestones: PaymentMilestone[] = milestones.map(m => ({ ...m, status: 'pending' }));
 
-      const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+      const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, access: any } = {
         userId: finalUserId,
         talentName: talentName || null,
         ownerType: ownerType,
@@ -342,6 +373,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         negotiationSuggestions: negotiationSuggestions ? JSON.parse(JSON.stringify(negotiationSuggestions)) : null,
         milestones: finalMilestones,
         invoiceStatus: 'none', 
+        access: accessMap,
         createdAt: firebaseServerTimestamp(),
         updatedAt: firebaseServerTimestamp(),
       };
@@ -394,6 +426,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   };
 
   const totalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+  
+  const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
 
   const renderAiAnalysis = () => (
     <>
@@ -448,8 +482,21 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
           <ScrollArea className="h-full"><div className="space-y-6 pr-6">
-            {user?.role === 'agency_owner' && agency && (
-              <div><Label htmlFor="contractOwner">Contract For</Label><Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}><SelectTrigger className="mt-1"><SelectValue placeholder="Select who this contract is for..." /></SelectTrigger><SelectContent><SelectItem value="personal">My Agency ({agency.name})</SelectItem>{agency.talent?.filter(t => t.status === 'active').map(t => (<SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>))}</SelectContent></Select></div>
+            {isAgencyUser && agency && (
+              <div>
+                <Label htmlFor="contractOwner">Contract For</Label>
+                <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select who this contract is for..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
+                    {agency.talent?.filter(t => t.status === 'active').map(t => (
+                      <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <div><Label htmlFor="fileName">File Name (Optional)</Label><Input id="fileName" type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., BrandX_Sponsorship_Q4.pdf" className="mt-1" /></div>
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
@@ -489,7 +536,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 {parseError && (<div className="p-4 bg-background rounded-lg shadow-lg"><Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>AI Error</AlertTitle><AlertDescription>{parseError}</AlertDescription></Alert></div>)}
               </div>
               <div id="container" style={{ height: '100%' }} className="border rounded-md">
-                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://document.syncfusion.com/web-services/docx-editor/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
+                  <DocumentEditorContainerComponent id="editor" ref={editorRef} height="100%" serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/" showPropertiesPane={false} enableToolbar={true} toolbarMode={'Ribbon'} ribbonLayout={'Simplified'} currentUser={user?.displayName || "Guest"} locale="en-US" />
               </div>
               {parsedDetails && (<div style={{ display: parsedDetails ? 'block' : 'none', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'hsl(var(--background))' }}><ScrollArea className="h-full"><div className="space-y-4 pr-4">{renderAiAnalysis()}</div></ScrollArea></div>)}
             </div>
@@ -503,5 +550,3 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     </Dialog>
   );
 }
-
-    

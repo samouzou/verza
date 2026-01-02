@@ -130,10 +130,11 @@ export default function ContractDetailPage() {
 
       const contractDocRef = doc(db, 'contracts', id as string);
       unsubscribeContract = onSnapshot(contractDocRef, (contractSnap) => {
-        const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
         const data = contractSnap.data();
 
-        if (contractSnap.exists() && data && (data.userId === user.uid || (data.ownerType === 'agency' && data.ownerId === agencyId))) {
+        // The permission check is now implicitly handled by Firestore rules.
+        // If contractSnap.exists() is true, the user has access.
+        if (contractSnap.exists() && data) {
           const processedData = {
             ...data,
             id: contractSnap.id,
@@ -266,7 +267,7 @@ export default function ContractDetailPage() {
             console.warn("Could not delete old file from storage:", deleteError.message);
           }
         }
-        const fileStorageRef = storageFileRef(storage, `contracts/${user.uid}/${Date.now()}_${newSelectedFile.name}`);
+        const fileStorageRef = storageFileRef(storage, `contracts/${contract.ownerId}/${Date.now()}_${newSelectedFile.name}`);
         const uploadResult = await uploadBytes(fileStorageRef, newSelectedFile);
         newFileUrl = await getDownloadURL(uploadResult.ref);
         newFileNameToSave = newSelectedFile.name;
@@ -389,6 +390,9 @@ export default function ContractDetailPage() {
         effectiveDisplayStatus = 'overdue';
       }
   }
+  
+  // New simplified permission check
+  const canEdit = contract.access && user && contract.access[user.uid];
 
 
   return (
@@ -448,7 +452,7 @@ export default function ContractDetailPage() {
                               <div className="flex items-center gap-4 w-full sm:w-auto">
                                 <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
                                 <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
-                                <Button size="sm" asChild disabled={milestone.status === 'invoiced' || milestone.status === 'paid'}>
+                                <Button size="sm" asChild disabled={!canEdit || milestone.status === 'invoiced' || milestone.status === 'paid'}>
                                   <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
                                     Generate Invoice
                                   </Link>

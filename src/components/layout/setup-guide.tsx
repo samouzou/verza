@@ -36,7 +36,8 @@ export function useSetupSteps() {
       try {
         const contractsCol = collection(db, 'contracts');
         
-        const createdQuery = query(contractsCol, where('userId', '==', user.uid), limit(1));
+        // Corrected Query: Check against the 'access' map, which aligns with security rules for all user types.
+        const createdQuery = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']), limit(1));
         const sentQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), limit(1));
         const paidQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', '==', 'paid'), limit(1));
 

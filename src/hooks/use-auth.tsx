@@ -35,9 +35,10 @@ export interface UserProfile {
   address?: string | null; 
   tin?: string | null;
   createdAt?: Timestamp;
-  role: 'individual_creator' | 'agency_owner';
+  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member' | 'talent';
   isAgencyOwner?: boolean;
-  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'talent', status: 'pending' | 'active' }>;
+  agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'admin' | 'member' | 'talent', status: 'pending' | 'active' }>;
+  primaryAgencyId?: string | null;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -278,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               role: firestoreUserData.role || 'individual_creator',
               isAgencyOwner: firestoreUserData.isAgencyOwner || false,
               agencyMemberships: firestoreUserData.agencyMemberships || [],
+              primaryAgencyId: firestoreUserData.primaryAgencyId || null,
               stripeCustomerId: firestoreUserData.stripeCustomerId,
               stripeSubscriptionId: firestoreUserData.stripeSubscriptionId,
               subscriptionStatus: status,

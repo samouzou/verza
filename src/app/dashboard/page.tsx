@@ -16,9 +16,9 @@ import { SummaryCard } from "@/components/dashboard/summary-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
-import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc } from '@/lib/firebase';
-import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment } from "@/types";
+import { useAuth, type UserProfile } from "@/hooks/use-auth";
+import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc, onSnapshot, getDoc } from '@/lib/firebase';
+import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
@@ -66,6 +66,9 @@ export default function DashboardPage() {
 
   const [availableBrands, setAvailableBrands] = useState<string[]>([]);
   const [availableProjects, setAvailableProjects] = useState<string[]>([]);
+  
+  const [subscriptionUser, setSubscriptionUser] = useState<UserProfile | null>(null);
+
 
   useEffect(() => {
     if (searchParams.get('subscription_success') === 'true') {
@@ -79,65 +82,89 @@ export default function DashboardPage() {
   }, [searchParams, router]);
 
   useEffect(() => {
-    if (user && !authLoading) {
-      setIsLoadingData(true);
-      const fetchAllContracts = async () => {
-        try {
-          const contractsCol = collection(db, 'contracts');
-          const q = query(contractsCol, where('userId', '==', user.uid));
-          const contractSnapshot = await getDocs(q);
-          
-          const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
-            const data = docSnap.data();
-            let createdAt = data.createdAt;
-            if (createdAt && !(createdAt instanceof Timestamp)) {
-              if (createdAt.seconds && typeof createdAt.seconds === 'number') {
-                createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds || 0);
-              } else { createdAt = Timestamp.now(); }
-            } else if (!createdAt) {
-              createdAt = Timestamp.now();
+    if (!user || authLoading) {
+      if (!authLoading) setIsLoadingData(false);
+      return;
+    }
+
+    setIsLoadingData(true);
+
+    const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
+    
+    // Determine which user's subscription to use
+    if (isTeamMember) {
+        const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
+        const unsubscribeAgency = onSnapshot(agencyRef, async (agencySnap) => {
+            if (agencySnap.exists()) {
+                const agencyData = agencySnap.data() as Agency;
+                const ownerDocRef = doc(db, 'users', agencyData.ownerId);
+                const ownerDocSnap = await getDoc(ownerDocRef);
+                if (ownerDocSnap.exists()) {
+                    setSubscriptionUser(ownerDocSnap.data() as UserProfile);
+                } else {
+                    setSubscriptionUser(user); // Fallback to self
+                }
+            } else {
+                 setSubscriptionUser(user); // Fallback if agency not found
             }
-
-            let updatedAt = data.updatedAt;
-            if (updatedAt && !(updatedAt instanceof Timestamp)) {
-              if (updatedAt.seconds && typeof updatedAt.seconds === 'number') {
-                updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds || 0);
-              } else if (typeof updatedAt === 'string') { 
-                updatedAt = Timestamp.fromDate(new Date(updatedAt));
-              }
-            }
-            
-            return { 
-              id: docSnap.id, 
-              ...data,
-              createdAt: createdAt,
-              updatedAt: updatedAt,
-              invoiceStatus: data.invoiceStatus || 'none',
-            } as Contract;
-          });
-          setAllContracts(fetchedContracts);
-
-          const brands = new Set<string>();
-          const projects = new Set<string>();
-          fetchedContracts.forEach(c => {
-            if (c.brand) brands.add(c.brand);
-            if (c.projectName) projects.add(c.projectName);
-          });
-          setAvailableBrands(Array.from(brands).sort());
-          setAvailableProjects(Array.from(projects).sort());
-
-        } catch (error) {
-          console.error("Error fetching all contracts:", error);
-          setAllContracts([]);
-        } finally {
-          setIsLoadingData(false);
+        });
+        // No need to return unsubscribe since the main contracts listener will handle it
+    } else {
+       setSubscriptionUser(user);
+    }
+    
+    const contractsCol = collection(db, 'contracts');
+    const q = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
+    
+    const unsubscribe = onSnapshot(q, (contractSnapshot) => {
+      const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let createdAt = data.createdAt;
+        if (createdAt && !(createdAt instanceof Timestamp)) {
+          if (createdAt.seconds && typeof createdAt.seconds === 'number') {
+            createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds || 0);
+          } else { createdAt = Timestamp.now(); }
+        } else if (!createdAt) {
+          createdAt = Timestamp.now();
         }
-      };
-      fetchAllContracts();
-    } else if (!authLoading && !user) {
+
+        let updatedAt = data.updatedAt;
+        if (updatedAt && !(updatedAt instanceof Timestamp)) {
+          if (updatedAt.seconds && typeof updatedAt.seconds === 'number') {
+             updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds || 0);
+          } else if (typeof updatedAt === 'string') { 
+            updatedAt = Timestamp.fromDate(new Date(updatedAt));
+          }
+        }
+        
+        return { 
+          id: docSnap.id, 
+          ...data,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          invoiceStatus: data.invoiceStatus || 'none',
+        } as Contract;
+      });
+
+      setAllContracts(fetchedContracts);
+
+      const brands = new Set<string>();
+      const projects = new Set<string>();
+      fetchedContracts.forEach(c => {
+        if (c.brand) brands.add(c.brand);
+        if (c.projectName) projects.add(c.projectName);
+      });
+      setAvailableBrands(Array.from(brands).sort());
+      setAvailableProjects(Array.from(projects).sort());
+      setIsLoadingData(false);
+    }, (error) => {
+      console.error("Error fetching all contracts:", error);
       setAllContracts([]);
       setIsLoadingData(false);
-    }
+    });
+
+    return () => unsubscribe();
+    
   }, [user, authLoading]);
 
   useEffect(() => {
@@ -271,7 +298,7 @@ export default function DashboardPage() {
     setFilters(newFilters);
   }, []);
 
-  if (authLoading || (isLoadingData && user)) {
+  if (authLoading || (isLoadingData && user) || !subscriptionUser) {
     return (
       <>
         <PageHeader
@@ -323,9 +350,9 @@ export default function DashboardPage() {
   
   if (!stats) return null; 
 
-  const showSubscriptionCTA = user && user.subscriptionStatus !== 'active' && user.subscriptionStatus !== 'trialing';
-  const showTrialBanner = user && user.subscriptionStatus === 'trialing' && user.trialEndsAt;
-  const trialTimeLeft = showTrialBanner ? formatDistanceToNow(user.trialEndsAt!.toDate(), { addSuffix: true }) : '';
+  const showSubscriptionCTA = subscriptionUser && subscriptionUser.subscriptionStatus !== 'active' && subscriptionUser.subscriptionStatus !== 'trialing';
+  const showTrialBanner = subscriptionUser && subscriptionUser.subscriptionStatus === 'trialing' && subscriptionUser.trialEndsAt;
+  const trialTimeLeft = showTrialBanner ? formatDistanceToNow(subscriptionUser.trialEndsAt!.toDate(), { addSuffix: true }) : '';
 
   const showSetupGuide = user && user.hasCompletedOnboarding === false && !isLoadingData;
 
@@ -361,15 +388,15 @@ export default function DashboardPage() {
           <Sparkles className="h-5 w-5" />
           <AlertTitle className="font-semibold text-primary">Unlock Full Potential!</AlertTitle>
           <AlertDescription className="text-primary/90">
-            {user.subscriptionStatus === 'canceled' ? 'Your Verza Pro subscription is canceled.' : 
-             user.subscriptionStatus === 'past_due' ? 'Your Verza Pro subscription payment is past due.' :
+            {subscriptionUser.subscriptionStatus === 'canceled' ? 'Your Verza Pro subscription is canceled.' : 
+             subscriptionUser.subscriptionStatus === 'past_due' ? 'Your Verza Pro subscription payment is past due.' :
              'Your free trial has ended.'}
             {' '}Upgrade to Verza Pro to access all features and manage your creator business seamlessly.
           </AlertDescription>
           <div className="mt-3">
             <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Link href="/settings">
-                {user.subscriptionStatus === 'canceled' || user.subscriptionStatus === 'past_due' ? 'Manage Subscription' : 'Upgrade to Pro'}
+                {subscriptionUser.subscriptionStatus === 'canceled' || subscriptionUser.subscriptionStatus === 'past_due' ? 'Manage Subscription' : 'Upgrade to Pro'}
                 <ExternalLink className="ml-2 h-4 w-4" />
               </Link>
             </Button>

@@ -185,28 +185,33 @@ export interface UserProfileFirestoreData {
   address?: string | null;
   tin?: string | null;
   createdAt?: ClientTimestamp;
-  role: 'individual_creator' | 'agency_owner';
+  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
+  primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
+
+  // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
   subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | null;
-  talentLimit?: number; // Talent limit for agency plans
+  talentLimit?: number;
   subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;
   subscriptionEndsAt?: ClientTimestamp | null;
   trialExtensionUsed?: boolean;
+
+  // Stripe Connected Account Fields
   stripeAccountId?: string | null;
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
-  hasCreatedContract?: boolean;
-  hasCompletedOnboarding?: boolean; // New field for onboarding tour
   
-  // Email sequence tracking
+  // Onboarding fields
+  hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean;
   emailSequence?: {
-    step: number; // 0=just signed up, 1=welcome sent, 2=email#2 sent, etc. 'completed' when done.
+    step: number;
     nextEmailAt: ClientTimestamp;
   };
 }
@@ -285,6 +290,15 @@ export interface Talent {
   commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
+export interface TeamMember {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: 'admin' | 'member';
+  status: 'pending' | 'active';
+  joinedAt?: ClientTimestamp;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -292,12 +306,13 @@ export interface Agency {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   talent: Talent[];
+  team: TeamMember[]; // Array for team members
 }
 
 export interface AgencyMembership {
   agencyId: string;
   agencyName: string;
-  role: 'owner' | 'talent';
+  role: 'owner' | 'admin' | 'member' | 'talent';
   status: 'pending' | 'active';
 }
 
