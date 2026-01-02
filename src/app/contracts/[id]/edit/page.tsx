@@ -88,19 +88,12 @@ export default function EditContractPage() {
 
           if (contractSnap.exists()) {
             const data = contractSnap.data() as Contract;
-            const agencyId = user.agencyMemberships?.find(m => m.role === 'owner')?.agencyId;
-            const isOwner = data.userId === user.uid;
-            const isAgencyOwner = user.role === 'agency_owner' && data.ownerType === 'agency' && data.ownerId === agencyId;
-            
-            if (isOwner || isAgencyOwner) {
-                const contractWithId = { ...data, id: contractSnap.id };
-                setContract(contractWithId);
-                setCurrentSummary(data.summary);
-                setCurrentNegotiationSuggestions(data.negotiationSuggestions);
-            } else {
-                 toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
-                 router.push('/contracts');
-            }
+            // The security rule `allow read` on the collection already protects this document.
+            // If getDoc succeeds, the user has permission.
+            const contractWithId = { ...data, id: contractSnap.id };
+            setContract(contractWithId);
+            setCurrentSummary(data.summary);
+            setCurrentNegotiationSuggestions(data.negotiationSuggestions);
           } else {
             toast({ title: "Error", description: "Contract not found or access denied.", variant: "destructive" });
             router.push('/contracts');

@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/use-auth";
 import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket } from "lucide-react";
+import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { loadStripe } from '@stripe/stripe-js';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createshareablecontractversion-cpmccwbluq-uc.a.run.app";
 
@@ -36,40 +36,14 @@ export function SubscriptionCard() {
       const createCheckoutSessionCallable = httpsCallable(firebaseFunctions, 'createStripeSubscriptionCheckoutSession');
       
       const result = await createCheckoutSessionCallable({ planId });
-      const { sessionId } = result.data as { sessionId: string };
+      const { url } = result.data as { url?: string };
       
-      if (!sessionId) {
-        throw new Error("Could not retrieve a valid session ID from Stripe.");
-      }
-
-      const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-      if (!stripePublishableKey) {
-        console.error("Stripe publishable key (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) is missing.");
-        toast({ title: "Stripe Error", description: "Stripe configuration is missing. Cannot proceed to checkout.", variant: "destructive", duration: 9000 });
-        setIsProcessingCheckout(false);
-        return;
+      if (!url) {
+        throw new Error("Could not retrieve a valid checkout session URL from Stripe.");
       }
       
-      const stripe = await loadStripe(stripePublishableKey);
+      window.location.href = url;
 
-      if (stripe) {
-         const { error } = await stripe.redirectToCheckout({ sessionId });
-         if (error) {
-           console.error("Stripe redirectToCheckout error:", error);
-           toast({
-             title: "Redirection Error",
-             description: error.message || "Could not redirect to Stripe. Please try again.",
-             variant: "destructive",
-           });
-         }
-      } else {
-        console.error("Stripe.js failed to load.");
-        toast({
-          title: "Subscription Error",
-          description: "Could not connect to Stripe. Please try again later.",
-          variant: "destructive",
-        });
-      }
     } catch (error: any) {
       console.error("Error creating Stripe subscription checkout session:", error);
       toast({
@@ -169,6 +143,25 @@ export function SubscriptionCard() {
     .filter(([id]) => id.endsWith(billingFrequency))
     .filter(([id]) => user.isAgencyOwner ? id.startsWith('agency') : id.startsWith('individual'));
 
+  if (user.role === 'agency_admin' || user.role === 'agency_member') {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-6 w-6 text-primary" />
+            Agency Subscription
+          </CardTitle>
+          <CardDescription>Your plan is managed by your agency.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 border rounded-lg bg-muted/50 text-center">
+             <p className="font-semibold text-lg">Your subscription is managed by your agency.</p>
+             <p className="text-sm text-muted-foreground mt-2">Please contact your agency owner to make any changes to the subscription plan or billing details.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Render view for agency owners
   if (user.isAgencyOwner) {

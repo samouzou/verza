@@ -1,7 +1,13 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o { // This matches all files in your bucket
+
+    // Helper function to check if the requester is part of the specified agency via custom claims
+    function isMemberOfAgency(agencyId) {
+      return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
+    }
 
     // Rules for user avatars
     match /avatars/{userId}/{allPaths=**} {
@@ -27,22 +33,13 @@ service firebase.storage {
     // Rules for contract files
     // The {ownerId} can be either a user's UID or an agency's ID
     match /contracts/{ownerId}/{allPaths=**} {
-      allow write: if request.auth != null && (
-        // Allow if user is writing to their own folder
-        request.auth.uid == ownerId ||
-        // OR if the user has the 'isAgencyOwner' custom claim.
-        // This is set when they create an agency.
-        request.auth.token.isAgencyOwner == true
-      );
+      // Allow write if user is writing to their personal folder OR is a member of the agency folder.
+      // This covers solo creators, agency owners, and team members.
+      allow write: if request.auth != null && (request.auth.uid == ownerId || isMemberOfAgency(ownerId));
 
-      // Read access is more complex. Allow if:
-      // 1. User is direct owner
-      // 2. User is the agency owner for this path
-      // 3. User is a talent member of the agency for this path
-      // A broader read access for authenticated users is simpler and often acceptable
-      // if file URLs are not guessable and Firestore rules protect the metadata.
-      // For now, we grant read access to any authenticated user, relying on the app logic
-      // to only show files to the correct users. This can be tightened later if needed.
+      // Read access is simpler. We allow any authenticated user to read,
+      // as the sensitive metadata (who can see what) is protected by Firestore rules.
+      // The app logic, governed by Firestore queries, will only show the correct files to users.
        allow read: if request.auth != null;
     }
     
