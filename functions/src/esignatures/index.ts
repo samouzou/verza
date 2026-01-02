@@ -73,15 +73,16 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     // --- PERMISSION CHECK ---
     const isDirectOwner = contractData.userId === requesterId;
     let isAuthorizedTeamMember = false;
-    
-    if (contractData.ownerType === 'agency' && contractData.ownerId) {
-        const agencyDoc = await db.collection('agencies').doc(contractData.ownerId).get();
-        if (agencyDoc.exists) {
-            const agencyData = agencyDoc.data();
-            const isAgencyOwner = agencyData?.ownerId === requesterId;
-            const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId && (m.role === 'admin' || m.role === 'member'));
-            isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
-        }
+
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+      if (agencyDoc.exists) {
+        const agencyData = agencyDoc.data();
+        const isAgencyOwner = agencyData?.ownerId === requesterId;
+        const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId &&
+            (m.role === "admin" || m.role === "member"));
+        isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
+      }
     }
 
     if (!isDirectOwner && !isAuthorizedTeamMember) {
