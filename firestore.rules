@@ -27,15 +27,13 @@ service cloud.firestore {
     // Helper to check if a user can access a receipt, either by being the owner
     // or by having access to the linked contract.
     function isAllowedToAccessReceipt(receipt) {
-        let isDirectOwner = isOwner(receipt.userId);
-        let linkedContractId = receipt.linkedContractId;
-        let hasAccessViaContract = false;
-        if (linkedContractId != null) {
-            let contractData = get(/databases/$(database)/documents/contracts/$(linkedContractId)).data;
-            // Check if user's UID is a key in the contract's access map
-            hasAccessViaContract = request.auth.uid in contractData.access;
-        }
-        return isDirectOwner || hasAccessViaContract;
+      let isDirectOwner = isOwner(receipt.userId);
+      // Check for access via the linked contract using a ternary operator, as 'if' is not allowed here.
+      let hasAccessViaContract = receipt.linkedContractId != null ?
+          (request.auth.uid in get(/databases/$(database)/documents/contracts/$(receipt.linkedContractId)).data.access)
+          : false;
+
+      return isDirectOwner || hasAccessViaContract;
     }
 
     // Rules for the users collection
