@@ -24,6 +24,20 @@ service cloud.firestore {
         return targetUser.primaryAgencyId == requesterAgencyId;
     }
 
+    // Helper to check if a user can access a receipt, either by being the owner
+    // or by having access to the linked contract.
+    function isAllowedToAccessReceipt(receipt) {
+        let isDirectOwner = isOwner(receipt.userId);
+        let linkedContractId = receipt.linkedContractId;
+        let hasAccessViaContract = false;
+        if (linkedContractId != null) {
+            let contractData = get(/databases/$(database)/documents/contracts/$(linkedContractId)).data;
+            // Check if user's UID is a key in the contract's access map
+            hasAccessViaContract = request.auth.uid in contractData.access;
+        }
+        return isDirectOwner || hasAccessViaContract;
+    }
+
     // Rules for the users collection
     match /users/{userId} {
       // Allow a user to read their own profile,
@@ -81,9 +95,11 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
     
-    // Rules for receipts (user-specific access)
+    // Rules for receipts (user-specific access, now with contract access check)
     match /receipts/{receiptId} {
-      allow read, create, update, delete: if isOwner(request.resource.data.userId) || isOwner(resource.data.userId);
+      allow read, delete: if isAllowedToAccessReceipt(resource.data);
+      allow create: if isAllowedToAccessReceipt(request.resource.data);
+      allow update: if isAllowedToAccessReceipt(resource.data) && isAllowedToAccessReceipt(request.resource.data);
     }
     
     // Rules for agencies
