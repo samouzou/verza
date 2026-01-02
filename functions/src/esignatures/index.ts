@@ -79,8 +79,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
         if (agencyDoc.exists) {
             const agencyData = agencyDoc.data();
             const isAgencyOwner = agencyData?.ownerId === requesterId;
-            const isAgencyAdmin = agencyData?.team?.some((m: any) => m.userId === requesterId && m.role === 'admin');
-            isAuthorizedTeamMember = isAgencyOwner || isAgencyAdmin;
+            const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId && (m.role === 'admin' || m.role === 'member'));
+            isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
         }
     }
 
