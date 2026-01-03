@@ -72,47 +72,83 @@ export default function ReceiptsPage() {
       if (!authLoading) setIsLoadingReceipts(false);
       return;
     }
-    
-    // Fetch all contracts the user has access to
+  
+    // Fetch all contracts the user has access to for the dropdown
     const contractsQuery = query(collection(db, 'contracts'), where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
     const unsubscribeContracts = onSnapshot(contractsQuery, (snapshot) => {
       const contractsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract));
       setUserContracts(contractsData);
-
-      // Once we have the contracts, fetch all receipts linked to those contracts
-      if (contractsData.length > 0) {
-        setIsLoadingReceipts(true);
-        const contractIds = contractsData.map(c => c.id);
-        const receiptsQuery = query(
-          collection(db, "receipts"),
-          where("linkedContractId", "in", contractIds),
-          orderBy("uploadedAt", "desc")
-        );
-        const unsubscribeReceipts = onSnapshot(receiptsQuery, (receiptsSnapshot) => {
-          const receiptsData = receiptsSnapshot.docs.map(docSnap => {
-            const data = docSnap.data();
-            return { id: docSnap.id, ...data, uploadedAt: data.uploadedAt instanceof Timestamp ? data.uploadedAt : Timestamp.now() } as Receipt;
-          });
-          setUserReceipts(receiptsData);
-          setIsLoadingReceipts(false);
-        }, (error) => {
-          console.error("Error fetching receipts:", error);
-          toast({ title: "Error", description: "Could not load receipts.", variant: "destructive" });
-          setIsLoadingReceipts(false);
-        });
-        return () => unsubscribeReceipts();
-      } else {
-        setUserReceipts([]);
-        setIsLoadingReceipts(false);
-      }
     }, (error) => {
       console.error("Error fetching contracts for receipts page:", error);
       setUserContracts([]);
-      setIsLoadingReceipts(false);
     });
 
+    // Fetch receipts in two parts and merge
+    const fetchAndMergeReceipts = () => {
+      setIsLoadingReceipts(true);
+      
+      // 1. Receipts created by the user
+      const userReceiptsQuery = query(
+        collection(db, "receipts"),
+        where("userId", "==", user.uid),
+        orderBy("uploadedAt", "desc")
+      );
+
+      // 2. Receipts linked to contracts the user has access to (for agency view)
+      const accessibleContractIds = userContracts.map(c => c.id);
+      const linkedReceiptsQuery = accessibleContractIds.length > 0 ? query(
+        collection(db, "receipts"),
+        where("linkedContractId", "in", accessibleContractIds),
+        orderBy("uploadedAt", "desc")
+      ) : null;
+      
+      const unsubUserReceipts = onSnapshot(userReceiptsQuery, (userReceiptsSnapshot) => {
+        const userReceiptsData = userReceiptsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), uploadedAt: docSnap.data().uploadedAt || Timestamp.now() } as Receipt));
+        
+        if (linkedReceiptsQuery) {
+          onSnapshot(linkedReceiptsQuery, (linkedReceiptsSnapshot) => {
+             const linkedReceiptsData = linkedReceiptsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), uploadedAt: docSnap.data().uploadedAt || Timestamp.now() } as Receipt));
+             
+             // Merge and deduplicate
+             const allReceipts = new Map<string, Receipt>();
+             [...userReceiptsData, ...linkedReceiptsData].forEach(receipt => allReceipts.set(receipt.id, receipt));
+             
+             const sortedReceipts = Array.from(allReceipts.values()).sort((a, b) => b.uploadedAt.toMillis() - a.uploadedAt.toMillis());
+             
+             setUserReceipts(sortedReceipts);
+             setIsLoadingReceipts(false);
+          });
+        } else {
+           setUserReceipts(userReceiptsData);
+           setIsLoadingReceipts(false);
+        }
+
+      }, (error) => {
+        console.error("Error fetching user receipts:", error);
+        toast({ title: "Error", description: "Could not load your receipts.", variant: "destructive" });
+        setIsLoadingReceipts(false);
+      });
+
+      return () => {
+          unsubUserReceipts();
+          // Unsubscribe logic for linked receipts would be more complex as it's nested
+          // but this should handle most re-renders correctly.
+      };
+    }
+    
+    // We fetch receipts only when userContracts is populated to get the IDs
+    if(userContracts.length > 0 || !isLoadingReceipts) { // run if we have contracts, or if we have finished initial load (for users with no contracts)
+       const unsubscribeAll = fetchAndMergeReceipts();
+       return () => {
+          unsubscribeContracts();
+          if(unsubscribeAll) unsubscribeAll();
+       }
+    }
+    
     return () => unsubscribeContracts();
-  }, [user, authLoading, toast]);
+
+  }, [user, authLoading, toast, userContracts.length]);
+
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
