@@ -69,15 +69,27 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
     const requesterDoc = await db.collection("users").doc(requesterId).get();
     const requesterData = requesterDoc.data() as UserProfileFirestoreData;
-    const agencyId = requesterData.agencyMemberships?.find((m) => m.role === "owner")?.agencyId;
 
+    // --- PERMISSION CHECK ---
     const isDirectOwner = contractData.userId === requesterId;
-    const isAgencyOwner = requesterData.role === "agency_owner" &&
-      contractData.ownerType === "agency" && contractData.ownerId === agencyId;
+    let isAuthorizedTeamMember = false;
 
-    if (!isDirectOwner && !isAgencyOwner) {
+    if (contractData.ownerType === "agency" && contractData.ownerId) {
+      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+      if (agencyDoc.exists) {
+        const agencyData = agencyDoc.data();
+        const isAgencyOwner = agencyData?.ownerId === requesterId;
+        const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId &&
+            (m.role === "admin" || m.role === "member"));
+        isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
+      }
+    }
+
+    if (!isDirectOwner && !isAuthorizedTeamMember) {
       throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
     }
+    // --- END PERMISSION CHECK ---
+
 
     const formData = new FormData();
     const API_ENDPOINT = "https://api.hellosign.com/v3/signature_request/send";
@@ -232,7 +244,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     formData.append("signers", signers); // Sending signers array as JSON string
     formData.append("metadata", metadata); // Sending metadata object as JSON string
 
-    if (isAgencyOwner && requesterData.email) {
+    if (isAuthorizedTeamMember && requesterData.email) {
       formData.append("cc_email_addresses", JSON.stringify([requesterData.email!]));
       // Note: Message needs to be updated before appending if necessary
     }
