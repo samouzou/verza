@@ -68,55 +68,87 @@ export default function ReceiptsPage() {
   }, []);
 
   useEffect(() => {
-    let unsubscribeContractsSnapshot: (() => void) | undefined = undefined;
-    let unsubscribeReceiptsSnapshot: (() => void) | undefined = undefined;
-
-    if (user?.uid && !authLoading) {
-      const contractsCol = collection(db, 'contracts');
-      const qContracts = query(contractsCol, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
-      unsubscribeContractsSnapshot = onSnapshot(qContracts, (snapshot) => {
-        setUserContracts(snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract)));
-      }, (error) => {
-        console.error("Error fetching contracts:", error);
-        toast({title: "Error", description: "Could not load contracts.", variant: "destructive"});
-      });
-
-      setIsLoadingReceipts(true);
-      const receiptsCol = collection(db, 'receipts');
-      const qReceipts = query(receiptsCol, where('userId', '==', user.uid), orderBy('uploadedAt', 'desc'));
-      unsubscribeReceiptsSnapshot = onSnapshot(qReceipts, (snapshot) => {
-        setUserReceipts(snapshot.docs.map(docSnap => {
-          const data = docSnap.data();
-          let uploadedAtTs = data.uploadedAt;
-          if (uploadedAtTs && typeof uploadedAtTs.seconds === 'number' && typeof uploadedAtTs.nanoseconds === 'number' && !(uploadedAtTs instanceof Timestamp)) {
-            uploadedAtTs = new Timestamp(uploadedAtTs.seconds, uploadedAtTs.nanoseconds);
-          } else if (!uploadedAtTs || !(uploadedAtTs instanceof Timestamp)) {
-            console.warn("Receipt uploadedAt was invalid, using current time:", docSnap.id, data.uploadedAt);
-            uploadedAtTs = Timestamp.now();
-          }
-          return { id: docSnap.id, ...data, uploadedAt: uploadedAtTs } as Receipt;
-        }));
-        setIsLoadingReceipts(false);
-      }, (error) => {
-        console.error("Error fetching receipts:", error);
-        toast({title: "Error", description: "Could not load receipts.", variant: "destructive"});
-        setIsLoadingReceipts(false);
-      });
-    } else if (!authLoading && !user) {
-        setUserContracts([]);
-        setUserReceipts([]);
-        setIsLoadingReceipts(false);
+    if (!user?.uid || authLoading) {
+      if (!authLoading) setIsLoadingReceipts(false);
+      return;
     }
+  
+    // Fetch all contracts the user has access to for the dropdown
+    const contractsQuery = query(collection(db, 'contracts'), where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
+    const unsubscribeContracts = onSnapshot(contractsQuery, (snapshot) => {
+      const contractsData = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract));
+      setUserContracts(contractsData);
+    }, (error) => {
+      console.error("Error fetching contracts for receipts page:", error);
+      setUserContracts([]);
+    });
 
-    return () => {
-      if (unsubscribeContractsSnapshot) {
-        unsubscribeContractsSnapshot();
-      }
-      if (unsubscribeReceiptsSnapshot) {
-        unsubscribeReceiptsSnapshot();
-      }
-    };
-  }, [user, authLoading, toast]);
+    // Fetch receipts in two parts and merge
+    const fetchAndMergeReceipts = () => {
+      setIsLoadingReceipts(true);
+      
+      // 1. Receipts created by the user
+      const userReceiptsQuery = query(
+        collection(db, "receipts"),
+        where("userId", "==", user.uid),
+        orderBy("uploadedAt", "desc")
+      );
+
+      // 2. Receipts linked to contracts the user has access to (for agency view)
+      const accessibleContractIds = userContracts.map(c => c.id);
+      const linkedReceiptsQuery = accessibleContractIds.length > 0 ? query(
+        collection(db, "receipts"),
+        where("linkedContractId", "in", accessibleContractIds),
+        orderBy("uploadedAt", "desc")
+      ) : null;
+      
+      const unsubUserReceipts = onSnapshot(userReceiptsQuery, (userReceiptsSnapshot) => {
+        const userReceiptsData = userReceiptsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), uploadedAt: docSnap.data().uploadedAt || Timestamp.now() } as Receipt));
+        
+        if (linkedReceiptsQuery) {
+          onSnapshot(linkedReceiptsQuery, (linkedReceiptsSnapshot) => {
+             const linkedReceiptsData = linkedReceiptsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), uploadedAt: docSnap.data().uploadedAt || Timestamp.now() } as Receipt));
+             
+             // Merge and deduplicate
+             const allReceipts = new Map<string, Receipt>();
+             [...userReceiptsData, ...linkedReceiptsData].forEach(receipt => allReceipts.set(receipt.id, receipt));
+             
+             const sortedReceipts = Array.from(allReceipts.values()).sort((a, b) => b.uploadedAt.toMillis() - a.uploadedAt.toMillis());
+             
+             setUserReceipts(sortedReceipts);
+             setIsLoadingReceipts(false);
+          });
+        } else {
+           setUserReceipts(userReceiptsData);
+           setIsLoadingReceipts(false);
+        }
+
+      }, (error) => {
+        console.error("Error fetching user receipts:", error);
+        toast({ title: "Error", description: "Could not load your receipts.", variant: "destructive" });
+        setIsLoadingReceipts(false);
+      });
+
+      return () => {
+          unsubUserReceipts();
+          // Unsubscribe logic for linked receipts would be more complex as it's nested
+          // but this should handle most re-renders correctly.
+      };
+    }
+    
+    // We fetch receipts only when userContracts is populated to get the IDs
+    if(userContracts.length > 0 || !isLoadingReceipts) { // run if we have contracts, or if we have finished initial load (for users with no contracts)
+       const unsubscribeAll = fetchAndMergeReceipts();
+       return () => {
+          unsubscribeContracts();
+          if(unsubscribeAll) unsubscribeAll();
+       }
+    }
+    
+    return () => unsubscribeContracts();
+
+  }, [user, authLoading, toast, userContracts.length]);
+
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

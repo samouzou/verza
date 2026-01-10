@@ -354,8 +354,6 @@ export default function DashboardPage() {
   const showTrialBanner = subscriptionUser && subscriptionUser.subscriptionStatus === 'trialing' && subscriptionUser.trialEndsAt;
   const trialTimeLeft = showTrialBanner ? formatDistanceToNow(subscriptionUser.trialEndsAt!.toDate(), { addSuffix: true }) : '';
 
-  const showSetupGuide = user && user.hasCompletedOnboarding === false && !isLoadingData;
-
   return (
     <>
       <PageHeader
@@ -364,7 +362,7 @@ export default function DashboardPage() {
         actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
 
-      {showSetupGuide && <SetupGuideCard />}
+      <SetupGuideCard />
 
       {showTrialBanner && (
         <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400">
