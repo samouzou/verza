@@ -48,7 +48,7 @@ export function useSetupSteps() {
         ]);
 
         const definedSteps: Step[] = [
-          { id: 'stripe', label: 'Connect your bank account for payouts?', isCompleted: user.stripePayoutsEnabled || false, href: '/settings', icon: Banknote },
+          { id: 'stripe', label: 'Connect your bank account for payouts', isCompleted: user.stripePayoutsEnabled || false, href: '/settings', icon: Banknote },
           { id: 'contract', label: 'Create your first contract', isCompleted: !createdSnapshot.empty, href: '/contracts', icon: FileText },
           { id: 'invoice', label: 'Send your first invoice', isCompleted: !sentSnapshot.empty, href: '/contracts', icon: Send },
           { id: 'payment', label: 'Receive your first payment', isCompleted: !paidSnapshot.empty, href: '/dashboard', icon: DollarSign },
