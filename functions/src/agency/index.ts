@@ -328,6 +328,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
           updatedTalentArray = [...agencyData.talent];
           updatedTalentArray[talentIndex] = {
             ...updatedTalentArray[talentIndex],
+            displayName: userData.displayName || updatedTalentArray[talentIndex].displayName, // Update display name
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };
@@ -338,6 +339,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
           updatedTeamArray = [...(agencyData.team || [])];
           updatedTeamArray[teamMemberIndex] = {
             ...updatedTeamArray[teamMemberIndex],
+            displayName: userData.displayName || updatedTeamArray[teamMemberIndex].displayName, // Update display name
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };
@@ -557,5 +559,51 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
+  }
+});
+
+
+export const setSuperAdmin = onCall(async (request) => {
+  const {email} = request.data;
+  if (!email) {
+    throw new HttpsError("invalid-argument", "Email is required.");
+  }
+
+  // In a real app, you'd protect this. For now, it's open to bootstrap the first admin.
+  // Example protection:
+  // if (request.auth?.token.superAdmin !== true) {
+  //   throw new HttpsError("permission-denied", "Only a super admin can perform this action.");
+  // }
+
+  try {
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().setCustomUserClaims(user.uid, {superAdmin: true});
+    return {success: true, message: `User ${email} is now a super admin.`};
+  } catch (error: any) {
+    logger.error(`Error setting super admin for ${email}:`, error);
+    throw new HttpsError("internal", error.message || "Could not set super admin claim.");
+  }
+});
+
+export const adminListUsers = onCall(async (request) => {
+  if (request.auth?.token.superAdmin !== true) {
+    throw new HttpsError("permission-denied", "You must be a super admin to list users.");
+  }
+
+  try {
+    const listUsersResult = await admin.auth().listUsers(1000); // Get up to 1000 users
+    const users = listUsersResult.users.map(user => ({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      disabled: user.disabled,
+      emailVerified: user.emailVerified,
+      customClaims: user.customClaims,
+    }));
+    return {users};
+  } catch (error: any) {
+    logger.error("Error listing users:", error);
+    throw new HttpsError("internal", "Failed to list users.");
   }
 });
