@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Generates a talent management contract using AI.
@@ -30,6 +31,7 @@ export async function generateTalentContract(input: GenerateTalentContractInput)
 
 const prompt = ai.definePrompt({
   name: 'generateTalentContractPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: GenerateTalentContractInputSchema },
   output: { schema: GenerateTalentContractOutputSchema },
   prompt: `You are an expert legal AI specializing in drafting contracts for creator management agencies. Your task is to generate a comprehensive Talent Management Agreement based on the user's prompt.

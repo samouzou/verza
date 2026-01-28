@@ -35,6 +35,7 @@ export async function summarizeContractTerms(
 
 const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
   prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.
@@ -58,5 +59,3 @@ const summarizeContractTermsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

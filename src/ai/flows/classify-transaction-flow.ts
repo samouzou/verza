@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Classifies a bank transaction as tax-deductible and suggests a category.
@@ -31,6 +32,7 @@ export async function classifyTransaction(input: ClassifyTransactionInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'classifyTransactionPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: ClassifyTransactionInputSchema },
   output: { schema: ClassifyTransactionOutputSchema },
   prompt: `You are an expert accountant specializing in finances for content creators.

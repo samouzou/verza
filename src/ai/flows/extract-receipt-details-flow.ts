@@ -44,6 +44,7 @@ export async function extractReceiptDetails(input: ExtractReceiptDetailsInput): 
 
 const prompt = ai.definePrompt({
   name: 'extractReceiptDetailsPrompt',
+  model: 'googleai/gemini-2.5-flash',
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: z.object({ totalAmount: z.number().optional() }) },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.
@@ -54,7 +55,6 @@ const prompt = ai.definePrompt({
   Receipt Image:
   {{media url=imageDataUri}}
   `,
-  model: 'gemini-2.5-flash',
 });
 
 const extractReceiptDetailsFlow = ai.defineFlow(
@@ -68,4 +68,3 @@ const extractReceiptDetailsFlow = ai.defineFlow(
     return output!;
   }
 );
-
