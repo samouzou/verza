@@ -54,8 +54,7 @@ const prompt = ai.definePrompt({
   Receipt Image:
   {{media url=imageDataUri}}
   `,
-   // Specify Gemini Flash for potential image input, or a model that supports multimodal
-  model: 'googleai/gemini-2.5-flash', 
+  model: 'gemini-2.5-flash',
 });
 
 const extractReceiptDetailsFlow = ai.defineFlow(

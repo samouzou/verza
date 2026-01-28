@@ -38,7 +38,7 @@ const prompt = ai.definePrompt({
   Document to process:
   {{media url=documentDataUri}}
   `,
-  model: 'googleai/gemini-2.5-flash',
+  model: 'gemini-2.5-flash',
 });
 
 const ocrDocumentFlow = ai.defineFlow(
