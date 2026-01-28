@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Performs Optical Character Recognition (OCR) on a document.
@@ -37,7 +38,7 @@ const prompt = ai.definePrompt({
   Document to process:
   {{media url=documentDataUri}}
   `,
-  model: 'googleai/gemini-2.0-flash',
+  model: 'googleai/gemini-2.5-flash-preview',
 });
 
 const ocrDocumentFlow = ai.defineFlow(
