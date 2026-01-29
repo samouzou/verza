@@ -7,8 +7,7 @@
  * - NegotiationSuggestionsOutput - The return type for the getNegotiationSuggestions function.
  */
 
-// Suggested code may be subject to a license. Learn more: ~LicenseLog:4202067470.
-import {ai} from '../genkit';
+import {ai} from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
