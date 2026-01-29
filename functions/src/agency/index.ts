@@ -328,6 +328,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
           updatedTalentArray = [...agencyData.talent];
           updatedTalentArray[talentIndex] = {
             ...updatedTalentArray[talentIndex],
+            displayName: userData.displayName || updatedTalentArray[talentIndex].displayName, // Update display name
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };
@@ -338,6 +339,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
           updatedTeamArray = [...(agencyData.team || [])];
           updatedTeamArray[teamMemberIndex] = {
             ...updatedTeamArray[teamMemberIndex],
+            displayName: userData.displayName || updatedTeamArray[teamMemberIndex].displayName, // Update display name
             status: "active",
             joinedAt: admin.firestore.Timestamp.now() as any,
           };

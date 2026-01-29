@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 import type { Contract } from '@/types'; // Assuming Contract type has relevant fields
 
@@ -56,6 +57,7 @@ export async function generateInvoiceHtml(input: GenerateInvoiceHtmlInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'generateInvoiceHtmlPrompt',
+  model: googleAI.model('gemini-2.0-flash'),
   input: {schema: GenerateInvoiceHtmlInputSchema},
   output: {schema: GenerateInvoiceHtmlOutputSchema},
   prompt: `
