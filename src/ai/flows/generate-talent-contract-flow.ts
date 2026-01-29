@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates a talent management contract using AI.
@@ -9,6 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const GenerateTalentContractInputSchema = z.object({
@@ -31,7 +31,7 @@ export async function generateTalentContract(input: GenerateTalentContractInput)
 
 const prompt = ai.definePrompt({
   name: 'generateTalentContractPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: GenerateTalentContractInputSchema },
   output: { schema: GenerateTalentContractOutputSchema },
   prompt: `You are an expert legal AI specializing in drafting contracts for creator management agencies. Your task is to generate a comprehensive Talent Management Agreement based on the user's prompt.

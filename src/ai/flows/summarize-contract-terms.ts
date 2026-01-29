@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Summarizes contract terms using AI.
@@ -9,6 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const SummarizeContractTermsInputSchema = z.object({
@@ -35,7 +35,7 @@ export async function summarizeContractTerms(
 
 const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
   prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.

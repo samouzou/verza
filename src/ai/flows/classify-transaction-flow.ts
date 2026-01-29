@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Classifies a bank transaction as tax-deductible and suggests a category.
@@ -9,6 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const ClassifyTransactionInputSchema = z.object({
@@ -32,7 +32,7 @@ export async function classifyTransaction(input: ClassifyTransactionInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'classifyTransactionPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: ClassifyTransactionInputSchema },
   output: { schema: ClassifyTransactionOutputSchema },
   prompt: `You are an expert accountant specializing in finances for content creators.

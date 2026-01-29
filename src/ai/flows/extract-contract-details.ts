@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Extracts contract details (brand, amount, due date, and common terms) from contract documents using an LLM.
@@ -9,6 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const ExtractContractDetailsInputSchema = z.object({
@@ -39,7 +39,7 @@ export async function extractContractDetails(input: ExtractContractDetailsInput)
 
 const prompt = ai.definePrompt({
   name: 'extractContractDetailsPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: {schema: ExtractContractDetailsInputSchema},
   output: {schema: ExtractContractDetailsOutputSchema},
   prompt: `You are an expert contract analyst. Your task is to extract key details from the provided contract text, which is in SFDT JSON format. You need to parse this JSON to find the plain text.

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Provides a simplified tax estimation based on income and deductible expenses.
@@ -10,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 import type { BankTransaction, TaxEstimation } from '@/types'; // Import from main types
 
@@ -57,7 +57,7 @@ export async function estimateTaxes(input: TaxEstimationInput): Promise<TaxEstim
 
 const prompt = ai.definePrompt({
   name: 'taxEstimationPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: TaxEstimationInputSchema },
   output: { schema: TaxEstimationOutputSchema },
   prompt: `

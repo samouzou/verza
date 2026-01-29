@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Edits a user's draft note for an invoice using AI.
@@ -9,6 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const EditInvoiceNoteInputSchema = z.object({
@@ -28,7 +28,7 @@ export async function editInvoiceNote(input: EditInvoiceNoteInput): Promise<Edit
 
 const prompt = ai.definePrompt({
   name: 'editInvoiceNotePrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: EditInvoiceNoteInputSchema },
   output: { schema: EditInvoiceNoteOutputSchema },
   prompt: `You are an expert copy editor for business communications. A user has written a draft note to include with an invoice. Your task is to revise it based on their desired tone.

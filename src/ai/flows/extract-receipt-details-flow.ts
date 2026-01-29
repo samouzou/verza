@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Extracts details from a receipt image using AI.
@@ -9,6 +8,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const ExtractReceiptDetailsInputSchema = z.object({
@@ -44,7 +44,7 @@ export async function extractReceiptDetails(input: ExtractReceiptDetailsInput): 
 
 const prompt = ai.definePrompt({
   name: 'extractReceiptDetailsPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: z.object({ totalAmount: z.number().optional() }) },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.

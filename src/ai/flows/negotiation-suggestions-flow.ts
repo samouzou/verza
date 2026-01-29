@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Provides AI-powered negotiation suggestions for contract terms.
@@ -10,6 +9,7 @@
 
 // Suggested code may be subject to a license. Learn more: ~LicenseLog:4202067470.
 import {ai} from '../genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const NegotiationSuggestionsInputSchema = z.object({
@@ -34,7 +34,7 @@ export async function getNegotiationSuggestions(
 
 const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
   prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract from its SFDT JSON string format and suggest alternative phrasing for key clauses that would be more favorable to the creator.

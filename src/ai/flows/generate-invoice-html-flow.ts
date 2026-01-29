@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates HTML for an invoice based on contract details, including links to receipts.
@@ -9,6 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 import type { Contract } from '@/types'; // Assuming Contract type has relevant fields
 
@@ -56,7 +56,7 @@ export async function generateInvoiceHtml(input: GenerateInvoiceHtmlInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'generateInvoiceHtmlPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-2.5-flash'),
   input: {schema: GenerateInvoiceHtmlInputSchema},
   output: {schema: GenerateInvoiceHtmlOutputSchema},
   prompt: `
