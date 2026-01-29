@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, AlertTriangle, Sparkles, Video, Download, History, ListVideo } from 'lucide-react';
+import { Loader2, AlertTriangle, Sparkles, Video, Download, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateScene } from '@/ai/flows/generate-scene-flow';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
@@ -99,7 +99,7 @@ export default function SceneSpawnerPage() {
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <Card className="shadow-lg border-primary/20">
+          <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl"><Sparkles className="h-6 w-6 text-primary" />Generator</CardTitle>
               <CardDescription>Describe the scene you want to create.</CardDescription>
@@ -112,7 +112,6 @@ export default function SceneSpawnerPage() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="e.g., A cyberpunk street in the rain, neon signs reflecting on wet pavement"
-                  className="font-mono"
                   disabled={isGenerating}
                 />
               </div>
@@ -143,7 +142,7 @@ export default function SceneSpawnerPage() {
               {isGenerating ? (
                 <div className="text-center text-primary-foreground">
                   <Loader2 className="h-12 w-12 animate-spin mx-auto" />
-                  <p className="mt-4 font-mono">Generating... may take up to 2 mins</p>
+                  <p className="mt-4">Generating... may take up to 2 mins</p>
                 </div>
               ) : generatedVideoUrl ? (
                 <div className="relative w-full h-full">
@@ -155,7 +154,7 @@ export default function SceneSpawnerPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="text-center text-muted-foreground font-mono">
+                <div className="text-center text-muted-foreground">
                   <p>Your video will appear here.</p>
                 </div>
               )}
@@ -175,7 +174,7 @@ export default function SceneSpawnerPage() {
                   <div className="space-y-4">
                     {history.map(item => (
                       <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => setGeneratedVideoUrl(item.videoUrl)}>
-                        <p className="font-mono text-sm truncate">{item.prompt}</p>
+                        <p className="text-sm truncate">{item.prompt}</p>
                         <p className="text-xs text-muted-foreground flex items-center justify-between">
                           <span>{item.style}</span>
                           <span>{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
@@ -183,7 +182,7 @@ export default function SceneSpawnerPage() {
                       </div>
                     ))}
                   </div>
-                 ) : <p className="text-center text-muted-foreground py-6 font-mono">No history yet.</p>}
+                 ) : <p className="text-center text-muted-foreground py-6">No history yet.</p>}
               </ScrollArea>
             </CardContent>
           </Card>

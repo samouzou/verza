@@ -7,25 +7,25 @@
  * - GenerateSceneOutput - The return type for the function.
  */
 
-import { ai } from '@/ai/genkit';
+import {ai} from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'genkit';
-import { doc, runTransaction, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
-import type { MediaPart } from 'genkit';
-import { v4 as uuidv4 } from 'uuid';
+import {z} from 'genkit';
+import {doc, runTransaction, collection, addDoc, serverTimestamp} from 'firebase/firestore';
+import {ref as storageRef, uploadBytes, getDownloadURL} from 'firebase/storage';
+import {db, storage} from '@/lib/firebase';
+import type {MediaPart} from 'genkit';
+import {v4 as uuidv4} from 'uuid';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
-const GenerateSceneInputSchema = z.object({
+export const GenerateSceneInputSchema = z.object({
   userId: z.string().describe("The UID of the user requesting the generation."),
   prompt: z.string().describe('The text prompt describing the scene to generate.'),
   style: z.enum(styleOptions).describe('The artistic style for the generated video.'),
 });
 export type GenerateSceneInput = z.infer<typeof GenerateSceneInputSchema>;
 
-const GenerateSceneOutputSchema = z.object({
+export const GenerateSceneOutputSchema = z.object({
   videoUrl: z.string().url().describe('The public URL of the generated video in Firebase Storage.'),
   generationId: z.string().describe('The ID of the generation record in Firestore.'),
   remainingCredits: z.number().describe('The number of credits the user has left.'),
@@ -92,6 +92,10 @@ const generateSceneFlow = ai.defineFlow(
 
     const video = operation.output?.message?.content.find((p) => !!p.media);
     if (!video || !video.media?.url) {
+      // Refund credit on failure
+      await runTransaction(db, async (transaction) => {
+        transaction.update(userDocRef, { credits: userCredits });
+      });
       throw new Error('Failed to find the generated video in the model response.');
     }
 
@@ -101,6 +105,10 @@ const generateSceneFlow = ai.defineFlow(
       `${video.media.url}&key=${process.env.GEMINI_API_KEY}`
     );
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
+      // Refund credit on failure
+      await runTransaction(db, async (transaction) => {
+        transaction.update(userDocRef, { credits: userCredits });
+      });
       throw new Error(`Failed to fetch generated video. Status: ${videoDownloadResponse.status}`);
     }
     const videoBuffer = await videoDownloadResponse.buffer();

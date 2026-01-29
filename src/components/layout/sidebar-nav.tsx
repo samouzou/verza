@@ -57,7 +57,6 @@ import { SetupGuide } from "./setup-guide"; // Import the new component
 
 const navItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
   { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
   { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
@@ -85,10 +84,10 @@ export function SidebarNav() {
         <SidebarHeader className="p-4">
            <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
              <svg width="180" height="50" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-data-[collapsible=icon]:hidden">
-                <text x="0" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
+                <text x="0" y="35" fontFamily="GeistSans, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
              </svg>
              <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
-                <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
+                <text x="5" y="35" fontFamily="GeistSans, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
              </svg>
           </div>
         </SidebarHeader>
@@ -143,21 +142,41 @@ export function SidebarNav() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.label} id={item.id}>
-              <Link href={item.href} legacyBehavior passHref>
+          <SidebarMenuItem>
+            <Link href="/scene-spawner" legacyBehavior passHref>
                 <SidebarMenuButton
                   onClick={() => isMobile && setOpenMobile(false)}
                   className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                  isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
-                  tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                  isActive={pathname === "/scene-spawner"}
+                  tooltip={{ children: "Scene Spawner", className: "group-data-[collapsible=icon]:block hidden"}}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                  <Video className="h-5 w-5" />
+                  <span className="group-data-[collapsible=icon]:hidden">Scene Spawner</span>
                 </SidebarMenuButton>
               </Link>
-            </SidebarMenuItem>
-          ))}
+          </SidebarMenuItem>
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center">
+                <span className="group-data-[collapsible=icon]:hidden">Verza Suite</span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.label} id={item.id}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      onClick={() => isMobile && setOpenMobile(false)}
+                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
@@ -233,5 +252,3 @@ export function SidebarNav() {
     </Sidebar>
   );
 }
-
-    
