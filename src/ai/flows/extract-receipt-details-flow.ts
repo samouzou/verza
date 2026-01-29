@@ -44,7 +44,7 @@ export async function extractReceiptDetails(input: ExtractReceiptDetailsInput): 
 
 const prompt = ai.definePrompt({
   name: 'extractReceiptDetailsPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: z.object({ totalAmount: z.number().optional() }) },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.

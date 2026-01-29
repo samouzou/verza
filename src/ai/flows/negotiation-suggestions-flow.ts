@@ -33,7 +33,7 @@ export async function getNegotiationSuggestions(
 
 const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
+  model: googleAI.model('gemini-1.5-pro-latest'),
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
   prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract from its SFDT JSON string format and suggest alternative phrasing for key clauses that would be more favorable to the creator.

@@ -56,7 +56,7 @@ export async function generateInvoiceHtml(input: GenerateInvoiceHtmlInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'generateInvoiceHtmlPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   input: {schema: GenerateInvoiceHtmlInputSchema},
   output: {schema: GenerateInvoiceHtmlOutputSchema},
   prompt: `

@@ -35,7 +35,7 @@ export async function summarizeContractTerms(
 
 const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
+  model: googleAI.model('gemini-1.5-pro-latest'),
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
   prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.
