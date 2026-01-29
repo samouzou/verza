@@ -207,9 +207,9 @@ export function StripeConnectCard() {
             <path d="M5.13333 2.86667C3.83333 2.86667 2.76667 3.93333 2.76667 5.23333V17.6C2.76667 18.9 3.83333 20 5.13333 20H16.7667C18.0667 20 19.1333 18.9 19.1333 17.6V5.23333C19.1333 3.93333 18.0667 2.86667 16.7667 2.86667H5.13333ZM11.1 14.8333C8.63333 14.8333 6.63333 12.8333 6.63333 10.3667C6.63333 7.9 8.63333 5.9 11.1 5.9C13.5667 5.9 15.5667 7.9 15.5667 10.3667C15.5667 12.8333 13.5667 14.8333 11.1 14.8333Z" fill="#635BFF"></path>
             <path d="M39.6333 2.86667H25.0667C24.4667 2.86667 23.9667 3.23333 23.7667 3.8L22.1 8.5C22.0333 8.66667 22 8.86667 22 9.03333V17.6C22 18.9 23.0667 20 24.3667 20H38.9333C39.5333 20 40.0333 19.6333 40.2333 19.1L41.9 14.4333C41.9667 14.2667 42 14.0667 42 13.9V5.23333C42 3.93333 40.9333 2.86667 39.6333 2.86667Z" fill="#635BFF"></path>
           </svg>
-          Get Paid with Stripe
+          Connect Bank for Payouts
         </CardTitle>
-        <CardDescription>Connect your bank account via Stripe to receive payments directly from your clients.</CardDescription>
+        <CardDescription>We use Stripe to securely connect your bank account and enable direct payouts from your clients.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="p-4 border rounded-lg bg-muted/50">

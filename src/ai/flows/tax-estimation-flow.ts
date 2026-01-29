@@ -10,6 +10,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 import type { BankTransaction, TaxEstimation } from '@/types'; // Import from main types
 
@@ -57,6 +58,7 @@ export async function estimateTaxes(input: TaxEstimationInput): Promise<TaxEstim
 
 const prompt = ai.definePrompt({
   name: 'taxEstimationPrompt',
+  model: googleAI.model('gemini-2.0-flash'),
   input: { schema: TaxEstimationInputSchema },
   output: { schema: TaxEstimationOutputSchema },
   prompt: `
