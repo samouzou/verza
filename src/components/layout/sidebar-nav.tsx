@@ -24,6 +24,7 @@ import {
   FileStack,
   Building,
   BarChart3,
+  Video,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   useSidebar,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -51,15 +55,19 @@ import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide"; // Import the new component
 
-const navItems = [
+const verzaSuiteNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
   { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
-  { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
   { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
-  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
   { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
+];
+
+const topLevelNavItems = [
+  { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
+  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
+  { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
 ];
 
 export function SidebarNav() {
@@ -136,18 +144,36 @@ export function SidebarNav() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:opacity-100 group-data-[collapsible=icon]:text-center">Suite</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {verzaSuiteNavItems.map((item) => (
+                <SidebarMenuItem key={item.label} id={item.id}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      onClick={() => isMobile && setOpenMobile(false)}
+                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         <SidebarMenu>
-          {navItems.map((item) => (
+          {topLevelNavItems.map((item) => (
             <SidebarMenuItem key={item.label} id={item.id}>
               <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
-                  onClick={() => {
-                    if (isMobile) {
-                      setOpenMobile(false);
-                    }
-                  }}
+                  onClick={() => isMobile && setOpenMobile(false)}
                   className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                  isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                  isActive={pathname.startsWith(item.href)}
                   tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                 >
                   <item.icon className="h-5 w-5" />

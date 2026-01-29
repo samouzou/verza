@@ -1,6 +1,7 @@
 
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import '@syncfusion/ej2-base/styles/tailwind.css';
 import '@syncfusion/ej2-buttons/styles/tailwind.css';
@@ -31,12 +32,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body 
-        className={`${GeistSans.variable} antialiased font-sans`}
+        className={`${GeistMono.variable} antialiased font-mono`}
         suppressHydrationWarning
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >

@@ -115,6 +115,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     tin: null,
     hasCompletedOnboarding: false,
     emailSequence: {step: 1, nextEmailAt: twoDaysFromNow as any},
+    credits: 5,
   };
 
   await userDocRef.set(newUserDoc, {merge: true});

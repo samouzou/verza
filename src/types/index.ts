@@ -95,6 +95,7 @@ export interface Contract {
   
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
+  access: { [key: string]: 'owner' | 'viewer' | 'talent' };
 }
 
 export interface EmailLog {
@@ -117,7 +118,7 @@ export interface SharedContractVersion {
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
   sharedAt: ClientTimestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt'>; // Snapshot of relevant contract data at time of sharing
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
@@ -214,6 +215,9 @@ export interface UserProfileFirestoreData {
     step: number;
     nextEmailAt: ClientTimestamp;
   };
+
+  // SceneSpawner Credits
+  credits?: number;
 }
 
 // Simplified Receipt Feature Types
@@ -347,3 +351,13 @@ export type Tour = {
   steps: TourStep[];
   onStop?: () => void;
 };
+
+// Scene Spawner Types
+export interface Generation {
+  id: string;
+  userId: string;
+  prompt: string;
+  style: string;
+  videoUrl: string;
+  timestamp: ClientTimestamp;
+}
