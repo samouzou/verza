@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Edits a user's draft note for an invoice using AI.

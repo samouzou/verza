@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extracts details from a receipt image using AI.

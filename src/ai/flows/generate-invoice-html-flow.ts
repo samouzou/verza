@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Generates HTML for an invoice based on contract details, including links to receipts.
