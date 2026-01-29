@@ -63,7 +63,7 @@ export default function SceneSpawnerPage() {
       toast({ title: "Prompt Required", description: "Please enter a prompt for your scene.", variant: "destructive" });
       return;
     }
-    if ((user.credits ?? 0) <= 0) {
+    if ((user.credits ?? 5) <= 0) {
       toast({ title: "No Credits", description: "You have no more spawns left.", variant: "destructive" });
       return;
     }
@@ -85,7 +85,7 @@ export default function SceneSpawnerPage() {
     }
   };
 
-  const credits = user?.credits ?? 0;
+  const credits = user?.credits ?? 5;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;

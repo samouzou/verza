@@ -60,8 +60,8 @@ service firebase.storage {
     match /generated-scenes/{userId}/{fileName} {
       // Allow public read for generated videos
       allow read: if true;
-      // Only backend functions can write to this path.
-      allow write: if false; 
+      // Allow authenticated users to write to their own scenes folder
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
