@@ -45,8 +45,9 @@ service firebase.storage {
     
     // Rules for receipt images
     match /receipts/{userId}/{fileName} {
-      // Allow an authenticated user to read their own receipt images
-      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow any authenticated user with the link to read the receipt image.
+      // Security is enforced by Firestore rules which control access to the URL itself.
+      allow read: if request.auth != null;
 
       // Allow an authenticated user to write (upload, update, delete) their own receipt images
       // with constraints on file size and type

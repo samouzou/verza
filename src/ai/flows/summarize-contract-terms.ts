@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const SummarizeContractTermsInputSchema = z.object({
@@ -35,6 +36,7 @@ export async function summarizeContractTerms(
 
 const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
+  model: googleAI.model('gemini-2.0-flash'),
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
   prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.
@@ -58,5 +60,3 @@ const summarizeContractTermsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

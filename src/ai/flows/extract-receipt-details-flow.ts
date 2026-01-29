@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
 const ExtractReceiptDetailsInputSchema = z.object({
@@ -44,6 +45,7 @@ export async function extractReceiptDetails(input: ExtractReceiptDetailsInput): 
 
 const prompt = ai.definePrompt({
   name: 'extractReceiptDetailsPrompt',
+  model: googleAI.model('gemini-2.0-flash'),
   input: { schema: ExtractReceiptDetailsInputSchema },
   output: { schema: z.object({ totalAmount: z.number().optional() }) },
   prompt: `You are an expert OCR and data extraction AI specializing in receipts.
@@ -54,8 +56,6 @@ const prompt = ai.definePrompt({
   Receipt Image:
   {{media url=imageDataUri}}
   `,
-   // Specify Gemini Flash for potential image input, or a model that supports multimodal
-  model: 'googleai/gemini-2.0-flash', 
 });
 
 const extractReceiptDetailsFlow = ai.defineFlow(
