@@ -3,142 +3,76 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
 @layer base {
   :root {
-    /* New Verza Theme HSL Variables - Cyberpunk Adjustments */
-    --verza-purple-h: 260;
-    --verza-purple-s: 85%;
-    --verza-purple-l: 65%; /* Brighter purple */
-
-    --verza-green-h: 145;
-    --verza-green-s: 80%;
-    --verza-green-l: 45%; /* Neon Green */
-  
-    --verza-midnight-h: 240;
-    --verza-midnight-s: 10%;
-    --verza-midnight-l: 4%; /* Near black */
-
-    --verza-accent-gray-h: 220;
-    --verza-accent-gray-s: 10%;
-    --verza-accent-gray-l: 65%;
-
-    --verza-success-h: 145;
-    --verza-success-s: 70%;
-    --verza-success-l: 40%;
-
-    --verza-warning-h: 45;
-    --verza-warning-s: 95%;
-    --verza-warning-l: 55%;
-  
-    --verza-destructive-h: 350;
-    --verza-destructive-s: 90%;
-    --verza-destructive-l: 60%; /* Neon-ish Red/Pink */
-  
-    /* Verza Light Theme (remains largely the same, maybe slightly higher contrast) */
     --background: 0 0% 100%;
     --foreground: 224 71.4% 4.1%;
-  
     --card: 0 0% 100%;
     --card-foreground: 224 71.4% 4.1%;
-  
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
+    --primary: 220.9 39.3% 11%;
+    --primary-foreground: 210 20% 98%;
     --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220 14.3% 34.1%;
-  
-    --muted: 220 15% 95%;
-    --muted-foreground: 220 10% 45%;
-  
-    --accent: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-    --accent-foreground: 0 0% 0%;
-  
-    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
+    --secondary-foreground: 220 8.9% 10%;
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220 8.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-  
+    --ring: 224 71.4% 4.1%;
     --radius: 0.5rem;
-  
-    /* Chart colors */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-    --chart-3: var(--verza-accent-gray-h) var(--verza-accent-gray-s) var(--verza-accent-gray-l);
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-  
-    /* Sidebar (Light) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
     --sidebar-background: 220 20% 97%;
     --sidebar-foreground: 222 10% 25%;
     --sidebar-border: 220 14% 92%;
-  
-    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --sidebar-primary-foreground: 0 0% 100%;
-  
-    --sidebar-accent: var(--verza-purple-h) 95% 96%;
-    --sidebar-accent-foreground: var(--verza-purple-h) 100% 50%;
-  
-    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --sidebar-primary: 220.9 39.3% 11%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 15% 95%;
+    --sidebar-accent-foreground: 220 8.9% 10%;
+    --sidebar-ring: 224 71.4% 4.1%;
   }
-  
+
   .dark {
-    /* Dark Theme - Cyberpunk */
-    --background: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
-    --foreground: 210 20% 90%; /* Lighter gray for text */
-  
-    --card: 240 8% 8%;
-    --card-foreground: 210 20% 90%;
-  
-    --popover: 240 10% 4%;
-    --popover-foreground: 210 20% 90%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
-    --secondary: 240 5% 12%;
-    --secondary-foreground: 210 15% 75%;
-  
-    --muted: 240 5% 15%;
-    --muted-foreground: 220 10% 55%;
-  
-    --accent: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-    --accent-foreground: 0 0% 0%;
-  
-    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
-    --border: 240 5% 15%;
-    --input: 240 5% 12%;
-    --ring: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-  
-    /* Chart colors for dark theme */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-    --chart-3: 220 10% 70%;
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-  
-    /* Sidebar (Dark theme) */
-    --sidebar-background: 240 10% 3%; /* Pure black */
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-border: 240 5% 10%;
-  
-    --sidebar-primary: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-    --sidebar-primary-foreground: 0 0% 0%;
-  
-    --sidebar-accent: 240 10% 8%;
-    --sidebar-accent-foreground: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
-  
-    --sidebar-ring: var(--verza-green-h) var(--verza-green-s) var(--verza-green-l);
+    --background: 224 71.4% 4.1%;
+    --foreground: 210 20% 98%;
+    --card: 224 71.4% 4.1%;
+    --card-foreground: 210 20% 98%;
+    --popover: 224 71.4% 4.1%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 210 20% 98%;
+    --primary-foreground: 220.9 39.3% 11%;
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+    --accent: 215 27.9% 16.9%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 216 12.2% 83.9%;
+    --chart-1: 210 90% 60%;
+    --chart-2: 160 80% 50%;
+    --chart-3: 40 90% 55%;
+    --chart-4: 280 85% 65%;
+    --chart-5: 340 85% 60%;
+    --sidebar-background: 224 71.4% 4.1%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-border: 215 27.9% 16.9%;
+    --sidebar-primary: 210 20% 98%;
+    --sidebar-primary-foreground: 220.9 39.3% 11%;
+    --sidebar-accent: 215 27.9% 16.9%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-ring: 216 12.2% 83.9%;
   }
 }
 
@@ -427,3 +361,5 @@ del.diff-del {
     background: #e5e7eb;
     color: #171616;
 }
+
+    
