@@ -3,8 +3,6 @@
 /**
  * @fileOverview Generates a short video clip using AI based on a user prompt.
  * - generateScene - A function that handles video generation, credit checking, and file storage.
- * - GenerateSceneInput - The input type for the function.
- * - GenerateSceneOutput - The return type for the function.
  */
 
 import {ai} from '../genkit';
@@ -17,7 +15,9 @@ import {v4 as uuidv4} from 'uuid';
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
 }
 const adminDb = admin.firestore();
 const adminStorage = getAdminStorage();
