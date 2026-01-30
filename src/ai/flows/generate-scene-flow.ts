@@ -13,32 +13,21 @@ import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 import type {MediaPart} from 'genkit';
 import {v4 as uuidv4} from 'uuid';
 
-// Initialize Firebase Admin SDK
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  });
-}
-const adminDb = admin.firestore();
-const adminStorage = getAdminStorage();
-const defaultBucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
-
-
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
+type GenerateSceneInput = z.infer<typeof GenerateSceneInputSchema>;
 const GenerateSceneInputSchema = z.object({
   userId: z.string().describe("The UID of the user requesting the generation."),
   prompt: z.string().describe('The text prompt describing the scene to generate.'),
   style: z.enum(styleOptions).describe('The artistic style for the generated video.'),
 });
-type GenerateSceneInput = z.infer<typeof GenerateSceneInputSchema>;
 
+type GenerateSceneOutput = z.infer<typeof GenerateSceneOutputSchema>;
 const GenerateSceneOutputSchema = z.object({
   videoUrl: z.string().url().describe('The public URL of the generated video in Firebase Storage.'),
   generationId: z.string().describe('The ID of the generation record in Firestore.'),
   remainingCredits: z.number().describe('The number of credits the user has left.'),
 });
-type GenerateSceneOutput = z.infer<typeof GenerateSceneOutputSchema>;
 
 export async function generateScene(input: GenerateSceneInput): Promise<GenerateSceneOutput> {
   return generateSceneFlow(input);
@@ -51,6 +40,13 @@ const generateSceneFlow = ai.defineFlow(
     outputSchema: GenerateSceneOutputSchema,
   },
   async ({ userId, prompt, style }) => {
+    // Initialize Firebase Admin SDK if not already done
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    const adminDb = admin.firestore();
+    const adminStorage = getAdminStorage();
+    const defaultBucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
     
     let userCredits = 0;
     const userDocRef = adminDb.collection('users').doc(userId);
