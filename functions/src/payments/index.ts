@@ -7,7 +7,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone} from "./types";
+import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone} from "./../types";
 
 // Initialize Stripe
 let stripe: Stripe;

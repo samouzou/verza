@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase";
-import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "./types";
+import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "./../types";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({

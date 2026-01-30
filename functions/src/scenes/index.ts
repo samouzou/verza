@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 import {genkit} from "genkit";
 import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
-import type {Generation} from "./types";
+import type {Generation} from "./../types";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
