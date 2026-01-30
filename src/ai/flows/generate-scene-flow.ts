@@ -10,11 +10,19 @@
 import {ai} from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
-import {doc, runTransaction, collection, addDoc, serverTimestamp} from 'firebase/firestore';
-import {ref as storageRef, uploadBytes, getDownloadURL} from 'firebase/storage';
-import {db, storage} from '@/lib/firebase';
+import * as admin from 'firebase-admin';
+import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 import type {MediaPart} from 'genkit';
 import {v4 as uuidv4} from 'uuid';
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+const adminDb = admin.firestore();
+const adminStorage = getAdminStorage();
+const defaultBucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
@@ -45,15 +53,15 @@ const generateSceneFlow = ai.defineFlow(
   async ({ userId, prompt, style }) => {
     
     let userCredits = 0;
-    const userDocRef = doc(db, 'users', userId);
+    const userDocRef = adminDb.collection('users').doc(userId);
 
     // 1. Check and decrement credits in a transaction
-    await runTransaction(db, async (transaction) => {
+    await adminDb.runTransaction(async (transaction) => {
       const userDoc = await transaction.get(userDocRef);
-      if (!userDoc.exists()) {
+      if (!userDoc.exists) {
         throw new Error("User not found.");
       }
-      userCredits = userDoc.data().credits || 0;
+      userCredits = userDoc.data()?.credits || 0;
       if (userCredits <= 0) {
         throw new Error("Insufficient credits. You need at least 1 credit to generate a scene.");
       }
@@ -84,7 +92,7 @@ const generateSceneFlow = ai.defineFlow(
 
     if (operation.error) {
       // Refund credit on failure
-      await runTransaction(db, async (transaction) => {
+      await adminDb.runTransaction(async (transaction) => {
         transaction.update(userDocRef, { credits: userCredits });
       });
       throw new Error('Failed to generate video: ' + operation.error.message);
@@ -93,7 +101,7 @@ const generateSceneFlow = ai.defineFlow(
     const video = operation.output?.message?.content.find((p) => !!p.media);
     if (!video || !video.media?.url) {
       // Refund credit on failure
-      await runTransaction(db, async (transaction) => {
+       await adminDb.runTransaction(async (transaction) => {
         transaction.update(userDocRef, { credits: userCredits });
       });
       throw new Error('Failed to find the generated video in the model response.');
@@ -106,7 +114,7 @@ const generateSceneFlow = ai.defineFlow(
     );
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
       // Refund credit on failure
-      await runTransaction(db, async (transaction) => {
+       await adminDb.runTransaction(async (transaction) => {
         transaction.update(userDocRef, { credits: userCredits });
       });
       throw new Error(`Failed to fetch generated video. Status: ${videoDownloadResponse.status}`);
@@ -115,9 +123,16 @@ const generateSceneFlow = ai.defineFlow(
 
     // 5. Upload to Firebase Storage
     const videoFileName = `${Date.now()}-${uuidv4()}.mp4`;
-    const videoFileRef = storageRef(storage, `generated-scenes/${userId}/${videoFileName}`);
-    await uploadBytes(videoFileRef, videoBuffer, { contentType: 'video/mp4' });
-    const finalVideoUrl = await getDownloadURL(videoFileRef);
+    const videoFile = defaultBucket.file(`generated-scenes/${userId}/${videoFileName}`);
+    
+    await videoFile.save(videoBuffer, {
+      metadata: {
+        contentType: 'video/mp4',
+      },
+    });
+    
+    await videoFile.makePublic();
+    const finalVideoUrl = videoFile.publicUrl();
 
     // 6. Save generation record to Firestore
     const generationData = {
@@ -125,9 +140,9 @@ const generateSceneFlow = ai.defineFlow(
       prompt,
       style,
       videoUrl: finalVideoUrl,
-      timestamp: serverTimestamp(),
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     };
-    const generationDocRef = await addDoc(collection(db, 'generations'), generationData);
+    const generationDocRef = await adminDb.collection('generations').add(generationData);
 
     return {
       videoUrl: finalVideoUrl,
