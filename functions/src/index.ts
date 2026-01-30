@@ -62,7 +62,7 @@ import {
   inviteTeamMemberToAgency, // New function for team members
 } from "./agency";
 
-import { generateScene } from "./scenes";
+import {generateScene} from "./scenes";
 
 // Export v2 functions
 export {
