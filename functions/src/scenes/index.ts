@@ -5,20 +5,16 @@ import * as admin from "firebase-admin";
 import {genkit} from "genkit";
 import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
-import type {Generation} from "../types";
+import type {Generation} from "./types";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
 export const generateScene = onCall({
-    timeoutSeconds: 300, // Increased timeout for long-running video generation
-    memory: "1GiB",
+  timeoutSeconds: 300, // Increased timeout for long-running video generation
+  memory: "1GiB",
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-  }
-  
-  if (!admin.apps.length) {
-    admin.initializeApp();
   }
 
   const {prompt, style} = request.data;
@@ -31,6 +27,10 @@ export const generateScene = onCall({
     throw new HttpsError("invalid-argument", `Invalid style. Must be one of: ${styleOptions.join(", ")}`);
   }
 
+  // Initialize Admin SDK inside the function
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
   const defaultBucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
@@ -62,47 +62,47 @@ export const generateScene = onCall({
   try {
     // Initialize Genkit within the function
     const ai = genkit({plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})]});
-    
+
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     // 2. Generate video with Veo using Genkit
-    let { operation } = await ai.generate({
-        model: googleAI.model("veo-2.0-generate-001"),
-        prompt: `A ${style} style video of: ${prompt}`,
-        config: {
-            durationSeconds: 5,
-            aspectRatio: "16:9",
-        },
+    let {operation} = await ai.generate({
+      model: googleAI.model("veo-2.0-generate-001"),
+      prompt: `A ${style} style video of: ${prompt}`,
+      config: {
+        durationSeconds: 5,
+        aspectRatio: "16:9",
+      },
     });
 
     if (!operation) {
-        throw new Error("Expected the model to return an operation for video generation.");
+      throw new Error("Expected the model to return an operation for video generation.");
     }
-    
+
     // 3. Poll for completion
     while (!operation.done) {
-        logger.info(`Polling video generation operation for user ${userId}...`);
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
-        operation = await ai.checkOperation(operation);
+      logger.info(`Polling video generation operation for user ${userId}...`);
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+      operation = await ai.checkOperation(operation);
     }
-    
+
     if (operation.error) {
       throw new Error(`Video generation failed: ${operation.error.message}`);
     }
 
     const video = operation.output?.message?.content.find((p: any) => !!p.media);
-    
+
     if (!video || !video.media) {
       throw new Error("Failed to find the generated video in the model response.");
     }
-    
+
     const fetch = (await import("node-fetch")).default;
     const videoDownloadResponse = await fetch(
       `${video.media.url}&key=${process.env.GEMINI_API_KEY}`
     );
-    
+
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
-        throw new Error(`Failed to download generated video. Status: ${videoDownloadResponse.status}`);
+      throw new Error(`Failed to download generated video. Status: ${videoDownloadResponse.status}`);
     }
 
     const videoBuffer = await videoDownloadResponse.buffer();

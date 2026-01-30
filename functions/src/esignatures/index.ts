@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
-import type {Contract, UserProfileFirestoreData} from "../types";
+import type {Contract, UserProfileFirestoreData} from "./types";
 import * as crypto from "crypto";
 import * as path from "path";
 import * as os from "os";
