@@ -42,7 +42,9 @@ const generateSceneFlow = ai.defineFlow(
   async ({ userId, prompt, style }) => {
     // Initialize Firebase Admin SDK if not already done
     if (!admin.apps.length) {
-      admin.initializeApp();
+      admin.initializeApp({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      });
     }
     const adminDb = admin.firestore();
     const adminStorage = getAdminStorage();
