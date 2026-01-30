@@ -11,9 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertTriangle, Sparkles, Video, Download, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { generateScene } from '@/ai/flows/generate-scene-flow';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import type { Generation } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
@@ -63,7 +63,7 @@ export default function SceneSpawnerPage() {
       toast({ title: "Prompt Required", description: "Please enter a prompt for your scene.", variant: "destructive" });
       return;
     }
-    if ((user.credits ?? 5) <= 0) {
+    if ((user.credits ?? 0) <= 0) {
       toast({ title: "No Credits", description: "You have no more spawns left.", variant: "destructive" });
       return;
     }
@@ -73,9 +73,12 @@ export default function SceneSpawnerPage() {
     toast({ title: "Spawning Scene...", description: "AI is generating your video. This may take a minute or two." });
 
     try {
-      const result = await generateScene({ userId: user.uid, prompt, style });
-      setGeneratedVideoUrl(result.videoUrl);
-      toast({ title: "Scene Spawned!", description: `Your video is ready. You have ${result.remainingCredits} credits left.` });
+      const generateSceneCallable = httpsCallable(functions, 'generateScene');
+      const result = await generateSceneCallable({ prompt, style });
+      const data = result.data as { videoUrl: string, remainingCredits: number };
+
+      setGeneratedVideoUrl(data.videoUrl);
+      toast({ title: "Scene Spawned!", description: `Your video is ready. You have ${data.remainingCredits} credits left.` });
       await refreshAuthUser(); // Refresh user data to get updated credits
     } catch (error: any) {
       console.error("Error generating scene:", error);
@@ -85,7 +88,7 @@ export default function SceneSpawnerPage() {
     }
   };
 
-  const credits = user?.credits ?? 5;
+  const credits = user?.credits ?? 0;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;

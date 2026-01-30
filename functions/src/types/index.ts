@@ -1,3 +1,4 @@
+
 import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 export interface PaymentMilestone {

@@ -16,17 +16,20 @@
   "main": "lib/index.js",
   "dependencies": {
     "@dropbox/sign": "^1.10.0",
+    "@google/genai": "^0.15.0",
     "@sendgrid/mail": "^8.1.5",
     "@types/stripe": "^8.0.417",
     "axios": "^1.7.2",
     "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.4.0",
     "form-data": "^4.0.0",
-    "stripe": "^18.1.1"
+    "stripe": "^18.1.1",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.2",
     "@types/handlebars": "^4.1.0",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
     "eslint": "^8.9.0",
