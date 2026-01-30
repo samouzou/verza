@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
-  InternalPayout, TeamMember} from "../../../src/types";
+  InternalPayout, TeamMember} from "../types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 

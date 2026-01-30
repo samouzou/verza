@@ -5,7 +5,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
-import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "../../../src/types";
+import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "../types";
 import {sendEmailSequence} from "../notifications";
 
 

@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an alias for Admin SDK Timestamp
 import {db} from "../config/firebase";
-import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "../../../src/types"; // Reverted to relative path
+import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "../types"; // Reverted to relative path
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
 
 export const createShareableContractVersion = onCall({
@@ -79,8 +79,6 @@ export const createShareableContractVersion = onCall({
       invoiceHistory,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       lastReminderSentAt,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      negotiationSuggestions,
       ...relevantContractData
     } = contractData;
 
