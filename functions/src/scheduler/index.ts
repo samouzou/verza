@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
-import type {UserProfileFirestoreData, Contract} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract} from "../types";
 import {sendEmailSequence} from "../notifications";
 
 // Send reminders for overdue invoices

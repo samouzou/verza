@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
-import type {UserProfileFirestoreData} from "../../../src/types";
+import type {UserProfileFirestoreData} from "../types";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
