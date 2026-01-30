@@ -2,15 +2,23 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import {GoogleGenAI} from "@google/genai";
+import {genkit} from "genkit";
+import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "../types";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
-export const generateScene = onCall(async (request) => {
+export const generateScene = onCall({
+    timeoutSeconds: 300, // Increased timeout for long-running video generation
+    memory: "1GiB",
+}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  
+  if (!admin.apps.length) {
+    admin.initializeApp();
   }
 
   const {prompt, style} = request.data;
@@ -23,7 +31,6 @@ export const generateScene = onCall(async (request) => {
     throw new HttpsError("invalid-argument", `Invalid style. Must be one of: ${styleOptions.join(", ")}`);
   }
 
-  // Use the initialized admin app
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
   const defaultBucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
@@ -44,7 +51,7 @@ export const generateScene = onCall(async (request) => {
       }
       transaction.update(userDocRef, {credits: userCredits - 1});
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Credit transaction failed for user", userId, error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Failed to process user credits.");
@@ -53,37 +60,52 @@ export const generateScene = onCall(async (request) => {
   const remainingCredits = userCredits - 1;
 
   try {
-    // 2. Generate video with Veo via Google AI SDK
-    const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY as string);
-    const model = genAI.getGenerativeModel({model: "veo"});
-
-    const generationConfig = {
-      requestOptions: {
-        timeout: 600000, // 10 minutes
-      },
-    };
-
+    // Initialize Genkit within the function
+    const ai = genkit({plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})]});
+    
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
-    const result = await model.generateContent([
-      `A ${style} style video of: ${prompt}`,
-      {
-        inlineData: {
-          mimeType: "video/mp4",
-          data: "placeholder", // VEO API might not require data for text-to-video
+    // 2. Generate video with Veo using Genkit
+    let { operation } = await ai.generate({
+        model: googleAI.model("veo-2.0-generate-001"),
+        prompt: `A ${style} style video of: ${prompt}`,
+        config: {
+            durationSeconds: 5,
+            aspectRatio: "16:9",
         },
-      },
-    ]);
+    });
 
-    // The Google AI SDK for Node.js currently returns the final result directly for Veo, not an operation.
-    // Polling logic is handled by the SDK client.
-    const videoPart = result.response.candidates?.[0].content.parts.find((p) => "fileData" in p);
-
-    if (!videoPart || !("fileData" in videoPart)) {
-      throw new Error("Failed to find the generated video in the model response.");
+    if (!operation) {
+        throw new Error("Expected the model to return an operation for video generation.");
+    }
+    
+    // 3. Poll for completion
+    while (!operation.done) {
+        logger.info(`Polling video generation operation for user ${userId}...`);
+        await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+        operation = await ai.checkOperation(operation);
+    }
+    
+    if (operation.error) {
+      throw new Error(`Video generation failed: ${operation.error.message}`);
     }
 
-    const videoBuffer = Buffer.from(videoPart.fileData.fileUri, "base64");
+    const video = operation.output?.message?.content.find((p: any) => !!p.media);
+    
+    if (!video || !video.media) {
+      throw new Error("Failed to find the generated video in the model response.");
+    }
+    
+    const fetch = (await import("node-fetch")).default;
+    const videoDownloadResponse = await fetch(
+      `${video.media.url}&key=${process.env.GEMINI_API_KEY}`
+    );
+    
+    if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
+        throw new Error(`Failed to download generated video. Status: ${videoDownloadResponse.status}`);
+    }
+
+    const videoBuffer = await videoDownloadResponse.buffer();
 
     // 4. Upload to Firebase Storage
     const videoFileName = `${Date.now()}-${uuidv4()}.mp4`;
@@ -115,10 +137,10 @@ export const generateScene = onCall(async (request) => {
       generationId: generationDocRef.id,
       remainingCredits,
     };
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Video generation or storage failed for user", userId, error);
     // Refund credit on failure
     await userDocRef.update({credits: admin.firestore.FieldValue.increment(1)});
-    throw new HttpsError("internal", "Failed to generate or save the video. Your credit has been refunded.");
+    throw new HttpsError("internal", error.message || "Failed to generate or save the video. Your credit has been refunded.");
   }
 });
