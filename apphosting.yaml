@@ -18,6 +18,12 @@ env:
       - BUILD
       - RUNTIME
       
+  # This makes the same secret available to the backend runtime (Cloud Functions) under a non-public name
+  - variable: FIREBASE_STORAGE_BUCKET
+    secret: VERZA_FIREBASE_STORAGE_BUCKET
+    availability:
+      - RUNTIME
+      
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: VERZA_FIREBASE_API_KEY # This is the NAME of the secret in Secret Manager
     availability:
@@ -67,6 +73,8 @@ env:
   # Gemini
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
 
   # Firebase
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
@@ -96,3 +104,4 @@ env:
     availability:
       - BUILD
       - RUNTIME
+

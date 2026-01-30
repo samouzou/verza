@@ -33,7 +33,7 @@ export const generateScene = onCall({
 
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
-  const defaultBucket = adminStorage.bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+  const defaultBucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
 
   let userCredits = 0;
   const userDocRef = adminDb.collection("users").doc(userId);
