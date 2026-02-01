@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, AlertTriangle, Sparkles, Video, Download, History } from 'lucide-react';
+import { Loader2, AlertTriangle, Sparkles, Video, Download, History, Monitor, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -17,6 +17,8 @@ import { httpsCallable } from 'firebase/functions';
 import type { Generation } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 
@@ -26,6 +28,7 @@ export default function SceneSpawnerPage() {
 
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
+  const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
@@ -74,7 +77,7 @@ export default function SceneSpawnerPage() {
 
     try {
       const generateSceneCallable = httpsCallable(functions, 'generateScene');
-      const result = await generateSceneCallable({ prompt, style });
+      const result = await generateSceneCallable({ prompt, style, orientation });
       const data = result.data as { videoUrl: string, remainingCredits: number };
 
       setGeneratedVideoUrl(data.videoUrl);
@@ -118,14 +121,34 @@ export default function SceneSpawnerPage() {
                   disabled={isGenerating}
                 />
               </div>
-              <div>
-                <Label htmlFor="style">Style</Label>
-                <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
-                  <SelectTrigger id="style"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="style">Style</Label>
+                  <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
+                    <SelectTrigger id="style"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Orientation</Label>
+                  <RadioGroup
+                    value={orientation}
+                    onValueChange={(value) => setOrientation(value as any)}
+                    className="mt-2 grid grid-cols-2 gap-2"
+                    disabled={isGenerating}
+                  >
+                    <Label htmlFor="h" className={cn("flex items-center justify-center gap-2 cursor-pointer p-2 border-2 rounded-md transition-colors", orientation === '16:9' ? 'border-primary' : 'border-muted')}>
+                      <RadioGroupItem value="16:9" id="h" className="sr-only" />
+                      <Monitor className="h-4 w-4" /> Horizontal
+                    </Label>
+                    <Label htmlFor="v" className={cn("flex items-center justify-center gap-2 cursor-pointer p-2 border-2 rounded-md transition-colors", orientation === '9:16' ? 'border-primary' : 'border-muted')}>
+                      <RadioGroupItem value="9:16" id="v" className="sr-only" />
+                      <Smartphone className="h-4 w-4" /> Vertical
+                    </Label>
+                  </RadioGroup>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <Button onClick={handleSpawnScene} disabled={isGenerating || credits <= 0}>
@@ -179,7 +202,7 @@ export default function SceneSpawnerPage() {
                       <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => setGeneratedVideoUrl(item.videoUrl)}>
                         <p className="text-sm truncate">{item.prompt}</p>
                         <p className="text-xs text-muted-foreground flex items-center justify-between">
-                          <span>{item.style}</span>
+                          <span>{item.style} • {item.orientation === '9:16' ? 'Vertical' : 'Horizontal'}</span>
                           <span>{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
                         </p>
                       </div>

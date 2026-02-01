@@ -360,6 +360,7 @@ export interface Generation {
   style: string;
   videoUrl: string;
   timestamp: ClientTimestamp;
+  orientation?: '16:9' | '9:16';
 }
 
 // Brand Research Types
