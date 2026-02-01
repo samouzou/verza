@@ -182,6 +182,17 @@ export function SidebarNav() {
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
          <SetupGuide />
+          {activeUser && (
+            <div className="p-2">
+              <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent">
+                  <Wallet className="h-5 w-5 flex-shrink-0" />
+                  <div className="group-data-[collapsible=icon]:hidden">
+                      <p className="text-sm font-semibold">{activeUser.credits ?? 0}</p>
+                      <p className="text-xs text-muted-foreground -mt-1">Credits</p>
+                  </div>
+              </div>
+            </div>
+          )}
          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>

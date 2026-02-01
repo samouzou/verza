@@ -8,6 +8,7 @@ import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "./../types";
 import {sendEmailSequence} from "../notifications";
 
+const NEW_USER_BONUS = 50;
 
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
   const {uid, email, displayName, photoURL, emailVerified} = user;
@@ -115,7 +116,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     tin: null,
     hasCompletedOnboarding: false,
     emailSequence: {step: 1, nextEmailAt: twoDaysFromNow as any},
-    credits: 5,
+    credits: NEW_USER_BONUS,
   };
 
   await userDocRef.set(newUserDoc, {merge: true});

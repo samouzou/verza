@@ -361,6 +361,7 @@ export interface Generation {
   videoUrl: string;
   timestamp: ClientTimestamp;
   orientation?: '16:9' | '9:16';
+  cost: number;
 }
 
 // Brand Research Types

@@ -82,6 +82,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const NEW_USER_BONUS = 50;
 
 const createUserDocument = async (firebaseUser: FirebaseUser) => {
   if (!firebaseUser) return;
@@ -131,7 +132,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       step: 1, // Start at step 1 (Welcome email already sent by trigger)
       nextEmailAt: twoDaysFromNow,
     };
-    updates.credits = 5;
+    updates.credits = NEW_USER_BONUS;
 
     needsUpdate = true;
 
@@ -227,7 +228,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       needsUpdate = true;
     }
     if (existingData.credits === undefined) {
-      updates.credits = 5;
+      updates.credits = NEW_USER_BONUS;
       needsUpdate = true;
     }
 
@@ -304,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               credits: firestoreUserData.credits,
             });
           } else {
-             console.warn(`User document for ${"\'" + currentFirebaseUser.uid + "\'"} not found during listener setup.`);
+             console.warn(`User document for ${"'" + currentFirebaseUser.uid + "'"} not found during listener setup.`);
              setUser(null);
           }
           setIsLoading(false);
@@ -509,5 +510,3 @@ export function useAuth() {
   }
   return context;
 }
-
-    

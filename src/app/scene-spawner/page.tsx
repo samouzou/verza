@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, AlertTriangle, Sparkles, Video, Download, History, Monitor, Smartphone } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -19,8 +19,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
+const VIDEO_COST = 10;
 
 export default function SceneSpawnerPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
@@ -66,8 +77,8 @@ export default function SceneSpawnerPage() {
       toast({ title: "Prompt Required", description: "Please enter a prompt for your scene.", variant: "destructive" });
       return;
     }
-    if ((user.credits ?? 0) <= 0) {
-      toast({ title: "No Credits", description: "You have no more spawns left.", variant: "destructive" });
+    if ((user.credits ?? 0) < VIDEO_COST) {
+      toast({ title: "No Credits", description: `A scene costs ${VIDEO_COST} credits.`, variant: "destructive" });
       return;
     }
 
@@ -92,6 +103,7 @@ export default function SceneSpawnerPage() {
   };
 
   const credits = user?.credits ?? 0;
+  const canAfford = credits >= VIDEO_COST;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -151,11 +163,38 @@ export default function SceneSpawnerPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <Button onClick={handleSpawnScene} disabled={isGenerating || credits <= 0}>
-                  {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                  Spawn Scene ({credits} {credits === 1 ? 'Credit' : 'Credits'} Left)
-                </Button>
-                {credits <= 0 && <p className="text-sm text-destructive">No spawns left.</p>}
+                {canAfford ? (
+                  <Button onClick={handleSpawnScene} disabled={isGenerating}>
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    Spawn Scene ({VIDEO_COST} Credits)
+                  </Button>
+                ) : (
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                          <Button>Top Up Credits</Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                              <AlertDialogTitle>Out of Credits!</AlertDialogTitle>
+                              <AlertDialogDescription>Choose a credit pack to continue spawning scenes.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <div className="space-y-4 py-4">
+                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => toast({title: "Coming Soon!", description: "Payment functionality is not yet implemented."})}>
+                                  <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">25 Videos</p></div>
+                                  <p className="text-lg font-semibold">$15</p>
+                              </Button>
+                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => toast({title: "Coming Soon!", description: "Payment functionality is not yet implemented."})}>
+                                  <div><p className="font-semibold">Studio Pack</p><p className="font-normal text-sm">100 Videos</p></div>
+                                  <p className="text-lg font-semibold">$50</p>
+                              </Button>
+                          </div>
+                          <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                <p className="text-sm text-muted-foreground">You have {credits} {credits === 1 ? 'credit' : 'credits'} left.</p>
               </div>
             </CardContent>
           </Card>
