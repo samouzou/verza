@@ -636,9 +636,9 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const { planKey } = request.data as { planKey: 'starter' | 'agency' };
+  const {planKey} = request.data as { planKey: "starter" | "agency" };
 
-  if (!planKey || !['starter', 'agency'].includes(planKey)) {
+  if (!planKey || !["starter", "agency"].includes(planKey)) {
     throw new HttpsError("invalid-argument", "A valid plan key ('starter' or 'agency') is required.");
   }
 
@@ -654,24 +654,24 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       const customer = await stripe.customers.create({
         email: userData.email || undefined,
         name: userData.displayName || undefined,
-        metadata: { firebaseUID: userId },
+        metadata: {firebaseUID: userId},
       });
       stripeCustomerId = customer.id;
-      await userDoc.ref.update({ stripeCustomerId });
+      await userDoc.ref.update({stripeCustomerId});
     }
 
     let priceId;
     let creditAmount;
 
     switch (planKey) {
-      case 'starter':
-        priceId = process.env.STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID;
-        creditAmount = 250;
-        break;
-      case 'agency':
-        priceId = process.env.STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID;
-        creditAmount = 1000;
-        break;
+    case "starter":
+      priceId = process.env.STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID;
+      creditAmount = 250;
+      break;
+    case "agency":
+      priceId = process.env.STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID;
+      creditAmount = 1000;
+      break;
     }
 
     if (!priceId) {
@@ -679,9 +679,9 @@ export const createCreditCheckoutSession = onCall(async (request) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: "payment",
       customer: stripeCustomerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{price: priceId, quantity: 1}],
       success_url: `${process.env.APP_URL}/scene-spawner?purchase_success=true`,
       cancel_url: `${process.env.APP_URL}/scene-spawner`,
       metadata: {
@@ -691,7 +691,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       },
     });
 
-    return { url: session.url };
+    return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating credit checkout session for user ${userId}:`, error);
     if (error instanceof HttpsError) throw error;
@@ -699,7 +699,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   }
 });
 
-export const stripeCreditWebhookHandler = onRequest(async (request, response) => {
+export const stripeCreditWebhookHandler = onRequest({ region: "us-central1" }, async (request, response) => {
   const sig = request.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET;
 
@@ -718,9 +718,9 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
     return;
   }
 
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { firebaseUID, creditAmount, priceId } = session.metadata || {};
+    const {firebaseUID, creditAmount, priceId} = session.metadata || {};
 
     if (!firebaseUID || !creditAmount) {
       logger.warn("Webhook received checkout.session.completed without required metadata.", session.id);
@@ -737,8 +737,8 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
     }
 
     try {
-      const userRef = db.collection('users').doc(userId);
-      const transactionRef = db.collection('credit_transactions').doc();
+      const userRef = db.collection("users").doc(userId);
+      const transactionRef = db.collection("credit_transactions").doc();
 
       await db.runTransaction(async (transaction) => {
         const userDoc = await transaction.get(userRef);
@@ -751,11 +751,11 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         transaction.set(transactionRef, {
           userId: userId,
           creditAmount: creditsToAdd,
-          priceId: priceId || 'unknown',
+          priceId: priceId || "unknown",
           checkoutSessionId: session.id,
-          status: 'completed',
+          status: "completed",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        } as Omit<CreditTransaction, 'id'>);
+        } as Omit<CreditTransaction, "id">);
       });
 
       logger.info(`Successfully added ${creditsToAdd} credits to user ${userId}.`);
