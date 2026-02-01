@@ -117,7 +117,6 @@ export const generateScene = onCall({
       },
     });
 
-    await videoFile.makePublic();
     const finalVideoUrl = videoFile.publicUrl();
 
     // 5. Save generation record to Firestore
