@@ -64,6 +64,7 @@ export interface UserProfile {
     step: number;
     nextEmailAt: Timestamp;
   };
+  credits?: number;
 }
 
 interface AuthContextType {
@@ -130,6 +131,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       step: 1, // Start at step 1 (Welcome email already sent by trigger)
       nextEmailAt: twoDaysFromNow,
     };
+    updates.credits = 5;
 
     needsUpdate = true;
 
@@ -224,6 +226,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.hasCompletedOnboarding = false;
       needsUpdate = true;
     }
+    if (existingData.credits === undefined) {
+      updates.credits = 5;
+      needsUpdate = true;
+    }
 
 
     if (needsUpdate) {
@@ -295,9 +301,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               emailSequence: firestoreUserData.emailSequence,
+              credits: firestoreUserData.credits,
             });
           } else {
-             console.warn(`User document for ${currentFirebaseUser.uid} not found during listener setup.`);
+             console.warn(`User document for ${"\'" + currentFirebaseUser.uid + "\'"} not found during listener setup.`);
              setUser(null);
           }
           setIsLoading(false);
@@ -502,3 +509,5 @@ export function useAuth() {
   }
   return context;
 }
+
+    
