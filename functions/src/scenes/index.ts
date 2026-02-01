@@ -83,7 +83,7 @@ export const generateScene = onCall({
       model: googleAI.model("veo-3.1-fast-generate-preview"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
-        // No aspect ratio needed for veo-3.1, it defaults to 16:9
+        durationSeconds: 5,
       },
     });
 
