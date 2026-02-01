@@ -20,17 +20,14 @@ export const generateScene = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const {prompt, style, orientation} = request.data;
+  const {prompt, style} = request.data;
   const userId = request.auth.uid;
 
-  if (!prompt || !style || !orientation) {
-    throw new HttpsError("invalid-argument", "The function requires 'prompt', 'style', and 'orientation' arguments.");
+  if (!prompt || !style) {
+    throw new HttpsError("invalid-argument", "The function requires 'prompt' and 'style' arguments.");
   }
   if (!styleOptions.includes(style)) {
     throw new HttpsError("invalid-argument", `Invalid style. Must be one of: ${styleOptions.join(", ")}`);
-  }
-  if (!["16:9", "9:16"].includes(orientation)) {
-    throw new HttpsError("invalid-argument", "Invalid orientation. Must be '16:9' or '9:16'.");
   }
 
   // Initialize Admin SDK inside the function
@@ -86,7 +83,7 @@ export const generateScene = onCall({
       model: googleAI.model("veo-3.1-generate-preview"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
-        aspectRatio: orientation,
+        // No aspect ratio needed for veo-3.1, it defaults to 16:9
       },
     });
 
@@ -147,7 +144,7 @@ export const generateScene = onCall({
       style,
       videoUrl: finalVideoUrl,
       timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
-      orientation,
+      orientation: "16:9", // Hardcode to default aspect ratio
       cost: VIDEO_COST, // Add cost to generation record
     };
     const generationDocRef = await adminDb.collection("generations").add(generationData);

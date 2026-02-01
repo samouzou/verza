@@ -39,7 +39,6 @@ export default function SceneSpawnerPage() {
 
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
-  const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -107,7 +106,7 @@ export default function SceneSpawnerPage() {
 
     try {
       const generateSceneCallable = httpsCallable(functions, 'generateScene');
-      const result = await generateSceneCallable({ prompt, style, orientation });
+      const result = await generateSceneCallable({ prompt, style });
       const data = result.data as { videoUrl: string, remainingCredits: number };
 
       setGeneratedVideoUrl(data.videoUrl);
@@ -161,24 +160,6 @@ export default function SceneSpawnerPage() {
                       {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label>Orientation</Label>
-                  <RadioGroup
-                    value={orientation}
-                    onValueChange={(value) => setOrientation(value as any)}
-                    className="mt-2 grid grid-cols-2 gap-2"
-                    disabled={isGenerating}
-                  >
-                    <Label htmlFor="h" className={cn("flex items-center justify-center gap-2 cursor-pointer p-2 border-2 rounded-md transition-colors", orientation === '16:9' ? 'border-primary' : 'border-muted')}>
-                      <RadioGroupItem value="16:9" id="h" className="sr-only" />
-                      <Monitor className="h-4 w-4" /> Horizontal
-                    </Label>
-                    <Label htmlFor="v" className={cn("flex items-center justify-center gap-2 cursor-pointer p-2 border-2 rounded-md transition-colors", orientation === '9:16' ? 'border-primary' : 'border-muted')}>
-                      <RadioGroupItem value="9:16" id="v" className="sr-only" />
-                      <Smartphone className="h-4 w-4" /> Vertical
-                    </Label>
-                  </RadioGroup>
                 </div>
               </div>
               <div className="flex items-center justify-between">
