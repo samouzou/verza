@@ -2,5 +2,6 @@
 // It tells TypeScript to use the main 'handlebars' type definitions when it encounters
 // an import from 'handlebars/dist/cjs/handlebars.js', which resolves the build error.
 declare module 'handlebars/dist/cjs/handlebars.js' {
-  export * from 'handlebars';
+    import * as Handlebars from 'handlebars';
+    export = Handlebars;
 }
