@@ -83,7 +83,7 @@ export const generateScene = onCall({
       model: googleAI.model("veo-3.1-fast-generate-preview"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
-        durationSeconds: 5,
+        durationSeconds: 8,
       },
     });
 
