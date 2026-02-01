@@ -116,10 +116,10 @@ export const generateScene = onCall({
         contentType: "video/mp4",
       },
     });
-    
+
     // Generate a signed URL that expires in 7 days.
     const [signedUrl] = await videoFile.getSignedUrl({
-      action: 'read',
+      action: "read",
       expires: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 
