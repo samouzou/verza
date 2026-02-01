@@ -371,7 +371,7 @@ export interface BrandResearch {
   uid: string;
   brandUrl: string;
   brandName: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: "pending" | "completed" | "failed";
   report?: {
     decisionMakers: string[];
     currentVibe: string;
