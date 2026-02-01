@@ -69,6 +69,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Rules for brand_research collection
+    match /brand_research/{researchId} {
+      allow read, update, delete: if isOwner(resource.data.uid);
+      allow create: if isOwner(request.resource.data.uid);
+    }
+
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
       allow read: if isOwner(resource.data.userId) || isOwner(resource.data.creatorId);
