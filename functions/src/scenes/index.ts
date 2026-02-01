@@ -116,8 +116,14 @@ export const generateScene = onCall({
         contentType: "video/mp4",
       },
     });
+    
+    // Generate a signed URL that expires in 7 days.
+    const [signedUrl] = await videoFile.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
 
-    const finalVideoUrl = videoFile.publicUrl();
+    const finalVideoUrl = signedUrl;
 
     // 5. Save generation record to Firestore
     const generationData: Omit<Generation, "id"> = {
