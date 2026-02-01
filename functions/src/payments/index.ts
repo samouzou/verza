@@ -699,7 +699,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   }
 });
 
-export const stripeCreditWebhookHandler = onRequest({ region: "us-central1" }, async (request, response) => {
+export const stripeCreditWebhookHandler = onRequest(async (request, response) => {
   const sig = request.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET;
 
