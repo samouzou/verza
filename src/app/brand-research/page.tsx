@@ -171,7 +171,7 @@ export default function BrandResearchPage() {
     <>
       <PageHeader
         title="Brand Research Assistant"
-        description="Enter a brand's website URL to generate an AI-powered pitch attack plan."
+        description="Enter a brand's website URL to generate a pitch attack plan."
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">
