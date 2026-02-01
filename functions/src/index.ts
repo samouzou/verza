@@ -18,6 +18,8 @@ import {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   getStripeAccountBalance,
+  createCreditCheckoutSession,
+  stripeCreditWebhookHandler,
 } from "./payments";
 
 import {
@@ -73,6 +75,8 @@ export {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   getStripeAccountBalance,
+  createCreditCheckoutSession,
+  stripeCreditWebhookHandler,
   sendContractNotification,
   handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,

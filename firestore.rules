@@ -74,6 +74,12 @@ service cloud.firestore {
       allow read, update, delete: if isOwner(resource.data.uid);
       allow create: if isOwner(request.resource.data.uid);
     }
+    
+    // Rules for credit transactions collection
+    match /credit_transactions/{transactionId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if false; // Only backend can write
+    }
 
     // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {

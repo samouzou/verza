@@ -7,7 +7,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone} from "./../types";
+import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction} from "./../types";
 
 // Initialize Stripe
 let stripe: Stripe;
@@ -628,4 +628,143 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
     logger.error("Webhook error:", error);
     response.status(400).send("Webhook error");
   }
+});
+
+export const createCreditCheckoutSession = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const { planKey } = request.data as { planKey: 'starter' | 'agency' };
+
+  if (!planKey || !['starter', 'agency'].includes(planKey)) {
+    throw new HttpsError("invalid-argument", "A valid plan key ('starter' or 'agency') is required.");
+  }
+
+  const userDoc = await db.collection("users").doc(userId).get();
+  const userData = userDoc.data() as UserProfileFirestoreData;
+  if (!userData) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  try {
+    let stripeCustomerId = userData.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: userData.email || undefined,
+        name: userData.displayName || undefined,
+        metadata: { firebaseUID: userId },
+      });
+      stripeCustomerId = customer.id;
+      await userDoc.ref.update({ stripeCustomerId });
+    }
+
+    let priceId;
+    let creditAmount;
+
+    switch (planKey) {
+      case 'starter':
+        priceId = process.env.STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID;
+        creditAmount = 250;
+        break;
+      case 'agency':
+        priceId = process.env.STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID;
+        creditAmount = 1000;
+        break;
+    }
+
+    if (!priceId) {
+      throw new HttpsError("failed-precondition", `Price ID for plan '${planKey}' is not configured.`);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: stripeCustomerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.APP_URL}/scene-spawner?purchase_success=true`,
+      cancel_url: `${process.env.APP_URL}/scene-spawner`,
+      metadata: {
+        firebaseUID: userId,
+        creditAmount: creditAmount.toString(),
+        priceId: priceId,
+      },
+    });
+
+    return { url: session.url };
+  } catch (error: any) {
+    logger.error(`Error creating credit checkout session for user ${userId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Could not create checkout session.");
+  }
+});
+
+export const stripeCreditWebhookHandler = onRequest(async (request, response) => {
+  const sig = request.headers["stripe-signature"];
+  const webhookSecret = process.env.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET;
+
+  if (!sig || !webhookSecret) {
+    logger.error("Missing stripe signature or credit purchase webhook secret");
+    response.status(400).send("Webhook Error: Missing signature or secret.");
+    return;
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret);
+  } catch (err: any) {
+    logger.error("Webhook signature verification failed:", err);
+    response.status(400).send(`Webhook Error: ${err.message}`);
+    return;
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const { firebaseUID, creditAmount, priceId } = session.metadata || {};
+
+    if (!firebaseUID || !creditAmount) {
+      logger.warn("Webhook received checkout.session.completed without required metadata.", session.id);
+      response.status(200).send("Received but missing metadata.");
+      return;
+    }
+
+    const userId = firebaseUID;
+    const creditsToAdd = parseInt(creditAmount, 10);
+    if (isNaN(creditsToAdd)) {
+      logger.error("Invalid creditAmount in webhook metadata:", creditAmount);
+      response.status(400).send("Invalid credit amount in metadata.");
+      return;
+    }
+
+    try {
+      const userRef = db.collection('users').doc(userId);
+      const transactionRef = db.collection('credit_transactions').doc();
+
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) {
+          throw new Error(`User with ID ${userId} not found.`);
+        }
+        transaction.update(userRef, {
+          credits: admin.firestore.FieldValue.increment(creditsToAdd),
+        });
+        transaction.set(transactionRef, {
+          userId: userId,
+          creditAmount: creditsToAdd,
+          priceId: priceId || 'unknown',
+          checkoutSessionId: session.id,
+          status: 'completed',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        } as Omit<CreditTransaction, 'id'>);
+      });
+
+      logger.info(`Successfully added ${creditsToAdd} credits to user ${userId}.`);
+    } catch (error: any) {
+      logger.error(`Error updating user credits for user ${userId}:`, error);
+      response.status(500).send("Internal server error while updating credits.");
+      return;
+    }
+  }
+
+  response.status(200).send("Received");
 });

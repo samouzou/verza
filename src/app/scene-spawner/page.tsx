@@ -41,6 +41,7 @@ export default function SceneSpawnerPage() {
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
   const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
   const [history, setHistory] = useState<Generation[]>([]);
@@ -67,6 +68,24 @@ export default function SceneSpawnerPage() {
 
     return () => unsubscribe();
   }, [user, toast]);
+  
+  const handlePurchaseCredits = async (planKey: 'starter' | 'agency') => {
+    setIsProcessingPayment(true);
+    try {
+      const createCheckoutSession = httpsCallable(functions, 'createCreditCheckoutSession');
+      const result = await createCheckoutSession({ planKey });
+      const data = result.data as { url?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("Could not retrieve checkout URL.");
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      toast({ title: "Payment Error", description: error.message || "Could not start payment process.", variant: "destructive" });
+      setIsProcessingPayment(false);
+    }
+  };
 
   const handleSpawnScene = async () => {
     if (!user) {
@@ -171,7 +190,10 @@ export default function SceneSpawnerPage() {
                 ) : (
                   <AlertDialog>
                       <AlertDialogTrigger asChild>
-                          <Button>Top Up Credits</Button>
+                          <Button disabled={isProcessingPayment}>
+                            {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            Top Up Credits
+                          </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                           <AlertDialogHeader>
@@ -179,17 +201,17 @@ export default function SceneSpawnerPage() {
                               <AlertDialogDescription>Choose a credit pack to continue spawning scenes.</AlertDialogDescription>
                           </AlertDialogHeader>
                           <div className="space-y-4 py-4">
-                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => toast({title: "Coming Soon!", description: "Payment functionality is not yet implemented."})}>
-                                  <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">25 Videos</p></div>
+                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('starter')} disabled={isProcessingPayment}>
+                                  <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (25 videos)</p></div>
                                   <p className="text-lg font-semibold">$15</p>
                               </Button>
-                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => toast({title: "Coming Soon!", description: "Payment functionality is not yet implemented."})}>
-                                  <div><p className="font-semibold">Studio Pack</p><p className="font-normal text-sm">100 Videos</p></div>
+                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('agency')} disabled={isProcessingPayment}>
+                                  <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (100 videos)</p></div>
                                   <p className="text-lg font-semibold">$50</p>
                               </Button>
                           </div>
                           <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel disabled={isProcessingPayment}>Cancel</AlertDialogCancel>
                           </AlertDialogFooter>
                       </AlertDialogContent>
                   </AlertDialog>
