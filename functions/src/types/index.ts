@@ -364,3 +364,19 @@ export interface Generation {
   videoUrl: string;
   timestamp: ClientTimestamp;
 }
+
+// Brand Research Types
+export interface BrandResearch {
+  id: string;
+  uid: string;
+  brandUrl: string;
+  brandName: string;
+  status: 'pending' | 'completed' | 'failed';
+  report?: {
+    decisionMakers: string[];
+    currentVibe: string;
+    pitchHooks: string[];
+  };
+  error?: string;
+  createdAt: ClientTimestamp;
+}

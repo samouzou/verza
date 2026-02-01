@@ -63,6 +63,7 @@ import {
 } from "./agency";
 
 import {generateScene} from "./scenes";
+import {analyzeBrand} from "./brand-research";
 
 // Export v2 functions
 export {
@@ -94,6 +95,7 @@ export {
   createInternalPayout,
   inviteTeamMemberToAgency, // Export new function
   generateScene,
+  analyzeBrand,
 };
 
 // Import and export v1 auth trigger using require/exports

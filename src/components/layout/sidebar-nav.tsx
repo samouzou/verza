@@ -58,6 +58,7 @@ import { SetupGuide } from "./setup-guide"; // Import the new component
 const navItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
+  { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
   { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
   { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
