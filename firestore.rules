@@ -96,7 +96,8 @@ service cloud.firestore {
     // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
       // A user can read logs for contracts they own/are part of
-      allow read: if get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.access[request.auth.uid] != null;
+      allow read: if resource.data.contractId != null && 
+                     get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.access[request.auth.uid] != null;
       allow write: if false; // Only backend via Admin SDK
     }
     
