@@ -83,7 +83,7 @@ export const generateScene = onCall({
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     let {operation} = await ai.generate({
-      model: googleAI.model("veo-3.1-generate-preview"),
+      model: googleAI.model("veo-3.1-generate-001"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
         aspectRatio: orientation,
