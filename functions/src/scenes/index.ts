@@ -74,8 +74,8 @@ export const generateScene = onCall({
 
   // 3. Generate video
   try {
-    // Initialize Genkit within the function
-    const ai = genkit({plugins: [googleAI({apiKey: process.env.GEMINI_API_KEY})]});
+    // Initialize Genkit to use Vertex AI via service account credentials
+    const ai = genkit({plugins: [googleAI()]});
 
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
