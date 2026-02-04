@@ -55,17 +55,27 @@ import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide"; // Import the new component
 
-const navItems = [
+const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+];
+
+const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
-  { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
-  { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
-  { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
-  { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
-  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
   { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
   { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
 ];
+
+const financialsNavItems = [
+  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
+  { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
+  { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
+  { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
+];
+
+const aiToolsNavItems = [
+    { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
+    { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
+]
 
 
 export function SidebarNav() {
@@ -143,31 +153,80 @@ export function SidebarNav() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <Link href="/scene-spawner" legacyBehavior passHref>
+            {mainNavItems.map((item) => (
+            <SidebarMenuItem key={item.label} id={item.id}>
+                <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
-                  onClick={() => isMobile && setOpenMobile(false)}
-                  className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                  isActive={pathname === "/scene-spawner"}
-                  tooltip={{ children: "Scene Spawner", className: "group-data-[collapsible=icon]:block hidden"}}
+                    onClick={() => isMobile && setOpenMobile(false)}
+                    className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                    isActive={pathname === item.href}
+                    tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                 >
-                  <Video className="h-5 w-5" />
-                  <span className="group-data-[collapsible=icon]:hidden">Scene Spawner</span>
+                    <item.icon className="h-5 w-5" />
+                    <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                 </SidebarMenuButton>
-              </Link>
-          </SidebarMenuItem>
+                </Link>
+            </SidebarMenuItem>
+            ))}
+
+            <SidebarGroup>
+                <SidebarGroupLabel className="flex items-center">
+                    <span className="group-data-[collapsible=icon]:hidden">AI Tools</span>
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                    {aiToolsNavItems.map((item) => (
+                        <SidebarMenuItem key={item.label} id={item.id}>
+                        <Link href={item.href} legacyBehavior passHref>
+                            <SidebarMenuButton
+                            onClick={() => isMobile && setOpenMobile(false)}
+                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                            isActive={pathname.startsWith(item.href)}
+                            tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                            >
+                            <item.icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                            </SidebarMenuButton>
+                        </Link>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarGroupContent>
+            </SidebarGroup>
+
           <SidebarGroup>
             <SidebarGroupLabel className="flex items-center">
-                <span className="group-data-[collapsible=icon]:hidden">Verza Suite</span>
+                <span className="group-data-[collapsible=icon]:hidden">Manage</span>
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              {navItems.map((item) => (
+              {manageNavItems.map((item) => (
                 <SidebarMenuItem key={item.label} id={item.id}>
                   <Link href={item.href} legacyBehavior passHref>
                     <SidebarMenuButton
                       onClick={() => isMobile && setOpenMobile(false)}
                       className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                      isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center">
+                <span className="group-data-[collapsible=icon]:hidden">Financials</span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              {financialsNavItems.map((item) => (
+                <SidebarMenuItem key={item.label} id={item.id}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      onClick={() => isMobile && setOpenMobile(false)}
+                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      isActive={pathname.startsWith(item.href)}
                       tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                     >
                       <item.icon className="h-5 w-5" />
