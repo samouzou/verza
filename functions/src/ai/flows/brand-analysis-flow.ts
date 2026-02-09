@@ -39,7 +39,7 @@ export async function analyzeBrandWebsite(input: BrandAnalysisInput): Promise<Br
 
 const prompt = ai.definePrompt({
   name: "brandAnalysisPrompt",
-  model: googleAI.model("gemini-2.0-flash"),
+  model: googleAI.model("gemini-3-pro-preview"),
   input: {schema: BrandAnalysisInputSchema},
   output: {schema: BrandAnalysisOutputSchema},
   prompt: `You are an expert Talent Manager and brand strategist. Analyze the following text

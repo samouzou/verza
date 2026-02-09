@@ -29,7 +29,7 @@ export async function editInvoiceNote(input: EditInvoiceNoteInput): Promise<Edit
 
 const prompt = ai.definePrompt({
   name: 'editInvoiceNotePrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-pro-preview'),
   input: { schema: EditInvoiceNoteInputSchema },
   output: { schema: EditInvoiceNoteOutputSchema },
   prompt: `You are an expert copy editor for business communications. A user has written a draft note to include with an invoice. Your task is to revise it based on their desired tone.

@@ -40,7 +40,7 @@ export async function extractContractDetails(input: ExtractContractDetailsInput)
 
 const prompt = ai.definePrompt({
   name: 'extractContractDetailsPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-pro-preview'),
   input: {schema: ExtractContractDetailsInputSchema},
   output: {schema: ExtractContractDetailsOutputSchema},
   prompt: `You are an expert contract analyst. Your task is to extract key details from the provided contract text, which is in SFDT JSON format. You need to parse this JSON to find the plain text.

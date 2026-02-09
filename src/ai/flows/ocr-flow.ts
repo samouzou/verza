@@ -32,7 +32,7 @@ export async function ocrDocument(input: OcrDocumentInput): Promise<OcrDocumentO
 
 const prompt = ai.definePrompt({
   name: 'ocrDocumentPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-pro-preview'),
   input: { schema: OcrDocumentInputSchema },
   output: { schema: OcrDocumentOutputSchema },
   prompt: `You are an expert Optical Character Recognition (OCR) AI. Your task is to accurately extract all text from the provided document image or PDF. Preserve original line breaks and paragraph structure in the extracted text.
