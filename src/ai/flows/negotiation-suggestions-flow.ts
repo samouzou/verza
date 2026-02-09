@@ -10,7 +10,7 @@
 
 import {ai} from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import {z} from 'genkit';
+import {z, retry} from 'genkit';
 
 const NegotiationSuggestionsInputSchema = z.object({
   contractText: z
@@ -34,7 +34,7 @@ export async function getNegotiationSuggestions(
 
 const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
-  model: googleAI.model('gemini-3-pro-preview'),
+  model: googleAI.model('gemini-1.0-pro'),
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
   prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract from its SFDT JSON string format and suggest alternative phrasing for key clauses that would be more favorable to the creator.
@@ -62,6 +62,15 @@ const negotiationSuggestionsFlow = ai.defineFlow(
     name: 'negotiationSuggestionsFlow',
     inputSchema: NegotiationSuggestionsInputSchema,
     outputSchema: NegotiationSuggestionsOutputSchema,
+    retry: retry({
+      backoff: {
+        delay: '2s',
+        maxDelay: '30s',
+        multiplier: 2,
+      },
+      maxAttempts: 5,
+      when: (e) => (e as any).status === 429,
+    }),
   },
   async (input: NegotiationSuggestionsInput) => {
     const {output} = await prompt(input);

@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'genkit';
+import { z, retry } from 'genkit';
 
 const OcrDocumentInputSchema = z.object({
   documentDataUri: z
@@ -47,6 +47,15 @@ const ocrDocumentFlow = ai.defineFlow(
     name: 'ocrDocumentFlow',
     inputSchema: OcrDocumentInputSchema,
     outputSchema: OcrDocumentOutputSchema,
+    retry: retry({
+      backoff: {
+        delay: '2s',
+        maxDelay: '30s',
+        multiplier: 2,
+      },
+      maxAttempts: 5,
+      when: (e) => (e as any).status === 429,
+    }),
   },
   async (input) => {
     const { output } = await prompt(input);
