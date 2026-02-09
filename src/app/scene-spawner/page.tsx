@@ -39,6 +39,7 @@ export default function SceneSpawnerPage() {
 
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
+  const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export default function SceneSpawnerPage() {
 
     try {
       const generateSceneCallable = httpsCallable(functions, 'generateScene');
-      const result = await generateSceneCallable({ prompt, style });
+      const result = await generateSceneCallable({ prompt, style, orientation });
       const data = result.data as { videoUrl: string, remainingCredits: number };
 
       setGeneratedVideoUrl(data.videoUrl);
@@ -160,6 +161,24 @@ export default function SceneSpawnerPage() {
                       {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                 <div>
+                  <Label>Orientation</Label>
+                  <RadioGroup
+                    value={orientation}
+                    onValueChange={(value: '16:9' | '9:16') => setOrientation(value)}
+                    className="flex items-center gap-4 mt-2"
+                    disabled={isGenerating}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="16:9" id="orientation-h" />
+                      <Label htmlFor="orientation-h" className="flex items-center gap-1 cursor-pointer"><Monitor className="h-4 w-4"/> Horizontal</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="9:16" id="orientation-v" />
+                      <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               </div>
               <div className="flex items-center justify-between">

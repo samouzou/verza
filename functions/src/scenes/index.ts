@@ -20,7 +20,7 @@ export const generateScene = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const {prompt, style} = request.data;
+  const {prompt, style, orientation} = request.data;
   const userId = request.auth.uid;
 
   if (!prompt || !style) {
@@ -29,6 +29,10 @@ export const generateScene = onCall({
   if (!styleOptions.includes(style)) {
     throw new HttpsError("invalid-argument", `Invalid style. Must be one of: ${styleOptions.join(", ")}`);
   }
+  if (!orientation || !['16:9', '9:16'].includes(orientation)) {
+    throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9' or '9:16') is required.");
+  }
+
 
   // Initialize Admin SDK inside the function
   if (!admin.apps.length) {
@@ -88,6 +92,7 @@ export const generateScene = onCall({
           prompt: `A ${style} style video of: ${prompt}`,
           config: {
             durationSeconds: 8,
+            aspectRatio: orientation,
           },
         });
         operation = generationResult.operation;
@@ -163,7 +168,7 @@ export const generateScene = onCall({
       style,
       videoUrl: finalVideoUrl,
       timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
-      orientation: "16:9", // Hardcode to default aspect ratio
+      orientation: orientation,
       cost: VIDEO_COST, // Add cost to generation record
     };
     const generationDocRef = await adminDb.collection("generations").add(generationData);
