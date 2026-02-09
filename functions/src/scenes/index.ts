@@ -29,7 +29,7 @@ export const generateScene = onCall({
   if (!styleOptions.includes(style)) {
     throw new HttpsError("invalid-argument", `Invalid style. Must be one of: ${styleOptions.join(", ")}`);
   }
-  if (!orientation || !['16:9', '9:16'].includes(orientation)) {
+  if (!orientation || !["16:9", "9:16"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9' or '9:16') is required.");
   }
 
