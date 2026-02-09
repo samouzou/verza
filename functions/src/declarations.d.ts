@@ -5,3 +5,17 @@ declare module "handlebars/dist/cjs/handlebars.js" {
     import * as Handlebars from "handlebars";
     export = Handlebars;
 }
+
+// Add module declaration for genkit/actions to resolve TypeScript error
+declare module "genkit/actions" {
+  // Provides a type definition for the `retry` function when it's not automatically resolved.
+  export function retry(config: {
+    backoff?: {
+      delay?: string;
+      maxDelay?: string;
+      multiplier?: number;
+    };
+    maxAttempts?: number;
+    when?: (e: any) => boolean;
+  }): any;
+}
