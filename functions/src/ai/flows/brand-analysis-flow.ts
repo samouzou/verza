@@ -10,7 +10,8 @@
 
 import {ai} from "../genkit";
 import {googleAI} from "@genkit-ai/google-genai";
-import {z, retry} from "genkit";
+import {z} from "genkit";
+import {retry} from "genkit/actions";
 
 export const BrandAnalysisInputSchema = z.object({
   brandUrl: z.string().url().describe("The URL of the brand website."),
