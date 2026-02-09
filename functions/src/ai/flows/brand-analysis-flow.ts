@@ -11,7 +11,6 @@
 import {ai} from "../genkit";
 import {googleAI} from "@genkit-ai/google-genai";
 import {z} from "genkit";
-import {retry} from "genkit/actions";
 
 export const BrandAnalysisInputSchema = z.object({
   brandUrl: z.string().url().describe("The URL of the brand website."),
@@ -71,16 +70,27 @@ const brandAnalysisFlow = ai.defineFlow(
     inputSchema: BrandAnalysisInputSchema,
     outputSchema: BrandAnalysisOutputSchema,
   },
-  retry({
-    backoff: {
-      delay: "2s",
-      maxDelay: "30s",
-      multiplier: 2,
-    },
-    maxAttempts: 5,
-    when: (e) => (e as any).status === 429,
-  })(async (input) => {
-    const {output} = await prompt(input);
-    return output!;
-  })
+  async (input: BrandAnalysisInput) => {
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        // Check for a 429 status code and retry if it's not the last attempt
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          // If it's the last attempt or not a 429 error, re-throw.
+          throw e;
+        }
+      }
+    }
+    // This line is for TypeScript's benefit and should not be reached.
+    throw new Error("Flow failed after multiple retries.");
+  }
 );
