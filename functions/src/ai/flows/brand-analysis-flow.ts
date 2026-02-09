@@ -76,12 +76,12 @@ const brandAnalysisFlow = ai.defineFlow(
 
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const { output } = await prompt(input);
+        const {output} = await prompt(input);
         return output!;
       } catch (e: any) {
         // Check for a 429 status code and retry if it's not the last attempt
         if (e.status === 429 && i < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // Exponential backoff
           if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
         } else {

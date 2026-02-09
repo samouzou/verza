@@ -74,21 +74,40 @@ export const generateScene = onCall({
 
   // 3. Generate video
   try {
-    // Initialize Genkit to use Vertex AI via service account credentials
     const ai = genkit({plugins: [googleAI()]});
-
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
-    let {operation} = await ai.generate({
-      model: googleAI.model("veo-3.1-fast-generate-preview"),
-      prompt: `A ${style} style video of: ${prompt}`,
-      config: {
-        durationSeconds: 8,
-      },
-    });
+    let operation: any;
+    const maxAttempts = 5;
+    let delay = 2000; // 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const generationResult = await ai.generate({
+          model: googleAI.model("veo-3.1-fast-generate-preview"),
+          prompt: `A ${style} style video of: ${prompt}`,
+          config: {
+            durationSeconds: 8,
+          },
+        });
+        operation = generationResult.operation;
+        if (operation) {
+          break; // If successful, break the loop
+        }
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          logger.warn(`Attempt ${i + 1} for scene generation failed with 429. Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay
+        } else {
+          throw e; // Rethrow if it's the last attempt or not a 429 error
+        }
+      }
+    }
 
     if (!operation) {
-      throw new Error("Expected the model to return an operation for video generation.");
+      throw new Error("Video generation failed after multiple retries or did not return an operation.");
     }
 
     // Poll for completion
