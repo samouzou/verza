@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z, retry } from 'genkit';
+import { z } from 'genkit';
 import type { BankTransaction, TaxEstimation } from '@/types'; // Import from main types
 
 // Define Zod schema for BankTransaction matching what's in src/types/index.ts
@@ -98,30 +98,38 @@ const taxEstimationFlow = ai.defineFlow(
     name: 'taxEstimationFlow',
     inputSchema: TaxEstimationInputSchema,
     outputSchema: TaxEstimationOutputSchema,
-    retry: retry({
-      backoff: {
-        delay: '2s',
-        maxDelay: '30s',
-        multiplier: 2,
-      },
-      maxAttempts: 5,
-      when: (e) => (e as any).status === 429,
-    }),
   },
   async (input) => {
-    const { output } = await prompt(input);
-    
-    // Ensure calculationDate is always set, even if AI misses it.
-    const result = output!; // Assuming output will not be null
-    if (!result.calculationDate) {
-      result.calculationDate = new Date().toISOString().split('T')[0];
-    }
-     if (!result.notes) {
-      result.notes = [];
-    }
-    result.notes.push("Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.");
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
 
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        
+        // Ensure calculationDate is always set, even if AI misses it.
+        const result = output!; // Assuming output will not be null
+        if (!result.calculationDate) {
+          result.calculationDate = new Date().toISOString().split('T')[0];
+        }
+        if (!result.notes) {
+          result.notes = [];
+        }
+        result.notes.push("Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.");
 
-    return result;
+        return result;
+
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

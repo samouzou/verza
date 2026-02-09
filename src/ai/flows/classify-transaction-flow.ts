@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z, retry } from 'genkit';
+import { z } from 'genkit';
 
 const ClassifyTransactionInputSchema = z.object({
   description: z.string().describe('The raw description of the bank transaction.'),
@@ -58,18 +58,26 @@ const classifyTransactionFlow = ai.defineFlow(
     name: 'classifyTransactionFlow',
     inputSchema: ClassifyTransactionInputSchema,
     outputSchema: ClassifyTransactionOutputSchema,
-    retry: retry({
-      backoff: {
-        delay: '2s',
-        maxDelay: '30s',
-        multiplier: 2,
-      },
-      maxAttempts: 5,
-      when: (e) => (e as any).status === 429,
-    }),
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import {z, retry} from 'genkit';
+import {z} from 'genkit';
 
 const ExtractContractDetailsInputSchema = z.object({
   contractText: z.string().describe('The SFDT JSON string content of the contract document.'),
@@ -70,25 +70,33 @@ const extractContractDetailsFlow = ai.defineFlow(
     name: 'extractContractDetailsFlow',
     inputSchema: ExtractContractDetailsInputSchema,
     outputSchema: ExtractContractDetailsOutputSchema,
-    retry: retry({
-      backoff: {
-        delay: '2s',
-        maxDelay: '30s',
-        multiplier: 2,
-      },
-      maxAttempts: 5,
-      when: (e) => (e as any).status === 429,
-    }),
   },
   async input => {
-    const {output} = await prompt(input);
-    // Ensure defaults if AI fails to provide them
-    const result = output!;
-    if (!result.brand) result.brand = "Unknown Brand";
-    if (result.amount === undefined || result.amount === null) result.amount = 0;
-    if (!result.dueDate) result.dueDate = new Date().toISOString().split('T')[0];
-    if (!result.extractedTerms) result.extractedTerms = {};
-    
-    return result;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const {output} = await prompt(input);
+        // Ensure defaults if AI fails to provide them
+        const result = output!;
+        if (!result.brand) result.brand = "Unknown Brand";
+        if (result.amount === undefined || result.amount === null) result.amount = 0;
+        if (!result.dueDate) result.dueDate = new Date().toISOString().split('T')[0];
+        if (!result.extractedTerms) result.extractedTerms = {};
+        
+        return result;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );
