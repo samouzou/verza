@@ -40,7 +40,7 @@ export async function analyzeBrandWebsite(input: BrandAnalysisInput): Promise<Br
 
 const prompt = ai.definePrompt({
   name: "brandAnalysisPrompt",
-  model: googleAI.model("gemini-1.0-pro"),
+  model: googleAI.model("gemini-2.0-flash"),
   input: {schema: BrandAnalysisInputSchema},
   output: {schema: BrandAnalysisOutputSchema},
   prompt: `You are an expert Talent Manager and brand strategist. Analyze the following text
@@ -70,20 +70,20 @@ const brandAnalysisFlow = ai.defineFlow(
     name: "brandAnalysisFlow",
     inputSchema: BrandAnalysisInputSchema,
     outputSchema: BrandAnalysisOutputSchema,
-    middleware: [
-      retry({
-        backoff: {
-          delay: "2s",
-          maxDelay: "30s",
-          multiplier: 2,
-        },
-        maxAttempts: 5,
-        when: (e) => (e as any).status === 429,
-      })
-    ],
   },
-  async (input) => {
-    const {output} = await prompt(input);
-    return output!;
-  }
+  retry(
+    {
+      backoff: {
+        delay: "2s",
+        maxDelay: "30s",
+        multiplier: 2,
+      },
+      maxAttempts: 5,
+      when: (e) => (e as any).status === 429,
+    },
+    async (input) => {
+      const {output} = await prompt(input);
+      return output!;
+    }
+  )
 );
