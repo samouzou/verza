@@ -78,10 +78,10 @@ export const generateScene = onCall({
 
   // 3. Generate video
   try {
-    const ai = genkit({
+    const ai = genkit({ // Local instance with specific API key
       plugins: [
         googleAI({
-          apiKey: process.env.GEMINI_API_KEY,
+          apiKey: process.env.VERTEX_API_KEY, // Using the dedicated Vertex key
         }),
       ],
     });
@@ -140,7 +140,7 @@ export const generateScene = onCall({
 
     const fetch = (await import("node-fetch")).default;
     const videoDownloadResponse = await fetch(
-      `${video.media.url}&key=${process.env.GEMINI_API_KEY}`
+      `${video.media.url}&key=${process.env.VERTEX_API_KEY}` // Using the dedicated Vertex key
     );
 
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {

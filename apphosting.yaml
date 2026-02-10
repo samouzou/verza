@@ -17,6 +17,11 @@ env:
     availability:
       - RUNTIME
 
+  - variable: VERTEX_API_KEY
+    secret: VERTEX_API_KEY
+    availability:
+      - RUNTIME
+
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
@@ -118,4 +123,5 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
 
