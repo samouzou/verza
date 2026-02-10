@@ -102,37 +102,36 @@ export const generateScene = onCall({
 
     let operation = initialOperation;
     let pollAttempts = 0;
-    const maxPollAttempts = 10;
+    const maxPollAttempts = 15; // Increased attempts
 
     while (!operation.done) {
-      pollAttempts++;
-      if (pollAttempts > maxPollAttempts) {
-        throw new Error("Video generation timed out after multiple polling attempts.");
+      if (pollAttempts >= maxPollAttempts) {
+        throw new Error(`Video generation timed out after ${pollAttempts} polling attempts.`);
       }
-
-      logger.info(`Polling video generation operation for user ${userId} (Attempt ${pollAttempts})...`);
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+      pollAttempts++;
+      logger.info(`Polling attempt ${pollAttempts}/${maxPollAttempts} for user ${userId}...`);
 
       try {
+        await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds before checking
         operation = await ai.checkOperation(operation);
       } catch (pollError: any) {
-        logger.warn(`Polling attempt ${pollAttempts} failed with status ${pollError.status}. Retrying...`,
-          {error: pollError.message});
-        if (pollAttempts >= maxPollAttempts) {
-          throw pollError; // Re-throw if max attempts reached
-        }
-        // Simple wait before next poll, could add exponential backoff here too if needed
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        // Log the full error for better debugging but don't crash the function
+        logger.error(`Polling attempt ${pollAttempts} failed. Continuing to retry.`, {
+            errorMessage: pollError.message,
+            errorStatus: pollError.status,
+            fullError: JSON.stringify(pollError, Object.getOwnPropertyNames(pollError)),
+        });
       }
     }
 
+
     if (operation.error) {
-      throw new Error(`Video generation failed: ${operation.error.message}`);
+      throw new Error(`Video generation failed after polling: ${operation.error.message}`);
     }
 
     const video = operation.output?.message?.content.find((p: any) => !!p.media);
     if (!video || !video.media) {
-      throw new Error("Failed to find the generated video in the model response.");
+      throw new Error("Failed to find the generated video in the model response after polling.");
     }
 
     logger.info(`Video generated. Downloading from URL for user ${userId}.`);
@@ -191,7 +190,12 @@ export const generateScene = onCall({
   } catch (error: any) {
     logger.error("Video generation or storage failed for user", userId, error);
     // Refund credit on failure
-    await userDocRef.update({credits: admin.firestore.FieldValue.increment(VIDEO_COST)});
-    throw new HttpsError("internal", error.message || "Failed to generate or save the video. Your credit has been refunded.");
+    try {
+      await userDocRef.update({credits: admin.firestore.FieldValue.increment(VIDEO_COST)});
+      logger.info(`Refunded ${VIDEO_COST} credits to user ${userId} after failure.`);
+    } catch (refundError) {
+      logger.error(`CRITICAL: Failed to refund credits to user ${userId} after video generation failure.`, refundError);
+    }
+    throw new HttpsError("internal", error.message || "Failed to generate or save the video. Your credit has been refunded where possible.");
   }
 });
