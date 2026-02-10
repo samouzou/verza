@@ -5,56 +5,12 @@ import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import type {UserProfileFirestoreData} from "./../types";
+import * as params from "../config/params";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
 "individual_monthly" | "individual_yearly" | "agency_start_monthly" | "agency_start_yearly"
 | "agency_pro_monthly" | "agency_pro_yearly";
-
-
-// Initialize Stripe
-let stripe: Stripe;
-try {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    logger.warn("STRIPE_SECRET_KEY is not set - using mock Stripe instance for development");
-    // Create a mock Stripe instance for development
-    stripe = {
-      customers: {
-        create: async () => ({id: "mock_customer_id"}),
-        retrieve: async () => ({id: "mock_customer_id", metadata: {firebaseUID: "mock_uid"}}),
-      },
-      checkout: {
-        sessions: {
-          create: async () => ({id: "mock_session_id", url: "https://mock-checkout-url"}),
-        },
-      },
-      billingPortal: {
-        sessions: {
-          create: async () => ({url: "https://mock-portal-url"}),
-        },
-      },
-      webhooks: {
-        constructEvent: () => ({type: "mock_event", data: {object: {}}}),
-      },
-      subscriptions: {
-        retrieve: async () => ({
-          id: "mock_subscription_id",
-          status: "active",
-          current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
-          items: {data: [{price: {recurring: {interval: "month"}}}]}, // Mock interval
-        }),
-      },
-    } as unknown as Stripe;
-  } else {
-    stripe = new Stripe(stripeKey, {
-      apiVersion: "2025-05-28.basil",
-    });
-  }
-} catch (error) {
-  logger.error("Error initializing Stripe:", error);
-  throw error;
-}
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
@@ -72,12 +28,12 @@ try {
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
-    [process.env.STRIPE_INDIVIDUAL_PRO_PRICE_ID || ""]: {planId: "individual_monthly", talentLimit: 0},
-    [process.env.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID || ""]: {planId: "individual_yearly", talentLimit: 0},
-    [process.env.STRIPE_AGENCY_START_PRICE_ID || ""]: {planId: "agency_start_monthly", talentLimit: 10},
-    [process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID || ""]: {planId: "agency_start_yearly", talentLimit: 10},
-    [process.env.STRIPE_AGENCY_PRO_PRICE_ID || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
-    [process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID || ""]: {planId: "agency_pro_yearly", talentLimit: 25},
+    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
+    [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
+    [params.STRIPE_AGENCY_START_PRICE_ID.value() || ""]: {planId: "agency_start_monthly", talentLimit: 10},
+    [params.STRIPE_AGENCY_START_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_start_yearly", talentLimit: 10},
+    [params.STRIPE_AGENCY_PRO_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
+    [params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pro_yearly", talentLimit: 25},
   };
 
   return priceIdMap[priceId] || {planId: null, talentLimit: 0};
@@ -86,8 +42,16 @@ function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; ta
 
 // Create subscription checkout session
 export const createStripeSubscriptionCheckoutSession = onCall(async (request) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
   if (!request.auth) {
-    throw new Error("The function must be called while authenticated.");
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
   const userId = request.auth.uid;
@@ -99,7 +63,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   const userData = userDoc.data();
 
   if (!userData) {
-    throw new Error("User not found");
+    throw new HttpsError("not-found", "User not found");
   }
 
   try {
@@ -120,30 +84,30 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     let priceId;
     switch (planId) {
     case "individual_monthly":
-      priceId = process.env.STRIPE_INDIVIDUAL_PRO_PRICE_ID;
+      priceId = params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value();
       break;
     case "individual_yearly":
-      priceId = process.env.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID;
+      priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
       break;
     case "agency_start_monthly":
-      priceId = process.env.STRIPE_AGENCY_START_PRICE_ID;
+      priceId = params.STRIPE_AGENCY_START_PRICE_ID.value();
       break;
     case "agency_start_yearly":
-      priceId = process.env.STRIPE_AGENCY_START_YEARLY_PRICE_ID;
+      priceId = params.STRIPE_AGENCY_START_YEARLY_PRICE_ID.value();
       break;
     case "agency_pro_monthly":
-      priceId = process.env.STRIPE_AGENCY_PRO_PRICE_ID;
+      priceId = params.STRIPE_AGENCY_PRO_PRICE_ID.value();
       break;
     case "agency_pro_yearly":
-      priceId = process.env.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID;
+      priceId = params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value();
       break;
     default:
-      throw new Error(`Invalid or disallowed planId: ${planId}`);
+      throw new HttpsError("invalid-argument", `Invalid or disallowed planId: ${planId}`);
     }
 
     if (!priceId) {
       logger.error(`Stripe Price ID for plan ${planId} is not set in environment variables.`);
-      throw new Error("The selected pricing option is not available at this moment.");
+      throw new HttpsError("failed-precondition", "The selected pricing option is not available at this moment.");
     }
 
 
@@ -169,8 +133,8 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
         price: priceId,
         quantity: 1,
       }],
-      success_url: `${process.env.APP_URL}/dashboard?subscription_success=true`,
-      cancel_url: `${process.env.APP_URL}/settings`, // Changed cancel URL to settings page
+      success_url: `${params.APP_URL.value()}/dashboard?subscription_success=true`,
+      cancel_url: `${params.APP_URL.value()}/settings`, // Changed cancel URL to settings page
       subscription_data: subscriptionData,
       metadata: { // Top-level metadata for session itself
         firebaseUID: userId,
@@ -182,14 +146,23 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     return {sessionId: session.id, url: session.url};
   } catch (error) {
     logger.error("Error creating subscription checkout session:", error);
-    throw new Error("Failed to create subscription checkout session");
+    throw new HttpsError("internal", "Failed to create subscription checkout session");
   }
 });
 
 // Create customer portal session
 export const createStripeCustomerPortalSession = onCall(async (request) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
   if (!request.auth) {
-    throw new Error("The function must be called while authenticated.");
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
   const userId = request.auth.uid;
@@ -197,24 +170,33 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
   const userData = userDoc.data();
 
   if (!userData?.stripeCustomerId) {
-    throw new Error("No active subscription found");
+    throw new HttpsError("failed-precondition", "No active subscription found");
   }
 
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: userData.stripeCustomerId,
-      return_url: `${process.env.APP_URL}/settings`, // Return to settings page
+      return_url: `${params.APP_URL.value()}/settings`, // Return to settings page
     });
 
     return {url: session.url};
   } catch (error) {
     logger.error("Error creating customer portal session:", error);
-    throw new Error("Failed to create customer portal session");
+    throw new HttpsError("internal", "Failed to create customer portal session");
   }
 });
 
 // Handle Stripe webhooks
 export const stripeSubscriptionWebhookHandler = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    response.status(500).send("Webhook Error: Stripe service not configured.");
+    return;
+  }
   // Set CORS headers
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -227,7 +209,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   }
 
   const sig = request.headers["stripe-signature"];
-  const webhookSecret = process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET;
+  const webhookSecret = params.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET.value();
 
   if (!sig || !webhookSecret) {
     logger.error("Missing stripe signature or webhook secret");

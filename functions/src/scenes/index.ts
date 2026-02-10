@@ -6,6 +6,7 @@ import {genkit} from "genkit";
 import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
+import * as params from "../config/params";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -33,14 +34,13 @@ export const generateScene = onCall({
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9' or '9:16') is required.");
   }
 
-
   // Initialize Admin SDK inside the function
   if (!admin.apps.length) {
     admin.initializeApp();
   }
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
-  const defaultBucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
+  const defaultBucket = adminStorage.bucket(params.FIREBASE_STORAGE_BUCKET.value());
 
   const userDocRef = adminDb.collection("users").doc(userId);
 
@@ -81,14 +81,14 @@ export const generateScene = onCall({
     const ai = genkit({
       plugins: [
         googleAI({
-          apiKey: process.env.VERTEX_API_KEY, // Using the dedicated Vertex key
+          apiKey: params.VERTEX_API_KEY.value(),
         }),
       ],
     });
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     const {operation: initialOperation} = await ai.generate({
-      model: googleAI.model("veo-3.1-generate-preview"), // Switched to stable model
+      model: googleAI.model("veo-2.0-generate-001"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
         durationSeconds: 8,
@@ -102,7 +102,7 @@ export const generateScene = onCall({
 
     let operation = initialOperation;
     let pollAttempts = 0;
-    const maxPollAttempts = 15; // Increased attempts
+    const maxPollAttempts = 15;
 
     while (!operation.done) {
       if (pollAttempts >= maxPollAttempts) {
@@ -115,11 +115,10 @@ export const generateScene = onCall({
         await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds before checking
         operation = await ai.checkOperation(operation);
       } catch (pollError: any) {
-        // Log the full error for better debugging but don't crash the function
         logger.error(`Polling attempt ${pollAttempts} failed. Continuing to retry.`, {
-            errorMessage: pollError.message,
-            errorStatus: pollError.status,
-            fullError: JSON.stringify(pollError, Object.getOwnPropertyNames(pollError)),
+          errorMessage: pollError.message,
+          errorStatus: pollError.status,
+          fullError: JSON.stringify(pollError, Object.getOwnPropertyNames(pollError)),
         });
       }
     }
@@ -137,7 +136,7 @@ export const generateScene = onCall({
     logger.info(`Video generated. Downloading from URL for user ${userId}.`);
     const fetch = (await import("node-fetch")).default;
     const videoDownloadResponse = await fetch(
-      `${video.media.url}&key=${process.env.VERTEX_API_KEY}` // Using the dedicated Vertex key
+      `${video.media.url}&key=${params.VERTEX_API_KEY.value()}`
     );
 
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
@@ -196,6 +195,7 @@ export const generateScene = onCall({
     } catch (refundError) {
       logger.error(`CRITICAL: Failed to refund credits to user ${userId} after video generation failure.`, refundError);
     }
-    throw new HttpsError("internal", error.message || "Failed to generate or save the video. Your credit has been refunded where possible.");
+    throw new HttpsError("internal", error.message || "Failed to generate or save the video." +
+      " Your credit has been refunded where possible.");
   }
 });

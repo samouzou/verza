@@ -6,14 +6,6 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 
-// Initialize SendGrid
-const sendgridKey = params.SENDGRID_API_KEY.value();
-if (sendgridKey) {
-  sgMail.setApiKey(sendgridKey);
-} else {
-  logger.warn("SENDGRID_API_KEY is not set. Emails will not be sent.");
-}
-
 /**
  * Verifies the Firebase ID token from the Authorization header
  * @param {string | undefined} authHeader - The Authorization header from the request
@@ -45,6 +37,15 @@ export const sendContractNotification = onRequest(async (request, response) => {
   // Handle preflight requests
   if (request.method === "OPTIONS") {
     response.status(204).send("");
+    return;
+  }
+
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (sendgridKey) {
+    sgMail.setApiKey(sendgridKey);
+  } else {
+    logger.error("SENDGRID_API_KEY is not set. Emails will not be sent.");
+    response.status(500).json({ error: "Email service is not configured." });
     return;
   }
 
@@ -190,6 +191,13 @@ export const handleSendGridEmailWebhook = onRequest(async (request, response) =>
  */
 export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName: string,
   isExistingUser: boolean, type: "talent" | "team", role?: "admin" | "member"): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping agency invitation email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   const appUrl = params.APP_URL.value();
   const subject = `You've been invited to join ${agencyName} on Verza`;
   const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
@@ -244,6 +252,13 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
  * @param {number} step The step number of the email in the sequence.
  */
 export async function sendEmailSequence(toEmail: string, name: string, step: number): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping email sequence.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   const appUrl = params.APP_URL.value();
 
   let subject = "";

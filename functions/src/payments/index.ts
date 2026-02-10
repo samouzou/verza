@@ -1,6 +1,4 @@
 
-"use client";
-
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -8,35 +6,7 @@ import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction} from "./../types";
-
-// Initialize Stripe
-let stripe: Stripe;
-try {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    throw new Error("STRIPE_SECRET_KEY is not set");
-  }
-  stripe = new Stripe(stripeKey, {
-    apiVersion: "2025-05-28.basil",
-  });
-} catch (error) {
-  logger.error("Error initializing Stripe:", error);
-  // Create a mock Stripe instance for local testing
-  stripe = {
-    paymentIntents: {
-      create: async () => ({client_secret: "mock_secret"}),
-      retrieve: async () => ({status: "succeeded"}),
-    },
-  } as unknown as Stripe;
-}
-
-// Initialize SendGrid
-const sendgridKey = process.env.SENDGRID_API_KEY;
-if (sendgridKey) {
-  sgMail.setApiKey(sendgridKey);
-} else {
-  logger.warn("SENDGRID_API_KEY is not set. Emails will not be sent.");
-}
+import * as params from "../config/params";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -61,6 +31,15 @@ async function verifyAuthToken(authHeader: string | undefined): Promise<string> 
 
 // Create Stripe Connected Account
 export const createStripeConnectedAccount = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST");
   response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -121,6 +100,15 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
 
 // Create Stripe Account Link
 export const createStripeAccountLink = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST");
   response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -143,8 +131,8 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
 
     const accountLink = await stripe.accountLinks.create({
       account: userData.stripeAccountId,
-      refresh_url: `${process.env.APP_URL}/reauth`,
-      return_url: `${process.env.APP_URL}/settings?stripe_connect_return=true`,
+      refresh_url: `${params.APP_URL.value()}/reauth`,
+      return_url: `${params.APP_URL.value()}/settings?stripe_connect_return=true`,
       type: "account_onboarding",
     });
 
@@ -159,6 +147,15 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
 });
 
 export const getStripeAccountBalance = onCall(async (request) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
@@ -196,6 +193,17 @@ export const getStripeAccountBalance = onCall(async (request) => {
 
 // Create payment intent
 export const createPaymentIntent = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    // Cannot throw HttpsError in onRequest, so send error response.
+    response.status(500).json({ error: "Stripe service not configured." });
+    return;
+  }
+
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -392,8 +400,18 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
 // Handle successful payment
 export const handlePaymentSuccess = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    response.status(500).send("Webhook Error: Stripe service not configured.");
+    return;
+  }
+
   const sig = request.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = params.STRIPE_WEBHOOK_SECRET.value();
 
   if (!sig || !endpointSecret) {
     logger.error("Missing stripe signature or webhook secret");
@@ -529,23 +547,27 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         }
 
         if (emailForUserConfirmation) {
-          const msg = {
-            to: emailForUserConfirmation,
-            from: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
-            subject: "Payment Confirmation",
-            text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
-            html: `
-              <h2>Payment Confirmation</h2>
-              <p>Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.</p>
-              <p>Thank you for your business!</p>
-              <p>The Verza Team</p>
-            `,
-          };
-          try {
-            await sgMail.send(msg);
-            logger.info("Payment confirmation email sent successfully");
-          } catch (emailError) {
-            logger.error("Failed to send payment confirmation email:", emailError);
+          const sendgridKey = params.SENDGRID_API_KEY.value();
+          if (sendgridKey) {
+            sgMail.setApiKey(sendgridKey);
+            const msg = {
+              to: emailForUserConfirmation,
+              from: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
+              subject: "Payment Confirmation",
+              text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
+              html: `
+                <h2>Payment Confirmation</h2>
+                <p>Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.</p>
+                <p>Thank you for your business!</p>
+                <p>The Verza Team</p>
+              `,
+            };
+            try {
+              await sgMail.send(msg);
+              logger.info("Payment confirmation email sent successfully");
+            } catch (emailError) {
+              logger.error("Failed to send payment confirmation email:", emailError);
+            }
           }
         }
 
@@ -575,8 +597,17 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
 // Handle Stripe Connected Account webhook
 export const handleStripeAccountWebhook = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    response.status(500).send("Webhook Error: Stripe service not configured.");
+    return;
+  }
   const sig = request.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_ACCOUNT_WEBHOOK_SECRET;
+  const endpointSecret = params.STRIPE_ACCOUNT_WEBHOOK_SECRET.value();
 
   if (!sig || !endpointSecret) {
     logger.error("Missing stripe signature or webhook secret");
@@ -631,6 +662,14 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
 });
 
 export const createCreditCheckoutSession = onCall(async (request) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
@@ -665,11 +704,11 @@ export const createCreditCheckoutSession = onCall(async (request) => {
 
     switch (planKey) {
     case "starter":
-      priceId = process.env.STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID;
+      priceId = params.STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID.value();
       creditAmount = 250;
       break;
     case "agency":
-      priceId = process.env.STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID;
+      priceId = params.STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID.value();
       creditAmount = 1000;
       break;
     }
@@ -682,8 +721,8 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       line_items: [{price: priceId, quantity: 1}],
-      success_url: `${process.env.APP_URL}/scene-spawner?purchase_success=true`,
-      cancel_url: `${process.env.APP_URL}/scene-spawner`,
+      success_url: `${params.APP_URL.value()}/scene-spawner?purchase_success=true`,
+      cancel_url: `${params.APP_URL.value()}/scene-spawner`,
       metadata: {
         firebaseUID: userId,
         creditAmount: creditAmount.toString(),
@@ -700,8 +739,17 @@ export const createCreditCheckoutSession = onCall(async (request) => {
 });
 
 export const stripeCreditWebhookHandler = onRequest(async (request, response) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    response.status(500).send("Webhook Error: Stripe service not configured.");
+    return;
+  }
   const sig = request.headers["stripe-signature"];
-  const webhookSecret = process.env.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET;
+  const webhookSecret = params.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET.value();
 
   if (!sig || !webhookSecret) {
     logger.error("Missing stripe signature or credit purchase webhook secret");
