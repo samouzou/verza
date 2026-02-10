@@ -10,6 +10,13 @@ import * as params from "../config/params";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set. Skipping overdue reminders.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   try {
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -127,6 +134,13 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
 
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, cannot send reminder emails.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   try {
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
