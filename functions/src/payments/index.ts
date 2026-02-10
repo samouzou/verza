@@ -34,7 +34,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -103,7 +103,7 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -150,7 +150,7 @@ export const getStripeAccountBalance = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -196,11 +196,11 @@ export const createPaymentIntent = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     // Cannot throw HttpsError in onRequest, so send error response.
-    response.status(500).json({ error: "Stripe service not configured." });
+    response.status(500).json({error: "Stripe service not configured."});
     return;
   }
 
@@ -403,7 +403,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -600,7 +600,7 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -665,7 +665,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -742,7 +742,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");

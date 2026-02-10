@@ -45,7 +45,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
     sgMail.setApiKey(sendgridKey);
   } else {
     logger.error("SENDGRID_API_KEY is not set. Emails will not be sent.");
-    response.status(500).json({ error: "Email service is not configured." });
+    response.status(500).json({error: "Email service is not configured."});
     return;
   }
 

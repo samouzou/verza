@@ -1,5 +1,5 @@
 
-import {onCall, onRequest} from "firebase-functions/v2/https";
+import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
@@ -45,7 +45,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -155,7 +155,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -191,7 +191,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
