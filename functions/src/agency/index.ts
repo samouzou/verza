@@ -7,11 +7,12 @@ import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
   InternalPayout, TeamMember} from "./../types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
+import * as params from "../config/params";
 
 // Initialize Stripe
 let stripe: Stripe;
 try {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripeKey = params.STRIPE_SECRET_KEY.value();
   if (!stripeKey) {
     throw new Error("STRIPE_SECRET_KEY is not set");
   }

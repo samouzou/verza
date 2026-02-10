@@ -5,6 +5,7 @@ import {Timestamp as AdminTimestamp} from "firebase-admin/firestore"; // Use an 
 import {db} from "../config/firebase";
 import type {Contract, SharedContractVersion, UserProfileFirestoreData} from "./../types";
 import type {Timestamp as ClientTimestamp} from "firebase/firestore"; // For casting target
+import * as params from "../config/params";
 
 export const createShareableContractVersion = onCall({
   enforceAppCheck: false,
@@ -99,7 +100,7 @@ export const createShareableContractVersion = onCall({
       return sharedVersionDocRef;
     });
 
-    const appUrl = process.env.APP_URL || "http://localhost:9002";
+    const appUrl = params.APP_URL.value();
     const shareLink = `${appUrl}/share/contract/${result.id}`;
 
     logger.info(

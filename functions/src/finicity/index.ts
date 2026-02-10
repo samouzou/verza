@@ -3,12 +3,13 @@ import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
+import * as params from "../config/params";
 
-const FINICITY_PARTNER_ID = process.env.FINICITY_PARTNER_ID;
-const FINICITY_PARTNER_SECRET = process.env.FINICITY_PARTNER_SECRET;
-const FINICITY_APP_KEY = process.env.FINICITY_APP_KEY;
+const FINICITY_PARTNER_ID = params.FINICITY_PARTNER_ID.value();
+const FINICITY_PARTNER_SECRET = params.FINICITY_PARTNER_SECRET.value();
+const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
 const FINICITY_API_BASE_URL = "https://api.finicity.com";
-const FINICITY_EXPERIENCE_GUID = process.env.FINICITY_EXPERIENCE_GUID;
+const FINICITY_EXPERIENCE_GUID = params.FINICITY_EXPERIENCE_GUID.value();
 
 interface FinicityToken {
   token: string;
@@ -133,11 +134,11 @@ export const generateFinicityConnectUrl = onCall({
     const token = await getFinicityApiToken();
     const finicityCustomerId = await getOrCreateFinicityCustomer(userId, token);
 
-    const appUrl = process.env.APP_URL;
+    const appUrl = params.APP_URL.value();
     if (!appUrl) {
       throw new HttpsError("failed-precondition", "The application's base URL (APP_URL) is not configured.");
     }
-    const webhookUrl = process.env.FINICITY_WEBHOOK_URL;
+    const webhookUrl = params.FINICITY_WEBHOOK_URL.value();
     if (!webhookUrl) {
       throw new HttpsError("failed-precondition", "The Finicity webhook URL is not configured.");
     }

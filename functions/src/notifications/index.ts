@@ -4,9 +4,10 @@ import * as logger from "firebase-functions/logger";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
+import * as params from "../config/params";
 
 // Initialize SendGrid
-const sendgridKey = process.env.SENDGRID_API_KEY;
+const sendgridKey = params.SENDGRID_API_KEY.value();
 if (sendgridKey) {
   sgMail.setApiKey(sendgridKey);
 } else {
@@ -68,7 +69,7 @@ export const sendContractNotification = onRequest(async (request, response) => {
       to,
       from: {
         name: fromName,
-        email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+        email: params.SENDGRID_FROM_EMAIL.value(),
       },
       subject,
       text,
@@ -189,7 +190,7 @@ export const handleSendGridEmailWebhook = onRequest(async (request, response) =>
  */
 export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName: string,
   isExistingUser: boolean, type: "talent" | "team", role?: "admin" | "member"): Promise<void> {
-  const appUrl = process.env.APP_URL || "http://localhost:9002";
+  const appUrl = params.APP_URL.value();
   const subject = `You've been invited to join ${agencyName} on Verza`;
   const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
   const actionText = isExistingUser ? "View Invitation" : "Sign Up & Accept";
@@ -223,7 +224,7 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
 
   const msg = {
     to: inviteeEmail,
-    from: {name: "Verza", email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
+    from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value()},
     subject,
     html,
   };
@@ -243,7 +244,7 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
  * @param {number} step The step number of the email in the sequence.
  */
 export async function sendEmailSequence(toEmail: string, name: string, step: number): Promise<void> {
-  const appUrl = process.env.APP_URL || "http://localhost:9002";
+  const appUrl = params.APP_URL.value();
 
   let subject = "";
   let html = "";
@@ -298,7 +299,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     to: toEmail,
     from: {
       name: fromName,
-      email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com",
+      email: params.SENDGRID_FROM_EMAIL.value(),
     },
     subject: subject,
     html: html,

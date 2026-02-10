@@ -11,9 +11,10 @@ import * as os from "os";
 import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
+import * as params from "../config/params";
 
 
-const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
+const HELLOSIGN_API_KEY = params.HELLOSIGN_API_KEY.value();
 
 if (HELLOSIGN_API_KEY) {
   // We keep this for type reference but will use axios for the actual call
@@ -219,7 +220,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const metadata = JSON.stringify({
       contract_id: contractId,
       user_id: creatorUserId,
-      verza_env: process.env.NODE_ENV || "development",
+      verza_env: "development",
     });
 
     const signers = JSON.stringify([
