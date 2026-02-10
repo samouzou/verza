@@ -78,7 +78,7 @@ export const generateScene = onCall({
 
   // 3. Generate video
   try {
-    const ai = genkit({ // Local instance with specific API key
+    const ai = genkit({
       plugins: [
         googleAI({
           apiKey: process.env.VERTEX_API_KEY, // Using the dedicated Vertex key
@@ -86,46 +86,43 @@ export const generateScene = onCall({
       ],
     });
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
+    
+    const { operation: initialOperation } = await ai.generate({
+      model: googleAI.model("veo-2.0-generate-001"), // Switched to stable model
+      prompt: `A ${style} style video of: ${prompt}`,
+      config: {
+        durationSeconds: 8,
+        aspectRatio: orientation,
+      },
+    });
 
-    let operation: any;
-    const maxAttempts = 5;
-    let delay = 2000; // 2 seconds
-
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const generationResult = await ai.generate({
-          model: googleAI.model("veo-2.0-generate-001"),
-          prompt: `A ${style} style video of: ${prompt}`,
-          config: {
-            durationSeconds: 8,
-            aspectRatio: orientation,
-          },
-        });
-        operation = generationResult.operation;
-        if (operation) {
-          break; // If successful, break the loop
-        }
-      } catch (e: any) {
-        if (e.status === 429 && i < maxAttempts - 1) {
-          logger.warn(`Attempt ${i + 1} for scene generation failed with 429. Retrying in ${delay}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 2; // Exponential backoff
-          if (delay > 30000) delay = 30000; // Cap delay
-        } else {
-          throw e; // Rethrow if it's the last attempt or not a 429 error
-        }
-      }
+    if (!initialOperation) {
+      throw new Error("Video generation did not return an operation to track.");
     }
-
-    if (!operation) {
-      throw new Error("Video generation failed after multiple retries or did not return an operation.");
-    }
-
-    // Poll for completion
+    
+    let operation = initialOperation;
+    let pollAttempts = 0;
+    const maxPollAttempts = 10;
+    
     while (!operation.done) {
-      logger.info(`Polling video generation operation for user ${userId}...`);
+      pollAttempts++;
+      if (pollAttempts > maxPollAttempts) {
+          throw new Error("Video generation timed out after multiple polling attempts.");
+      }
+      
+      logger.info(`Polling video generation operation for user ${userId} (Attempt ${pollAttempts})...`);
       await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
-      operation = await ai.checkOperation(operation);
+
+      try {
+        operation = await ai.checkOperation(operation);
+      } catch (pollError: any) {
+        logger.warn(`Polling attempt ${pollAttempts} failed with status ${pollError.status}. Retrying...`, { error: pollError.message });
+        if (pollAttempts >= maxPollAttempts) {
+          throw pollError; // Re-throw if max attempts reached
+        }
+        // Simple wait before next poll, could add exponential backoff here too if needed
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
     }
 
     if (operation.error) {
@@ -133,11 +130,11 @@ export const generateScene = onCall({
     }
 
     const video = operation.output?.message?.content.find((p: any) => !!p.media);
-
     if (!video || !video.media) {
       throw new Error("Failed to find the generated video in the model response.");
     }
-
+    
+    logger.info(`Video generated. Downloading from URL for user ${userId}.`);
     const fetch = (await import("node-fetch")).default;
     const videoDownloadResponse = await fetch(
       `${video.media.url}&key=${process.env.VERTEX_API_KEY}` // Using the dedicated Vertex key
@@ -152,7 +149,8 @@ export const generateScene = onCall({
     // 4. Upload to Firebase Storage
     const videoFileName = `${Date.now()}-${uuidv4()}.mp4`;
     const videoFile = defaultBucket.file(`generated-scenes/${userId}/${videoFileName}`);
-
+    
+    logger.info(`Uploading video to Storage for user ${userId} as ${videoFileName}.`);
     await videoFile.save(videoBuffer, {
       metadata: {
         contentType: "video/mp4",
