@@ -91,6 +91,7 @@ export const generateScene = onCall({
       model: googleAI.model("veo-3.1-generate-preview"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
+        durationSeconds: 5,
         aspectRatio: orientation,
       },
     });
