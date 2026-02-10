@@ -85,12 +85,6 @@ env:
   - variable: APP_URL
     secret: VERZA_APP_URL
 
-  # Gemini
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
-    availability:
-      - RUNTIME
-
   # Firebase
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     secret: VERZA_FIREBASE_AUTH_DOMAIN
