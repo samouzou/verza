@@ -82,13 +82,14 @@ export const generateScene = onCall({
       plugins: [
         googleAI({
           apiKey: params.VERTEX_API_KEY.value(),
+          location: "us-central1",
         }),
       ],
     });
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     const {operation: initialOperation} = await ai.generate({
-      model: googleAI.model("veo-3.1-generate-preview"),
+      model: googleAI.model("veo-3.0-generate-001"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
         durationSeconds: 5,
