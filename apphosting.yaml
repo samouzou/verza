@@ -29,7 +29,7 @@ env:
       - RUNTIME
       
   # This makes the same secret available to the backend runtime (Cloud Functions) under a non-public name
-  - variable: FIREBASE_STORAGE_BUCKET
+  - variable: APP_STORAGE_BUCKET
     secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
       - RUNTIME
@@ -123,5 +123,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
 
 

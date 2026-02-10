@@ -30,7 +30,7 @@ export const SENDGRID_FROM_EMAIL = defineString("SENDGRID_FROM_EMAIL", {
   description: "The 'from' email address for automated emails.",
 });
 
-export const FIREBASE_STORAGE_BUCKET = defineString("FIREBASE_STORAGE_BUCKET", {
+export const APP_STORAGE_BUCKET = defineString("APP_STORAGE_BUCKET", {
   description: "The default Firebase Storage bucket name.",
 });
 

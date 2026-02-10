@@ -40,7 +40,7 @@ export const generateScene = onCall({
   }
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
-  const defaultBucket = adminStorage.bucket(params.FIREBASE_STORAGE_BUCKET.value());
+  const defaultBucket = adminStorage.bucket(params.APP_STORAGE_BUCKET.value());
 
   const userDocRef = adminDb.collection("users").doc(userId);
 
@@ -88,10 +88,9 @@ export const generateScene = onCall({
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     const {operation: initialOperation} = await ai.generate({
-      model: googleAI.model("veo-2.0-generate-001"),
+      model: googleAI.model("veo-3.1-generate-preview"),
       prompt: `A ${style} style video of: ${prompt}`,
       config: {
-        durationSeconds: 8,
         aspectRatio: orientation,
       },
     });
