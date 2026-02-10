@@ -88,11 +88,8 @@ export const generateScene = onCall({
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     const {operation: initialOperation} = await ai.generate({
-      model: googleAI.model("veo-3.0-generate-preview"),
-      prompt: `A ${style} style video of: ${prompt}`,
-      config: {
-        aspectRatio: orientation,
-      },
+      model: googleAI.model("veo-3.1-fast-preview"),
+      prompt: `A ${style} style video of: ${prompt}. The video should be in a ${orientation} aspect ratio.`,
     });
 
     if (!initialOperation) {
@@ -186,7 +183,11 @@ export const generateScene = onCall({
       remainingCredits,
     };
   } catch (error: any) {
-    logger.error("Video generation or storage failed for user", userId, error);
+    logger.error("Video generation or storage failed for user", userId, {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+    });
     // Refund credit on failure
     try {
       await userDocRef.update({credits: admin.firestore.FieldValue.increment(VIDEO_COST)});
