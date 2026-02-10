@@ -78,7 +78,13 @@ export const generateScene = onCall({
 
   // 3. Generate video
   try {
-    const ai = genkit({plugins: [googleAI()]});
+    const ai = genkit({
+      plugins: [
+        googleAI({
+          apiKey: process.env.GEMINI_API_KEY,
+        }),
+      ],
+    });
     logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
 
     let operation: any;

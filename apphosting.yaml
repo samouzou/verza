@@ -13,7 +13,7 @@ runConfig:
 env:
 
   - variable: GEMINI_API_KEY
-    secret: VERZA_GEMINI_API_KEY
+    secret: GEMINI_API_KEY
     availability:
       - RUNTIME
 
