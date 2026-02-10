@@ -88,7 +88,7 @@ export const generateScene = onCall({
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const generationResult = await ai.generate({
-          model: googleAI.model("veo-3.1-fast-generate-preview"),
+          model: googleAI.model("veo-2.0-generate-001"),
           prompt: `A ${style} style video of: ${prompt}`,
           config: {
             durationSeconds: 8,

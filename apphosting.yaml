@@ -12,6 +12,11 @@ runConfig:
 # Environment variables and secrets.
 env:
 
+  - variable: GEMINI_API_KEY
+    secret: VERZA_GEMINI_API_KEY
+    availability:
+      - RUNTIME
+
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
