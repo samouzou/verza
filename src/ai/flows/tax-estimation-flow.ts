@@ -29,7 +29,7 @@ const BankTransactionSchema = z.object({
   isBrandSpend: z.boolean().optional().default(false),
   linkedReceiptId: z.string().optional().nullable(),
   createdAt: z.any(), // Simplified for Zod, actual type is Timestamp
-  updatedAt: z.any().optional(), // Simplified for Zod
+  updatedAt: z.any().optional(), // Simplified for Zod,
 });
 
 const TaxEstimationInputSchema = z.object({
@@ -58,7 +58,7 @@ export async function estimateTaxes(input: TaxEstimationInput): Promise<TaxEstim
 
 const prompt = ai.definePrompt({
   name: 'taxEstimationPrompt',
-  model: googleAI.model('gemini-3-pro-preview'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: TaxEstimationInputSchema },
   output: { schema: TaxEstimationOutputSchema },
   prompt: `

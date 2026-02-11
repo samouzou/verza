@@ -33,7 +33,7 @@ export async function classifyTransaction(input: ClassifyTransactionInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'classifyTransactionPrompt',
-  model: googleAI.model('gemini-3-pro-preview'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: ClassifyTransactionInputSchema },
   output: { schema: ClassifyTransactionOutputSchema },
   prompt: `You are an expert accountant specializing in finances for content creators.
