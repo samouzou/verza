@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Wand2, UserCheck, Target, Sparkles, Link as LinkIcon, BookOpen, Save, History, ExternalLink, Lightbulb } from 'lucide-react';
+import { Loader2, AlertTriangle, Wand2, UserCheck, Sparkles, Link as LinkIcon, BookOpen, Save, History, ExternalLink, Lightbulb, Mail, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -17,6 +17,7 @@ import type { BrandResearch } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export default function BrandResearchPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -28,6 +29,7 @@ export default function BrandResearchPage() {
   const [history, setHistory] = useState<BrandResearch[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [selectedReport, setSelectedReport] = useState<BrandResearch | null>(null);
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -95,6 +97,13 @@ export default function BrandResearchPage() {
       toast({ title: "Saved!", description: "This attack plan has been saved to your strategy book."});
   };
 
+  const handleCopyToClipboard = (textToCopy: string, identifier: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedItem(identifier);
+    toast({ title: "Copied!" });
+    setTimeout(() => setCopiedItem(null), 2000);
+  };
+
   const ResultCard = ({ report }: { report: BrandResearch }) => {
       if (report.status === 'pending') {
           return (
@@ -147,8 +156,14 @@ export default function BrandResearchPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <h3 className="font-semibold flex items-center gap-2 mb-2"><UserCheck className="h-5 w-5 text-primary" /> Target Decision Makers</h3>
-                        <div className="flex flex-wrap gap-2">
-                            {report.report?.decisionMakers.map(title => <Badge key={title} variant="secondary">{title}</Badge>)}
+                         <div className="space-y-2">
+                          {report.report?.decisionMakers.map((person, index) => (
+                            <div key={index} className="text-sm p-2 bg-muted/50 rounded-md">
+                              <p className="font-medium">{person.name || 'Unknown Name'}</p>
+                              <p className="text-muted-foreground">{person.title}</p>
+                              {person.email && <a href={`mailto:${person.email}`} className="text-primary hover:underline flex items-center gap-1 text-xs"><Mail className="h-3 w-3"/>{person.email}</a>}
+                            </div>
+                          ))}
                         </div>
                     </div>
                     <div>
@@ -161,6 +176,38 @@ export default function BrandResearchPage() {
                     <ul className="space-y-3 list-decimal list-inside">
                         {report.report?.pitchHooks.map((hook, index) => <li key={index} className="text-sm text-muted-foreground pl-2">{hook}</li>)}
                     </ul>
+                </div>
+                 <div>
+                    <h3 className="font-semibold flex items-center gap-2 mb-2"><Mail className="h-5 w-5 text-primary" /> Email Pitches</h3>
+                     <Accordion type="single" collapsible className="w-full">
+                      {report.report?.emailPitches.map((pitch, index) => (
+                        <AccordionItem value={`item-${index}`} key={index}>
+                          <AccordionTrigger>Pitch {index + 1}: {pitch.subject}</AccordionTrigger>
+                          <AccordionContent className="space-y-4">
+                            <div className="p-3 border rounded-md bg-muted/50">
+                                <div className="flex justify-between items-center mb-2">
+                                    <Label className="font-semibold">Subject</Label>
+                                    <Button variant="ghost" size="sm" onClick={() => handleCopyToClipboard(pitch.subject, `subj-${index}`)}>
+                                        {copiedItem === `subj-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                                        <span className="ml-2">Copy</span>
+                                    </Button>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{pitch.subject}</p>
+                            </div>
+                            <div className="p-3 border rounded-md bg-muted/50">
+                                <div className="flex justify-between items-center mb-2">
+                                    <Label className="font-semibold">Body</Label>
+                                     <Button variant="ghost" size="sm" onClick={() => handleCopyToClipboard(pitch.body, `body-${index}`)}>
+                                        {copiedItem === `body-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                                        <span className="ml-2">Copy</span>
+                                    </Button>
+                                </div>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{pitch.body}</p>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
                 </div>
             </CardContent>
         </Card>

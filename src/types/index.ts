@@ -370,11 +370,19 @@ export interface BrandResearch {
   uid: string;
   brandUrl: string;
   brandName: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: "pending" | "completed" | "failed";
   report?: {
-    decisionMakers: string[];
+    decisionMakers: {
+        name?: string;
+        title: string;
+        email?: string;
+    }[];
     currentVibe: string;
     pitchHooks: string[];
+    emailPitches: {
+        subject: string;
+        body: string;
+    }[];
   };
   error?: string;
   createdAt: ClientTimestamp;
