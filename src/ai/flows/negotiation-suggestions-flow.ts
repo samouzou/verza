@@ -8,7 +8,7 @@
  * - NegotiationSuggestionsOutput - The return type for the getNegotiationSuggestions function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai} from '../genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
@@ -34,7 +34,7 @@ export async function getNegotiationSuggestions(
 
 const prompt = ai.definePrompt({
   name: 'negotiationSuggestionsPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: {schema: NegotiationSuggestionsInputSchema},
   output: {schema: NegotiationSuggestionsOutputSchema},
   prompt: `You are an expert legal advisor for content creators, specializing in contract negotiation. Your task is to analyze the provided contract from its SFDT JSON string format and suggest alternative phrasing for key clauses that would be more favorable to the creator.
@@ -64,7 +64,24 @@ const negotiationSuggestionsFlow = ai.defineFlow(
     outputSchema: NegotiationSuggestionsOutputSchema,
   },
   async (input: NegotiationSuggestionsInput) => {
-    const {output} = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

@@ -36,7 +36,7 @@ export async function summarizeContractTerms(
 
 const prompt = ai.definePrompt({
   name: 'summarizeContractTermsPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: {schema: SummarizeContractTermsInputSchema},
   output: {schema: SummarizeContractTermsOutputSchema},
   prompt: `You are an AI assistant that specializes in summarizing legal contracts from SFDT JSON strings.
@@ -56,7 +56,24 @@ const summarizeContractTermsFlow = ai.defineFlow(
     outputSchema: SummarizeContractTermsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

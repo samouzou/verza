@@ -4,11 +4,19 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
-import type {UserProfileFirestoreData, Contract} from "../../../src/types";
+import type {UserProfileFirestoreData, Contract} from "./../types";
 import {sendEmailSequence} from "../notifications";
+import * as params from "../config/params";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set. Skipping overdue reminders.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   try {
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -41,7 +49,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           const creatorDoc = await db.collection("users").doc(contract.userId).get();
           const creator = creatorDoc.data() as UserProfileFirestoreData | undefined;
           const creatorName = creator?.displayName || "The Creator";
-          const appUrl = process.env.APP_URL || "http://localhost:9002";
+          const appUrl = params.APP_URL.value();
           const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
 
           const htmlContent = `
@@ -91,7 +99,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
           const msg = {
             to: contract.clientEmail,
-            from: {name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
+            from: {name: creatorName, email: params.SENDGRID_FROM_EMAIL.value()},
             subject: `Payment Reminder - Milestone for ${contract.projectName || contract.brand} is Overdue`,
             text: `This is a reminder that your payment of $${milestone.amount} for
             milestone "${milestone.description}" is overdue. Pay now: ${paymentLink}`,
@@ -126,6 +134,13 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
 
 export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, cannot send reminder emails.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
   try {
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -161,7 +176,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
           const creatorName = creator?.displayName || "The Creator";
           const dueDateFormatted = new Date(milestone.dueDate + "T00:00:00").toLocaleDateString("en-US",
             {year: "numeric", month: "long", day: "numeric"});
-          const appUrl = process.env.APP_URL || "http://localhost:9002";
+          const appUrl = params.APP_URL.value();
           const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
 
           const htmlContent = `
@@ -180,7 +195,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
           const msg = {
             to: contract.clientEmail,
-            from: {name: creatorName, email: process.env.SENDGRID_FROM_EMAIL || "invoices@tryverza.com"},
+            from: {name: creatorName, email: params.SENDGRID_FROM_EMAIL.value()},
             subject: `Payment Reminder: Milestone for ${contract.projectName || contract.brand}`,
             text: `A payment of $${milestone.amount} for milestone "${milestone.description}"
             is due on ${dueDateFormatted}. Pay here: ${paymentLink}`,

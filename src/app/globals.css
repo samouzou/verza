@@ -3,142 +3,76 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-}
-
 @layer base {
   :root {
-    /* New Verza Theme HSL Variables */
-    --verza-purple-h: 255;
-    --verza-purple-s: 100%;
-    --verza-purple-l: 61%; /* #6B37FF */
-  
-    --verza-magenta-h: 331;
-    --verza-magenta-s: 86%;
-    --verza-magenta-l: 64%; /* #EE488E */
-  
-    --verza-midnight-h: 264;
-    --verza-midnight-s: 30%;
-    --verza-midnight-l: 8%; /* #120E19 */
-
-    --verza-accent-gray-h: 215;
-    --verza-accent-gray-s: 16%;
-    --verza-accent-gray-l: 65%; /* #94A3B8 */
-
-    --verza-success-h: 142;
-    --verza-success-s: 63%;
-    --verza-success-l: 45%; /* #22C55E */
-
-    --verza-warning-h: 38;
-    --verza-warning-s: 92%;
-    --verza-warning-l: 53%; /* #F59E0B */
-  
-    --verza-destructive-h: 0;
-    --verza-destructive-s: 84%;
-    --verza-destructive-l: 60%; /* #EF4444 */
-  
-    /* Verza Light Theme */
-    --background: 0 0% 100%; /* White */
-    --foreground: 224 71.4% 4.1%; /* Near Black */
-  
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
     --card: 0 0% 100%;
     --card-foreground: 224 71.4% 4.1%;
-  
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
-    --secondary: 220 14.3% 95.9%; /* Light Gray */
-    --secondary-foreground: 220 14.3% 34.1%;
-  
-    --muted: var(--verza-accent-gray-h) 25% 95%; /* Lighter version of accent gray */
-    --muted-foreground: var(--verza-accent-gray-h) 10% 45%;
-  
-    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --accent-foreground: 0 0% 100%;
-  
-    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
+    --primary: 220.9 39.3% 11%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220 8.9% 10%;
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220 8.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-  
+    --ring: 224 71.4% 4.1%;
     --radius: 0.5rem;
-  
-    /* Chart colors */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --chart-3: var(--verza-accent-gray-h) var(--verza-accent-gray-s) var(--verza-accent-gray-l);
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
-  
-    /* Sidebar (Light) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
     --sidebar-background: 220 20% 97%;
     --sidebar-foreground: 222 10% 25%;
     --sidebar-border: 220 14% 92%;
-  
-    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --sidebar-primary-foreground: 0 0% 100%;
-  
-    --sidebar-accent: var(--verza-purple-h) 95% 96%; /* Very light purple */
-    --sidebar-accent-foreground: var(--verza-purple-h) 100% 50%;
-  
-    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --sidebar-primary: 220.9 39.3% 11%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 15% 95%;
+    --sidebar-accent-foreground: 220 8.9% 10%;
+    --sidebar-ring: 224 71.4% 4.1%;
   }
-  
+
   .dark {
-    /* Dark Theme based on Verza Midnight */
-    --background: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
-    --foreground: 210 20% 98%; /* #E2E8F0 */
-  
-    --card: 264 25% 10%;
-    --card-foreground: 210 20% 98%;
-  
-    --popover: 264 30% 8%;
-    --popover-foreground: 210 20% 98%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
-    --secondary: 264 20% 14%;
-    --secondary-foreground: 210 20% 85%;
-  
-    --muted: var(--verza-accent-gray-h) 10% 30%;
-    --muted-foreground: var(--verza-accent-gray-h) 10% 60%;
-  
-    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --accent-foreground: 0 0% 100%;
-  
-    --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
-    --border: 264 20% 14%;
-    --input: 264 20% 14%;
-    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-  
-    /* Chart colors for dark theme */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --chart-3: var(--verza-accent-gray-h) 10% 50%;
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
-  
-    /* Sidebar (Dark theme) */
-    --sidebar-background: 264 30% 6%; /* Slightly darker than main bg */
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-border: 264 30% 10%;
-  
-    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --sidebar-primary-foreground: 0 0% 100%;
-  
-    --sidebar-accent: var(--verza-purple-h) 50% 20%;
-    --sidebar-accent-foreground: 210 20% 98%;
-  
-    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --background: 222 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 223 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+    --chart-1: 210 90% 60%;
+    --chart-2: 160 80% 50%;
+    --chart-3: 40 90% 55%;
+    --chart-4: 280 85% 65%;
+    --chart-5: 340 85% 60%;
+    --sidebar-background: 222 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 223 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
@@ -392,9 +326,9 @@ del.diff-del {
 }
 
 .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn:not(.e-ribbon-file-menu), .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)) .e-ribbon-group-of-btn, .e-ribbon.e-rbn .e-ribbon-group-overflow .e-btn:not(.e-ribbon-file-menu), .e-ribbon.e-rbn .e-ribbon-group-overflow .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon.e-rbn .e-ribbon-group-overflow .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon.e-rbn .e-ribbon-group-overflow .e-ribbon-group-of-btn, .e-ribbon.e-rbn.e-ribbon-overflow .e-btn:not(.e-ribbon-file-menu), .e-ribbon.e-rbn.e-ribbon-overflow .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon.e-rbn.e-ribbon-overflow .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon.e-rbn.e-ribbon-overflow .e-ribbon-group-of-btn, .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn:not(.e-ribbon-file-menu), .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) .e-ribbon-group-of-btn, .e-ribbon-group-overflow-ddb .e-ribbon-group-overflow .e-btn:not(.e-ribbon-file-menu), .e-ribbon-group-overflow-ddb .e-ribbon-group-overflow .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon-group-overflow-ddb .e-ribbon-group-overflow .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon-group-overflow-ddb .e-ribbon-group-overflow .e-ribbon-group-of-btn, .e-ribbon-group-overflow-ddb.e-ribbon-overflow .e-btn:not(.e-ribbon-file-menu), .e-ribbon-group-overflow-ddb.e-ribbon-overflow .e-btn-group .e-btn.e-ribbon-group-button, .e-ribbon-group-overflow-ddb.e-ribbon-overflow .e-btn-group .e-btn.e-ribbon-group-button:not(:first-of-type):not(:last-of-type), .e-ribbon-group-overflow-ddb.e-ribbon-overflow .e-ribbon-group-of-btn {
-    background: #ffffff;
-    color: #111827;
-    border-color: rgba(0, 0, 0, 0);
+  background: #ffffff;
+  color: #111827;
+  border-color: rgba(0, 0, 0, 0);
 }
 
 .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)).e-ribbon-medium-item .e-btn, .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)).e-ribbon-medium-item .e-btn {
@@ -427,3 +361,5 @@ del.diff-del {
     background: #e5e7eb;
     color: #171616;
 }
+
+    

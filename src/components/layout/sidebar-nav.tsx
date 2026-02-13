@@ -24,6 +24,7 @@ import {
   FileStack,
   Building,
   BarChart3,
+  Video,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   useSidebar,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -51,16 +55,28 @@ import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide"; // Import the new component
 
-const navItems = [
+const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+];
+
+const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
-  { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
+  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
   { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
+];
+
+const financialsNavItems = [
+  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
+  { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
   { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
-  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
-  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
 ];
+
+const aiToolsNavItems = [
+    { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
+    { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
+]
+
 
 export function SidebarNav() {
   const pathname = usePathname();
@@ -79,10 +95,10 @@ export function SidebarNav() {
         <SidebarHeader className="p-4">
            <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
              <svg width="180" height="50" viewBox="0 0 200 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-data-[collapsible=icon]:hidden">
-                <text x="0" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
+                <text x="0" y="35" fontFamily="GeistSans, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">Verza</text>
              </svg>
              <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="hidden group-data-[collapsible=icon]:block">
-                <text x="5" y="35" fontFamily="Space Grotesk, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
+                <text x="5" y="35" fontFamily="GeistSans, sans-serif" fontSize="36" fontWeight="600" fill="hsl(var(--primary))">V</text>
              </svg>
           </div>
         </SidebarHeader>
@@ -137,29 +153,105 @@ export function SidebarNav() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {navItems.map((item) => (
+            {mainNavItems.map((item) => (
             <SidebarMenuItem key={item.label} id={item.id}>
-              <Link href={item.href} legacyBehavior passHref>
+                <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
-                  onClick={() => {
-                    if (isMobile) {
-                      setOpenMobile(false);
-                    }
-                  }}
-                  className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                  isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
-                  tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    onClick={() => isMobile && setOpenMobile(false)}
+                    className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                    isActive={pathname === item.href}
+                    tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    <item.icon className="h-5 w-5" />
+                    <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                 </SidebarMenuButton>
-              </Link>
+                </Link>
             </SidebarMenuItem>
-          ))}
+            ))}
+
+            <SidebarGroup>
+                <SidebarGroupLabel className="flex items-center">
+                    <span className="group-data-[collapsible=icon]:hidden">AI Tools</span>
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                    {aiToolsNavItems.map((item) => (
+                        <SidebarMenuItem key={item.label} id={item.id}>
+                        <Link href={item.href} legacyBehavior passHref>
+                            <SidebarMenuButton
+                            onClick={() => isMobile && setOpenMobile(false)}
+                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                            isActive={pathname.startsWith(item.href)}
+                            tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                            >
+                            <item.icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                            </SidebarMenuButton>
+                        </Link>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarGroupContent>
+            </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center">
+                <span className="group-data-[collapsible=icon]:hidden">Manage</span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              {manageNavItems.map((item) => (
+                <SidebarMenuItem key={item.label} id={item.id}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      onClick={() => isMobile && setOpenMobile(false)}
+                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="flex items-center">
+                <span className="group-data-[collapsible=icon]:hidden">Financials</span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              {financialsNavItems.map((item) => (
+                <SidebarMenuItem key={item.label} id={item.id}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      onClick={() => isMobile && setOpenMobile(false)}
+                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      isActive={pathname.startsWith(item.href)}
+                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
          <SetupGuide />
+          {activeUser && (
+            <div className="p-2">
+              <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent">
+                  <Wallet className="h-5 w-5 flex-shrink-0" />
+                  <div className="group-data-[collapsible=icon]:hidden">
+                      <p className="text-sm font-semibold">{activeUser.credits ?? 0}</p>
+                      <p className="text-xs text-muted-foreground -mt-1">Credits</p>
+                  </div>
+              </div>
+            </div>
+          )}
          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>

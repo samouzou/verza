@@ -7,14 +7,31 @@ runConfig:
   concurrency: 80
   cpu: 2
   memoryMiB: 4096
+  timeoutSeconds: 120
 
 # Environment variables and secrets.
 env:
+
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: VERTEX_API_KEY
+    secret: VERTEX_API_KEY
+    availability:
+      - RUNTIME
 
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
       - BUILD
+      - RUNTIME
+      
+  # This makes the same secret available to the backend runtime (Cloud Functions) under a non-public name
+  - variable: APP_STORAGE_BUCKET
+    secret: VERZA_FIREBASE_STORAGE_BUCKET
+    availability:
       - RUNTIME
       
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
@@ -60,12 +77,23 @@ env:
     availability:
       - RUNTIME
 
+  - variable: STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
+    secret: VERZA_STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID
+    secret: VERZA_STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
+    secret: VERZA_STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
   - variable: APP_URL
     secret: VERZA_APP_URL
-
-  # Gemini
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
 
   # Firebase
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
@@ -95,3 +123,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+
+

@@ -40,7 +40,7 @@ export async function extractContractDetails(input: ExtractContractDetailsInput)
 
 const prompt = ai.definePrompt({
   name: 'extractContractDetailsPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: {schema: ExtractContractDetailsInputSchema},
   output: {schema: ExtractContractDetailsOutputSchema},
   prompt: `You are an expert contract analyst. Your task is to extract key details from the provided contract text, which is in SFDT JSON format. You need to parse this JSON to find the plain text.
@@ -72,14 +72,31 @@ const extractContractDetailsFlow = ai.defineFlow(
     outputSchema: ExtractContractDetailsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    // Ensure defaults if AI fails to provide them
-    const result = output!;
-    if (!result.brand) result.brand = "Unknown Brand";
-    if (result.amount === undefined || result.amount === null) result.amount = 0;
-    if (!result.dueDate) result.dueDate = new Date().toISOString().split('T')[0];
-    if (!result.extractedTerms) result.extractedTerms = {};
-    
-    return result;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const {output} = await prompt(input);
+        // Ensure defaults if AI fails to provide them
+        const result = output!;
+        if (!result.brand) result.brand = "Unknown Brand";
+        if (result.amount === undefined || result.amount === null) result.amount = 0;
+        if (!result.dueDate) result.dueDate = new Date().toISOString().split('T')[0];
+        if (!result.extractedTerms) result.extractedTerms = {};
+        
+        return result;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

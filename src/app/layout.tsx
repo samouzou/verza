@@ -31,12 +31,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body 
-        className={`${GeistSans.variable} antialiased font-sans`}
+        className={`${GeistSans.className} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
@@ -54,3 +54,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    
