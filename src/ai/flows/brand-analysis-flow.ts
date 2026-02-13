@@ -64,7 +64,7 @@ const prompt = ai.definePrompt({
   Based on the provided content, you MUST extract the following information and structure it as JSON:
 
   1.  **brandName**: Identify the name of the brand.
-  2.  **decisionMakers**: Identify potential marketing decision-makers. If available on the website, include their full name and email. If not, provide likely job titles (e.g., "CMO", "Head of Influencer Marketing").
+  2.  **decisionMakers**: Identify potential marketing decision-makers. Always include their job **title**. If their full **name** and/or **email** are available on the website, include those as well. If no specific person is found, provide likely job titles (e.g., "CMO", "Head of Influencer Marketing").
   3.  **currentVibe**: Summarize the brand's current marketing aesthetic, voice, and target audience. What is their vibe? (e.g., "Minimalist and eco-conscious," "Edgy and youth-focused").
   4.  **pitchHooks**: Generate exactly three specific and creative pitch hooks a creator could use to sell them User-Generated Content (UGC) or an influencer partnership.
   5.  **emailPitches**: Draft exactly two distinct, ready-to-send cold email pitches tailored to the brand. The emails should be professional, concise, and compelling. Use placeholders like '[Your Name]' and '[Your Portfolio Link]' for the creator's name and portfolio. Each pitch should have a 'subject' and a 'body'.
