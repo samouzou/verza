@@ -3,12 +3,9 @@ import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
+import * as params from "../config/params";
 
-const FINICITY_PARTNER_ID = process.env.FINICITY_PARTNER_ID;
-const FINICITY_PARTNER_SECRET = process.env.FINICITY_PARTNER_SECRET;
-const FINICITY_APP_KEY = process.env.FINICITY_APP_KEY;
 const FINICITY_API_BASE_URL = "https://api.finicity.com";
-const FINICITY_EXPERIENCE_GUID = process.env.FINICITY_EXPERIENCE_GUID;
 
 interface FinicityToken {
   token: string;
@@ -25,6 +22,10 @@ let apiTokenCache: FinicityToken | null = null;
  * @return {Promise<string>} A Promise that resolves with the Finicity API token.
  */
 async function getFinicityApiToken(): Promise<string> {
+  const FINICITY_PARTNER_ID = params.FINICITY_PARTNER_ID.value();
+  const FINICITY_PARTNER_SECRET = params.FINICITY_PARTNER_SECRET.value();
+  const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
+
   if (!FINICITY_PARTNER_ID || !FINICITY_PARTNER_SECRET || !FINICITY_APP_KEY) {
     logger.error("Finicity credentials are not configured in environment variables.");
     throw new HttpsError("failed-precondition", "The Finicity integration is not configured.");
@@ -73,6 +74,7 @@ async function getFinicityApiToken(): Promise<string> {
  * @return {Promise<string>} A Promise that resolves with the Finicity customer ID.
  */
 async function getOrCreateFinicityCustomer(userId: string, token: string): Promise<string> {
+  const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
   const userDocRef = db.collection("users").doc(userId);
   const userDoc = await userDocRef.get();
   const userData = userDoc.data();
@@ -123,25 +125,23 @@ export const generateFinicityConnectUrl = onCall({
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
-  // Safely access the user ID, throwing an error if not authenticated (which is already checked above)
-  // We use a non-null assertion here because the check 'if (!request.auth)' guarantees request.auth is defined.
-  // Alternatively, you could use:
-  // const userId = request.auth?.uid; if handling unauthenticated case differently
   const userId = request.auth.uid;
 
   try {
     const token = await getFinicityApiToken();
     const finicityCustomerId = await getOrCreateFinicityCustomer(userId, token);
 
-    const appUrl = process.env.APP_URL;
+    const appUrl = params.APP_URL.value();
     if (!appUrl) {
       throw new HttpsError("failed-precondition", "The application's base URL (APP_URL) is not configured.");
     }
-    const webhookUrl = process.env.FINICITY_WEBHOOK_URL;
+    const webhookUrl = params.FINICITY_WEBHOOK_URL.value();
     if (!webhookUrl) {
       throw new HttpsError("failed-precondition", "The Finicity webhook URL is not configured.");
     }
-
+    const FINICITY_PARTNER_ID = params.FINICITY_PARTNER_ID.value();
+    const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
+    const FINICITY_EXPERIENCE_GUID = params.FINICITY_EXPERIENCE_GUID.value();
     if (!FINICITY_EXPERIENCE_GUID) {
       throw new HttpsError("failed-precondition", "The Finicity Experience GUID is not configured.");
     }
@@ -170,13 +170,9 @@ export const generateFinicityConnectUrl = onCall({
       throw new HttpsError("internal", "Could not generate Finicity Connect URL.");
     }
 
-    /**
- * Successfully generated Finicity Connect URL.
- * @type {{connectUrl: string}}
- */
     const data = await response.json();
     logger.info("Successfully generated Finicity Connect URL.", {customerId: finicityCustomerId});
-    // Returning the connect URL data
+
     return {connectUrl: data.link};
   } catch (error) {
     logger.error("Error in generateFinicityConnectUrl:", error);
@@ -199,6 +195,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
   const TOTAL_MONTHS_TO_FETCH = 3;
   const DAYS_PER_FETCH = 180;
   const now = new Date();
+  const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
 
   // Loop back in 180-day increments for up to 3 months
   for (let i = 0; i < (TOTAL_MONTHS_TO_FETCH * 30) / DAYS_PER_FETCH; i++) {
@@ -269,6 +266,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
  * @return {Promise<void>}
  */
 async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId: string, token: string) {
+  const FINICITY_APP_KEY = params.FINICITY_APP_KEY.value();
   // 1. Fetch current accounts from Finicity
   const accountsResponse = await fetch(`${FINICITY_API_BASE_URL}/aggregation/v1/customers/${finicityCustomerId}/accounts`, {
     headers: {"Finicity-App-Key": FINICITY_APP_KEY as string, "Finicity-App-Token": token, "Accept": "application/json"},

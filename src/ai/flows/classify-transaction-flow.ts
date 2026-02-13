@@ -33,7 +33,7 @@ export async function classifyTransaction(input: ClassifyTransactionInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'classifyTransactionPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: ClassifyTransactionInputSchema },
   output: { schema: ClassifyTransactionOutputSchema },
   prompt: `You are an expert accountant specializing in finances for content creators.
@@ -60,7 +60,24 @@ const classifyTransactionFlow = ai.defineFlow(
     outputSchema: ClassifyTransactionOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

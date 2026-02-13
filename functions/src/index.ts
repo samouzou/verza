@@ -18,6 +18,8 @@ import {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   getStripeAccountBalance,
+  createCreditCheckoutSession,
+  stripeCreditWebhookHandler,
 } from "./payments";
 
 import {
@@ -62,6 +64,9 @@ import {
   inviteTeamMemberToAgency, // New function for team members
 } from "./agency";
 
+import {generateScene} from "./scenes";
+import {analyzeBrand} from "./brand-research";
+
 // Export v2 functions
 export {
   createStripeConnectedAccount,
@@ -70,6 +75,8 @@ export {
   handlePaymentSuccess,
   handleStripeAccountWebhook,
   getStripeAccountBalance,
+  createCreditCheckoutSession,
+  stripeCreditWebhookHandler,
   sendContractNotification,
   handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,
@@ -91,6 +98,8 @@ export {
   declineAgencyInvitation,
   createInternalPayout,
   inviteTeamMemberToAgency, // Export new function
+  generateScene,
+  analyzeBrand,
 };
 
 // Import and export v1 auth trigger using require/exports

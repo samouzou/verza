@@ -4,23 +4,15 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as DropboxSign from "@dropbox/sign";
-import type {Contract, UserProfileFirestoreData} from "../../../src/types";
+import type {Contract, UserProfileFirestoreData} from "./../types";
 import * as crypto from "crypto";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
 import axios from "axios";
 import FormData from "form-data";
+import * as params from "../config/params";
 
-
-const HELLOSIGN_API_KEY = process.env.HELLOSIGN_API_KEY;
-
-if (HELLOSIGN_API_KEY) {
-  // We keep this for type reference but will use axios for the actual call
-  new DropboxSign.SignatureRequestApi().username = HELLOSIGN_API_KEY;
-} else {
-  logger.warn("HELLOSIGN_API_KEY (for Dropbox Sign) is not set. E-signature functionality will not work.");
-}
 
 /**
  * Verifies that a user is authenticated via their UID.
@@ -42,7 +34,11 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
 }
 
 export const initiateHelloSignRequest = onCall(async (request) => {
-  if (!HELLOSIGN_API_KEY) {
+  const HELLOSIGN_API_KEY = params.HELLOSIGN_API_KEY.value();
+
+  if (HELLOSIGN_API_KEY) {
+    new DropboxSign.SignatureRequestApi().username = HELLOSIGN_API_KEY;
+  } else {
     logger.error("Dropbox Sign API client not initialized. API key missing or invalid.");
     throw new HttpsError("failed-precondition", "E-signature service is not configured.");
   }
@@ -219,7 +215,7 @@ export const initiateHelloSignRequest = onCall(async (request) => {
     const metadata = JSON.stringify({
       contract_id: contractId,
       user_id: creatorUserId,
-      verza_env: process.env.NODE_ENV || "development",
+      verza_env: "development",
     });
 
     const signers = JSON.stringify([
@@ -323,6 +319,8 @@ export const initiateHelloSignRequest = onCall(async (request) => {
 
 
 export const helloSignWebhookHandler = onRequest(async (request, response) => {
+  const HELLOSIGN_API_KEY = params.HELLOSIGN_API_KEY.value();
+
   if (request.method !== "POST") {
     logger.warn("Received non-POST request to webhook.");
     response.status(405).send("Method Not Allowed");

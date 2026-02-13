@@ -32,7 +32,7 @@ export async function ocrDocument(input: OcrDocumentInput): Promise<OcrDocumentO
 
 const prompt = ai.definePrompt({
   name: 'ocrDocumentPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: OcrDocumentInputSchema },
   output: { schema: OcrDocumentOutputSchema },
   prompt: `You are an expert Optical Character Recognition (OCR) AI. Your task is to accurately extract all text from the provided document image or PDF. Preserve original line breaks and paragraph structure in the extracted text.
@@ -49,7 +49,24 @@ const ocrDocumentFlow = ai.defineFlow(
     outputSchema: OcrDocumentOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

@@ -32,7 +32,7 @@ export async function generateTalentContract(input: GenerateTalentContractInput)
 
 const prompt = ai.definePrompt({
   name: 'generateTalentContractPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: GenerateTalentContractInputSchema },
   output: { schema: GenerateTalentContractOutputSchema },
   prompt: `You are an expert legal AI specializing in drafting contracts for creator management agencies. Your task is to generate a comprehensive Talent Management Agreement based on the user's prompt.
@@ -66,7 +66,24 @@ const generateTalentContractFlow = ai.defineFlow(
     outputSchema: GenerateTalentContractOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

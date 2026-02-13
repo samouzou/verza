@@ -4,31 +4,10 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
-  InternalPayout, TeamMember} from "../../../src/types";
+  InternalPayout, TeamMember} from "./../types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
-
-// Initialize Stripe
-let stripe: Stripe;
-try {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    throw new Error("STRIPE_SECRET_KEY is not set");
-  }
-  stripe = new Stripe(stripeKey, {
-    apiVersion: "2025-05-28.basil", // Use a fixed API version
-  });
-} catch (error) {
-  logger.error("Error initializing Stripe:", error);
-  // Create a mock Stripe instance for local testing
-  stripe = {
-    paymentIntents: {
-      create: async () => ({client_secret: "mock_secret"}),
-      retrieve: async () => ({status: "succeeded"}),
-    },
-  } as unknown as Stripe;
-}
-
+import * as params from "../config/params";
 
 export const createAgency = onCall(async (request) => {
   if (!request.auth) {
@@ -442,6 +421,28 @@ export const createInternalPayout = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    if (!stripeKey) {
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
+    stripe = new Stripe(stripeKey, {
+      apiVersion: "2025-05-28.basil",
+    });
+  } catch (error) {
+    logger.error("Error initializing Stripe:", error);
+    // In a real production environment, you'd want to throw an error here.
+    // For local dev where secrets might not be set, we can create a mock.
+    stripe = {
+      paymentIntents: {
+        create: async () => ({client_secret: "mock_secret"}),
+        retrieve: async () => ({status: "succeeded"}),
+      },
+    } as unknown as Stripe;
+  }
+
   const requesterId = request.auth.uid;
   const {agencyId, talentId, amount, description, paymentDate} = request.data;
 

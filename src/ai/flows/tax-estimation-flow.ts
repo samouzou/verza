@@ -29,7 +29,7 @@ const BankTransactionSchema = z.object({
   isBrandSpend: z.boolean().optional().default(false),
   linkedReceiptId: z.string().optional().nullable(),
   createdAt: z.any(), // Simplified for Zod, actual type is Timestamp
-  updatedAt: z.any().optional(), // Simplified for Zod
+  updatedAt: z.any().optional(), // Simplified for Zod,
 });
 
 const TaxEstimationInputSchema = z.object({
@@ -58,7 +58,7 @@ export async function estimateTaxes(input: TaxEstimationInput): Promise<TaxEstim
 
 const prompt = ai.definePrompt({
   name: 'taxEstimationPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: TaxEstimationInputSchema },
   output: { schema: TaxEstimationOutputSchema },
   prompt: `
@@ -100,19 +100,36 @@ const taxEstimationFlow = ai.defineFlow(
     outputSchema: TaxEstimationOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    
-    // Ensure calculationDate is always set, even if AI misses it.
-    const result = output!; // Assuming output will not be null
-    if (!result.calculationDate) {
-      result.calculationDate = new Date().toISOString().split('T')[0];
-    }
-     if (!result.notes) {
-      result.notes = [];
-    }
-    result.notes.push("Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.");
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
 
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        
+        // Ensure calculationDate is always set, even if AI misses it.
+        const result = output!; // Assuming output will not be null
+        if (!result.calculationDate) {
+          result.calculationDate = new Date().toISOString().split('T')[0];
+        }
+        if (!result.notes) {
+          result.notes = [];
+        }
+        result.notes.push("Disclaimer: This is a simplified AI estimation and not professional tax advice. Consult a qualified tax professional.");
 
-    return result;
+        return result;
+
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );

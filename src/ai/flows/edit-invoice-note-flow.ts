@@ -29,7 +29,7 @@ export async function editInvoiceNote(input: EditInvoiceNoteInput): Promise<Edit
 
 const prompt = ai.definePrompt({
   name: 'editInvoiceNotePrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: EditInvoiceNoteInputSchema },
   output: { schema: EditInvoiceNoteOutputSchema },
   prompt: `You are an expert copy editor for business communications. A user has written a draft note to include with an invoice. Your task is to revise it based on their desired tone.
@@ -56,7 +56,24 @@ const editInvoiceNoteFlow = ai.defineFlow(
     outputSchema: EditInvoiceNoteOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const maxAttempts = 5;
+    let delay = 2000; // start with 2 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        if (e.status === 429 && i < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          if (delay > 30000) delay = 30000; // Cap delay at 30 seconds
+        } else {
+          throw e; // Rethrow on last attempt or other error
+        }
+      }
+    }
+    // This line should be unreachable but is needed for TypeScript
+    throw new Error("Flow failed after multiple retries.");
   }
 );
