@@ -71,7 +71,7 @@ export default {
   		keyframes: {
   			'accordion-down': {
   				from: {
-  					height: '0'
+  					height: 0
   				},
   				to: {
   					height: 'var(--radix-accordion-content-height)'
@@ -82,7 +82,7 @@ export default {
   					height: 'var(--radix-accordion-content-height)'
   				},
   				to: {
-  					height: '0'
+  					height: 0
   				}
   			}
   		},
