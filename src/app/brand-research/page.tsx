@@ -157,7 +157,7 @@ export default function BrandResearchPage() {
                     <div>
                         <h3 className="font-semibold flex items-center gap-2 mb-2"><UserCheck className="h-5 w-5 text-primary" /> Target Decision Makers</h3>
                          <div className="space-y-2">
-                          {report.report?.decisionMakers.map((person, index) => (
+                          {report.report?.decisionMakers?.map((person, index) => (
                             <div key={index} className="text-sm p-2 bg-muted/50 rounded-md">
                               <p className="font-medium">{person.name || 'Unknown Name'}</p>
                               <p className="text-muted-foreground">{person.title}</p>
@@ -174,13 +174,13 @@ export default function BrandResearchPage() {
                 <div>
                     <h3 className="font-semibold flex items-center gap-2 mb-2"><Lightbulb className="h-5 w-5 text-primary" /> Pitch Hooks</h3>
                     <ul className="space-y-3 list-decimal list-inside">
-                        {report.report?.pitchHooks.map((hook, index) => <li key={index} className="text-sm text-muted-foreground pl-2">{hook}</li>)}
+                        {report.report?.pitchHooks?.map((hook, index) => <li key={index} className="text-sm text-muted-foreground pl-2">{hook}</li>)}
                     </ul>
                 </div>
                  <div>
                     <h3 className="font-semibold flex items-center gap-2 mb-2"><Mail className="h-5 w-5 text-primary" /> Email Pitches</h3>
                      <Accordion type="single" collapsible className="w-full">
-                      {report.report?.emailPitches.map((pitch, index) => (
+                      {report.report?.emailPitches?.map((pitch, index) => (
                         <AccordionItem value={`item-${index}`} key={index}>
                           <AccordionTrigger>Pitch {index + 1}: {pitch.subject}</AccordionTrigger>
                           <AccordionContent className="space-y-4">
