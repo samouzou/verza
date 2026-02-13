@@ -17,7 +17,6 @@ import type { BrandResearch } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export default function BrandResearchPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -179,35 +178,31 @@ export default function BrandResearchPage() {
                 </div>
                  <div>
                     <h3 className="font-semibold flex items-center gap-2 mb-2"><Mail className="h-5 w-5 text-primary" /> Email Pitches</h3>
-                     <Accordion type="single" collapsible className="w-full">
+                    <div className="space-y-4">
                       {report.report?.emailPitches?.map((pitch, index) => (
-                        <AccordionItem value={`item-${index}`} key={index}>
-                          <AccordionTrigger>Pitch {index + 1}: {pitch.subject}</AccordionTrigger>
-                          <AccordionContent className="space-y-4">
-                            <div className="p-3 border rounded-md bg-muted/50">
-                                <div className="flex justify-between items-center mb-2">
-                                    <Label className="font-semibold">Subject</Label>
-                                    <Button variant="ghost" size="sm" onClick={() => handleCopyToClipboard(pitch.subject, `subj-${index}`)}>
-                                        {copiedItem === `subj-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
-                                        <span className="ml-2">Copy</span>
-                                    </Button>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{pitch.subject}</p>
-                            </div>
-                            <div className="p-3 border rounded-md bg-muted/50">
-                                <div className="flex justify-between items-center mb-2">
-                                    <Label className="font-semibold">Body</Label>
-                                     <Button variant="ghost" size="sm" onClick={() => handleCopyToClipboard(pitch.body, `body-${index}`)}>
-                                        {copiedItem === `body-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
-                                        <span className="ml-2">Copy</span>
-                                    </Button>
-                                </div>
+                        <Card key={index}>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex justify-between items-center">
+                              <span>Pitch {index + 1}</span>
+                              <Button variant="ghost" size="sm" onClick={() => handleCopyToClipboard(pitch.subject, `subj-${index}`)}>
+                                {copiedItem === `subj-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                                <span className="ml-2">Copy Subject</span>
+                              </Button>
+                            </CardTitle>
+                            <CardDescription>{pitch.subject}</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="p-3 border rounded-md bg-muted/50 relative">
+                                <Button variant="ghost" size="sm" className="absolute top-2 right-2" onClick={() => handleCopyToClipboard(pitch.body, `body-${index}`)}>
+                                    {copiedItem === `body-${index}` ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4"/>}
+                                    <span className="ml-2">Copy Body</span>
+                                </Button>
                                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">{pitch.body}</p>
                             </div>
-                          </AccordionContent>
-                        </AccordionItem>
+                          </CardContent>
+                        </Card>
                       ))}
-                    </Accordion>
+                    </div>
                 </div>
             </CardContent>
         </Card>
