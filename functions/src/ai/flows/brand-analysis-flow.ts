@@ -18,13 +18,23 @@ export const BrandAnalysisInputSchema = z.object({
 });
 export type BrandAnalysisInput = z.infer<typeof BrandAnalysisInputSchema>;
 
+const DecisionMakerSchema = z.object({
+  name: z.string().optional().describe("The person's full name, if available."),
+  title: z.string().describe("The person's job title (e.g., 'Head of Marketing')."),
+  email: z.string().email().optional().describe("The person's email address, if available."),
+});
+
+const EmailPitchSchema = z.object({
+    subject: z.string().describe("A compelling subject line for the pitch email."),
+    body: z.string().describe("The full body of the pitch email, personalized for the brand. Use placeholders like [Your Name] and [Your Portfolio Link].")
+});
+
 export const BrandAnalysisOutputSchema = z.object({
   brandName: z.string().describe("The name of the brand, extracted from the content."),
-  decisionMakers: z.array(z.string()).describe("A list of likely job titles of decision-makers" +
-    "(e.g., \"CMO\", \"Head of Influencer Marketing\"). Do not include names."),
+  decisionMakers: z.array(DecisionMakerSchema).describe("A list of potential decision-makers at the company, including their name, title, and email if available."),
   currentVibe: z.string().describe("A summary of the brand's current marketing aesthetic and voice."),
-  pitchHooks: z.array(z.string()).length(3).describe("Three specific, actionable pitch hooks a creator" +
-    "could use to sell them UGC content."),
+  pitchHooks: z.array(z.string()).length(3).describe("Three specific, actionable pitch hooks a creator could use to sell them UGC content."),
+  emailPitches: z.array(EmailPitchSchema).length(2).describe("Two distinct, ready-to-send cold email pitches tailored to the brand."),
 });
 export type BrandAnalysisOutput = z.infer<typeof BrandAnalysisOutputSchema>;
 
@@ -54,13 +64,10 @@ const prompt = ai.definePrompt({
   Based on the provided content, you MUST extract the following information and structure it as JSON:
 
   1.  **brandName**: Identify the name of the brand.
-  2.  **decisionMakers**: Identify the likely job *titles* of marketing decision-makers. 
-  Do NOT invent names. Focus on roles like "CMO", "Head of Brand", "Influencer Marketing Manager",
-  "Social Media Director".
-  3.  **currentVibe**: Summarize the brand's current marketing aesthetic, voice, and target audience. 
-  What is their vibe? (e.g., "Minimalist and eco-conscious," "Edgy and youth-focused," "Luxurious and aspirational").
-  4.  **pitchHooks**: Generate exactly three specific and creative pitch hooks a content creator could use to sell 
-  them User-Generated Content (UGC) or an influencer partnership. These should be tailored to the brand's vibe and products.
+  2.  **decisionMakers**: Identify potential marketing decision-makers. Always include their job **title**. If their full **name** and/or **email** are available on the website, include those as well. If no specific person is found, provide likely job titles (e.g., "CMO", "Head of Influencer Marketing").
+  3.  **currentVibe**: Summarize the brand's current marketing aesthetic, voice, and target audience. What is their vibe? (e.g., "Minimalist and eco-conscious," "Edgy and youth-focused").
+  4.  **pitchHooks**: Generate exactly three specific and creative pitch hooks a creator could use to sell them User-Generated Content (UGC) or an influencer partnership.
+  5.  **emailPitches**: Draft exactly two distinct, ready-to-send cold email pitches tailored to the brand. The emails should be professional, concise, and compelling. Use placeholders like '[Your Name]' and '[Your Portfolio Link]' for the creator's name and portfolio. Each pitch should have a 'subject' and a 'body'.
   `,
 });
 
