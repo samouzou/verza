@@ -33,7 +33,7 @@ export const generateScene = onCall({
   if (!orientation || !["16:9", "9:16"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9' or '9:16') is required.");
   }
-  if (imageDataUri && typeof imageDataUri !== 'string') {
+  if (imageDataUri && typeof imageDataUri !== "string") {
     throw new HttpsError("invalid-argument", "If provided, 'imageDataUri' must be a string.");
   }
 
@@ -79,7 +79,7 @@ export const generateScene = onCall({
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Failed to process user credits.");
   }
-  
+
   let sourceImageUrl: string | null = null;
 
   // 3. Generate video
@@ -91,24 +91,25 @@ export const generateScene = onCall({
         }),
       ],
     });
-    
+
     let finalPrompt: any;
-    
+
     if (imageDataUri) {
       // Handle image-to-video
       logger.info(`Starting image-to-video generation for user ${userId}.`);
-      
+
       const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
       const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
-      const imageBuffer = Buffer.from(imageDataUri.split(',')[1], 'base64');
-      
-      await sourceImageFile.save(imageBuffer, { metadata: { contentType: 'image/jpeg' } });
-      const [signedSourceUrl] = await sourceImageFile.getSignedUrl({ action: 'read', expires: Date.now() + 1000 * 60 * 60 * 24 * 7 });
+      const imageBuffer = Buffer.from(imageDataUri.split(",")[1], "base64");
+
+      await sourceImageFile.save(imageBuffer, {metadata: {contentType: "image/jpeg"}});
+      const [signedSourceUrl] = await sourceImageFile.getSignedUrl({action: "read",
+        expires: Date.now() + 1000 * 60 * 60 * 24 * 7});
       sourceImageUrl = signedSourceUrl;
 
       finalPrompt = [
         {text: `In a ${style} style: ${prompt}`},
-        {media: { url: imageDataUri, contentType: 'image/jpeg' }}
+        {media: {url: imageDataUri, contentType: "image/jpeg"}},
       ];
     } else {
       // Handle text-to-video
@@ -205,7 +206,7 @@ export const generateScene = onCall({
     const updatedUserDoc = await userDocRef.get();
     const remainingCredits = updatedUserDoc.data()?.credits ?? 0;
 
-    logger.info(`Successfully generated and stored video for user ${userId}`, { videoUrl: finalVideoUrl });
+    logger.info(`Successfully generated and stored video for user ${userId}`, {videoUrl: finalVideoUrl});
 
     return {
       videoUrl: finalVideoUrl,

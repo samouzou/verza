@@ -375,7 +375,7 @@ export interface Generation {
   imageUrl?: string;
   sourceImageUrl?: string;
   timestamp: ClientTimestamp;
-  orientation?: '16:9' | '9:16' | '1:1';
+  orientation?: "16:9" | "9:16" | "1:1";
   cost: number;
 }
 

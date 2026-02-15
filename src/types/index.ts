@@ -371,7 +371,7 @@ export interface Generation {
   style: string;
   videoUrl?: string;
   imageUrl?: string;
-  sourceImageUrl?: string;
+  sourceImageUrl?: string | null;
   timestamp: ClientTimestamp;
   orientation?: '16:9' | '9:16' | '1:1';
   cost: number;

@@ -32,7 +32,7 @@ export const generateImage = onCall({
   if (!orientation || !["16:9", "9:16", "1:1"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9', '9:16', or '1:1') is required.");
   }
-  if (!imageDataUri || typeof imageDataUri !== 'string') {
+  if (!imageDataUri || typeof imageDataUri !== "string") {
     throw new HttpsError("invalid-argument", "An 'imageDataUri' must be a string for image-to-image generation.");
   }
 
@@ -73,53 +73,53 @@ export const generateImage = onCall({
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Failed to process user credits.");
   }
-  
+
   let sourceImageUrl: string | null = null;
-  
+
   // Generate image
   try {
     const ai = genkit({
-      plugins: [googleAI({ apiKey: params.VERTEX_API_KEY.value() })],
+      plugins: [googleAI({apiKey: params.VERTEX_API_KEY.value()})],
     });
-    
+
     // Store source image
     const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
     const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
-    const imageBufferFromUri = Buffer.from(imageDataUri.split(',')[1], 'base64');
-    await sourceImageFile.save(imageBufferFromUri, { metadata: { contentType: 'image/jpeg' } });
-    const [signedSourceUrl] = await sourceImageFile.getSignedUrl({ action: 'read', expires: Date.now() + 1000 * 60 * 60 * 24 * 7 });
+    const imageBufferFromUri = Buffer.from(imageDataUri.split(",")[1], "base64");
+    await sourceImageFile.save(imageBufferFromUri, {metadata: {contentType: "image/jpeg"}});
+    const [signedSourceUrl] = await sourceImageFile.getSignedUrl({action: "read", expires: Date.now() + 1000 * 60 * 60 * 24 * 7});
     sourceImageUrl = signedSourceUrl;
 
     logger.info(`Starting image-to-image generation for user ${userId}.`);
-    const { media } = await ai.generate({
+    const {media} = await ai.generate({
       model: googleAI.model("gemini-2.5-flash-image"),
       prompt: [
         {text: `In a ${style} style: ${prompt}`},
-        {media: { url: imageDataUri, contentType: 'image/jpeg' }}
+        {media: {url: imageDataUri, contentType: "image/jpeg"}},
       ],
       config: {
-        responseModalities: ['TEXT', 'IMAGE'],
+        responseModalities: ["TEXT", "IMAGE"],
       },
     });
 
     if (!media || !media.url) {
       throw new Error("Image generation failed to return media.");
     }
-    
+
     logger.info(`Image generated for user ${userId}.`);
-    
-    const generatedImageBuffer = Buffer.from(media.url.substring(media.url.indexOf(',') + 1), 'base64');
-    
+
+    const generatedImageBuffer = Buffer.from(media.url.substring(media.url.indexOf(",") + 1), "base64");
+
     const imageFileName = `${Date.now()}-${uuidv4()}.png`;
     const imageFile = defaultBucket.file(`generated-scenes/${userId}/${imageFileName}`);
-    
-    await imageFile.save(generatedImageBuffer, { metadata: { contentType: "image/png" } });
-    
+
+    await imageFile.save(generatedImageBuffer, {metadata: {contentType: "image/png"}});
+
     const [signedUrl] = await imageFile.getSignedUrl({
       action: "read",
       expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
     });
-    
+
     const finalImageUrl = signedUrl;
 
     const generationData: Omit<Generation, "id"> = {
@@ -142,9 +142,8 @@ export const generateImage = onCall({
       generationId: generationDocRef.id,
       remainingCredits,
     };
-
   } catch (error: any) {
-    logger.error("Image generation or storage failed for user", userId, { errorMessage: error.message });
+    logger.error("Image generation or storage failed for user", userId, {errorMessage: error.message});
     try {
       await userDocRef.update({credits: admin.firestore.FieldValue.increment(IMAGE_COST)});
       logger.info(`Refunded ${IMAGE_COST} credit to user ${userId} after failure.`);
