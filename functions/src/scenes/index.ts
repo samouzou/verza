@@ -110,7 +110,7 @@ export const generateScene = onCall({
     }
 
     const {operation: initialOperation} = await ai.generate({
-      model: googleAI.model("veo-3.1-fast-preview"),
+      model: googleAI.model("veo-2.0-generate-001"),
       prompt: finalPrompt,
     });
 
