@@ -288,12 +288,13 @@ export default function SceneSpawnerPage() {
                 <TabsContent value="text-to-video" className="space-y-4 pt-4">
                   <div>
                     <Label htmlFor="prompt">Prompt</Label>
-                    <Input
+                    <Textarea
                       id="prompt"
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder="e.g., A cyberpunk street in the rain, neon signs reflecting on wet pavement"
                       disabled={isGenerating}
+                      rows={2}
                     />
                   </div>
                 </TabsContent>
