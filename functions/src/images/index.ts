@@ -2,11 +2,11 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import {genkit} from "genkit";
-import {googleAI} from "@genkit-ai/google-genai";
+import { googleAI } from '@genkit-ai/google-genai';
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
 import * as params from "../config/params";
+import { ai } from "../ai/genkit"; // Import the shared AI instance
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const IMAGE_COST = 1;
@@ -78,10 +78,6 @@ export const generateImage = onCall({
 
   // Generate image
   try {
-    const ai = genkit({
-      plugins: [googleAI({apiKey: params.VERTEX_API_KEY.value()})],
-    });
-
     // Store source image
     const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
     const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
