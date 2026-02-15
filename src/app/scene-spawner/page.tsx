@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -38,6 +39,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from '@/components/ui/textarea';
+import Image from 'next/image';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -52,6 +54,7 @@ export default function SceneSpawnerPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
 
+  const [activeTab, setActiveTab] = useState("text-to-video");
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
   const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
@@ -68,6 +71,11 @@ export default function SceneSpawnerPage() {
   const [newCharacterName, setNewCharacterName] = useState("");
   const [newCharacterDescription, setNewCharacterDescription] = useState("");
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
+  
+  // New state for Image-to-Video
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePrompt, setImagePrompt] = useState("");
 
 
   useEffect(() => {
@@ -92,6 +100,22 @@ export default function SceneSpawnerPage() {
     return () => unsubscribe();
   }, [user, toast]);
   
+  const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 4 * 1024 * 1024) { // 4MB limit for images
+        toast({ title: "File Too Large", description: "Please select an image smaller than 4MB.", variant: "destructive" });
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handlePurchaseCredits = async (planKey: 'starter' | 'agency') => {
     setIsProcessingPayment(true);
     try {
@@ -112,14 +136,18 @@ export default function SceneSpawnerPage() {
 
   const handleSpawnScene = async () => {
     if (!user) {
-      toast({ title: "Authentication Error", description: "You must be logged in to generate scenes.", variant: "destructive" });
+      toast({ title: "Authentication Error", variant: "destructive" });
       return;
     }
-    if (!prompt.trim()) {
-      toast({ title: "Prompt Required", description: "Please enter a prompt for your scene.", variant: "destructive" });
+
+    const isImageMode = activeTab === 'image-to-video';
+    const currentPrompt = isImageMode ? imagePrompt : prompt;
+
+    if (!currentPrompt.trim() || (isImageMode && !imageFile)) {
+      toast({ title: "Missing Input", description: "Please provide a prompt and an image for image-to-video generation.", variant: "destructive" });
       return;
     }
-    if ((user.credits ?? 0) < VIDEO_COST) {
+     if ((user.credits ?? 0) < VIDEO_COST) {
       toast({ title: "No Credits", description: `A scene costs ${VIDEO_COST} credits.`, variant: "destructive" });
       return;
     }
@@ -130,12 +158,28 @@ export default function SceneSpawnerPage() {
 
     try {
       const generateSceneCallable = httpsCallable(functions, 'generateScene');
-      const result = await generateSceneCallable({ prompt, style, orientation });
+      let imageDataUri: string | undefined;
+      if (isImageMode && imageFile) {
+        imageDataUri = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageFile);
+        });
+      }
+
+      const result = await generateSceneCallable({ 
+        prompt: currentPrompt, 
+        style, 
+        orientation,
+        imageDataUri, // Pass image data if it exists
+      });
+      
       const data = result.data as { videoUrl: string, remainingCredits: number };
 
       setGeneratedVideoUrl(data.videoUrl);
       toast({ title: "Scene Spawned!", description: `Your video is ready. You have ${data.remainingCredits} credits left.` });
-      await refreshAuthUser(); // Refresh user data to get updated credits
+      await refreshAuthUser();
     } catch (error: any) {
       console.error("Error generating scene:", error);
       toast({ title: "Generation Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
@@ -163,6 +207,11 @@ export default function SceneSpawnerPage() {
 
   const credits = user?.credits ?? 0;
   const canAfford = credits >= VIDEO_COST;
+  
+  const isGenerateButtonDisabled = isGenerating ||
+    (activeTab === 'text-to-video' && !prompt.trim()) ||
+    (activeTab === 'image-to-video' && (!imagePrompt.trim() || !imageFile));
+
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -179,97 +228,132 @@ export default function SceneSpawnerPage() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl"><Sparkles className="h-6 w-6 text-primary" />Generator</CardTitle>
-              <CardDescription>Describe the scene you want to create.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="prompt">Prompt</Label>
-                <Input
-                  id="prompt"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g., A cyberpunk street in the rain, neon signs reflecting on wet pavement"
-                  disabled={isGenerating}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-1">
-                  <Label htmlFor="style">Style</Label>
-                  <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
-                    <SelectTrigger id="style"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                 <div className="md:col-span-1">
-                  <Label>Orientation</Label>
-                  <RadioGroup
-                    value={orientation}
-                    onValueChange={(value: '16:9' | '9:16') => setOrientation(value)}
-                    className="flex items-center gap-4 mt-2"
-                    disabled={isGenerating}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="16:9" id="orientation-h" />
-                      <Label htmlFor="orientation-h" className="flex items-center gap-1 cursor-pointer"><Monitor className="h-4 w-4"/> Horizontal</Label>
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
+                  <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="text-to-video" className="space-y-4 pt-4">
+                  <div>
+                    <Label htmlFor="prompt">Prompt</Label>
+                    <Input
+                      id="prompt"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="e.g., A cyberpunk street in the rain, neon signs reflecting on wet pavement"
+                      disabled={isGenerating}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="image-to-video" className="space-y-4 pt-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="space-y-2">
+                      <Label htmlFor="image-upload">Source Image</Label>
+                      <Input id="image-upload" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="9:16" id="orientation-v" />
-                      <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
+                    {imagePreview && (
+                      <div className="flex justify-center items-center p-2 border rounded-md bg-muted">
+                        <Image src={imagePreview} alt="Image Preview" width={150} height={150} className="rounded-md object-contain max-h-32" />
+                      </div>
+                    )}
+                   </div>
+                   <div>
+                    <Label htmlFor="image-prompt">Animation Prompt</Label>
+                    <Textarea
+                      id="image-prompt"
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      placeholder="e.g., Make the character subtly smile, make the background lights flicker"
+                      disabled={isGenerating}
+                      rows={2}
+                    />
+                  </div>
+                </TabsContent>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                    <div className="md:col-span-1">
+                      <Label htmlFor="style">Style</Label>
+                      <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
+                        <SelectTrigger id="style"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </RadioGroup>
+                    <div className="md:col-span-1">
+                      <Label>Orientation</Label>
+                      <RadioGroup
+                        value={orientation}
+                        onValueChange={(value: '16:9' | '9:16') => setOrientation(value)}
+                        className="flex items-center gap-4 mt-2"
+                        disabled={isGenerating}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="16:9" id="orientation-h" />
+                          <Label htmlFor="orientation-h" className="flex items-center gap-1 cursor-pointer"><Monitor className="h-4 w-4"/> Horizontal</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="9:16" id="orientation-v" />
+                          <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                    <div className="md:col-span-1">
+                      <Label htmlFor="character">Character (Optional)</Label>
+                      <Select value={selectedCharacterId} onValueChange={setSelectedCharacterId} disabled={isGenerating}>
+                        <SelectTrigger id="character"><SelectValue placeholder="Select a character..." /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">No character</SelectItem>
+                            {characters.map(char => (
+                                <SelectItem key={char.id} value={char.id}>{char.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                 </div>
-                <div className="md:col-span-1">
-                  <Label htmlFor="character">Character (Optional)</Label>
-                  <Select value={selectedCharacterId} onValueChange={setSelectedCharacterId} disabled={isGenerating}>
-                    <SelectTrigger id="character"><SelectValue placeholder="Select a character..." /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">No character</SelectItem>
-                        {characters.map(char => (
-                            <SelectItem key={char.id} value={char.id}>{char.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+
+                <div className="flex items-center justify-between pt-6">
+                    {canAfford ? (
+                      <Button onClick={handleSpawnScene} disabled={isGenerateButtonDisabled}>
+                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Spawn Scene ({VIDEO_COST} Credits)
+                      </Button>
+                    ) : (
+                      <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                              <Button disabled={isProcessingPayment}>
+                                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                Top Up Credits
+                              </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                              <AlertDialogHeader>
+                                  <AlertDialogTitle>Out of Credits!</AlertDialogTitle>
+                                  <AlertDialogDescription>Choose a credit pack to continue spawning scenes.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <div className="space-y-4 py-4">
+                                  <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('starter')} disabled={isProcessingPayment}>
+                                      <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (25 videos)</p></div>
+                                      <p className="text-lg font-semibold">$15</p>
+                                  </Button>
+                                  <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('agency')} disabled={isProcessingPayment}>
+                                      <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (100 videos)</p></div>
+                                      <p className="text-lg font-semibold">$50</p>
+                                  </Button>
+                              </div>
+                              <AlertDialogFooter>
+                                  <AlertDialogCancel disabled={isProcessingPayment}>Cancel</AlertDialogCancel>
+                              </AlertDialogFooter>
+                          </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                    <p className="text-sm text-muted-foreground">You have {credits} {credits === 1 ? 'credit' : 'credits'} left.</p>
                 </div>
-              </div>
-              <div className="flex items-center justify-between">
-                {canAfford ? (
-                  <Button onClick={handleSpawnScene} disabled={isGenerating}>
-                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                    Spawn Scene ({VIDEO_COST} Credits)
-                  </Button>
-                ) : (
-                  <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                          <Button disabled={isProcessingPayment}>
-                            {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                            Top Up Credits
-                          </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                              <AlertDialogTitle>Out of Credits!</AlertDialogTitle>
-                              <AlertDialogDescription>Choose a credit pack to continue spawning scenes.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <div className="space-y-4 py-4">
-                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('starter')} disabled={isProcessingPayment}>
-                                  <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (25 videos)</p></div>
-                                  <p className="text-lg font-semibold">$15</p>
-                              </Button>
-                              <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('agency')} disabled={isProcessingPayment}>
-                                  <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (100 videos)</p></div>
-                                  <p className="text-lg font-semibold">$50</p>
-                              </Button>
-                          </div>
-                          <AlertDialogFooter>
-                              <AlertDialogCancel disabled={isProcessingPayment}>Cancel</AlertDialogCancel>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                  </AlertDialog>
-                )}
-                <p className="text-sm text-muted-foreground">You have {credits} {credits === 1 ? 'credit' : 'credits'} left.</p>
-              </div>
+              </Tabs>
             </CardContent>
           </Card>
           

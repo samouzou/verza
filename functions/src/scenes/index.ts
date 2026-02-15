@@ -21,7 +21,7 @@ export const generateScene = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const {prompt, style, orientation} = request.data;
+  const {prompt, style, orientation, imageDataUri} = request.data;
   const userId = request.auth.uid;
 
   if (!prompt || !style) {
@@ -33,6 +33,10 @@ export const generateScene = onCall({
   if (!orientation || !["16:9", "9:16"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9' or '9:16') is required.");
   }
+  if (imageDataUri && typeof imageDataUri !== 'string') {
+    throw new HttpsError("invalid-argument", "If provided, 'imageDataUri' must be a string.");
+  }
+
 
   // Initialize Admin SDK inside the function
   if (!admin.apps.length) {
@@ -75,6 +79,8 @@ export const generateScene = onCall({
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Failed to process user credits.");
   }
+  
+  let sourceImageUrl: string | null = null;
 
   // 3. Generate video
   try {
@@ -85,11 +91,34 @@ export const generateScene = onCall({
         }),
       ],
     });
-    logger.info(`Starting video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
+    
+    let finalPrompt: any;
+    
+    if (imageDataUri) {
+      // Handle image-to-video
+      logger.info(`Starting image-to-video generation for user ${userId}.`);
+      
+      const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
+      const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
+      const imageBuffer = Buffer.from(imageDataUri.split(',')[1], 'base64');
+      
+      await sourceImageFile.save(imageBuffer, { metadata: { contentType: 'image/jpeg' } });
+      const [signedSourceUrl] = await sourceImageFile.getSignedUrl({ action: 'read', expires: Date.now() + 1000 * 60 * 60 * 24 * 7 });
+      sourceImageUrl = signedSourceUrl;
+
+      finalPrompt = [
+        {text: `In a ${style} style: ${prompt}`},
+        {media: { url: imageDataUri, contentType: 'image/jpeg' }}
+      ];
+    } else {
+      // Handle text-to-video
+      logger.info(`Starting text-to-video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
+      finalPrompt = `A ${style} style video of: ${prompt}. The video should be in a ${orientation} aspect ratio.`;
+    }
 
     const {operation: initialOperation} = await ai.generate({
       model: googleAI.model("veo-3.1-fast-preview"),
-      prompt: `A ${style} style video of: ${prompt}. The video should be in a ${orientation} aspect ratio.`,
+      prompt: finalPrompt,
     });
 
     if (!initialOperation) {
@@ -169,13 +198,14 @@ export const generateScene = onCall({
       timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
       orientation: orientation,
       cost: VIDEO_COST, // Add cost to generation record
+      sourceImageUrl: sourceImageUrl, // Add source image url if it exists
     };
     const generationDocRef = await adminDb.collection("generations").add(generationData);
 
     const updatedUserDoc = await userDocRef.get();
     const remainingCredits = updatedUserDoc.data()?.credits ?? 0;
 
-    logger.info(`Successfully generated and stored video for user ${userId}`, {videoUrl: finalVideoUrl});
+    logger.info(`Successfully generated and stored video for user ${userId}`, { videoUrl: finalVideoUrl });
 
     return {
       videoUrl: finalVideoUrl,

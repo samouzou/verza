@@ -220,9 +220,20 @@ export interface UserProfileFirestoreData {
   credits?: number;
 }
 
+// Credit transaction
+export interface CreditTransaction {
+  id: string;
+  userId: string;
+  creditAmount: number;
+  priceId: string;
+  checkoutSessionId: string;
+  status: "completed" | "failed";
+  createdAt: ClientTimestamp;
+}
+
 // Simplified Receipt Feature Types
 export interface Receipt {
-  id: string; // Document ID from Firestore
+  id: string; // Firestore Document ID
   userId: string;
   
   description?: string; 
@@ -359,6 +370,7 @@ export interface Generation {
   prompt: string;
   style: string;
   videoUrl: string;
+  sourceImageUrl?: string;
   timestamp: ClientTimestamp;
   orientation?: '16:9' | '9:16';
   cost: number;
