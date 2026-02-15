@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -49,6 +48,10 @@ service cloud.firestore {
       
       match /private_credentials/{credId} {
           allow read, write: if false; // Only backend functions
+      }
+
+      match /characters/{characterId} {
+        allow read, write: if isOwner(userId);
       }
     }
 
