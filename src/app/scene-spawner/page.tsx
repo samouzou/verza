@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -18,7 +18,15 @@ import type { Generation } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -29,9 +37,16 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from '@/components/ui/textarea';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
+
+interface Character {
+  id: string;
+  name: string;
+  description: string;
+}
 
 export default function SceneSpawnerPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
@@ -46,6 +61,14 @@ export default function SceneSpawnerPage() {
 
   const [history, setHistory] = useState<Generation[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  // New state for Characters
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false);
+  const [newCharacterName, setNewCharacterName] = useState("");
+  const [newCharacterDescription, setNewCharacterDescription] = useState("");
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
+
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -121,6 +144,23 @@ export default function SceneSpawnerPage() {
     }
   };
 
+  const handleSaveCharacter = () => {
+    if (!newCharacterName.trim() || !newCharacterDescription.trim()) {
+        toast({title: "Missing Information", description: "Please provide a name and description.", variant: "destructive"});
+        return;
+    }
+    const newCharacter: Character = {
+        id: `char_${Date.now()}`,
+        name: newCharacterName.trim(),
+        description: newCharacterDescription.trim(),
+    };
+    setCharacters([...characters, newCharacter]);
+    setNewCharacterName("");
+    setNewCharacterDescription("");
+    setIsCharacterDialogOpen(false);
+    toast({title: "Character Created!", description: `${newCharacter.name} has been added to your roster.`});
+  };
+
   const credits = user?.credits ?? 0;
   const canAfford = credits >= VIDEO_COST;
 
@@ -152,8 +192,8 @@ export default function SceneSpawnerPage() {
                   disabled={isGenerating}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
                   <Label htmlFor="style">Style</Label>
                   <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
                     <SelectTrigger id="style"><SelectValue /></SelectTrigger>
@@ -162,7 +202,7 @@ export default function SceneSpawnerPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                 <div>
+                 <div className="md:col-span-1">
                   <Label>Orientation</Label>
                   <RadioGroup
                     value={orientation}
@@ -179,6 +219,18 @@ export default function SceneSpawnerPage() {
                       <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
                     </div>
                   </RadioGroup>
+                </div>
+                <div className="md:col-span-1">
+                  <Label htmlFor="character">Character (Optional)</Label>
+                  <Select value={selectedCharacterId} onValueChange={setSelectedCharacterId} disabled={isGenerating}>
+                    <SelectTrigger id="character"><SelectValue placeholder="Select a character..." /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">No character</SelectItem>
+                        {characters.map(char => (
+                            <SelectItem key={char.id} value={char.id}>{char.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -248,14 +300,60 @@ export default function SceneSpawnerPage() {
             </CardContent>
           </Card>
         </div>
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" />My Characters</CardTitle>
+              <CardDescription>Create and manage reusable characters for your scenes.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2">
+                  {characters.length > 0 ? characters.map(char => (
+                      <div key={char.id} className="p-3 border rounded-md text-sm bg-muted/50">
+                        <p className="font-semibold">{char.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{char.description}</p>
+                      </div>
+                  )) : <p className="text-center text-muted-foreground py-3 text-sm">No characters created yet.</p>}
+              </div>
+              <Dialog open={isCharacterDialogOpen} onOpenChange={setIsCharacterDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Character
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create a New Character</DialogTitle>
+                    <DialogDescription>
+                      Define a character that you can reuse in different scenes. Provide a name and a detailed description.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label htmlFor="char-name">Character Name</Label>
+                      <Input id="char-name" value={newCharacterName} onChange={(e) => setNewCharacterName(e.target.value)} placeholder="e.g., Captain Eva" />
+                    </div>
+                    <div>
+                      <Label htmlFor="char-desc">Description</Label>
+                      <Textarea id="char-desc" value={newCharacterDescription} onChange={(e) => setNewCharacterDescription(e.target.value)} placeholder="e.g., A space pirate with a robotic arm and a sarcastic parrot on her shoulder." rows={4} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCharacterDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveCharacter}>Save Character</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />History</CardTitle>
               <CardDescription>Your previously spawned scenes.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[calc(100vh_-_18rem)]">
+              <ScrollArea className="h-[calc(100vh_-_30rem)]">
                 {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
                  : history.length > 0 ? (
                   <div className="space-y-4">
