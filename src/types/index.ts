@@ -377,6 +377,14 @@ export interface Generation {
   cost: number;
 }
 
+export interface Character {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  createdAt: ClientTimestamp;
+}
+
 // Brand Research Types
 export interface BrandResearch {
   id: string;

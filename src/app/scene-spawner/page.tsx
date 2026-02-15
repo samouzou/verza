@@ -10,12 +10,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, orderBy, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import type { Generation } from '@/types';
+import type { Generation, Character } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -37,6 +37,7 @@ import {
   AlertDialogTrigger,
   AlertDialogFooter,
   AlertDialogCancel,
+  AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
@@ -45,11 +46,6 @@ const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const IMAGE_COST = 1;
 
-interface Character {
-  id: string;
-  name: string;
-  description: string;
-}
 
 export default function SceneSpawnerPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
@@ -73,6 +69,9 @@ export default function SceneSpawnerPage() {
   const [newCharacterName, setNewCharacterName] = useState("");
   const [newCharacterDescription, setNewCharacterDescription] = useState("");
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
+  const [isSavingCharacter, setIsSavingCharacter] = useState(false);
+  const [isDeletingCharacter, setIsDeletingCharacter] = useState(false);
+  const [characterToDelete, setCharacterToDelete] = useState<Character | null>(null);
   
   // State for Image-to-Video and Image-to-Image
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -90,7 +89,7 @@ export default function SceneSpawnerPage() {
       orderBy('timestamp', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeHistory = onSnapshot(q, (snapshot) => {
       setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Generation)));
       setIsLoadingHistory(false);
     }, (error) => {
@@ -99,7 +98,21 @@ export default function SceneSpawnerPage() {
       setIsLoadingHistory(false);
     });
 
-    return () => unsubscribe();
+    const charactersQuery = query(
+      collection(db, 'users', user.uid, 'characters'),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribeCharacters = onSnapshot(charactersQuery, (snapshot) => {
+      setCharacters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Character)));
+    }, (error) => {
+      console.error("Error fetching characters:", error);
+      toast({ title: "Error", description: "Could not load your characters.", variant: "destructive" });
+    });
+
+    return () => {
+        unsubscribeHistory();
+        unsubscribeCharacters();
+    };
   }, [user, toast]);
   
   const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -196,22 +209,48 @@ export default function SceneSpawnerPage() {
     }
   };
 
-  const handleSaveCharacter = () => {
+  const handleSaveCharacter = async () => {
+    if (!user) return;
     if (!newCharacterName.trim() || !newCharacterDescription.trim()) {
         toast({title: "Missing Information", description: "Please provide a name and description.", variant: "destructive"});
         return;
     }
-    const newCharacter: Character = {
-        id: `char_${Date.now()}`,
-        name: newCharacterName.trim(),
-        description: newCharacterDescription.trim(),
-    };
-    setCharacters([...characters, newCharacter]);
-    setNewCharacterName("");
-    setNewCharacterDescription("");
-    setIsCharacterDialogOpen(false);
-    toast({title: "Character Created!", description: `${newCharacter.name} has been added to your roster.`});
+    setIsSavingCharacter(true);
+    try {
+        const characterData = {
+            userId: user.uid,
+            name: newCharacterName.trim(),
+            description: newCharacterDescription.trim(),
+            createdAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
+        toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
+        setNewCharacterName("");
+        setNewCharacterDescription("");
+        setIsCharacterDialogOpen(false);
+    } catch (error) {
+        console.error("Error saving character:", error);
+        toast({title: "Save Failed", description: "Could not save character.", variant: "destructive"});
+    } finally {
+        setIsSavingCharacter(false);
+    }
   };
+  
+  const handleDeleteCharacter = async () => {
+    if (!user || !characterToDelete) return;
+    setIsDeletingCharacter(true);
+    try {
+        await deleteDoc(doc(db, 'users', user.uid, 'characters', characterToDelete.id));
+        toast({title: "Character Deleted"});
+        setCharacterToDelete(null); // This will close the dialog
+    } catch (error) {
+        console.error("Error deleting character:", error);
+        toast({title: "Delete Failed", variant: "destructive"});
+    } finally {
+        setIsDeletingCharacter(false);
+    }
+ };
+
 
   const cost = activeTab === 'image-to-image' ? IMAGE_COST : VIDEO_COST;
   const credits = user?.credits ?? 0;
@@ -436,14 +475,38 @@ export default function SceneSpawnerPage() {
               <CardDescription>Create and manage reusable characters for your scenes.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2">
-                  {characters.length > 0 ? characters.map(char => (
-                      <div key={char.id} className="p-3 border rounded-md text-sm bg-muted/50">
-                        <p className="font-semibold">{char.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{char.description}</p>
-                      </div>
-                  )) : <p className="text-center text-muted-foreground py-3 text-sm">No characters created yet.</p>}
-              </div>
+                <AlertDialog open={!!characterToDelete} onOpenChange={(open) => !open && setCharacterToDelete(null)}>
+                    <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2">
+                        {characters.length > 0 ? characters.map(char => (
+                            <div key={char.id} className="p-3 border rounded-md text-sm bg-muted/50 flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{char.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{char.description}</p>
+                                </div>
+                                <AlertDialogTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive/70 hover:text-destructive flex-shrink-0" onClick={() => setCharacterToDelete(char)}>
+                                    <Trash2 className="h-4 w-4"/>
+                                </Button>
+                                </AlertDialogTrigger>
+                            </div>
+                        )) : <p className="text-center text-muted-foreground py-3 text-sm">No characters created yet.</p>}
+                    </div>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will permanently delete the character "{characterToDelete?.name}". This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isDeletingCharacter}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteCharacter} disabled={isDeletingCharacter} className="bg-destructive hover:bg-destructive/90">
+                                {isDeletingCharacter && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
               <Dialog open={isCharacterDialogOpen} onOpenChange={setIsCharacterDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="w-full">
@@ -460,16 +523,19 @@ export default function SceneSpawnerPage() {
                   <div className="space-y-4 py-4">
                     <div>
                       <Label htmlFor="char-name">Character Name</Label>
-                      <Input id="char-name" value={newCharacterName} onChange={(e) => setNewCharacterName(e.target.value)} placeholder="e.g., Captain Eva" />
+                      <Input id="char-name" value={newCharacterName} onChange={(e) => setNewCharacterName(e.target.value)} placeholder="e.g., Captain Eva" disabled={isSavingCharacter} />
                     </div>
                     <div>
                       <Label htmlFor="char-desc">Description</Label>
-                      <Textarea id="char-desc" value={newCharacterDescription} onChange={(e) => setNewCharacterDescription(e.target.value)} placeholder="e.g., A space pirate with a robotic arm and a sarcastic parrot on her shoulder." rows={4} />
+                      <Textarea id="char-desc" value={newCharacterDescription} onChange={(e) => setNewCharacterDescription(e.target.value)} placeholder="e.g., A space pirate with a robotic arm and a sarcastic parrot on her shoulder." rows={4} disabled={isSavingCharacter} />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCharacterDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSaveCharacter}>Save Character</Button>
+                    <Button variant="outline" onClick={() => setIsCharacterDialogOpen(false)} disabled={isSavingCharacter}>Cancel</Button>
+                    <Button onClick={handleSaveCharacter} disabled={isSavingCharacter || !newCharacterName.trim() || !newCharacterDescription.trim()}>
+                        {isSavingCharacter && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Save Character
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
