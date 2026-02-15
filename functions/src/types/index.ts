@@ -371,9 +371,11 @@ export interface Generation {
   userId: string;
   prompt: string;
   style: string;
-  videoUrl: string;
+  videoUrl?: string;
+  imageUrl?: string;
+  sourceImageUrl?: string;
   timestamp: ClientTimestamp;
-  orientation?: "16:9" | "9:16";
+  orientation?: '16:9' | '9:16' | '1:1';
   cost: number;
 }
 

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -43,6 +43,7 @@ import Image from 'next/image';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
+const IMAGE_COST = 1;
 
 interface Character {
   id: string;
@@ -57,10 +58,11 @@ export default function SceneSpawnerPage() {
   const [activeTab, setActiveTab] = useState("text-to-video");
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
-  const [orientation, setOrientation] = useState<'16:9' | '9:16'>('16:9');
+  const [orientation, setOrientation] = useState<'16:9' | '9:16' | '1:1'>('16:9');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  
+  const [generatedMedia, setGeneratedMedia] = useState<{ url: string; type: 'video' | 'image' } | null>(null);
 
   const [history, setHistory] = useState<Generation[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -72,7 +74,7 @@ export default function SceneSpawnerPage() {
   const [newCharacterDescription, setNewCharacterDescription] = useState("");
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
   
-  // New state for Image-to-Video
+  // State for Image-to-Video and Image-to-Image
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imagePrompt, setImagePrompt] = useState("");
@@ -134,32 +136,36 @@ export default function SceneSpawnerPage() {
     }
   };
 
-  const handleSpawnScene = async () => {
+  const handleGeneration = async () => {
     if (!user) {
       toast({ title: "Authentication Error", variant: "destructive" });
       return;
     }
 
-    const isImageMode = activeTab === 'image-to-video';
-    const currentPrompt = isImageMode ? imagePrompt : prompt;
-
-    if (!currentPrompt.trim() || (isImageMode && !imageFile)) {
-      toast({ title: "Missing Input", description: "Please provide a prompt and an image for image-to-video generation.", variant: "destructive" });
+    const mode = activeTab;
+    const currentPrompt = mode === 'text-to-video' ? prompt : imagePrompt;
+    const cost = mode === 'image-to-image' ? IMAGE_COST : VIDEO_COST;
+    const credits = user.credits ?? 0;
+    
+    if (!currentPrompt.trim() || (mode !== 'text-to-video' && !imageFile)) {
+      toast({ title: "Missing Input", description: `Please provide a prompt${mode !== 'text-to-video' ? ' and an image' : ''}.`, variant: "destructive" });
       return;
     }
-     if ((user.credits ?? 0) < VIDEO_COST) {
-      toast({ title: "No Credits", description: `A scene costs ${VIDEO_COST} credits.`, variant: "destructive" });
+     if (credits < cost) {
+      toast({ title: "No Credits", description: `This action costs ${cost} credits. You have ${credits}.`, variant: "destructive" });
       return;
     }
 
     setIsGenerating(true);
-    setGeneratedVideoUrl(null);
-    toast({ title: "Spawning Scene...", description: "AI is generating your video. This may take a minute or two." });
+    setGeneratedMedia(null);
+    toast({ title: "Spawning...", description: "AI is generating your media. This may take a minute or two." });
 
     try {
-      const generateSceneCallable = httpsCallable(functions, 'generateScene');
+      let result;
+      let data: any;
       let imageDataUri: string | undefined;
-      if (isImageMode && imageFile) {
+
+      if (mode !== 'text-to-video' && imageFile) {
         imageDataUri = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
@@ -167,21 +173,23 @@ export default function SceneSpawnerPage() {
             reader.readAsDataURL(imageFile);
         });
       }
-
-      const result = await generateSceneCallable({ 
-        prompt: currentPrompt, 
-        style, 
-        orientation,
-        imageDataUri, // Pass image data if it exists
-      });
       
-      const data = result.data as { videoUrl: string, remainingCredits: number };
+      if (mode === 'image-to-image') {
+        const generateImageCallable = httpsCallable(functions, 'generateImage');
+        result = await generateImageCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
+        data = result.data as { imageUrl: string, remainingCredits: number };
+        setGeneratedMedia({ url: data.imageUrl, type: 'image' });
+      } else {
+        const generateSceneCallable = httpsCallable(functions, 'generateScene');
+        result = await generateSceneCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
+        data = result.data as { videoUrl: string, remainingCredits: number };
+        setGeneratedMedia({ url: data.videoUrl, type: 'video' });
+      }
 
-      setGeneratedVideoUrl(data.videoUrl);
-      toast({ title: "Scene Spawned!", description: `Your video is ready. You have ${data.remainingCredits} credits left.` });
+      toast({ title: "Generation Complete!", description: `Your media is ready. You have ${data.remainingCredits} credits left.` });
       await refreshAuthUser();
     } catch (error: any) {
-      console.error("Error generating scene:", error);
+      console.error("Error generating media:", error);
       toast({ title: "Generation Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
@@ -205,12 +213,13 @@ export default function SceneSpawnerPage() {
     toast({title: "Character Created!", description: `${newCharacter.name} has been added to your roster.`});
   };
 
+  const cost = activeTab === 'image-to-image' ? IMAGE_COST : VIDEO_COST;
   const credits = user?.credits ?? 0;
-  const canAfford = credits >= VIDEO_COST;
+  const canAfford = credits >= cost;
   
   const isGenerateButtonDisabled = isGenerating ||
     (activeTab === 'text-to-video' && !prompt.trim()) ||
-    (activeTab === 'image-to-video' && (!imagePrompt.trim() || !imageFile));
+    (activeTab !== 'text-to-video' && (!imagePrompt.trim() || !imageFile));
 
 
   if (authLoading) {
@@ -221,7 +230,7 @@ export default function SceneSpawnerPage() {
     <>
       <PageHeader
         title="Scene Spawner"
-        description="Generate short video clips and B-roll for your content using AI."
+        description="Generate video clips and images for your content using AI."
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
@@ -231,9 +240,10 @@ export default function SceneSpawnerPage() {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
                   <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
+                  <TabsTrigger value="image-to-image">Image to Image</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="text-to-video" className="space-y-4 pt-4">
@@ -252,8 +262,8 @@ export default function SceneSpawnerPage() {
                 <TabsContent value="image-to-video" className="space-y-4 pt-4">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                     <div className="space-y-2">
-                      <Label htmlFor="image-upload">Source Image</Label>
-                      <Input id="image-upload" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
+                      <Label htmlFor="image-upload-video">Source Image</Label>
+                      <Input id="image-upload-video" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
                     </div>
                     {imagePreview && (
                       <div className="flex justify-center items-center p-2 border rounded-md bg-muted">
@@ -262,12 +272,37 @@ export default function SceneSpawnerPage() {
                     )}
                    </div>
                    <div>
-                    <Label htmlFor="image-prompt">Animation Prompt</Label>
+                    <Label htmlFor="image-prompt-video">Animation Prompt</Label>
                     <Textarea
-                      id="image-prompt"
+                      id="image-prompt-video"
                       value={imagePrompt}
                       onChange={(e) => setImagePrompt(e.target.value)}
                       placeholder="e.g., Make the character subtly smile, make the background lights flicker"
+                      disabled={isGenerating}
+                      rows={2}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="image-to-image" className="space-y-4 pt-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="space-y-2">
+                      <Label htmlFor="image-upload-image">Source Image</Label>
+                      <Input id="image-upload-image" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
+                    </div>
+                    {imagePreview && (
+                      <div className="flex justify-center items-center p-2 border rounded-md bg-muted">
+                        <Image src={imagePreview} alt="Image Preview" width={150} height={150} className="rounded-md object-contain max-h-32" />
+                      </div>
+                    )}
+                   </div>
+                   <div>
+                    <Label htmlFor="image-prompt-image">Edit Prompt</Label>
+                    <Textarea
+                      id="image-prompt-image"
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      placeholder="e.g., Change the background to a jungle, make the character wear a hat"
                       disabled={isGenerating}
                       rows={2}
                     />
@@ -288,7 +323,7 @@ export default function SceneSpawnerPage() {
                       <Label>Orientation</Label>
                       <RadioGroup
                         value={orientation}
-                        onValueChange={(value: '16:9' | '9:16') => setOrientation(value)}
+                        onValueChange={(value) => setOrientation(value as any)}
                         className="flex items-center gap-4 mt-2"
                         disabled={isGenerating}
                       >
@@ -300,6 +335,12 @@ export default function SceneSpawnerPage() {
                           <RadioGroupItem value="9:16" id="orientation-v" />
                           <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
                         </div>
+                         {activeTab === 'image-to-image' && (
+                           <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="1:1" id="orientation-s" />
+                            <Label htmlFor="orientation-s" className="flex items-center gap-1 cursor-pointer"><Camera className="h-4 w-4"/> Square</Label>
+                          </div>
+                         )}
                       </RadioGroup>
                     </div>
                     <div className="md:col-span-1">
@@ -318,9 +359,9 @@ export default function SceneSpawnerPage() {
 
                 <div className="flex items-center justify-between pt-6">
                     {canAfford ? (
-                      <Button onClick={handleSpawnScene} disabled={isGenerateButtonDisabled}>
+                      <Button onClick={handleGeneration} disabled={isGenerateButtonDisabled}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Spawn Scene ({VIDEO_COST} Credits)
+                        {activeTab === 'image-to-image' ? `Generate Image (${cost} Credit)` : `Spawn Scene (${cost} Credits)`}
                       </Button>
                     ) : (
                       <AlertDialog>
@@ -333,15 +374,15 @@ export default function SceneSpawnerPage() {
                           <AlertDialogContent>
                               <AlertDialogHeader>
                                   <AlertDialogTitle>Out of Credits!</AlertDialogTitle>
-                                  <AlertDialogDescription>Choose a credit pack to continue spawning scenes.</AlertDialogDescription>
+                                  <AlertDialogDescription>Choose a credit pack to continue generating.</AlertDialogDescription>
                               </AlertDialogHeader>
                               <div className="space-y-4 py-4">
                                   <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('starter')} disabled={isProcessingPayment}>
-                                      <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (25 videos)</p></div>
+                                      <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (~25 videos)</p></div>
                                       <p className="text-lg font-semibold">$15</p>
                                   </Button>
                                   <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('agency')} disabled={isProcessingPayment}>
-                                      <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (100 videos)</p></div>
+                                      <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (~100 videos)</p></div>
                                       <p className="text-lg font-semibold">$50</p>
                                   </Button>
                               </div>
@@ -359,7 +400,7 @@ export default function SceneSpawnerPage() {
           
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6 text-primary" />Generated Scene</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6 text-primary" />Generated Media</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-center bg-black rounded-b-lg aspect-video">
               {isGenerating ? (
@@ -367,18 +408,22 @@ export default function SceneSpawnerPage() {
                   <Loader2 className="h-12 w-12 animate-spin mx-auto" />
                   <p className="mt-4">Generating... may take up to 2 mins</p>
                 </div>
-              ) : generatedVideoUrl ? (
+              ) : generatedMedia ? (
                 <div className="relative w-full h-full">
-                  <video src={generatedVideoUrl} controls autoPlay loop className="w-full h-full object-contain" />
+                  {generatedMedia.type === 'video' ? (
+                     <video src={generatedMedia.url} controls autoPlay loop className="w-full h-full object-contain" />
+                  ) : (
+                     <Image src={generatedMedia.url} alt="Generated Image" layout="fill" className="object-contain" />
+                  )}
                   <Button asChild size="sm" className="absolute top-2 right-2">
-                    <a href={generatedVideoUrl} download target="_blank" rel="noopener noreferrer">
+                    <a href={generatedMedia.url} download target="_blank" rel="noopener noreferrer">
                       <Download className="mr-2 h-4 w-4" /> Download
                     </a>
                   </Button>
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground">
-                  <p>Your video will appear here.</p>
+                  <p>Your generated video or image will appear here.</p>
                 </div>
               )}
             </CardContent>
@@ -434,7 +479,7 @@ export default function SceneSpawnerPage() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />History</CardTitle>
-              <CardDescription>Your previously spawned scenes.</CardDescription>
+              <CardDescription>Your previously generated media.</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[calc(100vh_-_30rem)]">
@@ -442,10 +487,10 @@ export default function SceneSpawnerPage() {
                  : history.length > 0 ? (
                   <div className="space-y-4">
                     {history.map(item => (
-                      <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => setGeneratedVideoUrl(item.videoUrl)}>
+                      <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => setGeneratedMedia({ url: (item.videoUrl || item.imageUrl)!, type: item.videoUrl ? 'video' : 'image' })}>
                         <p className="text-sm truncate">{item.prompt}</p>
                         <p className="text-xs text-muted-foreground flex items-center justify-between">
-                          <span>{item.style} • {item.orientation === '9:16' ? 'Vertical' : 'Horizontal'}</span>
+                          <span>{item.style} • {item.imageUrl ? 'Image' : 'Video'} • {item.orientation || 'N/A'}</span>
                           <span>{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
                         </p>
                       </div>
