@@ -2,11 +2,11 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import { googleAI } from '@genkit-ai/google-genai';
+import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
 import * as params from "../config/params";
-import { ai } from "../ai/genkit"; // Import the shared AI instance
+import {ai} from "../ai/genkit"; // Import the shared AI instance
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -198,7 +198,7 @@ export const generateScene = onCall({
     const updatedUserDoc = await userDocRef.get();
     const remainingCredits = updatedUserDoc.data()?.credits ?? 0;
 
-    logger.info(`Successfully generated and stored video for user ${userId}`, { videoUrl: finalVideoUrl });
+    logger.info(`Successfully generated and stored video for user ${userId}`, {videoUrl: finalVideoUrl});
 
     return {
       videoUrl: finalVideoUrl,
