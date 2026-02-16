@@ -1,9 +1,13 @@
 
 import {genkit} from "genkit";
 import {googleAI} from "@genkit-ai/google-genai";
+import { enableFirebaseTelemetry } from "@genkit-ai/firebase";
 
 // This is the Genkit instance for the backend (Firebase Functions).
 // When deployed, it will use the service account's permissions for Vertex AI.
 export const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [
+    googleAI(),
+    enableFirebaseTelemetry(),
+  ],
 });
