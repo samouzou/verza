@@ -65,6 +65,7 @@ import {
 } from "./agency";
 
 import {generateScene} from "./scenes";
+import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
 
 // Export v2 functions
@@ -99,6 +100,7 @@ export {
   createInternalPayout,
   inviteTeamMemberToAgency, // Export new function
   generateScene,
+  generateImage,
   analyzeBrand,
 };
 

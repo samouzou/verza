@@ -220,9 +220,20 @@ export interface UserProfileFirestoreData {
   credits?: number;
 }
 
+// Credit transaction
+export interface CreditTransaction {
+  id: string;
+  userId: string;
+  creditAmount: number;
+  priceId: string;
+  checkoutSessionId: string;
+  status: "completed" | "failed";
+  createdAt: ClientTimestamp;
+}
+
 // Simplified Receipt Feature Types
 export interface Receipt {
-  id: string; // Document ID from Firestore
+  id: string; // Firestore Document ID
   userId: string;
   
   description?: string; 
@@ -358,10 +369,20 @@ export interface Generation {
   userId: string;
   prompt: string;
   style: string;
-  videoUrl: string;
+  videoUrl?: string;
+  imageUrl?: string;
+  sourceImageUrl?: string | null;
   timestamp: ClientTimestamp;
-  orientation?: '16:9' | '9:16';
+  orientation?: '16:9' | '9:16' | '1:1';
   cost: number;
+}
+
+export interface Character {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  createdAt: ClientTimestamp;
 }
 
 // Brand Research Types
@@ -370,11 +391,19 @@ export interface BrandResearch {
   uid: string;
   brandUrl: string;
   brandName: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: "pending" | "completed" | "failed";
   report?: {
-    decisionMakers: string[];
+    decisionMakers: {
+        name?: string;
+        title: string;
+        email?: string;
+    }[];
     currentVibe: string;
     pitchHooks: string[];
+    emailPitches: {
+        subject: string;
+        body: string;
+    }[];
   };
   error?: string;
   createdAt: ClientTimestamp;

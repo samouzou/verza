@@ -194,8 +194,8 @@ export interface UserProfileFirestoreData {
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid" | "paused" | "none" |
-  "incomplete_expired";
+  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid" | "paused" |
+   "none" | "incomplete_expired";
   subscriptionPlanId?: "individual_free" | "individual_monthly" | "individual_yearly" | "agency_start_monthly" |
   "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly" | null;
   talentLimit?: number;
@@ -371,9 +371,11 @@ export interface Generation {
   userId: string;
   prompt: string;
   style: string;
-  videoUrl: string;
+  videoUrl?: string;
+  imageUrl?: string;
+  sourceImageUrl?: string | null;
   timestamp: ClientTimestamp;
-  orientation?: "16:9" | "9:16";
+  orientation?: "16:9" | "9:16" | "1:1";
   cost: number;
 }
 
@@ -385,9 +387,17 @@ export interface BrandResearch {
   brandName: string;
   status: "pending" | "completed" | "failed";
   report?: {
-    decisionMakers: string[];
+    decisionMakers: {
+        name?: string;
+        title: string;
+        email?: string;
+    }[];
     currentVibe: string;
     pitchHooks: string[];
+    emailPitches: {
+        subject: string;
+        body: string;
+    }[];
   };
   error?: string;
   createdAt: ClientTimestamp;
