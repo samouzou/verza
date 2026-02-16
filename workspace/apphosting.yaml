@@ -1,0 +1,129 @@
+
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 2
+  memoryMiB: 4096
+  timeoutSeconds: 240
+
+# Environment variables and secrets.
+env:
+
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: VERTEX_API_KEY
+    secret: VERTEX_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: VERZA_FIREBASE_STORAGE_BUCKET
+    availability:
+      - BUILD
+      - RUNTIME
+      
+  # This makes the same secret available to the backend runtime (Cloud Functions) under a non-public name
+  - variable: APP_STORAGE_BUCKET
+    secret: VERZA_FIREBASE_STORAGE_BUCKET
+    availability:
+      - RUNTIME
+      
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: VERZA_FIREBASE_API_KEY # This is the NAME of the secret in Secret Manager
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Stripe key
+  - variable: STRIPE_SECRET_KEY
+    secret: VERZA_STRIPE_SECRET_KEY
+  
+  - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
+    secret: VERZA_SUBSCRIPTION_WEBHOOK_SECRET
+
+  - variable: STRIPE_INDIVIDUAL_PRO_PRICE_ID
+    secret: VERZA_STRIPE_INDIVIDUAL_PRO_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+      
+  - variable: STRIPE_AGENCY_START_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_START_PRICE_ID
+    availability:
+      - RUNTIME
+      
+  - variable: STRIPE_AGENCY_START_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_START_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_PRO_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_PRO_PRICE_ID
+    availability:
+      - RUNTIME
+  
+  - variable: STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
+    secret: VERZA_STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID
+    secret: VERZA_STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
+    secret: VERZA_STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+
+  - variable: APP_URL
+    secret: VERZA_APP_URL
+
+  # Firebase
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: VERZA_FIREBASE_AUTH_DOMAIN
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: VERZA_FIREBASE_PROJECT_ID
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: VERZA_FIREBASE_MESSAGING_SENDER_ID
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: VERZA_FIREBASE_APP_ID
+
+  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    secret: VERZA_STRIPE_PUBLISHABLE_KEY
+  
+  # HelloSign
+  - variable: HELLOSIGN_API_KEY
+    secret: VERZA_HELLOSIGN_API_KEY
+    availability:
+      - RUNTIME # Needed by Firebase Functions, which are part of the backend for App Hosting
+
+  # Syncfusion License Key
+  - variable: NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY
+    secret: VERZA_SYNCFUSION_LICENSE_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+
+
+
