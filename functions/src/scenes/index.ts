@@ -1,4 +1,6 @@
 
+"use client";
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
@@ -161,7 +163,7 @@ export const generateScene = onCall({
       throw new Error(`Failed to download generated video. Status: ${videoDownloadResponse.status}`);
     }
 
-    const videoBuffer = await videoDownloadResponse.buffer();
+    const videoBuffer = Buffer.from(await videoDownloadResponse.arrayBuffer());
 
     // 4. Upload to Firebase Storage
     const videoFileName = `${Date.now()}-${uuidv4()}.mp4`;
