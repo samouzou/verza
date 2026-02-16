@@ -18,7 +18,7 @@ export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // --- String Parameters (can be set as env vars in .env file for local emulation) ---
 export const APP_URL = defineString("APP_URL", {
   description: "The base URL of the web application.",
-  default: "http://localhost:9002",
+  default: "https://app.tryverza.com",
 });
 
 export const FINICITY_PARTNER_ID = defineString("FINICITY_PARTNER_ID");
