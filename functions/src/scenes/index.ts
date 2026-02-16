@@ -154,7 +154,7 @@ export const generateScene = onCall({
     logger.info(`Video generated. Downloading from URL for user ${userId}.`);
     const fetch = (await import("node-fetch")).default;
     const videoDownloadResponse = await fetch(
-      `${video.media.url}&key=${params.VERTEX_API_KEY.value()}`
+      `${video.media.url}&key=${params.GEMINI_API_KEY.value()}`
     );
 
     if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
