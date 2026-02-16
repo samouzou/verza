@@ -6,7 +6,7 @@ import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
 import * as params from "../config/params";
 import {ai} from "../ai/genkit"; // Import the shared AI instance
-import { googleAI } from "@genkit-ai/google-genai";
+import {googleAI} from "@genkit-ai/google-genai";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;

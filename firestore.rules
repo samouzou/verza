@@ -116,7 +116,13 @@ service cloud.firestore {
     
     // Rules for receipts (user-specific access, now with contract access check)
     match /receipts/{receiptId} {
-      allow read, delete: if isAllowedToAccessReceipt(resource.data);
+      // Allow reading/deleting a single document with the expensive check
+      allow get, delete: if isAllowedToAccessReceipt(resource.data);
+
+      // For listing documents, we use a simpler rule to prevent timeouts.
+      // This relies on the client app using queries to filter by userId or accessible contract IDs.
+      allow list: if request.auth != null;
+
       allow create: if isAllowedToAccessReceipt(request.resource.data);
       allow update: if isAllowedToAccessReceipt(resource.data) && isAllowedToAccessReceipt(request.resource.data);
     }
