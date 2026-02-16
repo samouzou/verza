@@ -108,12 +108,15 @@ export const generateScene = onCall({
     } else {
       // Handle text-to-video
       logger.info(`Starting text-to-video generation for user ${userId} with prompt: "A ${style} style video of: ${prompt}"`);
-      finalPrompt = `A ${style} style video of: ${prompt}. The video should be in a ${orientation} aspect ratio.`;
+      finalPrompt = `A ${style} style video of: ${prompt}.`;
     }
 
     const {operation: initialOperation} = await ai.generate({
       model: googleAI.model("veo-3.1-fast-generate-preview"),
       prompt: finalPrompt,
+      config: {
+        aspectRatio: orientation,
+      },
     });
 
     if (!initialOperation) {
