@@ -12,6 +12,7 @@ export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOO
 export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET");
 export const STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET = defineSecret("STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET");
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
+export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 
 // --- String Parameters (can be set as env vars in .env file for local emulation) ---
