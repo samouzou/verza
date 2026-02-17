@@ -236,7 +236,13 @@ export default function ManageInvoicePage() {
             let detailsToUse: EditableInvoiceDetails;
 
             if (savedDetails && (!isMilestoneInvoice || milestoneInSavedDetails)) {
-                detailsToUse = savedDetails;
+                // Merge fresh contract data with saved invoice details to ensure consistency
+                detailsToUse = {
+                    ...savedDetails,
+                    clientName: contract.clientName || savedDetails.clientName || "",
+                    clientEmail: contract.clientEmail || savedDetails.clientEmail || "",
+                    clientAddress: contract.clientAddress || savedDetails.clientAddress || "",
+                };
             } else {
                 detailsToUse = buildDefaultEditableDetails(contract, creatorProfile, contract.id, contract.invoiceNumber, targetMilestone);
                 setInvoiceStatus('draft'); // Set default status for new invoice
@@ -262,14 +268,14 @@ export default function ManageInvoicePage() {
 
   const generateAndSetHtmlFromForm = useCallback(async (detailsToUse: EditableInvoiceDetails, receiptsToUse: Array<{url: string; description?: string;}>, contractIdToUse: string, logoUrl?: string | null) => {
     setIsGeneratingAi(true);
-    const totalAmount = calculateTotal(detailsToUse.deliverables);
+    const totalAmount = calculateTotal(detailsToUse.deliverables || []);
     
     const inputForAI: GenerateInvoiceHtmlInput = {
       ...detailsToUse,
       contractId: contractIdToUse,
       totalAmount: totalAmount,
       companyLogoUrl: logoUrl || undefined,
-      deliverables: detailsToUse.deliverables.map(d => ({ ...d, total: d.quantity * d.unitPrice })),
+      deliverables: detailsToUse.deliverables?.map(d => ({ ...d, total: d.quantity * d.unitPrice })) || [],
       payInvoiceLink: payUrl || undefined,
       receipts: receiptsToUse.length > 0 ? receiptsToUse.map(r => ({ url: r.url, description: r.description || "Receipt", 'sendgrid-disable-tracking': true } as any)) : undefined,
     };
@@ -329,7 +335,11 @@ export default function ManageInvoicePage() {
         invoiceStatus: newStatus, 
         editableInvoiceDetails: finalDetailsToSave, 
         invoiceHistory: arrayUnion(historyEntry), 
-        updatedAt: serverTimestamp(), 
+        updatedAt: serverTimestamp(),
+        // Save client info back to the root of the contract document
+        clientName: finalDetailsToSave.clientName,
+        clientEmail: finalDetailsToSave.clientEmail,
+        clientAddress: finalDetailsToSave.clientAddress,
       };
 
       await updateDoc(contractDocRef, updatesToSave);
@@ -733,4 +743,3 @@ export default function ManageInvoicePage() {
   );
 }
 
-    
