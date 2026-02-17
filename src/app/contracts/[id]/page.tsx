@@ -222,7 +222,52 @@ export default function ContractDetailPage() {
         const idToken = await getUserIdToken();
         if (!idToken) throw new Error("Could not get user token.");
 
-        let htmlToSend = contract.invoiceHtmlContent;
+        let htmlToSend = contract.invoiceHtmlContent || '';
+        
+        const isPaid = contract.invoiceStatus === 'paid' || (contract.milestones && contract.milestones.every(m => m.status === 'paid'));
+        const hasWatermark = htmlToSend.includes('class="paid-watermark"');
+
+        if (isPaid && !hasWatermark) {
+          toast({ title: "Adding 'Paid' Watermark...", description: "Generating a paid version of the invoice." });
+          
+          const paidStampStyle = `
+          <style>
+            .paid-watermark {
+              position: absolute;
+              top: 40%;
+              left: 50%;
+              transform: translate(-50%, -50%) rotate(-45deg);
+              font-size: 120px;
+              color: rgba(0, 128, 0, 0.15);
+              font-weight: bold;
+              pointer-events: none;
+              z-index: 1000;
+              text-transform: uppercase;
+              letter-spacing: 10px;
+              opacity: 0.8;
+            }
+          </style>`;
+          const paidStampDiv = '<div class="paid-watermark">Paid</div>';
+          
+          let watermarkedHtml = htmlToSend;
+          if (!watermarkedHtml.includes("</head>")) {
+              watermarkedHtml = watermarkedHtml.replace("<body>", `<head>${paidStampStyle}</head><body>`);
+          } else {
+              watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
+          }
+          if (watermarkedHtml.includes('<div class="invoice-box">')) {
+              watermarkedHtml = watermarkedHtml.replace('<div class="invoice-box">', '<div class="invoice-box" style="position: relative;">' + paidStampDiv);
+          } else {
+              watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
+          }
+          
+          htmlToSend = watermarkedHtml;
+
+          // Save the updated HTML back to Firestore
+          const contractDocRef = doc(db, 'contracts', contract.id);
+          await updateDoc(contractDocRef, { invoiceHtmlContent: htmlToSend });
+        }
+        
         if (invoiceNote.trim()) {
             const noteHtml = `<p style="margin-bottom: 20px; padding: 15px; border-left: 4px solid #ccc; background-color: #f8f8f8;">${invoiceNote.trim().replace(/\n/g, '<br>')}</p>`;
             const creatorDisplayName = contract.talentName || user.displayName || 'the sender';
@@ -810,5 +855,3 @@ export default function ContractDetailPage() {
     </>
   );
 }
-
-    
