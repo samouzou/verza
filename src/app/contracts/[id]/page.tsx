@@ -528,9 +528,9 @@ export default function ContractDetailPage() {
                               <div className="flex items-center gap-4 w-full sm:w-auto">
                                 <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
                                 <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
-                                <Button size="sm" asChild disabled={!canEdit || milestone.status === 'invoiced' || milestone.status === 'paid'}>
+                                <Button size="sm" asChild>
                                   <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
-                                    Generate Invoice
+                                    {milestone.status === 'pending' ? 'Generate Invoice' : 'View Invoice'}
                                   </Link>
                                 </Button>
                               </div>
@@ -594,7 +594,6 @@ export default function ContractDetailPage() {
               <Card className="shadow-lg hide-on-print">
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-2">
-                       <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/invoice`}><FileText className="mr-2 h-4 w-4"/>Manage Invoice</Link></Button>
                        <Dialog open={isSendInvoiceDialogOpen} onOpenChange={setIsSendInvoiceDialogOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" disabled={!contract.invoiceHtmlContent || !contract.clientEmail}>
@@ -797,7 +796,7 @@ export default function ContractDetailPage() {
                         <AlertDialogCancel disabled={isDeletingContract}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDeleteContract} disabled={isDeletingContract} className="bg-destructive hover:bg-destructive/90">
                             {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Yes, delete contract
+                            Yes, delete my account
                         </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -811,3 +810,5 @@ export default function ContractDetailPage() {
     </>
   );
 }
+
+    
