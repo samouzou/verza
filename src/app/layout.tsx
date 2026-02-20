@@ -20,7 +20,7 @@ import { TourGuide } from '@/components/tour/tour-guide';
 
 export const metadata: Metadata = {
   title: 'Verza', // Updated title
-  description: 'Smart contract management for creators.',
+  description: 'The operating system for the creator economy.',
 };
 
 export default function RootLayout({
