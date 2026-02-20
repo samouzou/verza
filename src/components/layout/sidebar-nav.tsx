@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -25,6 +24,8 @@ import {
   Building,
   BarChart3,
   Video,
+  Swords,
+  ExternalLink,
 } from "lucide-react";
 import {
   Sidebar,
@@ -75,6 +76,7 @@ const financialsNavItems = [
 const aiToolsNavItems = [
     { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
     { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
+    { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: Swords, external: true }
 ]
 
 
@@ -176,17 +178,34 @@ export function SidebarNav() {
                 <SidebarGroupContent>
                     {aiToolsNavItems.map((item) => (
                         <SidebarMenuItem key={item.label} id={item.id}>
-                        <Link href={item.href} legacyBehavior passHref>
-                            <SidebarMenuButton
+                        {item.external ? (
+                          <SidebarMenuButton
+                            asChild
                             onClick={() => isMobile && setOpenMobile(false)}
                             className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                            isActive={pathname.startsWith(item.href)}
                             tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                          >
+                            <a href={item.href} target="_blank" rel="noopener noreferrer">
+                                <item.icon className="h-5 w-5" />
+                                <span className="group-data-[collapsible=icon]:hidden flex-1 flex items-center justify-between">
+                                    <span>{item.label}</span>
+                                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                                </span>
+                            </a>
+                          </SidebarMenuButton>
+                        ) : (
+                          <Link href={item.href} legacyBehavior passHref>
+                            <SidebarMenuButton
+                              onClick={() => isMobile && setOpenMobile(false)}
+                              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                              isActive={pathname.startsWith(item.href)}
+                              tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                             >
-                            <item.icon className="h-5 w-5" />
-                            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                              <item.icon className="h-5 w-5" />
+                              <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                             </SidebarMenuButton>
-                        </Link>
+                          </Link>
+                        )}
                         </SidebarMenuItem>
                     ))}
                 </SidebarGroupContent>
