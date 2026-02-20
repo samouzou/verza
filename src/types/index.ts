@@ -323,6 +323,7 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  walletBalance?: number;
 }
 
 export interface AgencyMembership {
@@ -342,11 +343,12 @@ export interface InternalPayout {
   amount: number;
   description: string;
   paymentDate?: ClientTimestamp;
-  status: 'pending' | 'processing' | 'paid' | 'failed';
+  status: "pending" | "processing" | "initiated" | "paid" | "failed";
   initiatedAt: ClientTimestamp;
   paidAt?: ClientTimestamp;
-  stripeChargeId?: string;
+  stripeTransferId?: string;
   platformFee?: number;
+  error?: string;
 }
 
 // Tour Guide Types
@@ -409,3 +411,5 @@ export interface BrandResearch {
   error?: string;
   createdAt: ClientTimestamp;
 }
+
+    

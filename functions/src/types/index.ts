@@ -185,6 +185,7 @@ export interface UserProfileFirestoreData {
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
+  country?: string | null;
   createdAt?: ClientTimestamp;
   role: "individual_creator" | "agency_owner" | "agency_admin" | "agency_member";
   isAgencyOwner?: boolean;
@@ -235,7 +236,7 @@ export interface CreditTransaction {
 
 // Simplified Receipt Feature Types
 export interface Receipt {
-  id: string; // Document ID from Firestore
+  id: string; // Firestore Document ID
   userId: string;
 
   description?: string;
@@ -324,6 +325,7 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  walletBalance?: number;
 }
 
 export interface AgencyMembership {
@@ -343,11 +345,12 @@ export interface InternalPayout {
   amount: number;
   description: string;
   paymentDate?: ClientTimestamp;
-  status: "pending" | "processing" | "paid" | "failed";
+  status: "pending" | "processing" | "initiated" | "paid" | "failed";
   initiatedAt: ClientTimestamp;
   paidAt?: ClientTimestamp;
-  stripeChargeId?: string;
+  stripeTransferId?: string;
   platformFee?: number;
+  error?: string;
 }
 
 // Tour Guide Types
@@ -402,3 +405,5 @@ export interface BrandResearch {
   error?: string;
   createdAt: ClientTimestamp;
 }
+
+    

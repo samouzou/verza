@@ -37,6 +37,7 @@ export const createAgency = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
       talent: [],
       team: [], // Initialize team array
+      walletBalance: 0,
     };
 
     const userUpdate: Partial<UserProfileFirestoreData> = {
@@ -433,63 +434,39 @@ export const createInternalPayout = onCall(async (request) => {
     });
   } catch (error) {
     logger.error("Error initializing Stripe:", error);
-    // In a real production environment, you'd want to throw an error here.
-    // For local dev where secrets might not be set, we can create a mock.
-    stripe = {
-      paymentIntents: {
-        create: async () => ({client_secret: "mock_secret"}),
-        retrieve: async () => ({status: "succeeded"}),
-      },
-    } as unknown as Stripe;
+    throw new HttpsError("internal", "Stripe could not be initialized.");
   }
 
   const requesterId = request.auth.uid;
-  const {agencyId, talentId, amount, description, paymentDate} = request.data;
+  const { agencyId, talentId, amount, description } = request.data;
 
-  if (!agencyId || !talentId || !amount || !description || !paymentDate) {
-    throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, description, and payment date are required.");
+  if (!agencyId || !talentId || !amount || !description) {
+    throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, and description are required.");
   }
   if (typeof amount !== "number" || amount <= 0) {
     throw new HttpsError("invalid-argument", "Amount must be a positive number.");
   }
-  if (typeof paymentDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
-    throw new HttpsError("invalid-argument", "Payment date must be a valid YYYY-MM-DD string.");
-  }
+  
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const payoutDocRef = db.collection("internalPayouts").doc();
 
   try {
-    const agencyDocRef = db.collection("agencies").doc(agencyId);
     const agencySnap = await agencyDocRef.get();
     const agencyData = agencySnap.data() as Agency;
 
-    const requesterIsAdmin = agencyData.ownerId === requesterId ||
-      agencyData.team?.some((m) => m.userId === requesterId && m.role === "admin");
-
+    // Permission Check
+    const requesterIsAdmin = agencyData.ownerId === requesterId || agencyData.team?.some((m) => m.userId === requesterId && m.role === "admin");
     if (!agencySnap.exists || !requesterIsAdmin) {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
-
-    // The person initiating the payout must be an admin, but the payment comes from the owner's account.
-    const agencyOwnerId = agencyData.ownerId;
-    const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
-    const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
-    const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
-
-    if (!agencyOwnerData.stripeCustomerId) {
-      throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
+    
+    // Check Agency Wallet Balance
+    const currentBalance = agencyData.walletBalance ?? 0;
+    if (currentBalance < amount) {
+      throw new HttpsError("failed-precondition", `Insufficient agency balance. You have $${currentBalance.toFixed(2)}, but need $${amount.toFixed(2)}.`);
     }
-
-    const paymentMethods = await stripe.paymentMethods.list({customer: agencyOwnerData.stripeCustomerId});
-    const bankAccount = paymentMethods.data.find((pm) => pm.type === "us_bank_account");
-    const card = paymentMethods.data.find((pm) => pm.type === "card");
-    let paymentMethodId: string | undefined;
-    if (bankAccount) paymentMethodId = bankAccount.id;
-    else if (card) paymentMethodId = card.id;
-
-    if (!paymentMethodId) {
-      throw new HttpsError("failed-precondition",
-        "Agency owner has no saved bank account or card in Stripe to charge for this payout.");
-    }
-
+    
+    // Get Talent Info
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
     if (!talentInfo) {
       throw new HttpsError("not-found", "The selected talent is not a member of this agency.");
@@ -500,65 +477,63 @@ export const createInternalPayout = onCall(async (request) => {
     const talentUserData = talentUserSnap.data() as UserProfileFirestoreData;
 
     if (!talentUserData.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
-      throw new HttpsError("failed-precondition",
-        "The selected talent does not have an active, verified Stripe account ready for payouts.");
+      throw new HttpsError("failed-precondition", "The selected talent does not have an active, verified Stripe account ready for payouts.");
     }
 
-    const payoutDocRef = db.collection("internalPayouts").doc();
-    const newPayout: Omit<InternalPayout, "stripeChargeId"> = {
+    // Create Payout Record optimistically
+    const newPayout: InternalPayout = {
       id: payoutDocRef.id,
       agencyId,
       agencyName: agencyData.name,
-      agencyOwnerId,
+      agencyOwnerId: agencyData.ownerId,
       talentId,
       talentName: talentInfo.displayName || "N/A",
       amount,
       description,
       status: "processing",
       initiatedAt: admin.firestore.Timestamp.now() as any,
-      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
-      platformFee: 0,
+      platformFee: 0, // No platform fee for internal wallet-to-talent payouts
     };
-
-    const payoutAmountInCents = Math.round(amount * 100);
-    const platformFeeInCents = Math.round(payoutAmountInCents * 0.04) + 30;
-    const totalChargeInCents = payoutAmountInCents + platformFeeInCents;
-    newPayout.platformFee = platformFeeInCents / 100;
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: totalChargeInCents,
-      currency: "usd",
-      customer: agencyOwnerData.stripeCustomerId,
-      payment_method: paymentMethodId,
-      description: `Payout to ${talentInfo.displayName} for: ${description}`,
-      transfer_data: {
+    await payoutDocRef.set(newPayout);
+    
+    // Create the Stripe Transfer from platform balance to talent
+    const transfer = await stripe.transfers.create({
+        amount: Math.round(amount * 100), // amount in cents
+        currency: 'usd',
         destination: talentUserData.stripeAccountId,
-        amount: payoutAmountInCents,
-      },
-      confirm: true,
-      off_session: true,
-      metadata: {
-        agencyId,
-        talentId,
-        payout_description: description,
-        paymentDate,
-        payout_amount: (amount).toString(),
-        platform_fee: (newPayout.platformFee).toString(),
-        internalPayoutId: newPayout.id,
-      },
+        description: `Payout from ${agencyData.name}: ${description}`,
+        metadata: {
+            internalPayoutId: newPayout.id,
+            agencyId: agencyId,
+            talentId: talentId,
+        }
     });
 
-    const finalPayout: InternalPayout = {...newPayout, stripeChargeId: paymentIntent.id};
-    await payoutDocRef.set(finalPayout);
+    // Atomically debit wallet and update payout status
+    await db.runTransaction(async (transaction) => {
+        const agencyDoc = await transaction.get(agencyDocRef);
+        const latestBalance = agencyDoc.data()?.walletBalance ?? 0;
+        if (latestBalance < amount) {
+            throw new HttpsError("failed-precondition", "Agency balance was updated concurrently and is now insufficient.");
+        }
+        transaction.update(agencyDocRef, { walletBalance: admin.firestore.FieldValue.increment(-amount) });
+        transaction.update(payoutDocRef, { status: 'initiated', stripeTransferId: transfer.id });
+    });
 
-    logger.info(`Stripe PaymentIntent ${paymentIntent.id} and transfer initiated for talent ${talentId} by agency ${agencyId}.`);
-    return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully via Stripe."};
+    logger.info(`Stripe Transfer ${transfer.id} initiated for talent ${talentId} from agency ${agencyId}'s wallet.`);
+    return { success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully." };
+
   } catch (error: any) {
+    // If we created a payout doc, mark it as failed
+    await payoutDocRef.set({ status: 'failed', error: error.message }, { merge: true }).catch();
+
     logger.error(`Error creating internal payout for agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
-    if (error.type === "StripeCardError") {
-      throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
+    if (error.type === "StripeCardError" || error.type === "StripeInvalidRequestError") {
+      throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}`);
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
 });
+
+    
