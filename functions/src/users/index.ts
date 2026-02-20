@@ -112,6 +112,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     stripePayoutsEnabled: false,
     address: null,
     tin: null,
+    country: null,
     hasCompletedOnboarding: false,
     emailSequence: {step: 1, nextEmailAt: twoDaysFromNow as any},
     credits: NEW_USER_BONUS,

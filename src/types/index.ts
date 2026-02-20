@@ -185,6 +185,7 @@ export interface UserProfileFirestoreData {
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
+  country?: string | null;
   createdAt?: ClientTimestamp;
   role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;

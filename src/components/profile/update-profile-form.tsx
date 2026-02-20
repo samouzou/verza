@@ -22,7 +22,8 @@ interface UpdateProfileFormProps {
 export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
   const [address, setAddress] = useState(currentUser.address || ""); 
-  const [tin, setTin] = useState(currentUser.tin || ""); // Add TIN state
+  const [tin, setTin] = useState(currentUser.tin || "");
+  const [country, setCountry] = useState(currentUser.country || "");
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(currentUser.avatarUrl);
@@ -38,6 +39,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     setDisplayName(currentUser.displayName || "");
     setAddress(currentUser.address || "");
     setTin(currentUser.tin || "");
+    setCountry(currentUser.country || "");
     setAvatarPreview(currentUser.avatarUrl);
     setLogoPreview(currentUser.companyLogoUrl || null);
   }, [currentUser]);
@@ -69,6 +71,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     const hasProfileChanged = displayName.trim() !== (currentUser.displayName || "") ||
                              address.trim() !== (currentUser.address || "") ||
                              tin.trim() !== (currentUser.tin || "") ||
+                             country.trim().toUpperCase() !== (currentUser.country || "") ||
                              !!avatarFile || !!logoFile;
 
     if (!hasProfileChanged) {
@@ -113,6 +116,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       if (tin.trim() !== (currentUser.tin || "")) {
         firestoreUpdates.tin = tin.trim();
       }
+      if (country.trim().toUpperCase() !== (currentUser.country || "")) {
+        firestoreUpdates.country = country.trim().toUpperCase();
+      }
       
       if (Object.keys(authUpdates).length > 0) {
         await updateFirebaseUserProfile(auth.currentUser, authUpdates);
@@ -141,6 +147,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const hasChanges = displayName.trim() !== (currentUser.displayName || "") ||
                      address.trim() !== (currentUser.address || "") ||
                      tin.trim() !== (currentUser.tin || "") ||
+                     country.trim().toUpperCase() !== (currentUser.country || "") ||
                      !!avatarFile || !!logoFile;
 
   return (
@@ -189,18 +196,19 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
         </div>
       </div>
 
+      <div>
+        <Label htmlFor="displayName">Display Name</Label>
+        <Input
+          id="displayName"
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Your Name"
+          className="mt-1"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <Label htmlFor="displayName">Display Name</Label>
-          <Input
-            id="displayName"
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your Name"
-            className="mt-1"
-          />
-        </div>
         <div>
           <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
           <Input
@@ -211,6 +219,19 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
             placeholder="XXX-XX-XXXX"
             className="mt-1"
           />
+        </div>
+        <div>
+          <Label htmlFor="country">Country</Label>
+          <Input
+            id="country"
+            type="text"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            placeholder="US"
+            maxLength={2}
+            className="mt-1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">2-letter ISO code (e.g., US, CA, GB).</p>
         </div>
       </div>
       

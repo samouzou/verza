@@ -69,10 +69,15 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
     if (!email) {
       throw new Error("User must have an email address");
     }
+    
+    if (!userData.country) {
+      throw new Error("User must set their country in their profile before connecting a bank account.");
+    }
 
     // Create Stripe Connected Account
     const account = await stripe.accounts.create({
       type: "express",
+      country: userData.country,
       email,
       capabilities: {
         card_payments: {requested: true},
