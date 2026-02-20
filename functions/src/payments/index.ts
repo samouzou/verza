@@ -1,4 +1,5 @@
 
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -80,7 +81,8 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       country: userData.country,
       email,
       capabilities: {
-        transfers: {requested: true},
+        card_payments: { requested: true },
+        transfers: { requested: true },
       },
     });
 
@@ -877,3 +879,5 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
   response.status(200).send("Received");
 });
+
+    
