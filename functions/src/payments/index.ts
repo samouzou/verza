@@ -81,8 +81,8 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       country: userData.country,
       email,
       capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
+        card_payments: {requested: true},
+        transfers: {requested: true},
       },
     });
 
@@ -880,4 +880,137 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
   response.status(200).send("Received");
 });
 
-    
+export const createAgencyTopUpSession = onCall(async (request) => {
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const { agencyId, amount } = request.data as { agencyId: string; amount: number };
+
+  if (!agencyId || !amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "A valid agency ID and positive amount are required.");
+  }
+
+  const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+  if (!agencyDoc.exists || agencyDoc.data()?.ownerId !== userId) {
+      throw new HttpsError("permission-denied", "You must be the owner of the agency to add funds.");
+  }
+
+  const userDoc = await db.collection("users").doc(userId).get();
+  const userData = userDoc.data() as UserProfileFirestoreData;
+
+  try {
+    let stripeCustomerId = userData.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: userData.email || undefined,
+        name: userData.displayName || undefined,
+        metadata: { firebaseUID: userId },
+      });
+      stripeCustomerId = customer.id;
+      await userDoc.ref.update({ stripeCustomerId });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: stripeCustomerId,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Agency Wallet Top-Up for ${agencyDoc.data()?.name}`,
+              description: `Add $${amount.toFixed(2)} to your agency wallet.`,
+            },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${params.APP_URL.value()}/agency?topup=success`,
+      cancel_url: `${params.APP_URL.value()}/agency`,
+      metadata: {
+        firebaseUID: userId,
+        agencyId: agencyId,
+        topUpAmount: amount,
+        type: 'agency_topup' // Differentiator for webhook
+      },
+    });
+
+    return { url: session.url };
+  } catch (error: any) {
+    logger.error(`Error creating agency top-up session for user ${userId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Could not create checkout session.");
+  }
+});
+
+export const stripeAgencyWalletWebhookHandler = onRequest(async (request, response) => {
+    let stripe: Stripe;
+    try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    } catch (e) {
+        logger.error("Stripe not configured", e);
+        response.status(500).send("Webhook Error: Stripe service not configured.");
+        return;
+    }
+    const sig = request.headers["stripe-signature"];
+    const webhookSecret = params.STRIPE_AGENCY_WALLET_WEBHOOK_SECRET.value();
+
+    if (!sig || !webhookSecret) {
+        logger.error("Missing stripe signature or agency wallet webhook secret");
+        response.status(400).send("Webhook Error: Missing signature or secret.");
+        return;
+    }
+
+    let event: Stripe.Event;
+    try {
+        event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret);
+    } catch (err: any) {
+        logger.error("Webhook signature verification failed:", err);
+        response.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
+
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const { agencyId, topUpAmount, type } = session.metadata || {};
+
+        if (type !== 'agency_topup' || !agencyId || !topUpAmount) {
+            logger.warn("Received checkout session for non-agency top-up or missing metadata.", { sessionId: session.id, type });
+            response.status(200).send("Received but not an agency top-up.");
+            return;
+        }
+
+        const amountToAdd = parseFloat(topUpAmount as string);
+        if (isNaN(amountToAdd) || amountToAdd <= 0) {
+            logger.error("Invalid topUpAmount in webhook metadata:", topUpAmount);
+            response.status(400).send("Invalid top-up amount in metadata.");
+            return;
+        }
+
+        try {
+            const agencyRef = db.collection("agencies").doc(agencyId);
+            await agencyRef.update({
+                walletBalance: admin.firestore.FieldValue.increment(amountToAdd)
+            });
+            logger.info(`Successfully added $${amountToAdd} to agency ${agencyId} wallet.`);
+        } catch (error) {
+            logger.error(`Error updating agency wallet for agency ${agencyId}:`, error);
+            response.status(500).send("Internal server error while updating wallet.");
+            return;
+        }
+    }
+
+    response.status(200).send("Received");
+});
