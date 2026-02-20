@@ -67,19 +67,6 @@ export default function OnboardingPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
-            onClick={() => handleSelection('creator')}
-            disabled={isUpdating}
-            className="group text-left p-0"
-          >
-            <Card className="h-full hover:border-primary hover:shadow-lg transition-all">
-              <CardHeader>
-                <User className="h-8 w-8 mb-2 text-primary" />
-                <CardTitle>I'm a Creator</CardTitle>
-                <CardDescription>I want to manage my own brand deals, get paid, and use AI tools to create content.</CardDescription>
-              </CardHeader>
-            </Card>
-          </button>
-          <button
             onClick={() => handleSelection('agency')}
             disabled={isUpdating}
             className="group text-left p-0"
@@ -102,6 +89,19 @@ export default function OnboardingPage() {
                 <Store className="h-8 w-8 mb-2 text-primary" />
                 <CardTitle>I'm a Brand</CardTitle>
                 <CardDescription>I want to collaborate with creators and manage influencer marketing campaigns.</CardDescription>
+              </CardHeader>
+            </Card>
+          </button>
+          <button
+            onClick={() => handleSelection('creator')}
+            disabled={isUpdating}
+            className="group text-left p-0"
+          >
+            <Card className="h-full hover:border-primary hover:shadow-lg transition-all">
+              <CardHeader>
+                <User className="h-8 w-8 mb-2 text-primary" />
+                <CardTitle>I'm a Creator</CardTitle>
+                <CardDescription>I want to manage my own brand deals, get paid, and use AI tools to create content.</CardDescription>
               </CardHeader>
             </Card>
           </button>
