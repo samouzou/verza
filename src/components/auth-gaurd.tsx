@@ -1,58 +1,71 @@
-
 "use client";
 
-import { useAuth } from "@/hooks/use-auth"; // Updated import
+import { useAuth } from "@/hooks/use-auth";
 import { useRouter, usePathname } from "next/navigation";
-import type { ReactNode} from 'react';
+import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { Skeleton } from "@/components/ui/skeleton"; 
+import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading, user } = useAuth(); // Updated hook usage
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  const publicPaths = ['/login', '/pay/contract', '/share/contract']; // Added /share/contract
+  const publicPaths = ['/login', '/pay/contract', '/share/contract'];
+  const onboardingPath = '/onboarding';
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !publicPaths.some(path => pathname.startsWith(path))) {
-      router.push("/login");
+    if (isLoading) return; // Wait for authentication state to be determined
+
+    if (isAuthenticated && user) {
+      // If user is authenticated but hasn't completed onboarding, and isn't on the onboarding page
+      if (!user.hasCompletedOnboarding && pathname !== onboardingPath) {
+        router.replace(onboardingPath);
+      }
+      // If user is on the login page but is authenticated, redirect them
+      if (pathname === '/login') {
+          router.replace(user.hasCompletedOnboarding ? '/dashboard' : onboardingPath);
+      }
+    } else if (!isAuthenticated) {
+      // If user is not authenticated and not on a public path, redirect to login
+      const isPublicPath = publicPaths.some(p => pathname.startsWith(p));
+      if (!isPublicPath && pathname !== onboardingPath) {
+        router.replace('/login');
+      }
     }
-  }, [isAuthenticated, isLoading, router, pathname]);
+  }, [isAuthenticated, isLoading, user, router, pathname]);
 
-  // If on a public path, always render it.
-  // LoginPage itself will handle redirection if the user becomes authenticated.
-  if (publicPaths.some(path => pathname.startsWith(path))) {
-    return <>{children}</>;
-  }
-
-  // For all other pages:
+  // Show a loading skeleton while the auth state is being determined
   if (isLoading) {
-    // Show a loading skeleton during initial auth check or transitions.
     return (
       <div className="flex h-screen w-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <Skeleton className="h-4 w-[250px]" />
-          <Skeleton className="h-4 w-[200px]" />
-        </div>
+        <Skeleton className="h-full w-full" />
       </div>
     );
   }
 
-  // If not loading, not on login page, and authenticated, show the app layout.
-  if (isAuthenticated) {
+  // If user is trying to access a page they shouldn't be on, return null while redirecting.
+  if (isAuthenticated && user) {
+    if (!user.hasCompletedOnboarding && pathname !== onboardingPath) return null;
+    if (user.hasCompletedOnboarding && pathname === onboardingPath) return null;
+  } else if (!isAuthenticated) {
+    const isPublicPath = publicPaths.some(p => pathname.startsWith(p));
+      if (!isPublicPath && pathname !== onboardingPath) {
+        return null;
+      }
+  }
+  
+  // Show layout for authenticated users who have completed onboarding and are on a protected page
+  if (isAuthenticated && user?.hasCompletedOnboarding && !publicPaths.some(p => pathname.startsWith(p))) {
     return (
-      <SidebarProvider>
+       <SidebarProvider>
         <AppLayout>{children}</AppLayout>
       </SidebarProvider>
     );
   }
   
-  // If not loading, not on login page, and not authenticated,
-  // the useEffect above should have already initiated a redirect to /login.
-  // Returning null here prevents rendering anything further during the redirect.
-  return null;
+  // For public pages, the onboarding page, or login page when not authenticated
+  return <>{children}</>;
 }

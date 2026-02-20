@@ -453,13 +453,16 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           }),
         };
 
+        let htmlContentForEmail = contractData.invoiceHtmlContent;
+        let allMilestonesPaid = false;
+
         if (milestoneId && contractData.milestones) {
           const updatedMilestones = contractData.milestones.map((m) =>
             m.id === milestoneId ? {...m, status: "paid"} : m
           );
           updates.milestones = updatedMilestones;
 
-          const allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
+          allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
           if (allMilestonesPaid) {
             updates.invoiceStatus = "paid";
             updates.status = "paid";
@@ -470,7 +473,47 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         } else {
           updates.invoiceStatus = "paid";
           updates.status = "paid";
+          allMilestonesPaid = true; // Mark as all paid if it's a non-milestone contract
         }
+
+        // If the contract is now fully paid, generate and save a "PAID" version of the invoice
+        if (allMilestonesPaid && contractData.invoiceHtmlContent) {
+          const paidStampStyle = `
+            <style>
+              .paid-watermark {
+                position: absolute;
+                top: 40%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 120px;
+                color: rgba(0, 128, 0, 0.15);
+                font-weight: bold;
+                pointer-events: none;
+                z-index: 1000;
+                text-transform: uppercase;
+                letter-spacing: 10px;
+                opacity: 0.8;
+              }
+            </style>`;
+          const paidStampDiv = "<div class=\"paid-watermark\">Paid</div>";
+
+          let watermarkedHtml = contractData.invoiceHtmlContent;
+          if (!watermarkedHtml.includes("</head>")) {
+            watermarkedHtml = watermarkedHtml.replace("<body>", `<head>${paidStampStyle}</head><body>`);
+          } else {
+            watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
+          }
+          if (watermarkedHtml.includes("<div class=\"invoice-box\">")) {
+            watermarkedHtml = watermarkedHtml.replace("<div class=\"invoice-box\">",
+              "<div class=\"invoice-box\" style=\"position: relative;\">" + paidStampDiv);
+          } else {
+            watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
+          }
+
+          htmlContentForEmail = watermarkedHtml;
+          updates.invoiceHtmlContent = htmlContentForEmail;
+        }
+
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
@@ -484,7 +527,6 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
           const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
 
-          // This logic now correctly handles transfers for talent contracts
           if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
             const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
             const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
@@ -550,21 +592,41 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const sendgridKey = params.SENDGRID_API_KEY.value();
           if (sendgridKey) {
             sgMail.setApiKey(sendgridKey);
-            const msg = {
+            const msg: any = {
               to: emailForUserConfirmation,
-              from: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
-              subject: "Payment Confirmation",
-              text: `Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.`,
+              from: {
+                name: "Verza",
+                email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
+              },
+              subject: `Payment Receipt for: ${contractData.projectName || contractId}`,
+              text: `Your payment of $${(amount / 100).toLocaleString()} for contract ${contractId} has 
+              been received. A copy of your paid invoice is attached.`,
               html: `
                 <h2>Payment Confirmation</h2>
-                <p>Your payment of ${amount / 100} ${currency.toUpperCase()} for contract ${contractId} has been received.</p>
-                <p>Thank you for your business!</p>
+                <p>Thank you for your payment. We've received <strong>$${(amount / 100).toLocaleString("en-US",
+    {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency.toUpperCase()}</strong> for 
+                  the invoice related to contract "${contractData.projectName || contractId}".</p>
+                <p>A copy of the paid invoice is attached for your records.</p>
+                <p>Thank you!</p>
                 <p>The Verza Team</p>
               `,
             };
+
+            if (htmlContentForEmail) {
+              msg.attachments = [
+                {
+                  content: Buffer.from(htmlContentForEmail).toString("base64"),
+                  filename: `invoice-${contractData.invoiceNumber || contractId}.html`,
+                  type: "text/html",
+                  disposition: "attachment",
+                  content_id: "invoice_html",
+                },
+              ];
+            }
+
             try {
               await sgMail.send(msg);
-              logger.info("Payment confirmation email sent successfully");
+              logger.info("Payment confirmation email sent successfully with invoice attachment.");
             } catch (emailError) {
               logger.error("Failed to send payment confirmation email:", emailError);
             }

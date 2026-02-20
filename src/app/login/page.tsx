@@ -221,7 +221,7 @@ export default function LoginPage() {
             {isPasswordResetView ? "Reset Password" : isSignUpView ? "Create Account" : "Welcome to Verza"}
           </CardTitle>
           <CardDescription>
-             {isPasswordResetView ? "Enter your email to receive a reset link." : isSignUpView ? "Sign up to manage your contracts." : "Smart contract management for creators."}
+             {isPasswordResetView ? "Enter your email to receive a reset link." : isSignUpView ? "Sign up to manage your contracts." : "The operating system for the creator economy."}
           </CardDescription>
         </CardHeader>
         <CardContent>

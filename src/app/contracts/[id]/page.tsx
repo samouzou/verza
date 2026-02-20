@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { ContractStatusBadge } from '@/components/contracts/contract-status-badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
-import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject, uploadBytes, getDownloadURL } from '@/lib/firebase';
+import { db, doc, getDoc, Timestamp, deleteDoc as deleteFirestoreDoc, serverTimestamp, arrayUnion, collection, query, where, onSnapshot, orderBy, updateDoc, arrayRemove, storage, ref as storageFileRef, deleteObject, uploadBytes, getDownloadURL, functions } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -41,12 +41,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { v4 as uuidv4 } from 'uuid';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
 
+const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
@@ -66,7 +68,7 @@ export default function ContractDetailPage() {
   const id = params.id as string;
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
   const [isDeletingContract, setIsDeletingContract] = useState(false);
   const [isContractDeleteDialogOpen, setIsContractDeleteDialogOpen] = useState(false);
@@ -96,6 +98,11 @@ export default function ContractDetailPage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval']>();
 
+  // State for sending invoice
+  const [isSendInvoiceDialogOpen, setIsSendInvoiceDialogOpen] = useState(false);
+  const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+  const [invoiceNote, setInvoiceNote] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
 
   useEffect(() => {
     // Collapse sidebar by default on this page
@@ -195,6 +202,120 @@ export default function ContractDetailPage() {
     };
   }, [id, user, authLoading, router, toast]);
   
+  useEffect(() => {
+    if (isSendInvoiceDialogOpen && contract) {
+        setRecipientEmail(contract.clientEmail || "");
+    }
+  }, [isSendInvoiceDialogOpen, contract]);
+
+  const handleSendInvoice = async () => {
+    if (!contract || !user || !recipientEmail.trim()) {
+      toast({ title: "Cannot Send", description: "Missing contract data, user, or recipient email.", variant: "destructive" });
+      return;
+    }
+    if (!contract.invoiceHtmlContent) {
+        toast({ title: "Cannot Send", description: "No invoice has been generated for this contract yet. Go to 'Manage Invoice' to create one.", variant: "destructive" });
+        return;
+    }
+    setIsSendingInvoice(true);
+    try {
+        const idToken = await getUserIdToken();
+        if (!idToken) throw new Error("Could not get user token.");
+
+        let htmlToSend = contract.invoiceHtmlContent || '';
+        
+        const isPaid = contract.invoiceStatus === 'paid' || (contract.milestones && contract.milestones.every(m => m.status === 'paid'));
+        const hasWatermark = htmlToSend.includes('class="paid-watermark"');
+
+        if (isPaid && !hasWatermark) {
+          toast({ title: "Adding 'Paid' Watermark...", description: "Generating a paid version of the invoice." });
+          
+          const paidStampStyle = `
+          <style>
+            .paid-watermark {
+              position: absolute;
+              top: 40%;
+              left: 50%;
+              transform: translate(-50%, -50%) rotate(-45deg);
+              font-size: 120px;
+              color: rgba(0, 128, 0, 0.15);
+              font-weight: bold;
+              pointer-events: none;
+              z-index: 1000;
+              text-transform: uppercase;
+              letter-spacing: 10px;
+              opacity: 0.8;
+            }
+          </style>`;
+          const paidStampDiv = '<div class="paid-watermark">Paid</div>';
+          
+          let watermarkedHtml = htmlToSend;
+          if (!watermarkedHtml.includes("</head>")) {
+              watermarkedHtml = watermarkedHtml.replace("<body>", `<head>${paidStampStyle}</head><body>`);
+          } else {
+              watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
+          }
+          if (watermarkedHtml.includes('<div class="invoice-box">')) {
+              watermarkedHtml = watermarkedHtml.replace('<div class="invoice-box">', '<div class="invoice-box" style="position: relative;">' + paidStampDiv);
+          } else {
+              watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
+          }
+          
+          htmlToSend = watermarkedHtml;
+
+          // Save the updated HTML back to Firestore
+          const contractDocRef = doc(db, 'contracts', contract.id);
+          await updateDoc(contractDocRef, { invoiceHtmlContent: htmlToSend });
+        }
+        
+        if (invoiceNote.trim()) {
+            const noteHtml = `<p style="margin-bottom: 20px; padding: 15px; border-left: 4px solid #ccc; background-color: #f8f8f8;">${invoiceNote.trim().replace(/\n/g, '<br>')}</p>`;
+            const creatorDisplayName = contract.talentName || user.displayName || 'the sender';
+            htmlToSend = htmlToSend.replace('<!-- Client Details Section -->', `
+            <!-- Client Details Section -->
+            <div class="notes-section" style="padding: 0 30px 20px;">
+              <h3 style="border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; font-size: 1.1em; font-weight: bold;">Note from ${creatorDisplayName}</h3>
+              ${noteHtml}
+            </div>
+            `);
+        }
+
+        const emailBody = {
+            to: recipientEmail,
+            subject: `Invoice ${contract.invoiceNumber || contract.id.substring(0,6)} from ${contract.brand}`,
+            text: `Please find attached your invoice for project: ${contract.projectName || contract.brand}.`,
+            html: htmlToSend, 
+            contractId: contract.id,
+        };
+
+        const response = await fetch(SEND_CONTRACT_NOTIFICATION_FUNCTION_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
+            body: JSON.stringify(emailBody),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: "Server error" }));
+            throw new Error(`Server error: ${errorData.message || response.status}`);
+        }
+
+        const contractDocRef = doc(db, 'contracts', contract.id);
+        const historyEntry = { timestamp: Timestamp.now(), action: 'Invoice Manually Sent to Client', details: `To: ${emailBody.to}`};
+        await updateDoc(contractDocRef, { 
+            invoiceHistory: arrayUnion(historyEntry),
+            lastReminderSentAt: serverTimestamp(),
+        });
+
+        toast({ title: "Invoice Sent", description: `Invoice sent to ${emailBody.to}.` });
+        setIsSendInvoiceDialogOpen(false);
+        setInvoiceNote("");
+    } catch (error: any) {
+        console.error("Error sending invoice:", error);
+        toast({ title: "Send Failed", description: error.message || "Could not send the invoice email.", variant: "destructive" });
+    } finally {
+        setIsSendingInvoice(false);
+    }
+  };
+
   const onEditorCreated = () => {
     if (editorRef.current && contract?.contractText) {
       try {
@@ -452,9 +573,9 @@ export default function ContractDetailPage() {
                               <div className="flex items-center gap-4 w-full sm:w-auto">
                                 <Badge variant="secondary" className="text-base">${milestone.amount.toLocaleString()}</Badge>
                                 <Badge variant={milestone.status === 'paid' ? 'default' : 'outline'} className={`capitalize ${milestone.status === 'paid' ? 'bg-green-500' : ''}`}>{milestone.status}</Badge>
-                                <Button size="sm" asChild disabled={!canEdit || milestone.status === 'invoiced' || milestone.status === 'paid'}>
+                                <Button size="sm" asChild>
                                   <Link href={`/contracts/${contract.id}/invoice?milestoneId=${milestone.id}`}>
-                                    Generate Invoice
+                                    {milestone.status === 'pending' ? 'Generate Invoice' : 'View Invoice'}
                                   </Link>
                                 </Button>
                               </div>
@@ -518,6 +639,36 @@ export default function ContractDetailPage() {
               <Card className="shadow-lg hide-on-print">
                   <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
                   <CardContent className="flex flex-col gap-2">
+                       <Dialog open={isSendInvoiceDialogOpen} onOpenChange={setIsSendInvoiceDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" disabled={!contract.invoiceHtmlContent || !contract.clientEmail}>
+                            <SendIconComponent className="mr-2 h-4 w-4"/>Send Invoice by Email
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Send Invoice to Client</DialogTitle>
+                            <DialogDescription>This will send a copy of the most recently saved invoice to the client's email address. You can add an optional note.</DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-2">
+                             <div>
+                                <Label htmlFor="recipient-email">Recipient Email</Label>
+                                <Input id="recipient-email" type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={isSendingInvoice} />
+                             </div>
+                             <div>
+                                <Label htmlFor="invoice-note">Note (Optional)</Label>
+                                <Textarea id="invoice-note" value={invoiceNote} onChange={(e) => setInvoiceNote(e.target.value)} placeholder="e.g., Here's a copy of the invoice for your records." rows={3} disabled={isSendingInvoice} />
+                             </div>
+                          </div>
+                          <DialogFooter>
+                              <Button variant="outline" onClick={() => setIsSendInvoiceDialogOpen(false)} disabled={isSendingInvoice}>Cancel</Button>
+                              <Button onClick={handleSendInvoice} disabled={isSendingInvoice || !recipientEmail}>
+                                {isSendingInvoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SendIconComponent className="mr-2 h-4 w-4" />}
+                                Send Email
+                              </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                       </Dialog>
                        <Button variant="outline" asChild><Link href={`/contracts/${contract.id}/edit`}><Wand2 className="mr-2 h-4 w-4"/>Contract Co-Pilot</Link></Button>
                   </CardContent>
               </Card>
@@ -690,7 +841,7 @@ export default function ContractDetailPage() {
                         <AlertDialogCancel disabled={isDeletingContract}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDeleteContract} disabled={isDeletingContract} className="bg-destructive hover:bg-destructive/90">
                             {isDeletingContract ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Yes, delete contract
+                            Yes, delete my account
                         </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
