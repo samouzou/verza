@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -101,7 +100,7 @@ export default function OnboardingPage() {
               <CardHeader>
                 <User className="h-8 w-8 mb-2 text-primary" />
                 <CardTitle>I'm a Creator</CardTitle>
-                <CardDescription>I want to manage my own brand deals, get paid, and use AI tools to create content.</CardDescription>
+                <CardDescription>I want to use AI tools to create content, manage my own brand deals, and get paid.</CardDescription>
               </CardHeader>
             </Card>
           </button>
