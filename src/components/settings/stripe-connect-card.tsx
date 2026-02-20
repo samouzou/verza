@@ -2,10 +2,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from '@/components/ui/toast';
 import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -45,6 +47,18 @@ export function StripeConnectCard() {
 
   const handleConnectStripe = async () => {
     setIsProcessing(true);
+
+    if (!user.country) {
+      toast({
+        title: "Country Required",
+        description: "Please set your country in your Profile before connecting your bank.",
+        variant: "destructive",
+        action: <ToastAction altText="Go to Profile"><Link href="/profile">Go to Profile</Link></ToastAction>,
+      });
+      setIsProcessing(false);
+      return;
+    }
+    
     toast({
       title: "Connecting to Stripe...",
       description: "You will be redirected to Stripe to securely connect your bank account.",
@@ -209,7 +223,7 @@ export function StripeConnectCard() {
           </svg>
           Connect Bank for Payouts
         </CardTitle>
-        <CardDescription>We use Stripe to securely connect your bank account and enable direct payouts from your clients.</CardDescription>
+        <CardDescription>Connect your bank account via Stripe to receive payouts. Verza uses Stripe to securely transfer your earnings to you.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="p-4 border rounded-lg bg-muted/50">

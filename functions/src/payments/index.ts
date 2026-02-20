@@ -80,8 +80,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       country: userData.country,
       email,
       capabilities: {
-        card_payments: {requested: true},
-        transfers: {requested: true},
+        transfers: { requested: true },
       },
     });
 
