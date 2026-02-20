@@ -411,5 +411,3 @@ export interface BrandResearch {
   error?: string;
   createdAt: ClientTimestamp;
 }
-
-    

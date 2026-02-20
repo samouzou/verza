@@ -535,5 +535,3 @@ export const createInternalPayout = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
   }
 });
-
-    

@@ -877,5 +877,3 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
   response.status(200).send("Received");
 });
-
-    
