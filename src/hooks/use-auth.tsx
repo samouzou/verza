@@ -34,6 +34,7 @@ export interface UserProfile {
   emailVerified: boolean;
   address?: string | null; 
   tin?: string | null;
+  country?: string | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member' | 'talent';
   isAgencyOwner?: boolean;
@@ -106,6 +107,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.emailVerified = emailVerified;
     updates.address = null; 
     updates.tin = null;
+    updates.country = null;
     updates.createdAt = createdAt;
     updates.role = 'individual_creator'; // Default role
     updates.isAgencyOwner = false;
@@ -171,6 +173,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.tin === undefined) { 
       updates.tin = null;
+      needsUpdate = true;
+    }
+    if (existingData.country === undefined) {
+      updates.country = null;
       needsUpdate = true;
     }
     if (existingData.companyLogoUrl === undefined) {
@@ -282,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               emailVerified: currentFirebaseUser.emailVerified,
               address: firestoreUserData.address || null, 
               tin: firestoreUserData.tin || null,
+              country: firestoreUserData.country || null,
               createdAt: firestoreUserData.createdAt,
               role: firestoreUserData.role || 'individual_creator',
               isAgencyOwner: firestoreUserData.isAgencyOwner || false,

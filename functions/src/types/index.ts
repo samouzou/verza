@@ -406,4 +406,3 @@ export interface BrandResearch {
   createdAt: ClientTimestamp;
 }
 
-    

@@ -69,7 +69,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
     if (!email) {
       throw new Error("User must have an email address");
     }
-    
+
     if (!userData.country) {
       throw new Error("User must set their country in their profile before connecting a bank account.");
     }
@@ -80,7 +80,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       country: userData.country,
       email,
       capabilities: {
-        transfers: { requested: true },
+        transfers: {requested: true},
       },
     });
 

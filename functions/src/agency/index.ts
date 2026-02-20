@@ -438,7 +438,7 @@ export const createInternalPayout = onCall(async (request) => {
   }
 
   const requesterId = request.auth.uid;
-  const { agencyId, talentId, amount, description } = request.data;
+  const {agencyId, talentId, amount, description} = request.data;
 
   if (!agencyId || !talentId || !amount || !description) {
     throw new HttpsError("invalid-argument", "Agency ID, Talent ID, amount, and description are required.");
@@ -446,7 +446,7 @@ export const createInternalPayout = onCall(async (request) => {
   if (typeof amount !== "number" || amount <= 0) {
     throw new HttpsError("invalid-argument", "Amount must be a positive number.");
   }
-  
+
   const agencyDocRef = db.collection("agencies").doc(agencyId);
   const payoutDocRef = db.collection("internalPayouts").doc();
 
@@ -455,17 +455,19 @@ export const createInternalPayout = onCall(async (request) => {
     const agencyData = agencySnap.data() as Agency;
 
     // Permission Check
-    const requesterIsAdmin = agencyData.ownerId === requesterId || agencyData.team?.some((m) => m.userId === requesterId && m.role === "admin");
+    const requesterIsAdmin = agencyData.ownerId === requesterId ||
+    agencyData.team?.some((m) => m.userId === requesterId && m.role === "admin");
     if (!agencySnap.exists || !requesterIsAdmin) {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
-    
+
     // Check Agency Wallet Balance
     const currentBalance = agencyData.walletBalance ?? 0;
     if (currentBalance < amount) {
-      throw new HttpsError("failed-precondition", `Insufficient agency balance. You have $${currentBalance.toFixed(2)}, but need $${amount.toFixed(2)}.`);
+      throw new HttpsError("failed-precondition", `Insufficient agency balance.
+        You have $${currentBalance.toFixed(2)}, but need $${amount.toFixed(2)}.`);
     }
-    
+
     // Get Talent Info
     const talentInfo = agencyData.talent.find((t) => t.userId === talentId);
     if (!talentInfo) {
@@ -477,7 +479,8 @@ export const createInternalPayout = onCall(async (request) => {
     const talentUserData = talentUserSnap.data() as UserProfileFirestoreData;
 
     if (!talentUserData.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
-      throw new HttpsError("failed-precondition", "The selected talent does not have an active, verified Stripe account ready for payouts.");
+      throw new HttpsError("failed-precondition", "The selected talent does not have an active," +
+        " verified bank account ready for payouts.");
     }
 
     // Create Payout Record optimistically
@@ -495,37 +498,36 @@ export const createInternalPayout = onCall(async (request) => {
       platformFee: 0, // No platform fee for internal wallet-to-talent payouts
     };
     await payoutDocRef.set(newPayout);
-    
+
     // Create the Stripe Transfer from platform balance to talent
     const transfer = await stripe.transfers.create({
-        amount: Math.round(amount * 100), // amount in cents
-        currency: 'usd',
-        destination: talentUserData.stripeAccountId,
-        description: `Payout from ${agencyData.name}: ${description}`,
-        metadata: {
-            internalPayoutId: newPayout.id,
-            agencyId: agencyId,
-            talentId: talentId,
-        }
+      amount: Math.round(amount * 100), // amount in cents
+      currency: "usd",
+      destination: talentUserData.stripeAccountId,
+      description: `Payout from ${agencyData.name}: ${description}`,
+      metadata: {
+        internalPayoutId: newPayout.id,
+        agencyId: agencyId,
+        talentId: talentId,
+      },
     });
 
     // Atomically debit wallet and update payout status
     await db.runTransaction(async (transaction) => {
-        const agencyDoc = await transaction.get(agencyDocRef);
-        const latestBalance = agencyDoc.data()?.walletBalance ?? 0;
-        if (latestBalance < amount) {
-            throw new HttpsError("failed-precondition", "Agency balance was updated concurrently and is now insufficient.");
-        }
-        transaction.update(agencyDocRef, { walletBalance: admin.firestore.FieldValue.increment(-amount) });
-        transaction.update(payoutDocRef, { status: 'initiated', stripeTransferId: transfer.id });
+      const agencyDoc = await transaction.get(agencyDocRef);
+      const latestBalance = agencyDoc.data()?.walletBalance ?? 0;
+      if (latestBalance < amount) {
+        throw new HttpsError("failed-precondition", "Agency balance was updated concurrently and is now insufficient.");
+      }
+      transaction.update(agencyDocRef, {walletBalance: admin.firestore.FieldValue.increment(-amount)});
+      transaction.update(payoutDocRef, {status: "initiated", stripeTransferId: transfer.id});
     });
 
     logger.info(`Stripe Transfer ${transfer.id} initiated for talent ${talentId} from agency ${agencyId}'s wallet.`);
-    return { success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully." };
-
+    return {success: true, payoutId: newPayout.id, message: "Payout transfer initiated successfully."};
   } catch (error: any) {
     // If we created a payout doc, mark it as failed
-    await payoutDocRef.set({ status: 'failed', error: error.message }, { merge: true }).catch();
+    await payoutDocRef.set({status: "failed", error: error.message}, {merge: true}).catch();
 
     logger.error(`Error creating internal payout for agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
