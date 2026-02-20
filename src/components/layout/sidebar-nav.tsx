@@ -24,7 +24,6 @@ import {
   Building,
   BarChart3,
   Video,
-  Swords,
   ExternalLink,
 } from "lucide-react";
 import {
@@ -73,10 +72,28 @@ const financialsNavItems = [
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
 ];
 
+const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M13 19l-4-4-4 4" />
+      <path d="M13 5l-4 4-4-4" />
+      <path d="M7 19V5" />
+      <path d="M21 19V5" />
+    </svg>
+);
+
 const aiToolsNavItems = [
     { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
     { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
-    { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: Swords, external: true }
+    { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: GauntletIcon, external: true }
 ]
 
 
