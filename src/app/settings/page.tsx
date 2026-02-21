@@ -3,9 +3,9 @@
 
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionCard } from "@/components/settings/subscription-card";
-import { StripeConnectCard } from "@/components/settings/stripe-connect-card";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Loader2 } from "lucide-react";
+import Link from 'next/link';
 
 export default function SettingsPage() {
   const { user, isLoading } = useAuth();
@@ -37,7 +37,9 @@ export default function SettingsPage() {
       />
       <div className="space-y-6">
         <SubscriptionCard />
-        <StripeConnectCard />
+        
+        {/* The StripeConnectCard has been removed. Users will now connect their bank accounts
+            via the new "Banking & Taxes" page for a more robust payout system. */}
       </div>
     </>
   );
