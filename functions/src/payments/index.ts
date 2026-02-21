@@ -296,7 +296,6 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       }
     }
 
-    let paymentIntentParams: Stripe.PaymentIntentCreateParams;
     const amountInCents = Math.round(amountToCharge * 100);
 
     const metadataForStripe: Stripe.MetadataParam = {
@@ -304,82 +303,26 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       userId: userId || "",
       creatorId: contractData.userId,
       clientEmail: emailForReceiptAndMetadata,
-      paymentType: userId === contractData.userId ? "creator_payment" : "public_payment",
+      paymentType: contractData.ownerType === "agency" ? "agency_payment" :
+        (userId === contractData.userId ? "creator_payment" : "public_payment"),
     };
-
     if (finalMilestoneId) {
       metadataForStripe.milestoneId = finalMilestoneId;
     }
-
     if (contractData.ownerType === "agency" && contractData.ownerId) {
       metadataForStripe.agencyId = contractData.ownerId;
-      metadataForStripe.paymentType = "agency_payment";
+    }
 
-      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
-      const agencyData = agencyDoc.data() as Agency;
 
-      const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-      const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
-      const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
-
-      const platformFee = Math.round(amountInCents * 0.01);
-      const stripeFee = Math.round(amountInCents * 0.029) + 30;
-      const totalApplicationFee = platformFee + stripeFee;
-
-      if (isForTalent) {
-        if (!talentUserData?.stripeAccountId || !talentUserData.stripePayoutsEnabled) {
-          throw new Error("The creator/talent for this contract does not have a valid," +
-            " active bank account for receiving payouts.");
-        }
-        // For talent contracts, charge the client and hold funds on the platform balance
-        // The webhook will handle splitting the funds.
-        paymentIntentParams = {
-          amount: amountInCents,
-          currency,
-          metadata: metadataForStripe,
-          receipt_email: emailForReceiptAndMetadata || undefined,
-        };
-      } else { // Contract is for the agency itself (created by owner or team member)
-        const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-        const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-        if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-          throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
-        }
-        paymentIntentParams = {
-          amount: amountInCents,
-          currency,
-          application_fee_amount: totalApplicationFee,
-          metadata: metadataForStripe,
-          receipt_email: emailForReceiptAndMetadata || undefined,
-          transfer_data: {
-            destination: agencyOwnerData.stripeAccountId,
-          },
-        };
-      }
-    } else {
-      // Logic for individual creator contracts
-      const creatorDoc = await db.collection("users").doc(contractData.userId).get();
-      const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-        throw new Error("Creator does not have a valid Stripe account");
-      }
-
-      const platformFee = Math.round(amountInCents * 0.01);
-      const stripeFee = Math.round(amountInCents * 0.029) + 30;
-      const totalApplicationFee = platformFee + stripeFee;
-
-      paymentIntentParams = {
+    // Simplified Payment Intent Creation: All payments go to the platform balance.
+    // The webhook will handle all subsequent fund movements.
+    const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
         amount: amountInCents,
         currency,
-        application_fee_amount: totalApplicationFee,
         metadata: metadataForStripe,
         receipt_email: emailForReceiptAndMetadata || undefined,
-        transfer_data: {
-          destination: creatorData.stripeAccountId,
-        },
-      };
-    }
+    };
+
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
@@ -521,56 +464,78 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         }
 
         await contractDocRef.update(updates);
+        
+        // --- NEW PAYOUT LOGIC ---
+        const creatorId = contractData.userId;
+        const creatorDoc = await db.collection("users").doc(creatorId).get();
+        const creatorData = creatorDoc.data() as UserProfileFirestoreData;
 
-        if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
-          if (!chargeId) {
-            throw new Error("Missing charge ID for agency payment split.");
-          }
-
-          const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-          const agencyData = agencyDoc.data() as Agency;
-
-          const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
-
-          if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
-            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
-            if (talentUserData.stripeAccountId) {
-              const stripeFeeInCents = Math.round(amount * 0.029) + 30;
-              const platformFeeInCents = Math.round(amount * 0.01);
-              const totalPlatformCut = stripeFeeInCents + platformFeeInCents;
-              const netForDistribution = amount - totalPlatformCut;
-
-              const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-              const talentShareAmount = netForDistribution - agencyCommissionAmount;
-
-              if (agencyCommissionAmount > 0) {
+        if (creatorData.stripeAccountId && creatorData.stripePayoutsEnabled) {
+          const platformFee = Math.round(amount * 0.01);
+          const stripeProcessingFee = Math.round(amount * 0.029) + 30; // Approximation
+          const totalFees = platformFee + stripeProcessingFee;
+          const netAmount = amount - totalFees;
+    
+          if (paymentType === "agency_payment" && agencyId) {
+            const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+            const agencyData = agencyDoc.data() as Agency;
+            const talentInfo = agencyData.talent.find((t) => t.userId === creatorId);
+    
+            if (talentInfo && typeof talentInfo.commissionRate === "number") {
+              const agencyCommission = Math.round(netAmount * (talentInfo.commissionRate / 100));
+              const talentShare = netAmount - agencyCommission;
+    
+              if (agencyCommission > 0) {
                 await db.collection("agencies").doc(agencyId).update({
-                  walletBalance: admin.firestore.FieldValue.increment(agencyCommissionAmount / 100),
+                  walletBalance: admin.firestore.FieldValue.increment(agencyCommission / 100),
                 });
-                logger.info(`Credited agency ${agencyId} wallet with $${agencyCommissionAmount / 100}`);
+                logger.info(`Credited agency ${agencyId} wallet with $${(agencyCommission / 100).toFixed(2)}`);
               }
-
-              if (talentShareAmount > 0) {
+    
+              if (talentShare > 0) {
                 await stripe.transfers.create({
-                  amount: talentShareAmount,
+                  amount: talentShare,
                   currency: "usd",
-                  destination: talentUserData.stripeAccountId,
-                  source_transaction: chargeId,
-                  description: `Payout for contract ${contractId}`,
+                  destination: creatorData.stripeAccountId,
+                  description: `Your share for contract ${contractId}`,
+                  metadata: { contractId, talentId: creatorId, agencyId },
                 });
+                logger.info(`Transferred $${(talentShare / 100).toFixed(2)} to talent ${creatorId}`);
               }
-
-              logger.info(`Agency payment split processed for contract ${contractId}.
-                Agency Wallet: ${agencyCommissionAmount/100}, Talent Transfer: ${talentShareAmount/100}`);
             } else {
-              logger.error("Stripe account ID missing for talent, cannot split funds.",
-                {agencyId, talentId: contractData.userId});
+              // This is a contract for the agency itself. Transfer full net amount to agency owner.
+              const agencyOwnerDoc = await db.collection("users").doc(agencyData.ownerId).get();
+              const agencyOwnerData = agencyOwnerDoc.data() as UserProfileFirestoreData;
+              if (agencyOwnerData.stripeAccountId && agencyOwnerData.stripePayoutsEnabled) {
+                  await stripe.transfers.create({
+                      amount: netAmount,
+                      currency: "usd",
+                      destination: agencyOwnerData.stripeAccountId,
+                      description: `Payment for agency contract ${contractId}`,
+                      metadata: { contractId, agencyId },
+                  });
+                  logger.info(`Transferred $${(netAmount / 100).toFixed(2)} to agency owner ${agencyData.ownerId}`);
+              } else {
+                  logger.error(`Agency owner ${agencyData.ownerId} for agency ${agencyId} does not have a valid payout account.`);
+              }
+            }
+          } else {
+            // Individual creator's contract
+            if (netAmount > 0) {
+              await stripe.transfers.create({
+                amount: netAmount,
+                currency: "usd",
+                destination: creatorData.stripeAccountId,
+                description: `Payment for contract ${contractId}`,
+                metadata: { contractId, creatorId },
+              });
+              logger.info(`Transferred $${(netAmount / 100).toFixed(2)} to creator ${creatorId}`);
             }
           }
+        } else {
+          logger.error(`Creator ${creatorId} for contract ${contractId} does not have a valid payout account. Funds held on platform.`);
         }
+        // --- END NEW PAYOUT LOGIC ---
 
         let emailForUserConfirmation = "";
         if (clientEmail) {
@@ -884,7 +849,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -894,7 +859,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const { agencyId, amount } = request.data as { agencyId: string; amount: number };
+  const {agencyId, amount} = request.data as { agencyId: string; amount: number };
 
   if (!agencyId || !amount || amount <= 0) {
     throw new HttpsError("invalid-argument", "A valid agency ID and positive amount are required.");
@@ -902,7 +867,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
 
   const agencyDoc = await db.collection("agencies").doc(agencyId).get();
   if (!agencyDoc.exists || agencyDoc.data()?.ownerId !== userId) {
-      throw new HttpsError("permission-denied", "You must be the owner of the agency to add funds.");
+    throw new HttpsError("permission-denied", "You must be the owner of the agency to add funds.");
   }
 
   const userDoc = await db.collection("users").doc(userId).get();
@@ -914,19 +879,19 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       const customer = await stripe.customers.create({
         email: userData.email || undefined,
         name: userData.displayName || undefined,
-        metadata: { firebaseUID: userId },
+        metadata: {firebaseUID: userId},
       });
       stripeCustomerId = customer.id;
-      await userDoc.ref.update({ stripeCustomerId });
+      await userDoc.ref.update({stripeCustomerId});
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: "payment",
       customer: stripeCustomerId,
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: "usd",
             product_data: {
               name: `Agency Wallet Top-Up for ${agencyDoc.data()?.name}`,
               description: `Add $${amount.toFixed(2)} to your agency wallet.`,
@@ -942,11 +907,11 @@ export const createAgencyTopUpSession = onCall(async (request) => {
         firebaseUID: userId,
         agencyId: agencyId,
         topUpAmount: amount,
-        type: 'agency_topup' // Differentiator for webhook
+        type: "agency_topup", // Differentiator for webhook
       },
     });
 
-    return { url: session.url };
+    return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating agency top-up session for user ${userId}:`, error);
     if (error instanceof HttpsError) throw error;
@@ -955,62 +920,62 @@ export const createAgencyTopUpSession = onCall(async (request) => {
 });
 
 export const stripeAgencyWalletWebhookHandler = onRequest(async (request, response) => {
-    let stripe: Stripe;
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    response.status(500).send("Webhook Error: Stripe service not configured.");
+    return;
+  }
+  const sig = request.headers["stripe-signature"];
+  const webhookSecret = params.STRIPE_AGENCY_WALLET_WEBHOOK_SECRET.value();
+
+  if (!sig || !webhookSecret) {
+    logger.error("Missing stripe signature or agency wallet webhook secret");
+    response.status(400).send("Webhook Error: Missing signature or secret.");
+    return;
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret);
+  } catch (err: any) {
+    logger.error("Webhook signature verification failed:", err);
+    response.status(400).send(`Webhook Error: ${err.message}`);
+    return;
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const {agencyId, topUpAmount, type} = session.metadata || {};
+
+    if (type !== "agency_topup" || !agencyId || !topUpAmount) {
+      logger.warn("Received checkout session for non-agency top-up or missing metadata.", {sessionId: session.id, type});
+      response.status(200).send("Received but not an agency top-up.");
+      return;
+    }
+
+    const amountToAdd = parseFloat(topUpAmount as string);
+    if (isNaN(amountToAdd) || amountToAdd <= 0) {
+      logger.error("Invalid topUpAmount in webhook metadata:", topUpAmount);
+      response.status(400).send("Invalid top-up amount in metadata.");
+      return;
+    }
+
     try {
-        const stripeKey = params.STRIPE_SECRET_KEY.value();
-        stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
-    } catch (e) {
-        logger.error("Stripe not configured", e);
-        response.status(500).send("Webhook Error: Stripe service not configured.");
-        return;
+      const agencyRef = db.collection("agencies").doc(agencyId);
+      await agencyRef.update({
+        walletBalance: admin.firestore.FieldValue.increment(amountToAdd),
+      });
+      logger.info(`Successfully added $${amountToAdd} to agency ${agencyId} wallet.`);
+    } catch (error) {
+      logger.error(`Error updating agency wallet for agency ${agencyId}:`, error);
+      response.status(500).send("Internal server error while updating wallet.");
+      return;
     }
-    const sig = request.headers["stripe-signature"];
-    const webhookSecret = params.STRIPE_AGENCY_WALLET_WEBHOOK_SECRET.value();
+  }
 
-    if (!sig || !webhookSecret) {
-        logger.error("Missing stripe signature or agency wallet webhook secret");
-        response.status(400).send("Webhook Error: Missing signature or secret.");
-        return;
-    }
-
-    let event: Stripe.Event;
-    try {
-        event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret);
-    } catch (err: any) {
-        logger.error("Webhook signature verification failed:", err);
-        response.status(400).send(`Webhook Error: ${err.message}`);
-        return;
-    }
-
-    if (event.type === "checkout.session.completed") {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const { agencyId, topUpAmount, type } = session.metadata || {};
-
-        if (type !== 'agency_topup' || !agencyId || !topUpAmount) {
-            logger.warn("Received checkout session for non-agency top-up or missing metadata.", { sessionId: session.id, type });
-            response.status(200).send("Received but not an agency top-up.");
-            return;
-        }
-
-        const amountToAdd = parseFloat(topUpAmount as string);
-        if (isNaN(amountToAdd) || amountToAdd <= 0) {
-            logger.error("Invalid topUpAmount in webhook metadata:", topUpAmount);
-            response.status(400).send("Invalid top-up amount in metadata.");
-            return;
-        }
-
-        try {
-            const agencyRef = db.collection("agencies").doc(agencyId);
-            await agencyRef.update({
-                walletBalance: admin.firestore.FieldValue.increment(amountToAdd)
-            });
-            logger.info(`Successfully added $${amountToAdd} to agency ${agencyId} wallet.`);
-        } catch (error) {
-            logger.error(`Error updating agency wallet for agency ${agencyId}:`, error);
-            response.status(500).send("Internal server error while updating wallet.");
-            return;
-        }
-    }
-
-    response.status(200).send("Received");
+  response.status(200).send("Received");
 });
