@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,13 @@ import { insightsTour } from "@/lib/tours";
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
 
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
+
 // Placeholder for TikTok Icon
 const TikTokIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -25,47 +31,48 @@ export default function InsightsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
+  
   const [instagramAccessToken, setInstagramAccessToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(false);
   const [profileContent, setProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  useEffect(() => {
-    const code = searchParams.get('code');
-    if (code && !instagramAccessToken && !isLoadingToken) {
-      setIsLoadingToken(true);
-      toast({ title: "Connecting to Instagram", description: "Finalizing connection..." });
-      
-      // *** SIMULATED BACKEND CALL ***
-      // In a real app, you'd send `code` to your backend to exchange for a token.
-      setTimeout(() => {
-        const fakeAccessToken = `simulated_token_${Date.now()}`;
-        setInstagramAccessToken(fakeAccessToken);
-        setIsLoadingToken(false);
-        toast({ title: "Instagram Connected!", description: "You can now analyze your profile." });
-        router.replace('/insights'); // Clean the URL
-      }, 2000);
-    }
-  }, [searchParams, instagramAccessToken, isLoadingToken, router, toast]);
-
   const handleConnectAccount = () => {
-    // IMPORTANT: Replace these with your actual Instagram App ID and Redirect URI from environment variables
-    const INSTAGRAM_APP_ID = "909813264288148"; // This is a public test ID
-    const REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/insights` : '';
-
-    if (!REDIRECT_URI) {
-        toast({ title: "Error", description: "Could not determine application redirect URL.", variant: "destructive" });
-        return;
+    if (typeof window.FB === 'undefined') {
+      toast({
+        title: 'Facebook SDK not loaded',
+        description: 'Please wait a moment and try again.',
+        variant: 'destructive',
+      });
+      return;
     }
-    
-    const oauthUrl = `https://api.instagram.com/oauth/authorize?client_id=${INSTAGRAM_APP_ID}&redirect_uri=${REDIRECT_URI}&scope=user_profile,user_media&response_type=code`;
-    
-    // Redirect the user to Instagram for authorization
-    window.location.href = oauthUrl;
+
+    window.FB.login(
+      (response: any) => {
+        if (response.authResponse) {
+          toast({ title: "Connecting to Instagram", description: "Finalizing connection..." });
+          const accessToken = response.authResponse.accessToken;
+          // In a real app, you'd now use this token to fetch data from the Instagram Graph API.
+          // For this simulation, we'll just set our state to "connected".
+          setIsLoadingToken(true);
+          
+          setTimeout(() => {
+            setInstagramAccessToken(accessToken);
+            setIsLoadingToken(false);
+            toast({ title: "Instagram Connected!", description: "You can now analyze your profile." });
+          }, 1500);
+
+        } else {
+          toast({
+            title: 'Authorization Canceled',
+            description: 'You did not connect your Instagram account.',
+            variant: 'default',
+          });
+        }
+      },
+      { scope: 'user_profile,user_media' }
+    );
   };
   
   const handleAnalyzeProfile = async () => {
