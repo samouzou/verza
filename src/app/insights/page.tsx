@@ -1,18 +1,17 @@
 
 "use client";
 
+import { useState } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Instagram, Youtube, Link as LinkIcon, LifeBuoy } from "lucide-react";
-import Image from "next/image";
-import { useState } from "react";
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase';
+import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
+import { Textarea } from '@/components/ui/textarea';
+import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
 
 // Placeholder for TikTok Icon
 const TikTokIcon = () => (
@@ -24,30 +23,35 @@ const TikTokIcon = () => (
 export default function InsightsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [isConnecting, setIsConnecting] = useState(false);
   const { startTour } = useTour();
 
-  const handleConnectInstagram = async () => {
-    setIsConnecting(true);
-    toast({ title: 'Redirecting to Instagram...', description: 'Please follow the prompts to authorize Verza.' });
-    try {
-      const getInstagramAuthUrl = httpsCallable(functions, 'getInstagramAuthUrl');
-      const result = await getInstagramAuthUrl();
-      const { authUrl } = result.data as { authUrl: string };
+  const [isConnected, setIsConnected] = useState(false);
+  const [profileContent, setProfileContent] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-      if (authUrl) {
-        window.location.href = authUrl;
-      } else {
-        throw new Error("Could not retrieve Instagram authorization URL.");
-      }
+  const handleConnectAccount = () => {
+    setIsConnected(true);
+    toast({ title: 'Account Connected (Simulated)', description: "You can now analyze your profile content." });
+  };
+  
+  const handleAnalyzeProfile = async () => {
+    if (!profileContent.trim()) {
+      toast({ title: 'Missing Content', description: "Please paste your profile content to analyze.", variant: "destructive" });
+      return;
+    }
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    toast({ title: 'Analysis Started', description: "The AI is working its magic..." });
+    try {
+      const result = await analyzeCreatorProfile({ profileContent });
+      setAnalysisResult(result);
+      toast({ title: 'Analysis Complete!', description: "Your brand insights are ready." });
     } catch (error: any) {
-      console.error("Error initiating Instagram connection:", error);
-      toast({
-        title: "Connection Failed",
-        description: error.message || "Could not connect to Instagram. Please try again.",
-        variant: "destructive",
-      });
-      setIsConnecting(false);
+      console.error("Error analyzing creator profile:", error);
+      toast({ title: "Analysis Failed", description: error.message || "Could not analyze the profile content.", variant: "destructive" });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -70,25 +74,21 @@ export default function InsightsPage() {
     <>
       <PageHeader
         title="Creator Insights"
-        description="Connect your social media accounts to analyze your audience and estimate your earnings potential."
+        description="Connect your social media accounts to analyze your brand and audience."
         actions={<Button variant="outline" onClick={() => startTour(insightsTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
       <div className="space-y-8">
         <Card id="connect-accounts-card">
           <CardHeader>
-            <CardTitle>Connect Your Accounts</CardTitle>
+            <CardTitle>1. Connect Your Accounts</CardTitle>
             <CardDescription>
               Link your social platforms to begin importing your engagement data. Verza uses read-only access and will never post on your behalf.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectInstagram} disabled={isConnecting}>
-                {isConnecting ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Instagram className="h-6 w-6 text-pink-500" />
-                )}
-                Connect Instagram
+            <Button variant={isConnected ? "secondary" : "outline"} size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectAccount} disabled={isConnected}>
+                <Instagram className="h-6 w-6 text-pink-500" />
+                {isConnected ? 'Instagram Connected' : 'Connect Instagram'}
             </Button>
             <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
                 <TikTokIcon />
@@ -101,16 +101,62 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
         
-        <Card id="how-it-works-card" className="bg-muted/50">
-            <CardHeader>
-                <CardTitle>How It Works</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-muted-foreground">
-                <p>1. Connect your social media accounts using the buttons above.</p>
-                <p>2. Verza will securely fetch your public engagement data, like follower counts, views, and likes.</p>
-                <p>3. Use the dashboard to view trends, understand your audience, and get AI-powered estimates for brand deals.</p>
-            </CardContent>
-        </Card>
+        {isConnected && (
+            <Card id="analyze-profile-card">
+                <CardHeader>
+                    <CardTitle>2. Analyze Your Profile</CardTitle>
+                    <CardDescription>Paste your profile bio and recent post captions/descriptions into the box below for the AI to analyze.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Textarea 
+                        value={profileContent}
+                        onChange={e => setProfileContent(e.target.value)}
+                        placeholder="Paste your bio and recent post content here..."
+                        rows={8}
+                        disabled={isAnalyzing}
+                    />
+                    <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
+                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Analyze My Brand
+                    </Button>
+                </CardContent>
+            </Card>
+        )}
+
+        {isAnalyzing && (
+             <Card>
+                <CardContent className="p-10 flex flex-col items-center justify-center text-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <h3 className="text-lg font-semibold">Generating Insights...</h3>
+                    <p className="text-muted-foreground">The AI is analyzing your profile. This might take a moment.</p>
+                </CardContent>
+             </Card>
+        )}
+
+        {analysisResult && (
+            <Card id="insights-results-card" className="bg-muted/30">
+                <CardHeader>
+                    <CardTitle>Your AI-Generated Brand Insights</CardTitle>
+                    <CardDescription>Here's what our AI found based on your content.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="p-4 border rounded-lg bg-background">
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Lightbulb className="text-yellow-500" />Your Mission Statement</h3>
+                        <p className="text-muted-foreground italic">"{analysisResult.missionStatement}"</p>
+                    </div>
+                     <div className="p-4 border rounded-lg bg-background">
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Award className="text-blue-500" />Your Niche</h3>
+                        <p className="text-muted-foreground">{analysisResult.niche}</p>
+                    </div>
+                     <div className="p-4 border rounded-lg bg-background">
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Star className="text-red-500" />Brand Wishlist</h3>
+                        <ul className="list-disc list-inside grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {analysisResult.brandWishlist.map((brand, i) => <li key={i} className="text-muted-foreground">{brand}</li>)}
+                        </ul>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
       </div>
     </>
   );

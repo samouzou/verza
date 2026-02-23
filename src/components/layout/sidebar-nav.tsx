@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -91,6 +92,7 @@ const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 const aiToolsNavItems = [
+    { id: 'nav-item-insights', href: "/insights", label: "Creator Insights", icon: Sparkles },
     { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
     { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
     { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: GauntletIcon, external: true }
