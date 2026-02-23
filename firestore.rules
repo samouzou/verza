@@ -40,11 +40,14 @@ service cloud.firestore {
       // OR allow an agency member to read the profile of a talent in their agency.
       allow read: if isOwner(userId) || isTalentInMyAgency(userId);
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && 
-                       // Prevent users from elevating their own role to agency_owner
-                       !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
-                       // Prevent users from making themselves an agency owner directly
-                       !(request.resource.data.isAgencyOwner == true && resource.data.isAgencyOwner == false);
+      allow update: if isOwner(userId) &&
+                       // This is the onboarding completion write, allow it if they're setting the 'hasCompletedOnboarding' flag for the first time.
+                       (request.resource.data.hasCompletedOnboarding == true && resource.data.get('hasCompletedOnboarding', false) == false ||
+                       // Or, for regular updates, apply the anti-elevation rules
+                       (
+                         !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
+                         !(request.resource.data.isAgencyOwner == true && resource.data.get('isAgencyOwner', false) == false)
+                       ));
       
       match /private_credentials/{credId} {
           allow read, write: if false; // Only backend functions
