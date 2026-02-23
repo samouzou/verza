@@ -1,4 +1,3 @@
-
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
@@ -407,4 +406,14 @@ export interface BrandResearch {
   };
   error?: string;
   createdAt: ClientTimestamp;
+}
+
+export interface CreatorMarketplaceProfile {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  niche: string;
+  contentType: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
+  followers: number;
+  engagementRate: number;
 }

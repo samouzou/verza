@@ -26,6 +26,7 @@ import {
   BarChart3,
   Video,
   ExternalLink,
+  Store,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,10 +61,14 @@ const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
+const marketplaceNavItems = [
+    { id: 'nav-item-marketplace', href: "/marketplace", label: "Creator Marketplace", icon: Store },
+];
+
 const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
   { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
-  { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
+  { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
 ];
 
 const financialsNavItems = [
@@ -94,7 +99,6 @@ const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
 const aiToolsNavItems = [
     { id: 'nav-item-insights', href: "/insights", label: "Creator Insights", icon: Sparkles },
     { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
-    { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
     { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: GauntletIcon, external: true }
 ]
 
@@ -189,6 +193,29 @@ export function SidebarNav() {
                 </Link>
             </SidebarMenuItem>
             ))}
+
+            <SidebarGroup>
+                <SidebarGroupLabel className="flex items-center">
+                    <span className="group-data-[collapsible=icon]:hidden">Marketplace</span>
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                    {marketplaceNavItems.map((item) => (
+                        <SidebarMenuItem key={item.label} id={item.id}>
+                        <Link href={item.href} legacyBehavior passHref>
+                            <SidebarMenuButton
+                            onClick={() => isMobile && setOpenMobile(false)}
+                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                            isActive={pathname.startsWith(item.href)}
+                            tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                            >
+                            <item.icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                            </SidebarMenuButton>
+                        </Link>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarGroupContent>
+            </SidebarGroup>
 
             <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center">
