@@ -37,8 +37,9 @@ service cloud.firestore {
     // Rules for the users collection
     match /users/{userId} {
       // Allow a user to read their own profile,
-      // OR allow an agency member to read the profile of a talent in their agency.
-      allow read: if isOwner(userId) || isTalentInMyAgency(userId);
+      // OR allow an agency member to read the profile of a talent in their agency,
+      // OR allow public read if user is in marketplace.
+      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || resource.data.showInMarketplace == true;
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) &&
                        // This is the onboarding completion write, allow it if they're setting the 'hasCompletedOnboarding' flag for the first time.
