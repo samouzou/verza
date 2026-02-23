@@ -51,7 +51,6 @@ export default function RootLayout({
         <Script
           async
           defer
-          crossOrigin="anonymous"
           src="https://connect.facebook.net/en_US/sdk.js"
           id="facebook-jssdk"
           strategy="afterInteractive"
