@@ -12,7 +12,7 @@ import {ai} from "../genkit";
 import {googleAI} from "@genkit-ai/google-genai";
 import {z} from "genkit";
 
-export const BrandAnalysisInputSchema = z.object({
+const BrandAnalysisInputSchema = z.object({
   brandUrl: z.string().url().describe("The URL of the brand website."),
   websiteText: z.string().describe("The raw text content from the brand's website."),
 });
@@ -29,7 +29,7 @@ const EmailPitchSchema = z.object({
     body: z.string().describe("The full body of the pitch email, personalized for the brand. Use placeholders like [Your Name] and [Your Portfolio Link].")
 });
 
-export const BrandAnalysisOutputSchema = z.object({
+const BrandAnalysisOutputSchema = z.object({
   brandName: z.string().describe("The name of the brand, extracted from the content."),
   decisionMakers: z.array(DecisionMakerSchema).describe("A list of potential decision-makers at the company, including their name, title, and email if available."),
   currentVibe: z.string().describe("A summary of the brand's current marketing aesthetic and voice."),

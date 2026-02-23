@@ -12,12 +12,12 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
-export const CreatorAnalysisInputSchema = z.object({
+const CreatorAnalysisInputSchema = z.object({
   profileContent: z.string().describe('A collection of text from a creator\'s profile, such as their bio, post captions, and video transcripts.'),
 });
 export type CreatorAnalysisInput = z.infer<typeof CreatorAnalysisInputSchema>;
 
-export const CreatorAnalysisOutputSchema = z.object({
+const CreatorAnalysisOutputSchema = z.object({
   missionStatement: z.string().describe("The creator's 'why' or mission statement, distilled from their content."),
   brandWishlist: z.array(z.string()).describe("A wishlist of 5 brands that would be a good fit for the creator to work with."),
   niche: z.string().describe("A specific definition of the creator's unique selling proposition (USP) or niche."),
