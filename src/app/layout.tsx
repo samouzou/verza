@@ -1,6 +1,7 @@
 
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
+import Script from 'next/script';
 import './globals.css';
 import '@syncfusion/ej2-base/styles/tailwind.css';
 import '@syncfusion/ej2-buttons/styles/tailwind.css';
@@ -34,6 +35,27 @@ export default function RootLayout({
         className={`${GeistSans.className} antialiased`}
         suppressHydrationWarning
       >
+        <Script id="fb-sdk-init" strategy="afterInteractive">
+          {`
+            window.fbAsyncInit = function() {
+              FB.init({
+                appId      : '909813264288148',
+                cookie     : true,
+                xfbml      : true,
+                version    : 'v20.0'
+              });
+              FB.AppEvents.logPageView();
+            };
+          `}
+        </Script>
+        <Script
+          async
+          defer
+          crossOrigin="anonymous"
+          src="https://connect.facebook.net/en_US/sdk.js"
+          id="facebook-jssdk"
+          strategy="afterInteractive"
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
