@@ -70,7 +70,7 @@ export interface UserProfile {
   // Marketplace fields
   showInMarketplace?: boolean;
   niche?: string;
-  contentType?: CreatorMarketplaceProfile['contentType'];
+  contentType?: CreatorMarketplaceProfile['contentType'] | null;
 }
 
 interface AuthContextType {
@@ -143,7 +143,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     // Marketplace fields
     updates.showInMarketplace = false;
     updates.niche = '';
-    updates.contentType = undefined;
+    updates.contentType = null;
 
     needsUpdate = true;
 
@@ -246,7 +246,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     // Initialize marketplace fields if missing
     if (existingData.showInMarketplace === undefined) { updates.showInMarketplace = false; needsUpdate = true; }
     if (existingData.niche === undefined) { updates.niche = ''; needsUpdate = true; }
-    if (existingData.contentType === undefined) { updates.contentType = undefined; needsUpdate = true; }
+    if (existingData.contentType === undefined) { updates.contentType = null; needsUpdate = true; }
 
     if (needsUpdate) {
       try {
@@ -320,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               credits: firestoreUserData.credits,
               showInMarketplace: firestoreUserData.showInMarketplace,
               niche: firestoreUserData.niche,
-              contentType: firestoreUserData.contentType,
+              contentType: firestoreUserData.contentType || null,
             });
           } else {
              console.warn(`User document for ${"'" + currentFirebaseUser.uid + "'"} not found during listener setup.`);

@@ -222,7 +222,7 @@ export interface UserProfileFirestoreData {
   // Marketplace fields
   showInMarketplace?: boolean;
   niche?: string;
-  contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
+  contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
 }
 
 // Credit transaction
