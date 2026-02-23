@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,15 +25,47 @@ export default function InsightsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const [isConnected, setIsConnected] = useState(false);
+  const [instagramAccessToken, setInstagramAccessToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
   const [profileContent, setProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code && !instagramAccessToken && !isLoadingToken) {
+      setIsLoadingToken(true);
+      toast({ title: "Connecting to Instagram", description: "Finalizing connection..." });
+      
+      // *** SIMULATED BACKEND CALL ***
+      // In a real app, you'd send `code` to your backend to exchange for a token.
+      setTimeout(() => {
+        const fakeAccessToken = `simulated_token_${Date.now()}`;
+        setInstagramAccessToken(fakeAccessToken);
+        setIsLoadingToken(false);
+        toast({ title: "Instagram Connected!", description: "You can now analyze your profile." });
+        router.replace('/insights'); // Clean the URL
+      }, 2000);
+    }
+  }, [searchParams, instagramAccessToken, isLoadingToken, router, toast]);
+
   const handleConnectAccount = () => {
-    setIsConnected(true);
-    toast({ title: 'Account Connected (Simulated)', description: "You can now analyze your profile content." });
+    // IMPORTANT: Replace these with your actual Instagram App ID and Redirect URI from environment variables
+    const INSTAGRAM_APP_ID = "909813264288148"; // This is a public test ID
+    const REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/insights` : '';
+
+    if (!REDIRECT_URI) {
+        toast({ title: "Error", description: "Could not determine application redirect URL.", variant: "destructive" });
+        return;
+    }
+    
+    const oauthUrl = `https://api.instagram.com/oauth/authorize?client_id=${INSTAGRAM_APP_ID}&redirect_uri=${REDIRECT_URI}&scope=user_profile,user_media&response_type=code`;
+    
+    // Redirect the user to Instagram for authorization
+    window.location.href = oauthUrl;
   };
   
   const handleAnalyzeProfile = async () => {
@@ -55,6 +88,7 @@ export default function InsightsPage() {
     }
   };
 
+  const isConnected = !!instagramAccessToken;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -86,9 +120,9 @@ export default function InsightsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Button variant={isConnected ? "secondary" : "outline"} size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectAccount} disabled={isConnected}>
-                <Instagram className="h-6 w-6 text-pink-500" />
-                {isConnected ? 'Instagram Connected' : 'Connect Instagram'}
+            <Button variant={isConnected ? "secondary" : "outline"} size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectAccount} disabled={isConnected || isLoadingToken}>
+                {isLoadingToken ? <Loader2 className="h-6 w-6 animate-spin"/> : <Instagram className="h-6 w-6 text-pink-500" />}
+                {isLoadingToken ? 'Connecting...' : isConnected ? 'Instagram Connected' : 'Connect Instagram'}
             </Button>
             <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
                 <TikTokIcon />
