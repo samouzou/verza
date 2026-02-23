@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -71,7 +72,7 @@ export default function InsightsPage() {
           });
         }
       },
-      { scope: 'user_profile,user_media' }
+      { scope: 'instagram_basic,instagram_manage_insights,pages_read_engagement,pages_show_list' }
     );
   };
   
