@@ -1,3 +1,4 @@
+
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
@@ -217,6 +218,11 @@ export interface UserProfileFirestoreData {
 
   // SceneSpawner Credits
   credits?: number;
+
+  // Marketplace fields
+  showInMarketplace?: boolean;
+  niche?: string;
+  contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
 }
 
 // Credit transaction

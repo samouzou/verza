@@ -23,6 +23,7 @@ import {
   onSnapshot, // Import onSnapshot for real-time listening
 } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
+import type { CreatorMarketplaceProfile } from '@/types';
 
 
 export interface UserProfile {
@@ -65,6 +66,11 @@ export interface UserProfile {
     nextEmailAt: Timestamp;
   };
   credits?: number;
+
+  // Marketplace fields
+  showInMarketplace?: boolean;
+  niche?: string;
+  contentType?: CreatorMarketplaceProfile['contentType'];
 }
 
 interface AuthContextType {
@@ -133,6 +139,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       nextEmailAt: twoDaysFromNow,
     };
     updates.credits = NEW_USER_BONUS;
+
+    // Marketplace fields
+    updates.showInMarketplace = false;
+    updates.niche = '';
+    updates.contentType = undefined;
 
     needsUpdate = true;
 
@@ -232,6 +243,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       needsUpdate = true;
     }
 
+    // Initialize marketplace fields if missing
+    if (existingData.showInMarketplace === undefined) { updates.showInMarketplace = false; needsUpdate = true; }
+    if (existingData.niche === undefined) { updates.niche = ''; needsUpdate = true; }
+    if (existingData.contentType === undefined) { updates.contentType = undefined; needsUpdate = true; }
 
     if (needsUpdate) {
       try {
@@ -303,6 +318,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,
+              showInMarketplace: firestoreUserData.showInMarketplace,
+              niche: firestoreUserData.niche,
+              contentType: firestoreUserData.contentType,
             });
           } else {
              console.warn(`User document for ${"'" + currentFirebaseUser.uid + "'"} not found during listener setup.`);

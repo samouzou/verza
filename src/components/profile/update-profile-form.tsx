@@ -8,22 +8,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, UploadCloud } from "lucide-react";
+import { Loader2, Save, UploadCloud, Briefcase } from "lucide-react";
 import { auth, db, doc, updateDoc, storage } from "@/lib/firebase";
 import { updateProfile as updateFirebaseUserProfile } from "firebase/auth";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CreatorMarketplaceProfile } from "@/types";
 
 interface UpdateProfileFormProps {
   currentUser: UserProfile;
 }
 
+const contentTypes: CreatorMarketplaceProfile['contentType'][] = ['Tech', 'Fashion', 'Comedy', 'Gaming', 'Lifestyle', 'Food'];
+
+
 export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
   const [address, setAddress] = useState(currentUser.address || ""); 
-  const [tin, setTin] = useState(currentUser.tin || ""); // Add TIN state
+  const [tin, setTin] = useState(currentUser.tin || "");
   
+  // Marketplace fields
+  const [showInMarketplace, setShowInMarketplace] = useState(currentUser.showInMarketplace || false);
+  const [niche, setNiche] = useState(currentUser.niche || "");
+  const [contentType, setContentType] = useState(currentUser.contentType);
+
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(currentUser.avatarUrl);
   
@@ -40,6 +53,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     setTin(currentUser.tin || "");
     setAvatarPreview(currentUser.avatarUrl);
     setLogoPreview(currentUser.companyLogoUrl || null);
+    setShowInMarketplace(currentUser.showInMarketplace || false);
+    setNiche(currentUser.niche || "");
+    setContentType(currentUser.contentType);
   }, [currentUser]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, type: 'avatar' | 'logo') => {
@@ -69,6 +85,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     const hasProfileChanged = displayName.trim() !== (currentUser.displayName || "") ||
                              address.trim() !== (currentUser.address || "") ||
                              tin.trim() !== (currentUser.tin || "") ||
+                             showInMarketplace !== (currentUser.showInMarketplace || false) ||
+                             niche.trim() !== (currentUser.niche || "") ||
+                             contentType !== currentUser.contentType ||
                              !!avatarFile || !!logoFile;
 
     if (!hasProfileChanged) {
@@ -113,6 +132,15 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       if (tin.trim() !== (currentUser.tin || "")) {
         firestoreUpdates.tin = tin.trim();
       }
+      if (showInMarketplace !== (currentUser.showInMarketplace || false)) {
+        firestoreUpdates.showInMarketplace = showInMarketplace;
+      }
+      if (niche.trim() !== (currentUser.niche || "")) {
+        firestoreUpdates.niche = niche.trim();
+      }
+      if (contentType !== currentUser.contentType) {
+        firestoreUpdates.contentType = contentType;
+      }
       
       if (Object.keys(authUpdates).length > 0) {
         await updateFirebaseUserProfile(auth.currentUser, authUpdates);
@@ -137,100 +165,142 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   };
 
   const userInitialForFallback = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : (currentUser.email ? currentUser.email.charAt(0).toUpperCase() : "U");
-  
-  const hasChanges = displayName.trim() !== (currentUser.displayName || "") ||
-                     address.trim() !== (currentUser.address || "") ||
-                     tin.trim() !== (currentUser.tin || "") ||
-                     !!avatarFile || !!logoFile;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-            <Label htmlFor="avatarFile">Profile Picture</Label>
-            <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-                {avatarPreview ? (
-                <AvatarImage src={avatarPreview} alt={currentUser.displayName || "User avatar"} data-ai-hint="user avatar" />
-                ) : (
-                <AvatarFallback className="text-3xl">{userInitialForFallback}</AvatarFallback>
-                )}
-            </Avatar>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+              <Label htmlFor="avatarFile">Profile Picture</Label>
+              <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20">
+                  {avatarPreview ? (
+                  <AvatarImage src={avatarPreview} alt={currentUser.displayName || "User avatar"} data-ai-hint="user avatar" />
+                  ) : (
+                  <AvatarFallback className="text-3xl">{userInitialForFallback}</AvatarFallback>
+                  )}
+              </Avatar>
+              <Input
+                  id="avatarFile"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(e, 'avatar')}
+                  className="max-w-xs"
+              />
+              </div>
+              <p className="text-xs text-muted-foreground">Recommended: Square image, less than 2MB.</p>
+          </div>
+
+          <div className="space-y-2">
+              <Label htmlFor="logoFile">Company Logo (for Invoices)</Label>
+              <div className="flex items-center gap-4">
+                  <div className="h-20 w-20 flex items-center justify-center border rounded-md bg-muted/50">
+                      {logoPreview ? (
+                          <Image src={logoPreview} alt="Company Logo" width={80} height={80} className="object-contain h-full w-full" data-ai-hint="company logo" />
+                      ) : (
+                          <UploadCloud className="h-8 w-8 text-muted-foreground" />
+                      )}
+                  </div>
+                  <Input
+                      id="logoFile"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, 'logo')}
+                      className="max-w-xs"
+                  />
+              </div>
+              <p className="text-xs text-muted-foreground">Recommended: Transparent background, less than 2MB.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Label htmlFor="displayName">Display Name</Label>
             <Input
-                id="avatarFile"
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleFileChange(e, 'avatar')}
-                className="max-w-xs"
+              id="displayName"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Your Name"
+              className="mt-1"
             />
-            </div>
-            <p className="text-xs text-muted-foreground">Recommended: Square image, less than 2MB.</p>
+          </div>
+          <div>
+            <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
+            <Input
+              id="tin"
+              type="text"
+              value={tin}
+              onChange={(e) => setTin(e.target.value)}
+              placeholder="XXX-XX-XXXX"
+              className="mt-1"
+            />
+          </div>
         </div>
+        
+        <div>
+          <Label htmlFor="address">Address (for Invoices & Tax Forms)</Label>
+          <Textarea
+            id="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="123 Main St, City, State, Zip Code, Country"
+            className="mt-1"
+            rows={3}
+          />
+          <p className="text-xs text-muted-foreground mt-1">This address will be used on your invoices and tax forms.</p>
+        </div>
+      </div>
 
-        <div className="space-y-2">
-            <Label htmlFor="logoFile">Company Logo (for Invoices)</Label>
-            <div className="flex items-center gap-4">
-                <div className="h-20 w-20 flex items-center justify-center border rounded-md bg-muted/50">
-                    {logoPreview ? (
-                        <Image src={logoPreview} alt="Company Logo" width={80} height={80} className="object-contain h-full w-full" data-ai-hint="company logo" />
-                    ) : (
-                        <UploadCloud className="h-8 w-8 text-muted-foreground" />
-                    )}
-                </div>
-                 <Input
-                    id="logoFile"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'logo')}
-                    className="max-w-xs"
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5 text-primary" /> Marketplace Profile</CardTitle>
+          <CardDescription>This information will be visible to brands in the Creator Marketplace.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="showInMarketplace" className="text-base">Show my profile in the Marketplace</Label>
+              <p className="text-sm text-muted-foreground">Allow brands to discover and contact you.</p>
+            </div>
+            <Switch
+              id="showInMarketplace"
+              checked={showInMarketplace}
+              onCheckedChange={setShowInMarketplace}
+            />
+          </div>
+
+          {showInMarketplace && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="niche">Your Niche</Label>
+                <Input
+                  id="niche"
+                  value={niche}
+                  onChange={e => setNiche(e.target.value)}
+                  placeholder="e.g., AI & Future Tech"
+                  className="mt-1"
                 />
+              </div>
+              <div>
+                <Label htmlFor="contentType">Primary Content Type</Label>
+                <Select value={contentType} onValueChange={(value) => setContentType(value as any)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a content type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contentTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Recommended: Transparent background, less than 2MB.</p>
-        </div>
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <Label htmlFor="displayName">Display Name</Label>
-          <Input
-            id="displayName"
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your Name"
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
-          <Input
-            id="tin"
-            type="text"
-            value={tin}
-            onChange={(e) => setTin(e.target.value)}
-            placeholder="XXX-XX-XXXX"
-            className="mt-1"
-          />
-        </div>
-      </div>
-      
-      <div>
-        <Label htmlFor="address">Address (for Invoices & Tax Forms)</Label>
-        <Textarea
-          id="address"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="123 Main St, City, State, Zip Code, Country"
-          className="mt-1"
-          rows={3}
-        />
-        <p className="text-xs text-muted-foreground mt-1">This address will be used on your invoices and tax forms.</p>
-      </div>
-
-      <Button 
-        type="submit" 
-        disabled={isUpdating || !hasChanges}
-      >
+      <Button type="submit" disabled={isUpdating}>
         {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
         Save Changes
       </Button>
