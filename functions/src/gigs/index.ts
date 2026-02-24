@@ -1,13 +1,21 @@
 
+"use server";
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
-import type {Gig, UserProfileFirestoreData as UserProfile, Contract} from "../types";
+import type {Gig, UserProfileFirestoreData as UserProfile, Contract, Agency, Talent} from "../types";
 import {generateUgcContract} from "../ai/flows/generate-ugc-contract-flow";
 import {Timestamp} from "firebase-admin/firestore";
 import {v4 as uuidv4} from "uuid";
+import * as admin from "firebase-admin";
 
 
+/**
+ * Generates a standard UGC agreement based on gig details and creates a contract document.
+ * @param {object} request The request object containing gigId and creatorId.
+ * @return {Promise<{success: boolean, contractId: string}>} The result of the operation.
+ */
 export const generateUgcAgreement = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -46,20 +54,53 @@ export const generateUgcAgreement = onCall(async (request) => {
     if (!existingContracts.empty) {
       throw new HttpsError("already-exists", "A contract for this gig and creator already exists.");
     }
+    
+    // --- New Logic: Add creator to agency roster if not already present ---
+    const agencyDocRef = db.collection("agencies").doc(gigData.brandId);
+    const agencySnap = await agencyDocRef.get();
+    if (!agencySnap.exists) {
+      throw new HttpsError("not-found", "The agency associated with this gig no longer exists.");
+    }
+    const agencyData = agencySnap.data() as Agency;
+    const isAlreadyTalent = agencyData.talent.some(t => t.userId === creatorId);
 
+    if (!isAlreadyTalent) {
+      const newTalent: Talent = {
+        userId: creatorId,
+        email: creatorData.email || 'unknown',
+        displayName: creatorData.displayName || 'Creator',
+        status: 'active',
+        joinedAt: Timestamp.now() as any
+      };
+      await agencyDocRef.update({
+        talent: admin.firestore.FieldValue.arrayUnion(newTalent)
+      });
+      logger.info(`Creator ${creatorId} auto-added to agency ${agencyData.id} roster from gig.`);
+    }
+
+    // --- Generate Contract with AI ---
     const {contractSfdt} = await generateUgcContract({
       brandName: gigData.brandName,
       creatorName: creatorData.displayName || "The Creator",
       gigDescription: gigData.description,
       rate: gigData.ratePerCreator,
     });
+    
+    // --- New Logic: Build correct access map ---
+    const accessMap: { [key: string]: "owner" | "viewer" | "talent" } = {
+      [creatorId]: "talent", // The creator is the talent on the contract
+    };
+    // Grant owner access to the agency owner
+    accessMap[agencyData.ownerId] = 'owner';
+    // Grant access to all active team members
+    agencyData.team?.forEach(member => {
+      if (member.status === 'active') {
+        accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+      }
+    });
+
 
     const newContractRef = db.collection("contracts").doc();
-    const accessMap: { [key: string]: "owner" | "talent" } = {
-      [gigData.brandId]: "owner", // The agency owns it
-      [creatorId]: "talent",
-    };
-
     const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
 
     const newContractData: Omit<Contract, "id"> & { createdAt: any, updatedAt: any } = {

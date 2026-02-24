@@ -1,5 +1,5 @@
 
-'use server';
+"use server";
 /**
  * @fileOverview Generates a standard UGC agreement.
  *
@@ -21,7 +21,8 @@ export const GenerateUgcContractInputSchema = z.object({
 export type GenerateUgcContractInput = z.infer<typeof GenerateUgcContractInputSchema>;
 
 export const GenerateUgcContractOutputSchema = z.object({
-  contractSfdt: z.string().describe("The generated contract as a JSON string in SFDT format, ready to be loaded into a document editor."),
+  contractSfdt: z.string().describe("The generated contract as a JSON string in SFDT format," +
+    " ready to be loaded into a document editor."),
 });
 export type GenerateUgcContractOutput = z.infer<typeof GenerateUgcContractOutputSchema>;
 
@@ -51,15 +52,19 @@ The output MUST be a valid JSON string in the SFDT (Syncfusion Document Text) fo
 
 **Instructions:**
 1.  Generate a simple, one-page UGC Agreement.
-2.  Use the information above to fill in the parties, payment, and scope of work. The 'Gig Description' should be detailed under a "Scope of Work" or "Deliverables" section.
+2.  Use the information above to fill in the parties, payment, and scope of work. 
+The 'Gig Description' should be detailed under a "Scope of Work" or "Deliverables" section.
 3.  Include the following standard clauses, keeping them clear and concise:
     *   **Deliverables:** Use the Gig Description to detail what the creator must produce.
-    *   **Compensation:** State the payment amount of \${{{rate}}} to be paid upon successful completion and submission of deliverables.
-    *   **Usage Rights/License:** Grant the brand a 12-month, non-exclusive, worldwide license to use the content on its organic social media channels. The creator retains ownership of the content.
+    *   **Compensation:** State the payment amount of \${{{rate}}} to be paid upon successful
+    * completion and submission of deliverables.
+    *   **Usage Rights/License:** Grant the brand a 12-month, non-exclusive, worldwide license
+    * to use the content on its organic social media channels. The creator retains ownership of the content.
     *   **Deadline:** State that the content must be delivered within 14 days of this agreement's date.
     *   **Independent Contractor:** Clarify that the creator is an independent contractor, not an employee.
 4.  Use placeholders for signatures: "[Brand/Agency Signature]", "[Creator Signature]".
-5.  The final output must be a single, valid SFDT JSON string. Ensure all text is properly formatted within 'blocks' and 'inlines' as per the SFDT specification. Do not include any explanatory text outside of the JSON structure.
+5.  The final output must be a single, valid SFDT JSON string. Ensure all text is properly formatted within 'blocks'
+  and 'inlines' as per the SFDT specification. Do not include any explanatory text outside of the JSON structure.
 `,
 });
 
