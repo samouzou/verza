@@ -414,6 +414,21 @@ export interface BrandResearch {
   createdAt: ClientTimestamp;
 }
 
+export interface Gig {
+  id: string;
+  brandId: string; // The UID of the brand user/agency owner
+  brandName: string;
+  brandLogoUrl?: string | null;
+  title: string;
+  description: string;
+  platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook')[];
+  ratePerCreator: number;
+  creatorsNeeded: number;
+  acceptedCreatorIds: string[];
+  status: 'open' | 'in-progress' | 'completed';
+  createdAt: ClientTimestamp;
+}
+
 export interface CreatorMarketplaceProfile {
   id: string;
   name: string;

@@ -1,0 +1,178 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "Represents a user's profile information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the user's avatar image."
+        },
+        "companyLogoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the user's company logo."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["individual_creator", "agency_owner", "agency_admin", "agency_member"],
+          "description": "The user's role in the application."
+        },
+        "isAgencyOwner": {
+          "type": "boolean"
+        },
+        "hasCompletedOnboarding": {
+          "type": "boolean"
+        },
+        "showInMarketplace": {
+            "type": "boolean"
+        },
+        "niche": {
+            "type": "string"
+        },
+        "contentType": {
+            "type": ["string", "null"],
+            "enum": ["Tech", "Fashion", "Comedy", "Gaming", "Lifestyle", "Food", null]
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "contract": {
+      "title": "Contract",
+      "description": "Represents a contract between a creator and a brand.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the contract."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns the contract."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The name of the brand associated with the contract."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The total amount of the contract."
+        },
+        "dueDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The due date of the contract."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "paid", "overdue", "at_risk", "invoiced"],
+          "description": "The status of the contract."
+        }
+      },
+      "required": ["id", "userId", "brand", "amount", "dueDate", "status"]
+    },
+    "gig": {
+      "title": "Gig",
+      "description": "A project posted by a brand for creators to accept.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the gig."
+        },
+        "brandId": {
+          "type": "string",
+          "description": "The UID of the user or agency that posted the gig."
+        },
+        "brandName": {
+          "type": "string",
+          "description": "The name of the brand."
+        },
+        "brandLogoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the brand's logo."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the gig."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the project requirements."
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["TikTok", "Instagram", "YouTube", "Facebook"]
+          }
+        },
+        "ratePerCreator": {
+          "type": "number",
+          "description": "The amount to be paid to each creator who completes the gig."
+        },
+        "creatorsNeeded": {
+          "type": "number",
+          "description": "The total number of creators required for this gig."
+        },
+        "acceptedCreatorIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of UIDs of creators who have accepted the gig."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "in-progress", "completed"],
+          "description": "The current status of the gig."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the gig was created."
+        }
+      },
+      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com", "password"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/backend/entities/userProfile"
+      },
+      "description": "Stores public user profile information."
+    },
+    "/contracts/{contractId}": {
+      "schema": {
+        "$ref": "#/backend/entities/contract"
+      },
+      "description": "Stores contract details and associated metadata."
+    },
+    "/gigs/{gigId}": {
+      "schema": {
+        "$ref": "#/backend/entities/gig"
+      },
+      "description": "Stores gig postings from brands for creators."
+    }
+  }
+}

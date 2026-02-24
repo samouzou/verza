@@ -76,6 +76,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Rules for gigs
+    match /gigs/{gigId} {
+      allow read: if request.auth != null;
+      allow create: if isOwner(request.resource.data.brandId);
+      // Allow update for now by owner, will be more complex later
+      allow update: if isOwner(resource.data.brandId);
+    }
+
     // Rules for brand_research collection
     match /brand_research/{researchId} {
       allow read, update, delete: if isOwner(resource.data.uid);
