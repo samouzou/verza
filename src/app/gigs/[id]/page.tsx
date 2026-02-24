@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId } from 'firebase/firestore';
-import { db, functions } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig } from '@/types';
 import { PageHeader } from '@/components/page-header';
@@ -16,7 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { httpsCallable } from 'firebase/functions';
+import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
+import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -30,6 +31,10 @@ export default function GigDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+  const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
+
 
   useEffect(() => {
     if (!gigId) {
@@ -109,19 +114,24 @@ export default function GigDetailPage() {
     }
   };
 
-  const handleGenerateAgreement = async (creatorId: string) => {
+  const handleGenerateAgreement = async (creator: UserProfile) => {
     if (!gig) return;
-    setIsGenerating(creatorId);
+    setIsGenerating(creator.uid);
     toast({ title: "Generating Agreement...", description: "The AI is drafting the UGC agreement. This may take a moment." });
     try {
-      const generateUgcAgreementCallable = httpsCallable(functions, 'generateUgcAgreement');
-      const result = await generateUgcAgreementCallable({ gigId: gig.id, creatorId });
-      const data = result.data as { success: boolean; contractId: string };
-      if (data.success) {
-        toast({ title: "Agreement Generated!", description: "The new contract is available in the contracts section." });
-        router.push(`/contracts/${data.contractId}`);
+      const { contractSfdt } = await generateUgcContract({
+        brandName: gig.brandName,
+        creatorName: creator.displayName || 'The Creator',
+        gigDescription: gig.description,
+        rate: gig.ratePerCreator,
+      });
+
+      if (contractSfdt) {
+        setContractGenData({ sfdt: contractSfdt, talent: creator });
+        setIsContractDialogOpen(true); // Open the dialog
+        toast({ title: "Agreement Drafted!", description: "Review and save the AI-generated contract." });
       } else {
-        throw new Error("Failed to generate agreement.");
+        throw new Error("AI did not return contract data.");
       }
     } catch (error: any) {
       console.error("Error generating UGC agreement:", error);
@@ -129,7 +139,7 @@ export default function GigDetailPage() {
     } finally {
       setIsGenerating(null);
     }
-  }
+  };
 
 
   if (isLoading || authLoading) {
@@ -194,7 +204,7 @@ export default function GigDetailPage() {
                            <div className="space-y-3">
                                 {acceptedCreators.map(creator => (
                                     <div key={creator.uid} className="flex items-center justify-between p-2 rounded-md transition-colors hover:bg-accent">
-                                        <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3">
+                                        <div className="flex items-center gap-3">
                                             <Avatar>
                                                 <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} />
                                                 <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
@@ -203,11 +213,11 @@ export default function GigDetailPage() {
                                                 <p className="font-medium">{creator.displayName}</p>
                                                 <p className="text-xs text-muted-foreground">{creator.email}</p>
                                             </div>
-                                        </Link>
+                                        </div>
                                         <Button 
                                             size="sm" 
                                             variant="outline"
-                                            onClick={() => handleGenerateAgreement(creator.uid)}
+                                            onClick={() => handleGenerateAgreement(creator)}
                                             disabled={isGenerating === creator.uid}
                                         >
                                             {isGenerating === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
@@ -271,6 +281,15 @@ export default function GigDetailPage() {
             </Card>
         </div>
       </div>
+      {contractGenData && (
+        <UploadContractDialog
+          isOpen={isContractDialogOpen}
+          onOpenChange={setIsContractDialogOpen}
+          initialSFDT={contractGenData.sfdt}
+          initialSelectedOwner={contractGenData.talent.uid}
+          initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`}
+        />
+      )}
     </>
   );
 }
