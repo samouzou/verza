@@ -1,7 +1,16 @@
 
-import { ai } from '../genkit';
-import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'genkit';
+'use server';
+/**
+ * @fileOverview Generates a standard UGC agreement.
+ *
+ * - generateUgcContract - A function that generates the UGC contract.
+ * - GenerateUgcContractInput - The input type for the function.
+ * - GenerateUgcContractOutput - The return type for the function.
+ */
+
+import {ai} from "../genkit";
+import {googleAI} from "@genkit-ai/google-genai";
+import {z} from "genkit";
 
 export const GenerateUgcContractInputSchema = z.object({
   brandName: z.string().describe("The name of the brand or agency."),
@@ -12,19 +21,24 @@ export const GenerateUgcContractInputSchema = z.object({
 export type GenerateUgcContractInput = z.infer<typeof GenerateUgcContractInputSchema>;
 
 export const GenerateUgcContractOutputSchema = z.object({
-  contractSfdt: z.string().describe('The generated contract as a JSON string in SFDT format, ready to be loaded into a document editor.'),
+  contractSfdt: z.string().describe("The generated contract as a JSON string in SFDT format, ready to be loaded into a document editor."),
 });
 export type GenerateUgcContractOutput = z.infer<typeof GenerateUgcContractOutputSchema>;
 
+/**
+ * Generates a standard UGC agreement based on gig details.
+ * @param {GenerateUgcContractInput} input The gig and creator details.
+ * @return {Promise<GenerateUgcContractOutput>} The generated contract in SFDT format.
+ */
 export async function generateUgcContract(input: GenerateUgcContractInput): Promise<GenerateUgcContractOutput> {
   return generateUgcContractFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'generateUgcContractPrompt',
-  model: googleAI.model('gemini-1.5-flash-preview'),
-  input: { schema: GenerateUgcContractInputSchema },
-  output: { schema: GenerateUgcContractOutputSchema },
+  name: "generateUgcContractPrompt",
+  model: googleAI.model("gemini-1.5-flash-preview"),
+  input: {schema: GenerateUgcContractInputSchema},
+  output: {schema: GenerateUgcContractOutputSchema},
   prompt: `You are an expert legal AI specializing in drafting simple, fair agreements for the creator economy.
   Your task is to generate a standard User-Generated Content (UGC) Agreement based on the provided details.
 
@@ -51,12 +65,12 @@ The output MUST be a valid JSON string in the SFDT (Syncfusion Document Text) fo
 
 const generateUgcContractFlow = ai.defineFlow(
   {
-    name: 'generateUgcContractFlow',
+    name: "generateUgcContractFlow",
     inputSchema: GenerateUgcContractInputSchema,
     outputSchema: GenerateUgcContractOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const {output} = await prompt(input);
     return output!;
   }
 );
