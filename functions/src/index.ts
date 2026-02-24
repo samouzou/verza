@@ -68,7 +68,7 @@ import {
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
-import { generateUgcAgreement } from "./gigs"; // Import new gig function
+import {generateUgcAgreement} from "./gigs"; // Import new gig function
 
 // Export v2 functions
 export {
