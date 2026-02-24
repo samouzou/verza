@@ -4,7 +4,7 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'genkit';
 
-export const GenerateUgcContractInputSchema = z.object({
+const GenerateUgcContractInputSchema = z.object({
   brandName: z.string().describe("The name of the brand or agency."),
   creatorName: z.string().describe("The name of the content creator."),
   gigDescription: z.string().describe("The detailed description of the work to be performed from the gig posting."),
@@ -12,7 +12,7 @@ export const GenerateUgcContractInputSchema = z.object({
 });
 export type GenerateUgcContractInput = z.infer<typeof GenerateUgcContractInputSchema>;
 
-export const GenerateUgcContractOutputSchema = z.object({
+const GenerateUgcContractOutputSchema = z.object({
   contractSfdt: z.string().describe('The generated contract as a JSON string in SFDT format, ready to be loaded into a document editor.'),
 });
 export type GenerateUgcContractOutput = z.infer<typeof GenerateUgcContractOutputSchema>;
