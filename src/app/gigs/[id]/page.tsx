@@ -169,16 +169,18 @@ export default function GigDetailPage() {
                         {acceptedCreators.length > 0 ? (
                            <div className="space-y-3">
                                 {acceptedCreators.map(creator => (
-                                    <div key={creator.uid} className="flex items-center gap-3 p-2 rounded-md bg-muted/50">
-                                        <Avatar>
-                                            <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} />
-                                            <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-medium">{creator.displayName}</p>
-                                            <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                    <Link key={creator.uid} href={`/creator/${creator.uid}`} className="block rounded-md transition-colors hover:bg-accent">
+                                        <div className="flex items-center gap-3 p-2">
+                                            <Avatar>
+                                                <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} />
+                                                <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium">{creator.displayName}</p>
+                                                <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </Link>
                                 ))}
                            </div>
                         ) : (
