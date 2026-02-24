@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/page-header';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Mail, Users, BarChart, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
