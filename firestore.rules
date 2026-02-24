@@ -25,16 +25,22 @@ service cloud.firestore {
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
       let requesterAgencyId = request.auth.token.primaryAgencyId;
-      let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-      return requesterAgencyId != null && targetUser.primaryAgencyId == requesterAgencyId;
+      if (requesterAgencyId == null) {
+        return false;
+      }
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data;
+      // Check if user is in the agency's talent array
+      return (agencyDoc.talent.filter(t, t.userId == targetUserId)).size() > 0;
     }
     
     // Helper to check if a creator has accepted a gig for the requesting agency
     function isGigAffiliated(userId) {
       let requesterAgencyId = request.auth.token.primaryAgencyId;
+      if (requesterAgencyId == null) {
+        return false;
+      }
       let userDoc = get(/databases/$(database)/documents/users/$(userId)).data;
-      return requesterAgencyId != null &&
-             'giggingForAgencies' in userDoc && 
+      return 'giggingForAgencies' in userDoc && 
              userDoc.giggingForAgencies.hasAny([requesterAgencyId]);
     }
 

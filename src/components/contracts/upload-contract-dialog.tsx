@@ -20,11 +20,11 @@ import { extractContractDetails, type ExtractContractDetailsOutput } from "@/ai/
 import { summarizeContractTerms, type SummarizeContractTermsOutput } from "@/ai/flows/summarize-contract-terms";
 import { getNegotiationSuggestions, type NegotiationSuggestionsOutput } from "@/ai/flows/negotiation-suggestions-flow";
 import { Loader2, UploadCloud, FileText, Wand2, AlertTriangle, ExternalLink, Sparkles, Users, PlusCircle, Trash2, DollarSign, Save } from "lucide-react";
-import type { Agency, Contract, PaymentMilestone } from "@/types";
+import type { Agency, Contract, PaymentMilestone, Talent, UserProfile } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc, getDocs } from '@/lib/firebase';
+import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Timestamp, storage, query, where, getDoc, doc, updateDoc, getDocs, writeBatch, arrayUnion, arrayRemove } from '@/lib/firebase';
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
@@ -318,25 +318,22 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         ownerId = user.uid;
         finalUserId = user.uid;
     } else if (agency) {
-        // This logic now applies to any agency member (owner, admin, member)
         if (selectedOwner === 'personal') {
             ownerType = 'agency';
             ownerId = agency.id;
-            finalUserId = user.uid; // The creator is the agency member making the contract
+            finalUserId = user.uid; 
         } else {
             ownerType = 'agency';
             ownerId = agency.id;
-            finalUserId = selectedOwner; // This is the talent's UID
+            finalUserId = selectedOwner; 
             talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
             accessMap[finalUserId] = 'talent';
         }
-        // Add all team members to access map for agency-owned contracts
         agency.team?.forEach(member => {
-            if (member.userId !== user.uid) { // Requesting user is already in as owner
+            if (member.userId !== user.uid) {
                 accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
             }
         });
-        // Ensure agency owner is always an owner on the contract
         if(agency.ownerId !== user.uid) {
           accessMap[agency.ownerId] = 'owner';
         }
@@ -344,6 +341,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
 
     try {
+      const batch = writeBatch(db);
+
       if (selectedFile) {
         const filePath = `contracts/${ownerId}/${Date.now()}_${selectedFile.name}`;
         const fileStorageRef = storageRefOriginal(storage, filePath);
@@ -390,10 +389,42 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       if (trimmedPaymentInstructions) { contractDataForFirestore.paymentInstructions = trimmedPaymentInstructions; }
       if (isRecurring) { contractDataForFirestore.isRecurring = true; if (recurrenceInterval) { contractDataForFirestore.recurrenceInterval = recurrenceInterval; }}
 
-      await addDoc(collection(db, 'contracts'), contractDataForFirestore);
+      const newContractRef = doc(collection(db, 'contracts'));
+      batch.set(newContractRef, contractDataForFirestore);
       
+      if (ownerType === 'agency' && selectedOwner !== 'personal' && initialSelectedOwner && agency) {
+        const agencyDocRef = doc(db, "agencies", agency.id);
+        const creatorDocRef = doc(db, 'users', finalUserId);
+
+        const agencySnap = await getDoc(agencyDocRef);
+        if (agencySnap.exists()) {
+            const agencyData = agencySnap.data() as Agency;
+            const isAlreadyTalent = agencyData.talent.some(t => t.userId === finalUserId);
+            
+            if (!isAlreadyTalent) {
+                const creatorDocSnap = await getDoc(creatorDocRef);
+                const creatorData = creatorDocSnap.data() as UserProfile;
+
+                const newTalentEntry: Talent = {
+                    userId: finalUserId,
+                    email: creatorData.email || 'unknown',
+                    displayName: creatorData.displayName || 'Creator',
+                    status: 'active',
+                    joinedAt: Timestamp.now(),
+                    commissionRate: 0, 
+                };
+                batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
+            }
+        }
+        
+        batch.update(creatorDocRef, { giggingForAgencies: arrayRemove(agency.id) });
+      }
+
       const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, { hasCreatedContract: true });
+      batch.update(userDocRef, { hasCreatedContract: true });
+      
+      await batch.commit();
+      
       await refreshAuthUser();
       
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
