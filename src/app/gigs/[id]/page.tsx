@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -127,7 +127,8 @@ export default function GigDetailPage() {
 
   const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
   const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
-  const isGigOwner = user ? gig.brandId === user.primaryAgencyId : false;
+  const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
+
 
   return (
     <>
@@ -158,7 +159,7 @@ export default function GigDetailPage() {
                 </CardContent>
             </Card>
 
-            {isGigOwner && (
+            {canManageGig && (
                  <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Accepted Creators</CardTitle>
@@ -207,7 +208,7 @@ export default function GigDetailPage() {
                         <Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={`capitalize ${gig.status === 'open' ? 'bg-green-500' : ''}`}>{gig.status}</Badge>
                     </div>
 
-                    {user && !isGigOwner && (
+                    {user && !canManageGig && (
                          hasAccepted ? (
                             <Button className="w-full" disabled>
                                 <CheckCircle className="mr-2 h-4 w-4" /> You've Accepted this Gig
@@ -224,8 +225,12 @@ export default function GigDetailPage() {
                          )
                     )}
 
-                    {isGigOwner && (
-                        <Button className="w-full" variant="outline">Manage Gig</Button>
+                    {canManageGig && (
+                        <Button asChild className="w-full" variant="outline">
+                            <Link href={`/gigs/${gig.id}/edit`}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                            </Link>
+                        </Button>
                     )}
                 </CardContent>
             </Card>
