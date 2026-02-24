@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -15,6 +14,7 @@ import { TalentRosterCard } from './talent-roster-card';
 import { PayoutHistoryCard } from './payout-history-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
+import { AgencyGigsCard } from './agency-gigs-card';
 
 interface AgencyDashboardProps {
   agency: Agency;
@@ -72,7 +72,7 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
       
       <TalentRosterCard agency={agency} />
       <TeamRosterCard agency={agency} />
-      
+      <AgencyGigsCard agencyId={agency.id} />
       <PayoutHistoryCard agencyId={agency.id} />
     </div>
   );
