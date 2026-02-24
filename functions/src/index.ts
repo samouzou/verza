@@ -1,4 +1,5 @@
 
+
 /**
  * Verza Contract Management Firebase Functions
  *
@@ -67,6 +68,7 @@ import {
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
+import { generateUgcAgreement } from "./gigs"; // Import new gig function
 
 // Export v2 functions
 export {
@@ -102,6 +104,7 @@ export {
   generateScene,
   generateImage,
   analyzeBrand,
+  generateUgcAgreement, // Export new gig function
 };
 
 // Import and export v1 auth trigger using require/exports

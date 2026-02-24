@@ -4,18 +4,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { httpsCallable } from 'firebase/functions';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function GigDetailPage() {
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gigId) {
@@ -107,6 +109,28 @@ export default function GigDetailPage() {
     }
   };
 
+  const handleGenerateAgreement = async (creatorId: string) => {
+    if (!gig) return;
+    setIsGenerating(creatorId);
+    toast({ title: "Generating Agreement...", description: "The AI is drafting the UGC agreement. This may take a moment." });
+    try {
+      const generateUgcAgreementCallable = httpsCallable(functions, 'generateUgcAgreement');
+      const result = await generateUgcAgreementCallable({ gigId: gig.id, creatorId });
+      const data = result.data as { success: boolean; contractId: string };
+      if (data.success) {
+        toast({ title: "Agreement Generated!", description: "The new contract is available in the contracts section." });
+        router.push(`/contracts/${data.contractId}`);
+      } else {
+        throw new Error("Failed to generate agreement.");
+      }
+    } catch (error: any) {
+      console.error("Error generating UGC agreement:", error);
+      toast({ title: "Generation Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setIsGenerating(null);
+    }
+  }
+
 
   if (isLoading || authLoading) {
     return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -169,8 +193,8 @@ export default function GigDetailPage() {
                         {acceptedCreators.length > 0 ? (
                            <div className="space-y-3">
                                 {acceptedCreators.map(creator => (
-                                    <Link key={creator.uid} href={`/creator/${creator.uid}`} className="block rounded-md transition-colors hover:bg-accent">
-                                        <div className="flex items-center gap-3 p-2">
+                                    <div key={creator.uid} className="flex items-center justify-between p-2 rounded-md transition-colors hover:bg-accent">
+                                        <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3">
                                             <Avatar>
                                                 <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} />
                                                 <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
@@ -179,8 +203,17 @@ export default function GigDetailPage() {
                                                 <p className="font-medium">{creator.displayName}</p>
                                                 <p className="text-xs text-muted-foreground">{creator.email}</p>
                                             </div>
-                                        </div>
-                                    </Link>
+                                        </Link>
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline"
+                                            onClick={() => handleGenerateAgreement(creator.uid)}
+                                            disabled={isGenerating === creator.uid}
+                                        >
+                                            {isGenerating === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                            Generate Agreement
+                                        </Button>
+                                    </div>
                                 ))}
                            </div>
                         ) : (

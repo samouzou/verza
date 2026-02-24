@@ -1,4 +1,5 @@
 
+
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
@@ -96,6 +97,9 @@ export interface Contract {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   access: { [key: string]: 'owner' | 'viewer' | 'talent' };
+  metadata?: {
+    gigId?: string;
+  };
 }
 
 export interface EmailLog {
