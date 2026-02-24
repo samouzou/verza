@@ -2,7 +2,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
-import type {Gig, UserProfile, Contract} from "../types";
+import type {Gig, UserProfileFirestoreData as UserProfile, Contract} from "../types";
 import {generateUgcContract} from "../ai/flows/generate-ugc-contract-flow";
 import {Timestamp} from "firebase-admin/firestore";
 import {v4 as uuidv4} from "uuid";
@@ -20,7 +20,7 @@ export const generateUgcAgreement = onCall(async (request) => {
 
   try {
     const gigDocRef = db.collection("gigs").doc(gigId);
-    const gigSnap = await getDoc(gigDocRef);
+    const gigSnap = await gigDocRef.get();
     if (!gigSnap.exists) {
       throw new HttpsError("not-found", "Gig not found.");
     }
@@ -32,7 +32,7 @@ export const generateUgcAgreement = onCall(async (request) => {
     }
 
     const creatorDocRef = db.collection("users").doc(creatorId);
-    const creatorSnap = await getDoc(creatorDocRef);
+    const creatorSnap = await creatorDocRef.get();
     if (!creatorSnap.exists) {
       throw new HttpsError("not-found", "Creator profile not found.");
     }
