@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
@@ -41,8 +40,8 @@ export default function PostGigPage() {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-        toast({ title: 'Authentication Error', variant: 'destructive' });
+    if (!user || !user.primaryAgencyId) {
+        toast({ title: 'Authentication or Agency Error', description: "You must be associated with an agency to post a gig.", variant: 'destructive' });
         return;
     }
     
@@ -56,9 +55,12 @@ export default function PostGigPage() {
     
     setIsSubmitting(true);
     try {
+      const agencyMembership = user.agencyMemberships?.find(m => m.agencyId === user.primaryAgencyId);
+      const brandName = agencyMembership?.agencyName || user.displayName || 'Anonymous Brand';
+
       const gigData = {
-        brandId: user.uid,
-        brandName: user.displayName || 'Anonymous Brand',
+        brandId: user.primaryAgencyId, // Use agency ID
+        brandName: brandName,
         brandLogoUrl: user.companyLogoUrl || null,
         title: title.trim(),
         description: description.trim(),
@@ -87,12 +89,14 @@ export default function PostGigPage() {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (!user || user.role !== 'agency_owner') {
+  const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin';
+
+  if (!user || !canPostGig) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground">Only agency owners can post new gigs.</p>
+        <p className="text-muted-foreground">Only agency owners or admins can post new gigs.</p>
       </div>
     );
   }

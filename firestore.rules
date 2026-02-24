@@ -79,9 +79,10 @@ service cloud.firestore {
     // Rules for gigs
     match /gigs/{gigId} {
       allow read: if request.auth != null;
-      allow create: if isOwner(request.resource.data.brandId);
-      // Allow update for now by owner, will be more complex later
-      allow update: if isOwner(resource.data.brandId);
+      // Allow create if user is an owner or admin of the agency the gig is for.
+      allow create: if (request.auth.token.isAgencyOwner == true || request.auth.token.isAgencyAdmin == true) && request.auth.token.primaryAgencyId == request.resource.data.brandId;
+      // Allow update for now by owner/admin, will be more complex later
+      allow update: if (request.auth.token.isAgencyOwner == true || request.auth.token.isAgencyAdmin == true) && request.auth.token.primaryAgencyId == resource.data.brandId;
     }
 
     // Rules for brand_research collection
