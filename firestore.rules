@@ -89,8 +89,24 @@ service cloud.firestore {
     // Rules for gigs
     match /gigs/{gigId} {
       allow read: if request.auth != null;
-      // Allow create/update if user is an owner, admin, or member of the agency the gig is for.
-      allow create, update: if isTeamMemberOf(request.resource.data.brandId);
+      // Allow create if user is a team member of the agency the gig is for.
+      allow create: if isTeamMemberOf(request.resource.data.brandId);
+      // Allow update for two cases:
+      // 1. A team member is editing the gig details.
+      // 2. A creator is accepting the gig.
+      allow update: if 
+        (isTeamMemberOf(resource.data.brandId)) || 
+        (
+          request.auth != null &&
+          resource.data.status == 'open' &&
+          resource.data.acceptedCreatorIds.size() < resource.data.creatorsNeeded &&
+          request.resource.data.acceptedCreatorIds == resource.data.acceptedCreatorIds.concat([request.auth.uid]) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'status']) &&
+          (
+            request.resource.data.status == resource.data.status ||
+            (request.resource.data.status == 'in-progress' && request.resource.data.acceptedCreatorIds.size() == resource.data.creatorsNeeded)
+          )
+        );
     }
 
     // Rules for brand_research collection
