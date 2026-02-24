@@ -194,6 +194,7 @@ export interface UserProfileFirestoreData {
   isAgencyOwner?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
+  giggingForAgencies?: string[];
 
   // Subscription Fields
   stripeCustomerId?: string | null;

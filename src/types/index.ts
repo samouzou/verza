@@ -1,7 +1,6 @@
 
 
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
-import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
 export interface PaymentMilestone {
   id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
@@ -72,7 +71,6 @@ export interface Contract {
   previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
-  negotiationSuggestions?: NegotiationSuggestionsOutput | null;
   
   // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
@@ -194,6 +192,7 @@ export interface UserProfileFirestoreData {
   isAgencyOwner?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
+  giggingForAgencies?: string[];
 
   // Subscription Fields
   stripeCustomerId?: string | null;

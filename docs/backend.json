@@ -48,6 +48,13 @@
         "contentType": {
             "type": ["string", "null"],
             "enum": ["Tech", "Fashion", "Comedy", "Gaming", "Lifestyle", "Food", null]
+        },
+        "giggingForAgencies": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "A list of agency IDs for which the creator has accepted a gig but is not yet official talent."
         }
       },
       "required": ["uid", "email"]

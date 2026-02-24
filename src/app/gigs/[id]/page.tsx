@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig } from '@/types';
@@ -77,6 +77,7 @@ export default function GigDetailPage() {
 
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
+    const userDocRef = doc(db, 'users', user.uid);
 
     try {
       // Re-fetch to ensure we have the latest data before updating
@@ -103,6 +104,9 @@ export default function GigDetailPage() {
       }
 
       await updateDoc(gigDocRef, updates);
+      await updateDoc(userDocRef, {
+          giggingForAgencies: arrayUnion(currentGigData.brandId)
+      });
       
       toast({ title: "Gig Accepted!", description: "You have successfully accepted this gig." });
       
