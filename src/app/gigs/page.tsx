@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -60,7 +61,7 @@ export default function GigsPage() {
     return () => unsubscribe();
   }, [user, authLoading]);
 
-  const canPostGig = user?.role === 'agency_owner'; // Or maybe brand role later
+  const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
   return (
     <>
