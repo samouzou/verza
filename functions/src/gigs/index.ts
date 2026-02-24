@@ -54,7 +54,7 @@ export const generateUgcAgreement = onCall(async (request) => {
     if (!existingContracts.empty) {
       throw new HttpsError("already-exists", "A contract for this gig and creator already exists.");
     }
-    
+
     // --- New Logic: Add creator to agency roster if not already present ---
     const agencyDocRef = db.collection("agencies").doc(gigData.brandId);
     const agencySnap = await agencyDocRef.get();
@@ -62,18 +62,18 @@ export const generateUgcAgreement = onCall(async (request) => {
       throw new HttpsError("not-found", "The agency associated with this gig no longer exists.");
     }
     const agencyData = agencySnap.data() as Agency;
-    const isAlreadyTalent = agencyData.talent.some(t => t.userId === creatorId);
+    const isAlreadyTalent = agencyData.talent.some((t) => t.userId === creatorId);
 
     if (!isAlreadyTalent) {
       const newTalent: Talent = {
         userId: creatorId,
-        email: creatorData.email || 'unknown',
-        displayName: creatorData.displayName || 'Creator',
-        status: 'active',
-        joinedAt: Timestamp.now() as any
+        email: creatorData.email || "unknown",
+        displayName: creatorData.displayName || "Creator",
+        status: "active",
+        joinedAt: Timestamp.now() as any,
       };
       await agencyDocRef.update({
-        talent: admin.firestore.FieldValue.arrayUnion(newTalent)
+        talent: admin.firestore.FieldValue.arrayUnion(newTalent),
       });
       logger.info(`Creator ${creatorId} auto-added to agency ${agencyData.id} roster from gig.`);
     }
@@ -85,17 +85,17 @@ export const generateUgcAgreement = onCall(async (request) => {
       gigDescription: gigData.description,
       rate: gigData.ratePerCreator,
     });
-    
+
     // --- New Logic: Build correct access map ---
     const accessMap: { [key: string]: "owner" | "viewer" | "talent" } = {
       [creatorId]: "talent", // The creator is the talent on the contract
     };
     // Grant owner access to the agency owner
-    accessMap[agencyData.ownerId] = 'owner';
+    accessMap[agencyData.ownerId] = "owner";
     // Grant access to all active team members
-    agencyData.team?.forEach(member => {
-      if (member.status === 'active') {
-        accessMap[member.userId] = member.role === 'admin' ? 'owner' : 'viewer';
+    agencyData.team?.forEach((member) => {
+      if (member.status === "active") {
+        accessMap[member.userId] = member.role === "admin" ? "owner" : "viewer";
       }
     });
 
