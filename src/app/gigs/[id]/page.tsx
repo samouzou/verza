@@ -204,16 +204,16 @@ export default function GigDetailPage() {
                            <div className="space-y-3">
                                 {acceptedCreators.map(creator => (
                                     <div key={creator.uid} className="flex items-center justify-between p-2 rounded-md transition-colors hover:bg-accent">
-                                        <div className="flex items-center gap-3">
+                                        <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3 group">
                                             <Avatar>
-                                                <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} />
+                                                <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} data-ai-hint="person" />
                                                 <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <p className="font-medium">{creator.displayName}</p>
+                                                <p className="font-medium group-hover:underline">{creator.displayName}</p>
                                                 <p className="text-xs text-muted-foreground">{creator.email}</p>
                                             </div>
-                                        </div>
+                                        </Link>
                                         <Button 
                                             size="sm" 
                                             variant="outline"
