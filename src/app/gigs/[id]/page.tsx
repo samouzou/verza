@@ -1,0 +1,190 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/use-auth';
+import type { Gig } from '@/types';
+import { PageHeader } from '@/components/page-header';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
+import Image from 'next/image';
+
+export default function GigDetailPage() {
+  const params = useParams();
+  const gigId = params.id as string;
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
+
+  const [gig, setGig] = useState<Gig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  useEffect(() => {
+    if (!gigId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const gigDocRef = doc(db, 'gigs', gigId);
+    const unsubscribe = onSnapshot(gigDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
+      } else {
+        setGig(null);
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching gig:", error);
+      toast({ title: "Error", description: "Could not fetch gig details.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [gigId, toast]);
+
+  const handleAcceptGig = async () => {
+    if (!user || !gig) return;
+
+    setIsAccepting(true);
+    const gigDocRef = doc(db, 'gigs', gig.id);
+
+    try {
+      // Re-fetch to ensure we have the latest data before updating
+      const currentGigSnap = await getDoc(gigDocRef);
+      if (!currentGigSnap.exists()) throw new Error("Gig no longer exists.");
+
+      const currentGigData = currentGigSnap.data() as Gig;
+
+      if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) {
+        throw new Error("Sorry, all spots for this gig have been filled.");
+      }
+      if (currentGigData.acceptedCreatorIds.includes(user.uid)) {
+        throw new Error("You have already accepted this gig.");
+      }
+
+      const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
+      
+      const updates: Partial<Gig> = {
+        acceptedCreatorIds: newAcceptedIds
+      };
+
+      if (newAcceptedIds.length === currentGigData.creatorsNeeded) {
+        updates.status = 'in-progress';
+      }
+
+      await updateDoc(gigDocRef, updates);
+      
+      toast({ title: "Gig Accepted!", description: "You have successfully accepted this gig." });
+      
+    } catch (error: any) {
+      console.error("Error accepting gig:", error);
+      toast({ title: "Failed to Accept Gig", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+
+  if (isLoading || authLoading) {
+    return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+  }
+
+  if (!gig) {
+    return (
+      <div className="text-center py-10">
+        <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
+        <h3 className="mt-4 text-lg font-medium">Gig Not Found</h3>
+        <p className="mt-1 text-sm text-muted-foreground">The gig you are looking for does not exist or has been removed.</p>
+        <Button asChild variant="outline" className="mt-4">
+            <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Gig Board</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
+  const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
+  const isGigOwner = user ? gig.brandId === user.primaryAgencyId : false;
+
+  return (
+    <>
+      <PageHeader
+        title={gig.title}
+        description={`Posted by ${gig.brandName}`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Gig Board</Link>
+          </Button>
+        }
+      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Project Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt={`${gig.brandName} logo`} width={80} height={80} className="rounded-md" data-ai-hint="logo" />}
+                    <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
+                    <div>
+                        <h4 className="font-semibold mb-2">Platforms</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {gig.platforms.map(platform => <Badge key={platform} variant="secondary">{platform}</Badge>)}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+        <div className="lg:col-span-1 space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Gig Overview</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Rate per Creator</span>
+                        <span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span>
+                    </div>
+                     <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Spots Remaining</span>
+                        <span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Status</span>
+                        <Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={`capitalize ${gig.status === 'open' ? 'bg-green-500' : ''}`}>{gig.status}</Badge>
+                    </div>
+
+                    {user && !isGigOwner && (
+                         hasAccepted ? (
+                            <Button className="w-full" disabled>
+                                <CheckCircle className="mr-2 h-4 w-4" /> You've Accepted this Gig
+                            </Button>
+                         ) : spotsLeft > 0 ? (
+                            <Button className="w-full" onClick={handleAcceptGig} disabled={isAccepting}>
+                                {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Accept Gig
+                            </Button>
+                         ) : (
+                             <Button className="w-full" disabled>
+                                Gig Full
+                             </Button>
+                         )
+                    )}
+
+                    {isGigOwner && (
+                        <Button className="w-full" variant="outline">Manage Gig</Button>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+      </div>
+    </>
+  );
+}
