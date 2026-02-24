@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -13,8 +14,9 @@ import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import type { Agency } from '@/types';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -55,11 +57,12 @@ export default function PostGigPage() {
     
     setIsSubmitting(true);
     try {
-      const agencyMembership = user.agencyMemberships?.find(m => m.agencyId === user.primaryAgencyId);
-      const brandName = agencyMembership?.agencyName || user.displayName || 'Anonymous Brand';
+      const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
+      const agencySnap = await getDoc(agencyDocRef);
+      const brandName = agencySnap.exists() ? (agencySnap.data() as Agency).name : user.displayName || 'Anonymous Brand';
 
       const gigData = {
-        brandId: user.primaryAgencyId, // Use agency ID
+        brandId: user.primaryAgencyId,
         brandName: brandName,
         brandLogoUrl: user.companyLogoUrl || null,
         title: title.trim(),
@@ -89,14 +92,14 @@ export default function PostGigPage() {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin';
+  const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
   if (!user || !canPostGig) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground">Only agency owners or admins can post new gigs.</p>
+        <p className="text-muted-foreground">Only agency team members can post new gigs.</p>
       </div>
     );
   }

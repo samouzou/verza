@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -11,6 +12,15 @@ service cloud.firestore {
     // Helper function to check if the requester is part of the specified agency via custom claims
     function isMemberOfAgency(agencyId) {
       return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
+    }
+
+    // Helper to check if the user is a team member (owner, admin, or member) of the specified agency
+    function isTeamMemberOf(agencyId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // Check if user's primary agency matches and their role is one of the team roles
+      return request.auth != null && 
+             userDoc.primaryAgencyId == agencyId &&
+             (userDoc.role == "agency_owner" || userDoc.role == "agency_admin" || userDoc.role == "agency_member");
     }
 
     // Helper to determine if the target user is a talent in the requester's agency
@@ -79,10 +89,8 @@ service cloud.firestore {
     // Rules for gigs
     match /gigs/{gigId} {
       allow read: if request.auth != null;
-      // Allow create if user is an owner or admin of the agency the gig is for.
-      allow create: if (request.auth.token.isAgencyOwner == true || request.auth.token.isAgencyAdmin == true) && request.auth.token.primaryAgencyId == request.resource.data.brandId;
-      // Allow update for now by owner/admin, will be more complex later
-      allow update: if (request.auth.token.isAgencyOwner == true || request.auth.token.isAgencyAdmin == true) && request.auth.token.primaryAgencyId == resource.data.brandId;
+      // Allow create/update if user is an owner, admin, or member of the agency the gig is for.
+      allow create, update: if isTeamMemberOf(request.resource.data.brandId);
     }
 
     // Rules for brand_research collection
