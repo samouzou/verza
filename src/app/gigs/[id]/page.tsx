@@ -95,15 +95,15 @@ export default function GigDetailPage() {
 
       const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
       
-      const updates: Partial<Gig> = {
+      const gigUpdates: Partial<Gig> = {
         acceptedCreatorIds: newAcceptedIds
       };
 
       if (newAcceptedIds.length === currentGigData.creatorsNeeded) {
-        updates.status = 'in-progress';
+        gigUpdates.status = 'in-progress';
       }
 
-      await updateDoc(gigDocRef, updates);
+      await updateDoc(gigDocRef, gigUpdates);
       await updateDoc(userDocRef, {
           giggingForAgencies: arrayUnion(currentGigData.brandId)
       });

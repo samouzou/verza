@@ -24,23 +24,18 @@ service cloud.firestore {
 
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
-        let requesterAgencyId = request.auth.token.primaryAgencyId;
-        if (requesterAgencyId == null) {
-          return false;
-        }
-        let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-        return targetUser.primaryAgencyId == requesterAgencyId;
+      let requesterAgencyId = request.auth.token.primaryAgencyId;
+      let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
+      return requesterAgencyId != null && targetUser.primaryAgencyId == requesterAgencyId;
     }
     
     // Helper to check if a creator has accepted a gig for the requesting agency
     function isGigAffiliated(userId) {
       let requesterAgencyId = request.auth.token.primaryAgencyId;
-      if (requesterAgencyId == null) {
-        return false;
-      }
       let userDoc = get(/databases/$(database)/documents/users/$(userId)).data;
-      // Check if giggingForAgencies exists and contains the requester's agencyId
-      return 'giggingForAgencies' in userDoc && userDoc.giggingForAgencies.hasAny([requesterAgencyId]);
+      return requesterAgencyId != null &&
+             'giggingForAgencies' in userDoc && 
+             userDoc.giggingForAgencies.hasAny([requesterAgencyId]);
     }
 
     // Helper to check if a user can access a receipt, either by being the owner
@@ -84,7 +79,7 @@ service cloud.firestore {
         // Allow read if the user is the direct owner OR their UID is in the access map.
         allow read: if isOwner(resource.data.userId) || request.auth.uid in resource.data.access;
         // Allow write/update/delete if user is direct owner OR their UID is in the 'access' map OR is the subject of the contract.
-        allow update, delete: if isOwner(resource.data.userId) || request.auth.uid in resource.data.access;
+        allow update, delete: if isOwner(resource.data.userId) || request.auth.uid in resource.data.access || isOwner(resource.data.userId);
         // Allow create if the user's UID is in the new document's access map OR if they are the direct user.
         allow create: if isOwner(request.resource.data.userId) || request.auth.uid in request.resource.data.access;
     }
