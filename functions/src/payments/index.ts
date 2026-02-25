@@ -1,5 +1,6 @@
 
 
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -965,9 +966,9 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
       try {
         const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-        const brandName = agencyDoc.exists() ? (agencyDoc.data() as Agency).name : "Unknown Brand";
+        const brandName = agencyDoc.exists ? (agencyDoc.data() as Agency).name : "Unknown Brand";
         const userDoc = await db.collection("users").doc(firebaseUID).get();
-        const brandLogoUrl = userDoc.exists() ? (userDoc.data() as UserProfileFirestoreData).companyLogoUrl : null;
+        const brandLogoUrl = userDoc.exists ? (userDoc.data() as UserProfileFirestoreData).companyLogoUrl : null;
 
         const parsedGigData = JSON.parse(gigData);
 
