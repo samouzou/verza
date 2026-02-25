@@ -3,15 +3,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion } from 'firebase/firestore';
-import { functions, db } from '@/lib/firebase';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp } from 'firebase/firestore';
+import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig } from '@/types';
+import type { Gig, GigSubmission } from '@/types';
 import { PageHeader } from '@/components/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -19,6 +19,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
 import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 import { httpsCallable } from 'firebase/functions';
+import { runGauntlet } from '@/ai/flows/gauntlet-flow';
+import { Progress } from '@/components/ui/progress';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -29,6 +31,7 @@ export default function GigDetailPage() {
 
   const [gig, setGig] = useState<Gig | null>(null);
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
+  const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
@@ -36,6 +39,12 @@ export default function GigDetailPage() {
   
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
+
+  // Submission State
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isRunningGauntlet, setIsRunningGauntlet] = useState(false);
+  const [activeSubmission, setActiveSubmission] = useState<GigSubmission | null>(null);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
 
@@ -46,7 +55,7 @@ export default function GigDetailPage() {
     }
 
     const gigDocRef = doc(db, 'gigs', gigId);
-    const unsubscribe = onSnapshot(gigDocRef, (docSnap) => {
+    const unsubscribeGig = onSnapshot(gigDocRef, (docSnap) => {
       if (docSnap.exists()) {
         setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
       } else {
@@ -59,8 +68,22 @@ export default function GigDetailPage() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [gigId, toast]);
+    const submissionsQuery = query(collection(db, 'submissions'), where('gigId', '==', gigId));
+    const unsubscribeSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
+      const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
+      setSubmissions(subs);
+      
+      if (user) {
+        const mySub = subs.find(s => s.creatorId === user.uid);
+        setActiveSubmission(mySub || null);
+      }
+    });
+
+    return () => {
+      unsubscribeGig();
+      unsubscribeSubmissions();
+    };
+  }, [gigId, user, toast]);
 
   useEffect(() => {
     if (gig && gig.acceptedCreatorIds.length > 0) {
@@ -77,72 +100,110 @@ export default function GigDetailPage() {
 
   const handleAcceptGig = async () => {
     if (!user || !gig) return;
-
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
     const userDocRef = doc(db, 'users', user.uid);
-
     try {
-      // Re-fetch to ensure we have the latest data before updating
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Gig no longer exists.");
-
       const currentGigData = currentGigSnap.data() as Gig;
-
-      if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) {
-        throw new Error("Sorry, all spots for this gig have been filled.");
-      }
-      if (currentGigData.acceptedCreatorIds.includes(user.uid)) {
-        throw new Error("You have already accepted this gig.");
-      }
-
+      if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) throw new Error("Gig is full.");
+      if (currentGigData.acceptedCreatorIds.includes(user.uid)) throw new Error("Already accepted.");
       const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
-      
-      const gigUpdates: Partial<Gig> = {
-        acceptedCreatorIds: newAcceptedIds
-      };
-
-      if (newAcceptedIds.length === currentGigData.creatorsNeeded) {
-        gigUpdates.status = 'in-progress';
-      }
-
+      const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
+      if (newAcceptedIds.length === currentGigData.creatorsNeeded) gigUpdates.status = 'in-progress';
       await updateDoc(gigDocRef, gigUpdates);
-      await updateDoc(userDocRef, {
-          giggingForAgencies: arrayUnion(currentGigData.brandId)
-      });
-      
-      toast({ title: "Gig Accepted!", description: "You have successfully accepted this gig." });
-      
+      await updateDoc(userDocRef, { giggingForAgencies: arrayUnion(currentGigData.brandId) });
+      toast({ title: "Gig Accepted!" });
     } catch (error: any) {
-      console.error("Error accepting gig:", error);
-      toast({ title: "Failed to Accept Gig", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsAccepting(false);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !gig) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Videos must be under 50MB.", variant: "destructive" });
+      return;
+    }
+    setVideoFile(file);
+    setIsUploading(true);
+    try {
+      const path = `submissions/${gig.id}/${user.uid}/${Date.now()}_${file.name}`;
+      const fileRef = storageRef(storage, path);
+      const uploadResult = await uploadBytes(fileRef, file);
+      const videoUrl = await getDownloadURL(uploadResult.ref);
+
+      const subData: Omit<GigSubmission, 'id'> = {
+        gigId: gig.id,
+        creatorId: user.uid,
+        creatorName: user.displayName || 'Creator',
+        creatorAvatarUrl: user.avatarUrl || null,
+        videoUrl,
+        gauntletScore: 0,
+        gauntletFeedback: "",
+        status: 'pending_gauntlet',
+        createdAt: serverTimestamp() as any,
+      };
+
+      if (activeSubmission) {
+        await updateDoc(doc(db, 'submissions', activeSubmission.id), subData);
+      } else {
+        await addDoc(collection(db, 'submissions'), subData);
+      }
+      toast({ title: "Upload successful!", description: "Now run the Gauntlet to verify your work." });
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRunGauntlet = async () => {
+    if (!activeSubmission) return;
+    setIsRunningGauntlet(true);
+    toast({ title: "The Gauntlet is judging...", description: "Simulating 10,000 scrollers..." });
+    try {
+      const result = await runGauntlet({ videoUrl: activeSubmission.videoUrl });
+      const subRef = doc(db, 'submissions', activeSubmission.id);
+      
+      const updates: Partial<GigSubmission> = {
+        gauntletScore: result.score,
+        gauntletFeedback: result.feedback,
+        status: result.score >= 65 ? 'submitted' : 'rejected'
+      };
+
+      await updateDoc(subRef, updates);
+
+      if (result.score >= 65) {
+        toast({ title: "GAUNTLET PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
+      } else {
+        toast({ title: "GAUNTLET FAILED", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Gauntlet Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsRunningGauntlet(false);
     }
   };
 
   const handleGenerateAgreement = async (creator: UserProfile) => {
     if (!gig) return;
     setIsGenerating(creator.uid);
-    toast({ title: "Generating Agreement...", description: "The AI is drafting the UGC agreement. This may take a moment." });
     try {
       const { contractSfdt } = await generateUgcContract({
-        brandName: gig.brandName,
-        creatorName: creator.displayName || 'The Creator',
-        gigDescription: gig.description,
-        rate: gig.ratePerCreator,
+        brandName: gig.brandName, creatorName: creator.displayName || 'The Creator', gigDescription: gig.description, rate: gig.ratePerCreator,
       });
-
       if (contractSfdt) {
         setContractGenData({ sfdt: contractSfdt, talent: creator });
-        setIsContractDialogOpen(true); // Open the dialog
-        toast({ title: "Agreement Drafted!", description: "Review and save the AI-generated contract." });
-      } else {
-        throw new Error("AI did not return contract data.");
+        setIsContractDialogOpen(true);
       }
     } catch (error: any) {
-      console.error("Error generating UGC agreement:", error);
-      toast({ title: "Generation Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsGenerating(null);
     }
@@ -153,114 +214,175 @@ export default function GigDetailPage() {
     setIsPaying(creator.uid);
     try {
       await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
-      toast({ title: "Payout Processing!", description: `Payment of $${gig.ratePerCreator} is being sent to ${creator.displayName}.` });
+      const sub = submissions.find(s => s.creatorId === creator.uid && s.status === 'submitted');
+      if (sub) await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
+      toast({ title: "Payout Processing!", description: "Creator has been paid." });
     } catch (error: any) {
-      console.error("Error processing payout:", error);
-      toast({ title: "Payout Failed", description: error.message || "Could not process the payout.", variant: "destructive" });
+      toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsPaying(null);
     }
   };
 
-
-  if (isLoading || authLoading) {
-    return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  }
-
-  if (!gig) {
-    return (
-      <div className="text-center py-10">
-        <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
-        <h3 className="mt-4 text-lg font-medium">Gig Not Found</h3>
-        <p className="mt-1 text-sm text-muted-foreground">The gig you are looking for does not exist or has been removed.</p>
-        <Button asChild variant="outline" className="mt-4">
-            <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Gig Board</Link>
-        </Button>
-      </div>
-    );
-  }
+  if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+  if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Gig Not Found</h3></div>;
 
   const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
   const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
-
 
   return (
     <>
       <PageHeader
         title={gig.title}
         description={`Posted by ${gig.brandName}`}
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Gig Board</Link>
-          </Button>
-        }
+        actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
             <Card>
-                <CardHeader>
-                    <CardTitle>Project Details</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle>Project Details</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt={`${gig.brandName} logo`} width={80} height={80} className="rounded-md" data-ai-hint="logo" />}
+                    {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
                     <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
-                    <div>
-                        <h4 className="font-semibold mb-2">Platforms</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {gig.platforms.map(platform => <Badge key={platform} variant="secondary">{platform}</Badge>)}
-                        </div>
-                    </div>
+                    <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
                 </CardContent>
             </Card>
+
+            {hasAccepted && !canManageGig && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> Submit Your Work</CardTitle>
+                  <CardDescription>Upload your video and run the Gauntlet to submit it to the brand.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {activeSubmission ? (
+                    <div className="space-y-4">
+                      <div className="aspect-video bg-black rounded-lg overflow-hidden relative group">
+                        <video src={activeSubmission.videoUrl} controls className="w-full h-full" />
+                        <div className="absolute top-2 right-2 flex gap-2">
+                           <Badge variant={activeSubmission.status === 'submitted' ? 'default' : 'secondary'} className={activeSubmission.status === 'submitted' ? 'bg-green-500' : ''}>
+                             {activeSubmission.status.replace('_', ' ')}
+                           </Badge>
+                        </div>
+                      </div>
+                      
+                      {activeSubmission.status === 'pending_gauntlet' || activeSubmission.status === 'rejected' ? (
+                        <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-semibold">Gauntlet Verification</h4>
+                            {activeSubmission.gauntletScore > 0 && <Badge variant={activeSubmission.status === 'rejected' ? 'destructive' : 'default'}>{activeSubmission.gauntletScore}%</Badge>}
+                          </div>
+                          {activeSubmission.gauntletFeedback && (
+                            <p className="text-sm italic text-muted-foreground">"{activeSubmission.gauntletFeedback}"</p>
+                          )}
+                          <Button className="w-full" onClick={handleRunGauntlet} disabled={isRunningGauntlet}>
+                            {isRunningGauntlet ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
+                            Run The Gauntlet
+                          </Button>
+                          <p className="text-xs text-center text-muted-foreground">65% minimum required to submit to brand.</p>
+                        </div>
+                      ) : (
+                        <div className="p-4 border rounded-lg bg-green-500/10 text-green-700 flex items-center gap-3">
+                          <CheckCircle className="h-5 w-5"/>
+                          <p className="text-sm font-medium">Verified & Submitted! Score: {activeSubmission.gauntletScore}%</p>
+                        </div>
+                      )}
+                      
+                      {activeSubmission.status !== 'approved' && (
+                        <div className="pt-2">
+                          <Label htmlFor="video-reupload" className="cursor-pointer text-xs text-primary hover:underline flex items-center gap-1">
+                            <UploadCloud className="h-3 w-3"/> Re-upload Video
+                          </Label>
+                          <input id="video-reupload" type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleVideoUpload} disabled={isUploading || isRunningGauntlet}/>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg">
+                      <input id="video-upload" type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleVideoUpload} disabled={isUploading}/>
+                      <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                        <div className="p-4 bg-muted rounded-full">
+                          {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-primary"/> : <UploadCloud className="h-8 w-8 text-primary"/>}
+                        </div>
+                        <div className="text-center">
+                          <p className="font-medium">{isUploading ? 'Uploading...' : 'Click to upload your video'}</p>
+                          <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {canManageGig && (
                  <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Accepted Creators</CardTitle>
-                        <CardDescription>This roster is only visible to you.</CardDescription>
+                        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Creator Roster & Submissions</CardTitle>
+                        <CardDescription>Manage accepted creators and review their work.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {acceptedCreators.length > 0 ? (
-                           <div className="space-y-3">
+                           <div className="space-y-6">
                                 {acceptedCreators.map(creator => {
                                   const isPaid = gig.paidCreatorIds?.includes(creator.uid);
+                                  const submission = submissions.find(s => s.creatorId === creator.uid);
                                   return (
-                                    <div key={creator.uid} className="flex items-center justify-between p-2 rounded-md transition-colors hover:bg-accent">
-                                        <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3 group">
+                                    <Card key={creator.uid} className="border bg-muted/30">
+                                      <CardContent className="p-4">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                          <div className="flex items-center gap-3">
                                             <Avatar>
-                                                <AvatarImage src={creator.avatarUrl || ''} alt={creator.displayName || ''} data-ai-hint="person" />
-                                                <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
+                                              <AvatarImage src={creator.avatarUrl || ''} />
+                                              <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <p className="font-medium group-hover:underline">{creator.displayName}</p>
-                                                <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                              <p className="font-semibold">{creator.displayName}</p>
+                                              <p className="text-xs text-muted-foreground">{creator.email}</p>
                                             </div>
-                                        </Link>
-                                        <div className="flex items-center gap-2">
-                                          <Button 
-                                              size="sm" 
-                                              variant="outline"
-                                              onClick={() => handleGenerateAgreement(creator)}
-                                              disabled={isGenerating === creator.uid || isPaying === creator.uid}
-                                          >
-                                              {isGenerating === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                              Agreement
-                                          </Button>
-                                          {isPaid ? (
-                                            <Badge variant="default" className="bg-green-500">Paid</Badge>
-                                          ) : (
-                                            <Button 
-                                                size="sm"
-                                                onClick={() => handlePayout(creator)}
-                                                disabled={isPaying === creator.uid || isGenerating === creator.uid}
-                                            >
-                                                {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                                                Approve & Pay
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
+                                              {isGenerating === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4 mr-1"/>} Agreement
                                             </Button>
-                                          )}
+                                            {isPaid ? (
+                                              <Badge variant="default" className="bg-green-500">Paid</Badge>
+                                            ) : (
+                                              <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || submission?.status !== 'submitted'}>
+                                                {isPaying === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
+                                              </Button>
+                                            )}
+                                          </div>
                                         </div>
-                                    </div>
+
+                                        {submission ? (
+                                          <div className="mt-4 p-3 bg-background rounded-md border space-y-3">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-medium flex items-center gap-2">
+                                                <Play className="h-4 w-4 text-primary"/> Submission Work
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="gap-1"><Trophy className="h-3 w-3 text-yellow-500"/> Gauntlet: {submission.gauntletScore}%</Badge>
+                                                <Button size="sm" variant="ghost" className="h-7 px-2" asChild>
+                                                  <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
+                                                    <Download className="h-4 w-4"/>
+                                                  </a>
+                                                </Button>
+                                              </div>
+                                            </div>
+                                            <video src={submission.videoUrl} controls className="w-full rounded-md max-h-64 bg-black" />
+                                            {submission.gauntletFeedback && (
+                                              <p className="text-xs text-muted-foreground italic">Gauntlet logic: {submission.gauntletFeedback}</p>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="mt-4 py-4 text-center border-2 border-dashed rounded-md">
+                                            <p className="text-xs text-muted-foreground">Waiting for submission...</p>
+                                          </div>
+                                        )}
+                                      </CardContent>
+                                    </Card>
                                   )
                                 })}
                            </div>
@@ -270,64 +392,22 @@ export default function GigDetailPage() {
                     </CardContent>
                  </Card>
             )}
-
         </div>
         <div className="lg:col-span-1 space-y-6">
             <Card>
-                <CardHeader>
-                    <CardTitle>Gig Overview</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Rate per Creator</span>
-                        <span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span>
-                    </div>
-                     <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Spots Remaining</span>
-                        <span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Status</span>
-                        <Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={`capitalize ${gig.status === 'open' ? 'bg-green-500' : ''}`}>{gig.status}</Badge>
-                    </div>
-
-                    {user && !canManageGig && (
-                         hasAccepted ? (
-                            <Button className="w-full" disabled>
-                                <CheckCircle className="mr-2 h-4 w-4" /> You've Accepted this Gig
-                            </Button>
-                         ) : spotsLeft > 0 ? (
-                            <Button className="w-full" onClick={handleAcceptGig} disabled={isAccepting}>
-                                {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Accept Gig
-                            </Button>
-                         ) : (
-                             <Button className="w-full" disabled>
-                                Gig Full
-                             </Button>
-                         )
-                    )}
-
-                    {canManageGig && (
-                        <Button asChild className="w-full" variant="outline">
-                            <Link href={`/gigs/${gig.id}/edit`}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit Gig
-                            </Link>
-                        </Button>
-                    )}
+                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status}</Badge></div>
+                    {user && !canManageGig && (hasAccepted ? <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button> : spotsLeft > 0 ? <Button className="w-full" onClick={handleAcceptGig} disabled={isAccepting}>{isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Accept Gig</Button> : <Button className="w-full" disabled>Gig Full</Button>)}
+                    {canManageGig && <Button asChild className="w-full" variant="outline"><Link href={`/gigs/${gig.id}/edit`}><Edit className="mr-2 h-4 w-4" /> Edit Gig</Link></Button>}
                 </CardContent>
             </Card>
         </div>
       </div>
       {contractGenData && (
-        <UploadContractDialog
-          isOpen={isContractDialogOpen}
-          onOpenChange={setIsContractDialogOpen}
-          initialSFDT={contractGenData.sfdt}
-          initialSelectedOwner={contractGenData.talent.uid}
-          initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`}
-          affiliatedCreator={contractGenData.talent}
-        />
+        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.uid} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
       )}
     </>
   );

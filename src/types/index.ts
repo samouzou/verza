@@ -442,3 +442,16 @@ export interface CreatorMarketplaceProfile {
   followers: number;
   engagementRate: number;
 }
+
+export interface GigSubmission {
+  id: string;
+  gigId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorAvatarUrl?: string | null;
+  videoUrl: string;
+  gauntletScore: number;
+  gauntletFeedback: string;
+  status: 'pending_gauntlet' | 'submitted' | 'approved' | 'rejected';
+  createdAt: ClientTimestamp;
+}
