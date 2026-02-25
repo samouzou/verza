@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,6 +20,8 @@ import { UploadContractDialog } from '@/components/contracts/upload-contract-dia
 import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { Progress } from '@/components/ui/progress';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -55,29 +56,44 @@ export default function GigDetailPage() {
     }
 
     const gigDocRef = doc(db, 'gigs', gigId);
-    const unsubscribeGig = onSnapshot(gigDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
-      } else {
-        setGig(null);
+    const unsubscribeGig = onSnapshot(gigDocRef, 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
+        } else {
+          setGig(null);
+        }
+        setIsLoading(false);
+      }, 
+      async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: gigDocRef.path,
+          operation: 'get',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching gig:", error);
-      toast({ title: "Error", description: "Could not fetch gig details.", variant: "destructive" });
-      setIsLoading(false);
-    });
+    );
 
     const submissionsQuery = query(collection(db, 'submissions'), where('gigId', '==', gigId));
-    const unsubscribeSubmissions = onSnapshot(submissionsQuery, (snapshot) => {
-      const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
-      setSubmissions(subs);
-      
-      if (user) {
-        const mySub = subs.find(s => s.creatorId === user.uid);
-        setActiveSubmission(mySub || null);
+    const unsubscribeSubmissions = onSnapshot(submissionsQuery, 
+      (snapshot) => {
+        const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
+        setSubmissions(subs);
+        
+        if (user) {
+          const mySub = subs.find(s => s.creatorId === user.uid);
+          setActiveSubmission(mySub || null);
+        }
+      },
+      async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'submissions',
+          operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
       }
-    });
+    );
 
     return () => {
       unsubscribeGig();
@@ -88,10 +104,19 @@ export default function GigDetailPage() {
   useEffect(() => {
     if (gig && gig.acceptedCreatorIds.length > 0) {
       const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.acceptedCreatorIds));
-      const unsubscribe = onSnapshot(creatorsQuery, (snapshot) => {
-        const creatorsData = snapshot.docs.map(d => d.data() as UserProfile);
-        setAcceptedCreators(creatorsData);
-      });
+      const unsubscribe = onSnapshot(creatorsQuery, 
+        (snapshot) => {
+          const creatorsData = snapshot.docs.map(d => d.data() as UserProfile);
+          setAcceptedCreators(creatorsData);
+        },
+        async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      );
       return () => unsubscribe();
     } else {
       setAcceptedCreators([]);
@@ -109,11 +134,30 @@ export default function GigDetailPage() {
       const currentGigData = currentGigSnap.data() as Gig;
       if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) throw new Error("Gig is full.");
       if (currentGigData.acceptedCreatorIds.includes(user.uid)) throw new Error("Already accepted.");
+      
       const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
       const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
       if (newAcceptedIds.length === currentGigData.creatorsNeeded) gigUpdates.status = 'in-progress';
-      await updateDoc(gigDocRef, gigUpdates);
-      await updateDoc(userDocRef, { giggingForAgencies: arrayUnion(currentGigData.brandId) });
+      
+      updateDoc(gigDocRef, gigUpdates).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: gigDocRef.path,
+          operation: 'update',
+          requestResourceData: gigUpdates,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+
+      const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
+      updateDoc(userDocRef, userUpdates).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'update',
+          requestResourceData: userUpdates,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+
       toast({ title: "Gig Accepted!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -150,9 +194,24 @@ export default function GigDetailPage() {
       };
 
       if (activeSubmission) {
-        await updateDoc(doc(db, 'submissions', activeSubmission.id), subData);
+        const subRef = doc(db, 'submissions', activeSubmission.id);
+        updateDoc(subRef, subData).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: subRef.path,
+            operation: 'update',
+            requestResourceData: subData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
       } else {
-        await addDoc(collection(db, 'submissions'), subData);
+        addDoc(collection(db, 'submissions'), subData).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: 'submissions',
+            operation: 'create',
+            requestResourceData: subData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
       }
       toast({ title: "Upload successful!", description: "Now calculate your Verza Score to verify your work." });
     } catch (error: any) {
@@ -177,7 +236,14 @@ export default function GigDetailPage() {
         status: result.score >= 65 ? 'submitted' : 'rejected'
       };
 
-      await updateDoc(subRef, updates);
+      updateDoc(subRef, updates).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: subRef.path,
+          operation: 'update',
+          requestResourceData: updates,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
 
       if (result.score >= 65) {
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
@@ -215,7 +281,17 @@ export default function GigDetailPage() {
     try {
       await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
       const sub = submissions.find(s => s.creatorId === creator.uid && s.status === 'submitted');
-      if (sub) await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
+      if (sub) {
+        const subRef = doc(db, 'submissions', sub.id);
+        updateDoc(subRef, { status: 'approved' }).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: subRef.path,
+            operation: 'update',
+            requestResourceData: { status: 'approved' },
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
+      }
       toast({ title: "Payout Processing!", description: "Creator has been paid." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
@@ -264,6 +340,11 @@ export default function GigDetailPage() {
                            <Badge variant={activeSubmission.status === 'submitted' ? 'default' : 'secondary'} className={activeSubmission.status === 'submitted' ? 'bg-green-500' : ''}>
                              {activeSubmission.status.replace(/_/g, ' ')}
                            </Badge>
+                           <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
+                             <a href={activeSubmission.videoUrl} download target="_blank" rel="noopener noreferrer">
+                               <Download className="h-3 w-3" />
+                             </a>
+                           </Button>
                         </div>
                       </div>
                       
@@ -274,11 +355,13 @@ export default function GigDetailPage() {
                             {activeSubmission.verzaScore > 0 && <Badge variant={activeSubmission.status === 'rejected' ? 'destructive' : 'default'}>{activeSubmission.verzaScore}%</Badge>}
                           </div>
                           {activeSubmission.verzaFeedback && (
-                            <p className="text-sm italic text-muted-foreground">"{activeSubmission.verzaFeedback}"</p>
+                            <div className="p-3 bg-background rounded border border-orange-500/20">
+                              <p className="text-sm italic text-muted-foreground">"{activeSubmission.verzaFeedback}"</p>
+                            </div>
                           )}
                           <Button className="w-full" onClick={handleRunVerzaScore} disabled={isRunningVerzaScore}>
                             {isRunningVerzaScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
-                            Get Verza Score
+                            {activeSubmission.status === 'rejected' ? 'Retry Verza Score' : 'Calculate Verza Score'}
                           </Button>
                           <p className="text-xs text-center text-muted-foreground">65% minimum required to submit to brand.</p>
                         </div>
@@ -373,7 +456,7 @@ export default function GigDetailPage() {
                                             </div>
                                             <video src={submission.videoUrl} controls className="w-full rounded-md max-h-64 bg-black" />
                                             {submission.verzaFeedback && (
-                                              <p className="text-xs text-muted-foreground italic">AI Logic: {submission.verzaFeedback}</p>
+                                              <p className="text-xs text-muted-foreground italic">AI Analysis: {submission.verzaFeedback}</p>
                                             )}
                                           </div>
                                         ) : (
