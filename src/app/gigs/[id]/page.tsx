@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -481,6 +482,7 @@ export default function GigDetailPage() {
                 <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Needed</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status}</Badge></div>
                     {user && !canManageGig && (hasAccepted ? <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button> : spotsLeft > 0 ? <Button className="w-full" onClick={handleAcceptGig} disabled={isAccepting}>{isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Accept Gig</Button> : <Button className="w-full" disabled>Gig Full</Button>)}

@@ -430,6 +430,7 @@ export interface Gig {
   platforms: ("TikTok" | "Instagram" | "YouTube" | "Facebook")[];
   ratePerCreator: number;
   creatorsNeeded: number;
+  videosPerCreator: number;
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
@@ -445,4 +446,17 @@ export interface CreatorMarketplaceProfile {
   contentType: "Tech" | "Fashion" | "Comedy" | "Gaming" | "Lifestyle" | "Food";
   followers: number;
   engagementRate: number;
+}
+
+export interface GigSubmission {
+  id: string;
+  gigId: string;
+  creatorId: string;
+  creatorName: string;
+  creatorAvatarUrl?: string | null;
+  videoUrl: string;
+  verzaScore: number;
+  verzaFeedback: string;
+  status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  createdAt: ClientTimestamp;
 }

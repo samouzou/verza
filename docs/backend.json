@@ -139,6 +139,10 @@
           "type": "number",
           "description": "The total number of creators required for this gig."
         },
+        "videosPerCreator": {
+          "type": "number",
+          "description": "The number of videos required from each creator."
+        },
         "acceptedCreatorIds": {
           "type": "array",
           "items": {
@@ -168,7 +172,7 @@
           "description": "The timestamp when the gig was created."
         }
       },
-      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt", "paidCreatorIds"]
+      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "videosPerCreator", "status", "createdAt", "paidCreatorIds"]
     }
   },
   "auth": {

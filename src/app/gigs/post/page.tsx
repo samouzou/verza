@@ -29,6 +29,7 @@ export default function PostGigPage() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [ratePerCreator, setRatePerCreator] = useState('');
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
+  const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalAmount = useMemo(() => {
@@ -57,8 +58,9 @@ export default function PostGigPage() {
     
     const rateNum = parseFloat(ratePerCreator);
     const creatorsNum = parseInt(creatorsNeeded, 10);
+    const videosNum = parseInt(videosPerCreator, 10);
     
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(rateNum) || rateNum <= 0 || isNaN(creatorsNum) || creatorsNum <= 0) {
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(rateNum) || rateNum <= 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
       toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
       return;
     }
@@ -74,6 +76,7 @@ export default function PostGigPage() {
         platforms: selectedPlatforms,
         ratePerCreator: rateNum,
         creatorsNeeded: creatorsNum,
+        videosPerCreator: videosNum,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -146,14 +149,18 @@ export default function PostGigPage() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="rate">Rate per Creator ($)</Label>
                     <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="150" required min="1" disabled={isSubmitting}/>
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="creators">Number of Creators Needed</Label>
+                    <Label htmlFor="creators">Creators Needed</Label>
                     <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="videos">Videos per Creator</Label>
+                    <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
                 </div>
             </div>
 

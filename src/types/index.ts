@@ -426,6 +426,7 @@ export interface Gig {
   platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook')[];
   ratePerCreator: number;
   creatorsNeeded: number;
+  videosPerCreator: number;
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;

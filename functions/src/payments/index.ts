@@ -737,9 +737,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const {title, description, platforms, ratePerCreator, creatorsNeeded} = request.data;
+  const {title, description, platforms, ratePerCreator, creatorsNeeded, videosPerCreator} = request.data;
 
-  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded) {
+  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator) {
     throw new HttpsError("invalid-argument", "Missing required gig details.");
   }
 
@@ -779,6 +779,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     platforms,
     ratePerCreator: Number(ratePerCreator),
     creatorsNeeded: Number(creatorsNeeded),
+    videosPerCreator: Number(videosPerCreator),
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
