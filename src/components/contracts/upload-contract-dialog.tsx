@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,9 +47,10 @@ interface UploadContractDialogProps {
   initialSFDT?: string;
   initialSelectedOwner?: string;
   initialFileName?: string;
+  affiliatedCreator?: UserProfile;
 }
 
-export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange, initialSFDT, initialSelectedOwner, initialFileName }: UploadContractDialogProps) {
+export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange, initialSFDT, initialSelectedOwner, initialFileName, affiliatedCreator }: UploadContractDialogProps) {
   const [isInternalOpen, setInternalOpen] = useState(false);
   
   const isOpen = controlledIsOpen ?? isInternalOpen;
@@ -89,6 +90,28 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     (user?.subscriptionStatus === 'trialing' &&
       user.trialEndsAt &&
       user.trialEndsAt.toMillis() > now);
+
+  const talentOptions = useMemo(() => {
+    if (!agency) return [];
+    
+    const currentTalent = agency.talent || [];
+    
+    // Check if affiliatedCreator exists and is not already in the talent list
+    if (affiliatedCreator && !currentTalent.some(t => t.userId === affiliatedCreator.uid)) {
+        const newTalentFromAffiliation: Talent = {
+            userId: affiliatedCreator.uid,
+            displayName: affiliatedCreator.displayName || 'Creator',
+            email: affiliatedCreator.email || '',
+            status: 'active' // This is just for display in the dropdown
+        };
+        // Return a new array with the affiliated creator added
+        return [...currentTalent, newTalentFromAffiliation].filter(t => t.status === 'active');
+    }
+
+    // Otherwise, just return the active talent from the agency
+    return currentTalent.filter(t => t.status === 'active');
+  }, [agency, affiliatedCreator]);
+
 
   const resetState = () => {
       if (editorRef.current?.documentEditor) {
@@ -522,7 +545,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="personal">My Agency ({agency.name})</SelectItem>
-                    {agency.talent?.filter(t => t.status === 'active').map(t => (
+                    {talentOptions.map(t => (
                       <SelectItem key={t.userId} value={t.userId}>{t.displayName} (Talent)</SelectItem>
                     ))}
                   </SelectContent>

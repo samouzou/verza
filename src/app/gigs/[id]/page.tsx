@@ -292,6 +292,7 @@ export default function GigDetailPage() {
           initialSFDT={contractGenData.sfdt}
           initialSelectedOwner={contractGenData.talent.uid}
           initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`}
+          affiliatedCreator={contractGenData.talent}
         />
       )}
     </>
