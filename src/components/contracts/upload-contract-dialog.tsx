@@ -123,8 +123,9 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             getDoc(agencyDocRef).then(docSnap => {
                 if (docSnap.exists()) {
                     setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
-                    // For agency owner creating a personal contract for the agency
-                    if (user.isAgencyOwner && !initialSelectedOwner) {
+                    if (initialSelectedOwner) {
+                      setSelectedOwner(initialSelectedOwner);
+                    } else if (user.isAgencyOwner) {
                       setSelectedOwner('personal');
                     }
                 }
@@ -142,9 +143,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                     }
                 }, 500);
             }
-        }
-        if (initialSelectedOwner) {
-            setSelectedOwner(initialSelectedOwner);
         }
         if (initialFileName) {
             setFileName(initialFileName);
@@ -392,6 +390,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const newContractRef = doc(collection(db, 'contracts'));
       batch.set(newContractRef, contractDataForFirestore);
       
+      // If this contract was generated for a talent from a gig, add them to the roster.
       if (ownerType === 'agency' && selectedOwner !== 'personal' && initialSelectedOwner && agency) {
         const agencyDocRef = doc(db, "agencies", agency.id);
         const creatorDocRef = doc(db, 'users', finalUserId);
@@ -403,20 +402,21 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             
             if (!isAlreadyTalent) {
                 const creatorDocSnap = await getDoc(creatorDocRef);
-                const creatorData = creatorDocSnap.data() as UserProfile;
-
-                const newTalentEntry: Talent = {
-                    userId: finalUserId,
-                    email: creatorData.email || 'unknown',
-                    displayName: creatorData.displayName || 'Creator',
-                    status: 'active',
-                    joinedAt: Timestamp.now(),
-                    commissionRate: 0, 
-                };
-                batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
+                if (creatorDocSnap.exists()) {
+                    const creatorData = creatorDocSnap.data() as UserProfile;
+                    const newTalentEntry: Talent = {
+                        userId: finalUserId,
+                        email: creatorData.email || 'unknown',
+                        displayName: creatorData.displayName || 'Creator',
+                        status: 'active',
+                        joinedAt: Timestamp.now(),
+                        commissionRate: 0,
+                    };
+                    batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
+                }
             }
         }
-        
+        // Remove from temporary gig affiliation list
         batch.update(creatorDocRef, { giggingForAgencies: arrayRemove(agency.id) });
       }
 

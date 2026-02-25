@@ -23,7 +23,7 @@ export async function generateUgcContract(input: GenerateUgcContractInput): Prom
 
 const prompt = ai.definePrompt({
   name: 'generateUgcContractPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: GenerateUgcContractInputSchema },
   output: { schema: GenerateUgcContractOutputSchema },
   prompt: `You are an expert legal AI specializing in drafting simple, fair agreements for the creator economy.
