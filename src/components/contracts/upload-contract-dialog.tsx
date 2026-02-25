@@ -347,7 +347,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             ownerType = 'agency';
             ownerId = agency.id;
             finalUserId = selectedOwner; 
-            talentName = agency.talent?.find(t => t.userId === finalUserId)?.displayName;
+            talentName = talentOptions.find(t => t.userId === finalUserId)?.displayName;
             accessMap[finalUserId] = 'talent';
         }
         agency.team?.forEach(member => {
@@ -439,8 +439,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 }
             }
         }
-        // Remove from temporary gig affiliation list
-        batch.update(creatorDocRef, { giggingForAgencies: arrayRemove(agency.id) });
       }
 
       const userDocRef = doc(db, 'users', user.uid);
