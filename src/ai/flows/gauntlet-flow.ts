@@ -1,39 +1,38 @@
-
 'use server';
 /**
- * @fileOverview "The Gauntlet" - An AI flow that simulates 10,000 Gen Z distractable scrollers to score a video.
+ * @fileOverview Verza Score Analysis - An AI flow that simulates 10,000 Gen Z distractable scrollers to score a video.
  *
- * - runGauntlet - A function that analyzes a video and returns a score and feedback.
+ * - runVerzaScore - A function that analyzes a video and returns a score and feedback.
  */
 
 import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { z } from 'kit';
+import { z } from 'genkit';
 
-const GauntletInputSchema = z.object({
+const VerzaScoreInputSchema = z.object({
   videoUrl: z.string().url().describe('The URL of the video to analyze.'),
 });
-export type GauntletInput = z.infer<typeof GauntletInputSchema>;
+export type VerzaScoreInput = z.infer<typeof VerzaScoreInputSchema>;
 
-const GauntletOutputSchema = z.object({
+const VerzaScoreOutputSchema = z.object({
   score: z.number().min(0).max(100).describe('The overall attention score (0-100). 65+ is required to pass.'),
   feedback: z.string().describe('Ruthless, actionable feedback from the perspective of 10k Gen Z scrollers.'),
   hookScore: z.number().describe('Score for the first 3 seconds (0-100).'),
   pacingScore: z.number().describe('Score for the overall rhythm and editing speed (0-100).'),
   vibeScore: z.number().describe('Score for visual aesthetic and trend relevance (0-100).'),
 });
-export type GauntletOutput = z.infer<typeof GauntletOutputSchema>;
+export type VerzaScoreOutput = z.infer<typeof VerzaScoreOutputSchema>;
 
-export async function runGauntlet(input: GauntletInput): Promise<GauntletOutput> {
-  return gauntletFlow(input);
+export async function runVerzaScore(input: VerzaScoreInput): Promise<VerzaScoreOutput> {
+  return verzaScoreFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'gauntletPrompt',
+  name: 'verzaScorePrompt',
   model: googleAI.model('gemini-1.5-flash'),
-  input: { schema: GauntletInputSchema },
-  output: { schema: GauntletOutputSchema },
-  prompt: `You are "The Gauntlet", a simulation of 10,000 Gen Z distractable social media scrollers. 
+  input: { schema: VerzaScoreInputSchema },
+  output: { schema: VerzaScoreOutputSchema },
+  prompt: `You are the "Verza Score" algorithm, a simulation of 10,000 Gen Z distractable social media scrollers. 
   Your goal is to be ruthless. You have zero attention span. 
   
   Analyze the video at this URL: {{videoUrl}}
@@ -52,11 +51,11 @@ const prompt = ai.definePrompt({
   `,
 });
 
-const gauntletFlow = ai.defineFlow(
+const verzaScoreFlow = ai.defineFlow(
   {
-    name: 'gauntletFlow',
-    inputSchema: GauntletInputSchema,
-    outputSchema: GauntletOutputSchema,
+    name: 'verzaScoreFlow',
+    inputSchema: VerzaScoreInputSchema,
+    outputSchema: VerzaScoreOutputSchema,
   },
   async (input) => {
     const { output } = await prompt(input);

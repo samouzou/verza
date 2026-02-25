@@ -450,8 +450,8 @@ export interface GigSubmission {
   creatorName: string;
   creatorAvatarUrl?: string | null;
   videoUrl: string;
-  gauntletScore: number;
-  gauntletFeedback: string;
-  status: 'pending_gauntlet' | 'submitted' | 'approved' | 'rejected';
+  verzaScore: number;
+  verzaFeedback: string;
+  status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
   createdAt: ClientTimestamp;
 }

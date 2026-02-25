@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
 import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 import { httpsCallable } from 'firebase/functions';
-import { runGauntlet } from '@/ai/flows/gauntlet-flow';
+import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { Progress } from '@/components/ui/progress';
 
 export default function GigDetailPage() {
@@ -43,7 +43,7 @@ export default function GigDetailPage() {
   // Submission State
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isRunningGauntlet, setIsRunningGauntlet] = useState(false);
+  const [isRunningVerzaScore, setIsRunningVerzaScore] = useState(false);
   const [activeSubmission, setActiveSubmission] = useState<GigSubmission | null>(null);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
@@ -143,9 +143,9 @@ export default function GigDetailPage() {
         creatorName: user.displayName || 'Creator',
         creatorAvatarUrl: user.avatarUrl || null,
         videoUrl,
-        gauntletScore: 0,
-        gauntletFeedback: "",
-        status: 'pending_gauntlet',
+        verzaScore: 0,
+        verzaFeedback: "",
+        status: 'pending_verza_score',
         createdAt: serverTimestamp() as any,
       };
 
@@ -154,7 +154,7 @@ export default function GigDetailPage() {
       } else {
         await addDoc(collection(db, 'submissions'), subData);
       }
-      toast({ title: "Upload successful!", description: "Now run the Gauntlet to verify your work." });
+      toast({ title: "Upload successful!", description: "Now calculate your Verza Score to verify your work." });
     } catch (error: any) {
       console.error(error);
       toast({ title: "Upload failed", variant: "destructive" });
@@ -163,31 +163,31 @@ export default function GigDetailPage() {
     }
   };
 
-  const handleRunGauntlet = async () => {
+  const handleRunVerzaScore = async () => {
     if (!activeSubmission) return;
-    setIsRunningGauntlet(true);
-    toast({ title: "The Gauntlet is judging...", description: "Simulating 10,000 scrollers..." });
+    setIsRunningVerzaScore(true);
+    toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
-      const result = await runGauntlet({ videoUrl: activeSubmission.videoUrl });
+      const result = await runVerzaScore({ videoUrl: activeSubmission.videoUrl });
       const subRef = doc(db, 'submissions', activeSubmission.id);
       
       const updates: Partial<GigSubmission> = {
-        gauntletScore: result.score,
-        gauntletFeedback: result.feedback,
+        verzaScore: result.score,
+        verzaFeedback: result.feedback,
         status: result.score >= 65 ? 'submitted' : 'rejected'
       };
 
       await updateDoc(subRef, updates);
 
       if (result.score >= 65) {
-        toast({ title: "GAUNTLET PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
+        toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
-        toast({ title: "GAUNTLET FAILED", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
+        toast({ title: "VERZA SCORE LOW", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Gauntlet Error", description: error.message, variant: "destructive" });
+      toast({ title: "Analysis Error", description: error.message, variant: "destructive" });
     } finally {
-      setIsRunningGauntlet(false);
+      setIsRunningVerzaScore(false);
     }
   };
 
@@ -253,7 +253,7 @@ export default function GigDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> Submit Your Work</CardTitle>
-                  <CardDescription>Upload your video and run the Gauntlet to submit it to the brand.</CardDescription>
+                  <CardDescription>Upload your video and calculate your Verza Score to submit it to the brand.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {activeSubmission ? (
@@ -262,30 +262,30 @@ export default function GigDetailPage() {
                         <video src={activeSubmission.videoUrl} controls className="w-full h-full" />
                         <div className="absolute top-2 right-2 flex gap-2">
                            <Badge variant={activeSubmission.status === 'submitted' ? 'default' : 'secondary'} className={activeSubmission.status === 'submitted' ? 'bg-green-500' : ''}>
-                             {activeSubmission.status.replace('_', ' ')}
+                             {activeSubmission.status.replace(/_/g, ' ')}
                            </Badge>
                         </div>
                       </div>
                       
-                      {activeSubmission.status === 'pending_gauntlet' || activeSubmission.status === 'rejected' ? (
+                      {activeSubmission.status === 'pending_verza_score' || activeSubmission.status === 'rejected' ? (
                         <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
                           <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">Gauntlet Verification</h4>
-                            {activeSubmission.gauntletScore > 0 && <Badge variant={activeSubmission.status === 'rejected' ? 'destructive' : 'default'}>{activeSubmission.gauntletScore}%</Badge>}
+                            <h4 className="font-semibold">Verza Score Analysis</h4>
+                            {activeSubmission.verzaScore > 0 && <Badge variant={activeSubmission.status === 'rejected' ? 'destructive' : 'default'}>{activeSubmission.verzaScore}%</Badge>}
                           </div>
-                          {activeSubmission.gauntletFeedback && (
-                            <p className="text-sm italic text-muted-foreground">"{activeSubmission.gauntletFeedback}"</p>
+                          {activeSubmission.verzaFeedback && (
+                            <p className="text-sm italic text-muted-foreground">"{activeSubmission.verzaFeedback}"</p>
                           )}
-                          <Button className="w-full" onClick={handleRunGauntlet} disabled={isRunningGauntlet}>
-                            {isRunningGauntlet ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
-                            Run The Gauntlet
+                          <Button className="w-full" onClick={handleRunVerzaScore} disabled={isRunningVerzaScore}>
+                            {isRunningVerzaScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
+                            Get Verza Score
                           </Button>
                           <p className="text-xs text-center text-muted-foreground">65% minimum required to submit to brand.</p>
                         </div>
                       ) : (
                         <div className="p-4 border rounded-lg bg-green-500/10 text-green-700 flex items-center gap-3">
                           <CheckCircle className="h-5 w-5"/>
-                          <p className="text-sm font-medium">Verified & Submitted! Score: {activeSubmission.gauntletScore}%</p>
+                          <p className="text-sm font-medium">Verified & Submitted! Verza Score: {activeSubmission.verzaScore}%</p>
                         </div>
                       )}
                       
@@ -294,7 +294,7 @@ export default function GigDetailPage() {
                           <Label htmlFor="video-reupload" className="cursor-pointer text-xs text-primary hover:underline flex items-center gap-1">
                             <UploadCloud className="h-3 w-3"/> Re-upload Video
                           </Label>
-                          <input id="video-reupload" type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleVideoUpload} disabled={isUploading || isRunningGauntlet}/>
+                          <input id="video-reupload" type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleVideoUpload} disabled={isUploading || isRunningVerzaScore}/>
                         </div>
                       )}
                     </div>
@@ -363,7 +363,7 @@ export default function GigDetailPage() {
                                                 <Play className="h-4 w-4 text-primary"/> Submission Work
                                               </span>
                                               <div className="flex items-center gap-2">
-                                                <Badge variant="outline" className="gap-1"><Trophy className="h-3 w-3 text-yellow-500"/> Gauntlet: {submission.gauntletScore}%</Badge>
+                                                <Badge variant="outline" className="gap-1"><Star className="h-3 w-3 text-yellow-500"/> Verza Score: {submission.verzaScore}%</Badge>
                                                 <Button size="sm" variant="ghost" className="h-7 px-2" asChild>
                                                   <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
                                                     <Download className="h-4 w-4"/>
@@ -372,8 +372,8 @@ export default function GigDetailPage() {
                                               </div>
                                             </div>
                                             <video src={submission.videoUrl} controls className="w-full rounded-md max-h-64 bg-black" />
-                                            {submission.gauntletFeedback && (
-                                              <p className="text-xs text-muted-foreground italic">Gauntlet logic: {submission.gauntletFeedback}</p>
+                                            {submission.verzaFeedback && (
+                                              <p className="text-xs text-muted-foreground italic">AI Logic: {submission.verzaFeedback}</p>
                                             )}
                                           </div>
                                         ) : (
