@@ -159,7 +159,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["open", "in-progress", "completed"],
+          "enum": ["pending_payment", "open", "in-progress", "completed"],
           "description": "The current status of the gig."
         },
         "createdAt": {

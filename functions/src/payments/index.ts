@@ -1,6 +1,4 @@
 
-
-
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -770,6 +768,24 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     await agencyOwnerDoc.ref.update({stripeCustomerId});
   }
 
+  // Create the gig document first with 'pending_payment' status to avoid Stripe metadata limits
+  const gigRef = db.collection("gigs").doc();
+  const initialGigData: Omit<Gig, "id"> = {
+    brandId: userData.primaryAgencyId,
+    brandName: agencyData.name,
+    brandLogoUrl: agencyOwnerData.companyLogoUrl || null,
+    title,
+    description,
+    platforms,
+    ratePerCreator: Number(ratePerCreator),
+    creatorsNeeded: Number(creatorsNeeded),
+    acceptedCreatorIds: [],
+    paidCreatorIds: [],
+    status: "pending_payment",
+    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+  };
+  await gigRef.set(initialGigData);
+
   const totalAmount = ratePerCreator * creatorsNeeded;
   const totalAmountInCents = Math.round(totalAmount * 100);
 
@@ -794,14 +810,14 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         purchaseType: "gigFunding",
         firebaseUID: userId,
         agencyId: userData.primaryAgencyId,
-        gigData: JSON.stringify({
-          title, description, platforms, ratePerCreator, creatorsNeeded,
-        }),
+        gigId: gigRef.id,
       },
     });
     return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
+    // Cleanup the pending gig if session creation fails
+    await gigRef.delete();
     throw new HttpsError("internal", error.message || "Could not create checkout session.");
   }
 });
@@ -956,43 +972,24 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         return;
       }
     } else if (purchaseType === "gigFunding") {
-      const {firebaseUID, agencyId, gigData} = session.metadata || {};
+      const { gigId } = session.metadata || {};
       const paymentIntentId = session.payment_intent as string;
-      if (!firebaseUID || !agencyId || !gigData || !paymentIntentId) {
-        logger.warn("Webhook received gigFunding checkout without required metadata.", session.id);
+      if (!gigId || !paymentIntentId) {
+        logger.warn("Webhook received gigFunding checkout without required metadata (gigId or payment_intent).", session.id);
         response.status(200).send("Received but missing gig metadata.");
         return;
       }
 
       try {
-        const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-        const brandName = agencyDoc.exists ? (agencyDoc.data() as Agency).name : "Unknown Brand";
-        const userDoc = await db.collection("users").doc(firebaseUID).get();
-        const brandLogoUrl = userDoc.exists ? (userDoc.data() as UserProfileFirestoreData).companyLogoUrl : null;
-
-        const parsedGigData = JSON.parse(gigData);
-
-        const newGig: Omit<Gig, "id"> = {
-          brandId: agencyId,
-          brandName: brandName,
-          brandLogoUrl: brandLogoUrl || null,
-          title: parsedGigData.title,
-          description: parsedGigData.description,
-          platforms: parsedGigData.platforms,
-          ratePerCreator: Number(parsedGigData.ratePerCreator),
-          creatorsNeeded: Number(parsedGigData.creatorsNeeded),
-          acceptedCreatorIds: [],
-          paidCreatorIds: [],
-          fundingPaymentIntentId: paymentIntentId,
+        const gigRef = db.collection("gigs").doc(gigId);
+        await gigRef.update({
           status: "open",
-          createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
-        };
-
-        await db.collection("gigs").add(newGig);
-        logger.info(`Successfully created gig "${parsedGigData.title}" for agency ${agencyId} after payment.`);
+          fundingPaymentIntentId: paymentIntentId,
+        });
+        logger.info(`Successfully activated gig "${gigId}" after payment.`);
       } catch (error: any) {
-        logger.error(`Error creating gig from webhook for agency ${agencyId}:`, error);
-        response.status(500).send("Internal server error while creating gig.");
+        logger.error(`Error updating gig from webhook for gig ${gigId}:`, error);
+        response.status(500).send("Internal server error while updating gig status.");
         return;
       }
     }

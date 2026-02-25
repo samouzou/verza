@@ -433,7 +433,7 @@ export interface Gig {
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId: string;
-  status: "open" | "in-progress" | "completed";
+  status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
 }
 
