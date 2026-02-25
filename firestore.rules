@@ -25,23 +25,19 @@ service cloud.firestore {
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
       let requesterAgencyId = request.auth.token.primaryAgencyId;
-      if (requesterAgencyId == null) {
-        return false;
-      }
-      let agencyDoc = get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data;
-      // Check if user is in the agency's talent array
-      return (agencyDoc.talent.filter(t, t.userId == targetUserId)).size() > 0;
+      // If the requester doesn't belong to an agency, they can't have talent.
+      return requesterAgencyId != null &&
+             'talent' in get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data &&
+             get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data.talent.exists(t, t.userId == targetUserId);
     }
     
     // Helper to check if a creator has accepted a gig for the requesting agency
     function isGigAffiliated(userId) {
       let requesterAgencyId = request.auth.token.primaryAgencyId;
-      if (requesterAgencyId == null) {
-        return false;
-      }
-      let userDoc = get(/databases/$(database)/documents/users/$(userId)).data;
-      return 'giggingForAgencies' in userDoc && 
-             userDoc.giggingForAgencies.hasAny([requesterAgencyId]);
+       // Returns true only if requester has an agency AND the target user's profile has that agency in giggingForAgencies.
+      return requesterAgencyId != null &&
+             'giggingForAgencies' in get(/databases/$(database)/documents/users/$(userId)).data &&
+             requesterAgencyId in get(/databases/$(database)/documents/users/$(userId)).data.giggingForAgencies;
     }
 
     // Helper to check if a user can access a receipt, either by being the owner
