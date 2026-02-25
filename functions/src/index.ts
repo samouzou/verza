@@ -21,6 +21,7 @@ import {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
+  createGigFundingCheckoutSession, // New function for gig funding
 } from "./payments";
 
 import {
@@ -79,6 +80,7 @@ export {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
+  createGigFundingCheckoutSession, // Export new function
   sendContractNotification,
   handleSendGridEmailWebhook, // Export new webhook handler
   sendOverdueInvoiceReminders,

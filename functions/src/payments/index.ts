@@ -1,11 +1,12 @@
 
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
-import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction} from "./../types";
+import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 
 /**
@@ -723,6 +724,88 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
   }
 });
 
+export const createGigFundingCheckoutSession = onCall(async (request) => {
+    let stripe: Stripe;
+    try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, { apiVersion: "2025-05-28.basil" });
+    } catch (e) {
+        logger.error("Stripe not configured", e);
+        throw new HttpsError("failed-precondition", "Stripe is not configured.");
+    }
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+
+    const userId = request.auth.uid;
+    const { title, description, platforms, ratePerCreator, creatorsNeeded } = request.data;
+    
+    if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded) {
+        throw new HttpsError("invalid-argument", "Missing required gig details.");
+    }
+
+    const userDoc = await db.collection("users").doc(userId).get();
+    const userData = userDoc.data() as UserProfileFirestoreData;
+    if (!userData || !userData.primaryAgencyId) {
+        throw new HttpsError("failed-precondition", "You must be part of an agency to post a gig.");
+    }
+
+    const agencyDoc = await db.collection("agencies").doc(userData.primaryAgencyId).get();
+    if (!agencyDoc.exists) {
+        throw new HttpsError("not-found", "Agency not found.");
+    }
+    const agencyData = agencyDoc.data() as Agency;
+    const agencyOwnerDoc = await db.collection("users").doc(agencyData.ownerId).get();
+    const agencyOwnerData = agencyOwnerDoc.data() as UserProfileFirestoreData;
+
+    let stripeCustomerId = agencyOwnerData.stripeCustomerId;
+    if (!stripeCustomerId) {
+        const customer = await stripe.customers.create({
+            email: agencyOwnerData.email || undefined,
+            name: agencyOwnerData.displayName || undefined,
+            metadata: { firebaseUID: agencyData.ownerId },
+        });
+        stripeCustomerId = customer.id;
+        await agencyOwnerDoc.ref.update({ stripeCustomerId });
+    }
+
+    const totalAmount = ratePerCreator * creatorsNeeded;
+    const totalAmountInCents = Math.round(totalAmount * 100);
+
+    try {
+        const session = await stripe.checkout.sessions.create({
+            mode: 'payment',
+            customer: stripeCustomerId,
+            line_items: [{
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: `Funding for Gig: ${title}`,
+                        description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
+                    },
+                    unit_amount: totalAmountInCents,
+                },
+                quantity: 1,
+            }],
+            success_url: `${params.APP_URL.value()}/gigs?funding_success=true`,
+            cancel_url: `${params.APP_URL.value()}/gigs/post`,
+            metadata: {
+                purchaseType: 'gigFunding',
+                firebaseUID: userId,
+                agencyId: userData.primaryAgencyId,
+                gigData: JSON.stringify({
+                    title, description, platforms, ratePerCreator, creatorsNeeded
+                }),
+            },
+        });
+        return { url: session.url };
+    } catch (error: any) {
+        logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
+        throw new HttpsError("internal", error.message || "Could not create checkout session.");
+    }
+});
+
+
 export const createCreditCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
@@ -755,10 +838,10 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       const customer = await stripe.customers.create({
         email: userData.email || undefined,
         name: userData.displayName || undefined,
-        metadata: {firebaseUID: userId},
+        metadata: { firebaseUID: userId },
       });
       stripeCustomerId = customer.id;
-      await userDoc.ref.update({stripeCustomerId});
+      await userDoc.ref.update({ stripeCustomerId });
     }
 
     let priceId;
@@ -789,6 +872,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
         firebaseUID: userId,
         creditAmount: creditAmount.toString(),
         priceId: priceId,
+        purchaseType: 'creditPurchase',
       },
     });
 
@@ -830,49 +914,84 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const {firebaseUID, creditAmount, priceId} = session.metadata || {};
+    const { purchaseType } = session.metadata || {};
 
-    if (!firebaseUID || !creditAmount) {
-      logger.warn("Webhook received checkout.session.completed without required metadata.", session.id);
-      response.status(200).send("Received but missing metadata.");
-      return;
-    }
-
-    const userId = firebaseUID;
-    const creditsToAdd = parseInt(creditAmount, 10);
-    if (isNaN(creditsToAdd)) {
-      logger.error("Invalid creditAmount in webhook metadata:", creditAmount);
-      response.status(400).send("Invalid credit amount in metadata.");
-      return;
-    }
-
-    try {
-      const userRef = db.collection("users").doc(userId);
-      const transactionRef = db.collection("credit_transactions").doc();
-
-      await db.runTransaction(async (transaction) => {
-        const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists) {
-          throw new Error(`User with ID ${userId} not found.`);
+    if (purchaseType === 'creditPurchase') {
+        const { firebaseUID, creditAmount, priceId } = session.metadata || {};
+        if (!firebaseUID || !creditAmount) {
+            logger.warn("Webhook received checkout.session.completed without required metadata.", session.id);
+            response.status(200).send("Received but missing credit metadata.");
+            return;
         }
-        transaction.update(userRef, {
-          credits: admin.firestore.FieldValue.increment(creditsToAdd),
-        });
-        transaction.set(transactionRef, {
-          userId: userId,
-          creditAmount: creditsToAdd,
-          priceId: priceId || "unknown",
-          checkoutSessionId: session.id,
-          status: "completed",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        } as Omit<CreditTransaction, "id">);
-      });
 
-      logger.info(`Successfully added ${creditsToAdd} credits to user ${userId}.`);
-    } catch (error: any) {
-      logger.error(`Error updating user credits for user ${userId}:`, error);
-      response.status(500).send("Internal server error while updating credits.");
-      return;
+        const userId = firebaseUID;
+        const creditsToAdd = parseInt(creditAmount, 10);
+        if (isNaN(creditsToAdd)) {
+            logger.error("Invalid creditAmount in webhook metadata:", creditAmount);
+            response.status(400).send("Invalid credit amount in metadata.");
+            return;
+        }
+        
+        try {
+            const userRef = db.collection("users").doc(userId);
+            const transactionRef = db.collection("credit_transactions").doc();
+            await db.runTransaction(async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists) throw new Error(`User with ID ${userId} not found.`);
+                transaction.update(userRef, { credits: admin.firestore.FieldValue.increment(creditsToAdd) });
+                transaction.set(transactionRef, {
+                    userId: userId,
+                    creditAmount: creditsToAdd,
+                    priceId: priceId || "unknown",
+                    checkoutSessionId: session.id,
+                    status: "completed",
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                } as Omit<CreditTransaction, "id">);
+            });
+            logger.info(`Successfully added ${creditsToAdd} credits to user ${userId}.`);
+        } catch (error: any) {
+            logger.error(`Error updating user credits for user ${userId}:`, error);
+            response.status(500).send("Internal server error while updating credits.");
+            return;
+        }
+
+    } else if (purchaseType === 'gigFunding') {
+        const { firebaseUID, agencyId, gigData } = session.metadata || {};
+        if (!firebaseUID || !agencyId || !gigData) {
+            logger.warn("Webhook received gigFunding checkout without required metadata.", session.id);
+            response.status(200).send("Received but missing gig metadata.");
+            return;
+        }
+
+        try {
+            const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+            const brandName = agencyDoc.exists() ? (agencyDoc.data() as Agency).name : 'Unknown Brand';
+            const userDoc = await db.collection("users").doc(firebaseUID).get();
+            const brandLogoUrl = userDoc.exists() ? (userDoc.data() as UserProfileFirestoreData).companyLogoUrl : null;
+            
+            const parsedGigData = JSON.parse(gigData);
+
+            const newGig: Omit<Gig, 'id'> = {
+                brandId: agencyId,
+                brandName: brandName,
+                brandLogoUrl: brandLogoUrl || null,
+                title: parsedGigData.title,
+                description: parsedGigData.description,
+                platforms: parsedGigData.platforms,
+                ratePerCreator: Number(parsedGigData.ratePerCreator),
+                creatorsNeeded: Number(parsedGigData.creatorsNeeded),
+                acceptedCreatorIds: [],
+                status: 'open',
+                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+            };
+            
+            await db.collection('gigs').add(newGig);
+            logger.info(`Successfully created gig "${parsedGigData.title}" for agency ${agencyId} after payment.`);
+        } catch (error: any) {
+            logger.error(`Error creating gig from webhook for agency ${agencyId}:`, error);
+            response.status(500).send("Internal server error while creating gig.");
+            return;
+        }
     }
   }
 

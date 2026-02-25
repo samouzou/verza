@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,13 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { collection, addDoc, serverTimestamp, getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import type { Agency } from '@/types';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -31,7 +30,16 @@ export default function PostGigPage() {
   const [ratePerCreator, setRatePerCreator] = useState('');
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
+  const totalAmount = useMemo(() => {
+    const rate = parseFloat(ratePerCreator);
+    const needed = parseInt(creatorsNeeded, 10);
+    if (!isNaN(rate) && !isNaN(needed) && rate > 0 && needed > 0) {
+        return rate * needed;
+    }
+    return 0;
+  }, [ratePerCreator, creatorsNeeded]);
+
   const handlePlatformChange = (platform: string) => {
     setSelectedPlatforms(prev => 
       prev.includes(platform) 
@@ -56,34 +64,26 @@ export default function PostGigPage() {
     }
     
     setIsSubmitting(true);
+    toast({ title: "Redirecting to Payment", description: "Please complete the payment to post your gig." });
+    
     try {
-      const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
-      const agencySnap = await getDoc(agencyDocRef);
-      const brandName = agencySnap.exists() ? (agencySnap.data() as Agency).name : user.displayName || 'Anonymous Brand';
-
-      const gigData = {
-        brandId: user.primaryAgencyId,
-        brandName: brandName,
-        brandLogoUrl: user.companyLogoUrl || null,
+      const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
+      const result = await createCheckout({
         title: title.trim(),
         description: description.trim(),
         platforms: selectedPlatforms,
         ratePerCreator: rateNum,
         creatorsNeeded: creatorsNum,
-        acceptedCreatorIds: [],
-        status: 'open',
-        createdAt: serverTimestamp(),
-      };
-      
-      await addDoc(collection(db, 'gigs'), gigData);
-      
-      toast({ title: 'Gig Posted!', description: 'Your gig is now live on the Gig Board.' });
-      router.push('/gigs');
-
+      });
+      const data = result.data as { url?: string };
+      if (data.url) {
+          window.location.href = data.url;
+      } else {
+          throw new Error("Failed to get payment URL.");
+      }
     } catch (error: any) {
-        console.error("Error posting gig:", error);
-        toast({ title: 'Submission Failed', description: error.message || 'Could not post your gig.', variant: 'destructive' });
-    } finally {
+        console.error("Error initiating gig funding:", error);
+        toast({ title: 'Funding Failed', description: error.message || 'Could not initiate the funding process.', variant: 'destructive' });
         setIsSubmitting(false);
     }
   };
@@ -156,9 +156,18 @@ export default function PostGigPage() {
                     <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
                 </div>
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Post Gig & Fund Project
+
+            {totalAmount > 0 && (
+              <div className="p-4 border rounded-lg bg-muted text-center">
+                <p className="text-sm text-muted-foreground">Total Project Funding</p>
+                <p className="text-3xl font-bold">${totalAmount.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">({creatorsNeeded} creators x ${ratePerCreator})</p>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isSubmitting || totalAmount <= 0}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
+              Fund & Post Gig
             </Button>
           </form>
         </CardContent>
