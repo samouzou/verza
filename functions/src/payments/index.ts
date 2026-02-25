@@ -972,7 +972,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         return;
       }
     } else if (purchaseType === "gigFunding") {
-      const { gigId } = session.metadata || {};
+      const {gigId} = session.metadata || {};
       const paymentIntentId = session.payment_intent as string;
       if (!gigId || !paymentIntentId) {
         logger.warn("Webhook received gigFunding checkout without required metadata (gigId or payment_intent).", session.id);

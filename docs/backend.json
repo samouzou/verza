@@ -168,7 +168,7 @@
           "description": "The timestamp when the gig was created."
         }
       },
-      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt", "paidCreatorIds", "fundingPaymentIntentId"]
+      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt", "paidCreatorIds"]
     }
   },
   "auth": {
