@@ -66,7 +66,7 @@ import {
   inviteTeamMemberToAgency, // New function for team members
 } from "./agency";
 
-import { payoutCreatorForGig } from "./gigs";
+import {payoutCreatorForGig} from "./gigs";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";

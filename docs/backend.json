@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "userProfile": {
@@ -145,6 +146,17 @@
           },
           "description": "A list of UIDs of creators who have accepted the gig."
         },
+        "paidCreatorIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of UIDs of creators who have been paid for this gig."
+        },
+        "fundingPaymentIntentId": {
+          "type": "string",
+          "description": "The Stripe PaymentIntent ID used to fund the gig."
+        },
         "status": {
           "type": "string",
           "enum": ["open", "in-progress", "completed"],
@@ -156,7 +168,7 @@
           "description": "The timestamp when the gig was created."
         }
       },
-      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt"]
+      "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "status", "createdAt", "paidCreatorIds", "fundingPaymentIntentId"]
     }
   },
   "auth": {
