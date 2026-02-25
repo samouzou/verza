@@ -957,7 +957,8 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
     } else if (purchaseType === 'gigFunding') {
         const { firebaseUID, agencyId, gigData } = session.metadata || {};
-        if (!firebaseUID || !agencyId || !gigData) {
+        const paymentIntentId = session.payment_intent as string;
+        if (!firebaseUID || !agencyId || !gigData || !paymentIntentId) {
             logger.warn("Webhook received gigFunding checkout without required metadata.", session.id);
             response.status(200).send("Received but missing gig metadata.");
             return;
@@ -981,6 +982,8 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
                 ratePerCreator: Number(parsedGigData.ratePerCreator),
                 creatorsNeeded: Number(parsedGigData.creatorsNeeded),
                 acceptedCreatorIds: [],
+                paidCreatorIds: [],
+                fundingPaymentIntentId: paymentIntentId,
                 status: 'open',
                 createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
             };

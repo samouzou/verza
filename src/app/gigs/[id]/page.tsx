@@ -4,20 +4,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { functions, db } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2 } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
 import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
+import { httpsCallable } from 'firebase/functions';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -31,10 +32,12 @@ export default function GigDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [isPaying, setIsPaying] = useState<string | null>(null);
   
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
 
+  const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
 
   useEffect(() => {
     if (!gigId) {
@@ -145,6 +148,20 @@ export default function GigDetailPage() {
     }
   };
 
+  const handlePayout = async (creator: UserProfile) => {
+    if (!user || !gig) return;
+    setIsPaying(creator.uid);
+    try {
+      await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
+      toast({ title: "Payout Processing!", description: `Payment of $${gig.ratePerCreator} is being sent to ${creator.displayName}.` });
+    } catch (error: any) {
+      console.error("Error processing payout:", error);
+      toast({ title: "Payout Failed", description: error.message || "Could not process the payout.", variant: "destructive" });
+    } finally {
+      setIsPaying(null);
+    }
+  };
+
 
   if (isLoading || authLoading) {
     return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -206,7 +223,9 @@ export default function GigDetailPage() {
                     <CardContent>
                         {acceptedCreators.length > 0 ? (
                            <div className="space-y-3">
-                                {acceptedCreators.map(creator => (
+                                {acceptedCreators.map(creator => {
+                                  const isPaid = gig.paidCreatorIds?.includes(creator.uid);
+                                  return (
                                     <div key={creator.uid} className="flex items-center justify-between p-2 rounded-md transition-colors hover:bg-accent">
                                         <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3 group">
                                             <Avatar>
@@ -218,17 +237,32 @@ export default function GigDetailPage() {
                                                 <p className="text-xs text-muted-foreground">{creator.email}</p>
                                             </div>
                                         </Link>
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline"
-                                            onClick={() => handleGenerateAgreement(creator)}
-                                            disabled={isGenerating === creator.uid}
-                                        >
-                                            {isGenerating === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                            Generate Agreement
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                          <Button 
+                                              size="sm" 
+                                              variant="outline"
+                                              onClick={() => handleGenerateAgreement(creator)}
+                                              disabled={isGenerating === creator.uid || isPaying === creator.uid}
+                                          >
+                                              {isGenerating === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                              Agreement
+                                          </Button>
+                                          {isPaid ? (
+                                            <Badge variant="default" className="bg-green-500">Paid</Badge>
+                                          ) : (
+                                            <Button 
+                                                size="sm"
+                                                onClick={() => handlePayout(creator)}
+                                                disabled={isPaying === creator.uid || isGenerating === creator.uid}
+                                            >
+                                                {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
+                                                Approve & Pay
+                                            </Button>
+                                          )}
+                                        </div>
                                     </div>
-                                ))}
+                                  )
+                                })}
                            </div>
                         ) : (
                             <p className="text-sm text-muted-foreground text-center py-4">No creators have accepted this gig yet.</p>

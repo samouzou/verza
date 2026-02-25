@@ -428,6 +428,8 @@ export interface Gig {
   ratePerCreator: number;
   creatorsNeeded: number;
   acceptedCreatorIds: string[];
+  paidCreatorIds: string[];
+  fundingPaymentIntentId?: string;
   status: 'open' | 'in-progress' | 'completed';
   createdAt: ClientTimestamp;
 }
