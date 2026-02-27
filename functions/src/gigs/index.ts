@@ -1,6 +1,3 @@
-
-"use server";
-
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -74,19 +71,23 @@ export const payoutCreatorForGig = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
     }
 
-    const payoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
+    // Deduct 5% platform fee from the creator's payout as requested
+    const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
+    const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.05);
+    const finalPayoutAmountInCents = rawPayoutAmountInCents - platformFeeInCents;
 
     // Create a transfer to the creator's Stripe account
     await stripe.transfers.create({
-      amount: payoutAmountInCents,
+      amount: finalPayoutAmountInCents,
       currency: "usd",
       destination: creatorData.stripeAccountId,
       source_transaction: chargeId,
-      description: `Payout for gig: ${gigData.title}`,
+      description: `Payout for gig: ${gigData.title} (less 5% platform fee)`,
       metadata: {
         gigId: gigId,
         creatorId: creatorId,
         brandId: gigData.brandId,
+        platformFee: platformFeeInCents.toString(),
       },
     });
 
@@ -95,7 +96,8 @@ export const payoutCreatorForGig = onCall(async (request) => {
       paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
     });
 
-    logger.info(`Successfully processed payout of $${gigData.ratePerCreator} to creator ${creatorId} for gig ${gigId}.`);
+    logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
+      ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
     logger.error(`Error processing payout for gig ${gigId} to creator ${creatorId}:`, error);
