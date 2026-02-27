@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -101,6 +101,7 @@ export default function GigDetailPage() {
         
         const mySub = subs.find(s => s.creatorId === user.uid);
         
+        // Auto-heal legacy submissions missing brandId
         if (mySub && !mySub.brandId && gig) {
           const subRef = doc(db, 'submissions', mySub.id);
           updateDoc(subRef, { brandId: gig.brandId }).catch(e => console.warn("Failed to auto-heal submission brandId:", e));
@@ -149,8 +150,8 @@ export default function GigDetailPage() {
     // Check for connected Stripe account and enabled payouts
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
-        title: "Stripe Setup Required",
-        description: "You must connect your bank account via Stripe before you can accept paid gigs. Head to Settings to get set up.",
+        title: "Bank Account Required",
+        description: "You must connect your bank account before you can accept paid gigs. Head to Settings to get set up securely.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -532,7 +533,7 @@ export default function GigDetailPage() {
                             <Alert variant="destructive" className="py-2 px-3 text-xs">
                               <AlertTriangle className="h-3 w-3" />
                               <AlertDescription>
-                                Bank account connection required to receive payments.
+                                Bank account connection required to receive payouts.
                               </AlertDescription>
                             </Alert>
                           )}
