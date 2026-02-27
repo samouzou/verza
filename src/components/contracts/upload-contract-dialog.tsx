@@ -102,13 +102,11 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             userId: affiliatedCreator.uid,
             displayName: affiliatedCreator.displayName || 'Creator',
             email: affiliatedCreator.email || '',
-            status: 'active' // This is just for display in the dropdown
+            status: 'active' 
         };
-        // Return a new array with the affiliated creator added
         return [...currentTalent, newTalentFromAffiliation].filter(t => t.status === 'active');
     }
 
-    // Otherwise, just return the active talent from the agency
     return currentTalent.filter(t => t.status === 'active');
   }, [agency, affiliatedCreator]);
 
@@ -183,16 +181,15 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     setNegotiationSuggestions(null);
 
     try {
-      const [details, termsSummary, negSuggestions] = await Promise.all([
+      const [details, summaryOutput, negSuggestions] = await Promise.all([
         extractContractDetails({ contractText: textToAnalyze }),
         summarizeContractTerms({ contractText: textToAnalyze }),
         getNegotiationSuggestions({ contractText: textToAnalyze }),
       ]);
       setParsedDetails(details);
-      setSummary(termsSummary);
+      setSummary(summaryOutput);
       setNegotiationSuggestions(negSuggestions);
       
-      // Update milestone from AI details
       if (details.amount) {
         setMilestones([{
             id: uuidv4(),
@@ -413,8 +410,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const newContractRef = doc(collection(db, 'contracts'));
       batch.set(newContractRef, contractDataForFirestore);
       
-      // If this contract was generated for a talent from a gig, add them to the roster.
-      if (ownerType === 'agency' && selectedOwner !== 'personal' && initialSelectedOwner && agency) {
+      // If this contract was assigned to a talent, ensure they are in the agency roster and membership is linked.
+      if (ownerType === 'agency' && selectedOwner !== 'personal' && agency) {
         const agencyDocRef = doc(db, "agencies", agency.id);
         const creatorDocRef = doc(db, 'users', finalUserId);
 
@@ -436,6 +433,14 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                         commissionRate: 0,
                     };
                     batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
+                    
+                    const newMembership = {
+                        agencyId: agency.id,
+                        agencyName: agency.name,
+                        role: 'talent',
+                        status: 'active'
+                    };
+                    batch.update(creatorDocRef, { agencyMemberships: arrayUnion(newMembership) });
                 }
             }
         }
