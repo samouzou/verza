@@ -233,7 +233,7 @@ export interface CreditTransaction {
   userId: string;
   creditAmount: number;
   priceId: string;
-  checkoutSessionId: string;
+  paymentIntentId: string;
   status: "completed" | "failed";
   createdAt: ClientTimestamp;
 }
