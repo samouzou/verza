@@ -23,6 +23,7 @@ import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { Progress } from '@/components/ui/progress';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function GigDetailPage() {
   const params = useParams();
