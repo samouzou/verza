@@ -806,6 +806,14 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       }],
       success_url: `${params.APP_URL.value()}/gigs?funding_success=true`,
       cancel_url: `${params.APP_URL.value()}/gigs/post`,
+      payment_intent_data: {
+        metadata: {
+          purchaseType: "gigFunding",
+          firebaseUID: userId,
+          agencyId: userData.primaryAgencyId,
+          gigId: gigRef.id,
+        },
+      },
       metadata: {
         purchaseType: "gigFunding",
         firebaseUID: userId,
@@ -818,7 +826,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
     // Cleanup the pending gig if session creation fails
     await gigRef.delete();
-    throw new HttpsError("internal", error.message || "Could not create checkout session.");
+    throw new Error(error.message || "Could not create checkout session.");
   }
 });
 
@@ -885,6 +893,14 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       line_items: [{price: priceId, quantity: 1}],
       success_url: `${params.APP_URL.value()}/scene-spawner?purchase_success=true`,
       cancel_url: `${params.APP_URL.value()}/scene-spawner`,
+      payment_intent_data: {
+        metadata: {
+          firebaseUID: userId,
+          creditAmount: creditAmount.toString(),
+          priceId: priceId,
+          purchaseType: "creditPurchase",
+        },
+      },
       metadata: {
         firebaseUID: userId,
         creditAmount: creditAmount.toString(),
@@ -916,7 +932,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
 
   if (!sig || !webhookSecret) {
     logger.error("Missing stripe signature or credit purchase webhook secret");
-    response.status(400).send("Webhook Error: Missing signature or secret.");
+    response.status(400).send("Missing stripe signature or webhook secret");
     return;
   }
 
@@ -929,14 +945,15 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
     return;
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const {purchaseType} = session.metadata || {};
+  // Use payment_intent.succeeded for all activations to handle delayed payments (like Bank Transfer) safely
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const {purchaseType} = paymentIntent.metadata || {};
 
     if (purchaseType === "creditPurchase") {
-      const {firebaseUID, creditAmount, priceId} = session.metadata || {};
+      const {firebaseUID, creditAmount, priceId} = paymentIntent.metadata || {};
       if (!firebaseUID || !creditAmount) {
-        logger.warn("Webhook received checkout.session.completed without required metadata.", session.id);
+        logger.warn("payment_intent.succeeded received without required metadata.", paymentIntent.id);
         response.status(200).send("Received but missing credit metadata.");
         return;
       }
@@ -944,7 +961,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
       const userId = firebaseUID;
       const creditsToAdd = parseInt(creditAmount, 10);
       if (isNaN(creditsToAdd)) {
-        logger.error("Invalid creditAmount in webhook metadata:", creditAmount);
+        logger.error("Invalid creditAmount in metadata:", creditAmount);
         response.status(400).send("Invalid credit amount in metadata.");
         return;
       }
@@ -960,7 +977,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
             userId: userId,
             creditAmount: creditsToAdd,
             priceId: priceId || "unknown",
-            checkoutSessionId: session.id,
+            paymentIntentId: paymentIntent.id,
             status: "completed",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           } as Omit<CreditTransaction, "id">);
@@ -972,10 +989,9 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         return;
       }
     } else if (purchaseType === "gigFunding") {
-      const {gigId} = session.metadata || {};
-      const paymentIntentId = session.payment_intent as string;
-      if (!gigId || !paymentIntentId) {
-        logger.warn("Webhook received gigFunding checkout without required metadata (gigId or payment_intent).", session.id);
+      const {gigId} = paymentIntent.metadata || {};
+      if (!gigId) {
+        logger.warn("payment_intent.succeeded received gigFunding without gigId metadata.", paymentIntent.id);
         response.status(200).send("Received but missing gig metadata.");
         return;
       }
@@ -984,9 +1000,9 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         const gigRef = db.collection("gigs").doc(gigId);
         await gigRef.update({
           status: "open",
-          fundingPaymentIntentId: paymentIntentId,
+          fundingPaymentIntentId: paymentIntent.id,
         });
-        logger.info(`Successfully activated gig "${gigId}" after payment.`);
+        logger.info(`Successfully activated gig "${gigId}" after payment confirmed.`);
       } catch (error: any) {
         logger.error(`Error updating gig from webhook for gig ${gigId}:`, error);
         response.status(500).send("Internal server error while updating gig status.");
