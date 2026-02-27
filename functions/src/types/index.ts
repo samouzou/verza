@@ -457,6 +457,6 @@ export interface GigSubmission {
   videoUrl: string;
   verzaScore: number;
   verzaFeedback: string;
-  status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  status: "pending_verza_score" | "submitted" | "approved" | "rejected";
   createdAt: ClientTimestamp;
 }

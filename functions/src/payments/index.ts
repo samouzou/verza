@@ -1089,7 +1089,8 @@ export const payoutCreatorForGig = onCall(async (request) => {
       paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
     });
 
-    logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator ${creatorId} for gig ${gigId}. Platform took $${platformFeeInCents / 100}.`);
+    logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
+      ${creatorId} for gig ${gigId}. Platform took $${platformFeeInCents / 100}.`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
     logger.error(`Error processing payout for gig ${gigId} to creator ${creatorId}:`, error);
