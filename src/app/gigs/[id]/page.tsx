@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -454,14 +453,16 @@ export default function GigDetailPage() {
                                       <CardContent className="p-4">
                                         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                                           <div className="flex items-center gap-3">
-                                            <Avatar>
-                                              <AvatarImage src={creator.avatarUrl || ''} />
-                                              <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                              <p className="font-semibold">{creator.displayName}</p>
-                                              <p className="text-xs text-muted-foreground">{creator.email}</p>
-                                            </div>
+                                            <Link href={`/creator/${creator.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                              <Avatar>
+                                                <AvatarImage src={creator.avatarUrl || ''} />
+                                                <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
+                                              </Avatar>
+                                              <div>
+                                                <p className="font-semibold hover:underline">{creator.displayName}</p>
+                                                <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                              </div>
+                                            </Link>
                                           </div>
                                           <div className="flex flex-wrap items-center gap-2">
                                             <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
