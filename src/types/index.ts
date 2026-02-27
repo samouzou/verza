@@ -447,6 +447,7 @@ export interface CreatorMarketplaceProfile {
 export interface GigSubmission {
   id: string;
   gigId: string;
+  brandId: string; // Denormalized for security rules
   creatorId: string;
   creatorName: string;
   creatorAvatarUrl?: string | null;

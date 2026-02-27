@@ -97,12 +97,12 @@ service cloud.firestore {
     match /submissions/{submissionId} {
       allow read: if request.auth != null && (
         resource.data.creatorId == request.auth.uid || 
-        isTeamMemberOf(get(/databases/$(database)/documents/gigs/$(resource.data.gigId)).data.brandId)
+        isTeamMemberOf(resource.data.brandId)
       );
       allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
       allow update: if request.auth != null && (
-        (resource.data.creatorId == request.auth.uid) ||
-        (isTeamMemberOf(get(/databases/$(database)/documents/gigs/$(resource.data.gigId)).data.brandId))
+        (resource.data.creatorId == request.auth.uid && request.resource.data.brandId == resource.data.brandId) ||
+        (isTeamMemberOf(resource.data.brandId))
       );
     }
 

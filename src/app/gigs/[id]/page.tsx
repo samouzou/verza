@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -76,16 +77,26 @@ export default function GigDetailPage() {
       }
     );
 
-    const submissionsQuery = query(collection(db, 'submissions'), where('gigId', '==', gigId));
+    return () => unsubscribeGig();
+  }, [gigId]);
+
+  useEffect(() => {
+    if (!gig || !user) return;
+
+    const canManageGig = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
+    
+    // For creators, only list their own submissions to satisfy security rules
+    const submissionsQuery = canManageGig 
+      ? query(collection(db, 'submissions'), where('gigId', '==', gigId))
+      : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
+
     const unsubscribeSubmissions = onSnapshot(submissionsQuery, 
       (snapshot) => {
         const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
         setSubmissions(subs);
         
-        if (user) {
-          const mySub = subs.find(s => s.creatorId === user.uid);
-          setActiveSubmission(mySub || null);
-        }
+        const mySub = subs.find(s => s.creatorId === user.uid);
+        setActiveSubmission(mySub || null);
       },
       async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -96,11 +107,8 @@ export default function GigDetailPage() {
       }
     );
 
-    return () => {
-      unsubscribeGig();
-      unsubscribeSubmissions();
-    };
-  }, [gigId, user, toast]);
+    return () => unsubscribeSubmissions();
+  }, [gig, user, gigId]);
 
   useEffect(() => {
     if (gig && gig.acceptedCreatorIds.length > 0) {
@@ -184,6 +192,7 @@ export default function GigDetailPage() {
 
       const subData: Omit<GigSubmission, 'id'> = {
         gigId: gig.id,
+        brandId: gig.brandId,
         creatorId: user.uid,
         creatorName: user.displayName || 'Creator',
         creatorAvatarUrl: user.avatarUrl || null,
@@ -293,7 +302,7 @@ export default function GigDetailPage() {
           errorEmitter.emit('permission-error', permissionError);
         });
       }
-      toast({ title: "Payout Processing!", description: "Creator has been paid." });
+      toast({ title: "Payout Processing!", description: "Creator has been paid (less 5% platform fee)." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
     } finally {

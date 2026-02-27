@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Verza Score Analysis - An AI flow that simulates 10,000 Gen Z distractable scrollers to score a video.
@@ -29,7 +30,7 @@ export async function runVerzaScore(input: VerzaScoreInput): Promise<VerzaScoreO
 
 const prompt = ai.definePrompt({
   name: 'verzaScorePrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: VerzaScoreInputSchema },
   output: { schema: VerzaScoreOutputSchema },
   prompt: `You are the "Verza Score" algorithm, a simulation of 10,000 Gen Z distractable social media scrollers. 

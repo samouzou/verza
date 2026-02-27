@@ -74,7 +74,6 @@ service firebase.storage {
 
       // Creators can read their own submissions, 
       // and agency members can read submissions for gigs their agency owns.
-      // Note: firestore.get() looks up the gig document to find the owning agency (brandId).
       allow read: if request.auth != null && (
         request.auth.uid == userId || 
         isMemberOfAgency(firestore.get(/databases/(default)/documents/gigs/$(gigId)).data.brandId)
