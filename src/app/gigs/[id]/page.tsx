@@ -85,9 +85,10 @@ export default function GigDetailPage() {
 
     const canManageGig = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
     
-    // For creators, only list their own submissions to satisfy security rules
+    // CRITICAL: Firestore rules are not filters. The query must match the security rule constraints.
+    // We add the brandId filter to the brand's query to satisfy 'isTeamMemberOf(resource.data.brandId)'
     const submissionsQuery = canManageGig 
-      ? query(collection(db, 'submissions'), where('gigId', '==', gigId))
+      ? query(collection(db, 'submissions'), where('gigId', '==', gigId), where('brandId', '==', gig.brandId))
       : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
 
     const unsubscribeSubmissions = onSnapshot(submissionsQuery, 
@@ -501,7 +502,7 @@ export default function GigDetailPage() {
         </div>
       </div>
       {contractGenData && (
-        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.uid} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
+        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.userId} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
       )}
     </>
   );
