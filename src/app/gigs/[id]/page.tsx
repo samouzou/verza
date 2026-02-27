@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -88,10 +87,8 @@ export default function GigDetailPage() {
     const isBrandTeam = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
     const hasAccepted = gig.acceptedCreatorIds.includes(user.uid);
 
-    // Only attempt to query submissions if the user is authorized by the rules
     if (!isBrandTeam && !hasAccepted) return;
 
-    // We must provide an explicit filter for either brandId or creatorId to satisfy security rules (Rules are not filters)
     const submissionsQuery = isBrandTeam 
       ? query(collection(db, 'submissions'), where('gigId', '==', gigId), where('brandId', '==', gig.brandId))
       : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
@@ -101,11 +98,8 @@ export default function GigDetailPage() {
         const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
         setSubmissions(subs);
         
-        // For creators, find their specific submission
         const mySub = subs.find(s => s.creatorId === user.uid);
         
-        // AUTO-HEALING: If a creator sees their submission but it's missing brandId (legacy data),
-        // update it so the brand's filtered query can find it.
         if (mySub && !mySub.brandId && gig) {
           const subRef = doc(db, 'submissions', mySub.id);
           updateDoc(subRef, { brandId: gig.brandId }).catch(e => console.warn("Failed to auto-heal submission brandId:", e));
@@ -150,6 +144,22 @@ export default function GigDetailPage() {
 
   const handleAcceptGig = async () => {
     if (!user || !gig) return;
+
+    // Check for connected Stripe account and enabled payouts
+    if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
+      toast({
+        title: "Stripe Setup Required",
+        description: "You must connect your bank account via Stripe before you can accept paid gigs. Head to Settings to get set up.",
+        variant: "destructive",
+        action: (
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/settings">Settings</Link>
+          </Button>
+        ),
+      });
+      return;
+    }
+
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
     const userDocRef = doc(db, 'users', user.uid);
@@ -332,6 +342,7 @@ export default function GigDetailPage() {
   const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
   const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
+  const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
 
   return (
     <>
@@ -510,8 +521,41 @@ export default function GigDetailPage() {
                     <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Needed</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status}</Badge></div>
-                    {user && !canManageGig && (hasAccepted ? <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button> : spotsLeft > 0 ? <Button className="w-full" onClick={handleAcceptGig} disabled={isAccepting}>{isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Accept Gig</Button> : <Button className="w-full" disabled>Gig Full</Button>)}
-                    {canManageGig && <Button asChild className="w-full" variant="outline"><Link href={`/gigs/${gig.id}/edit`}><Edit className="mr-2 h-4 w-4" /> Edit Gig</Link></Button>}
+                    
+                    {user && !canManageGig && (
+                      hasAccepted ? (
+                        <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
+                      ) : spotsLeft > 0 ? (
+                        <div className="space-y-3">
+                          {!isStripeSetup && (
+                            <Alert variant="destructive" className="py-2 px-3 text-xs">
+                              <AlertTriangle className="h-3 w-3" />
+                              <AlertDescription>
+                                Bank account connection required to receive payments.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          <Button 
+                            className="w-full" 
+                            onClick={handleAcceptGig} 
+                            disabled={isAccepting}
+                          >
+                            {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                            Accept Gig
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button className="w-full" disabled>Gig Full</Button>
+                      )
+                    )}
+                    
+                    {canManageGig && (
+                      <Button asChild className="w-full" variant="outline">
+                        <Link href={`/gigs/${gig.id}/edit`}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                        </Link>
+                      </Button>
+                    )}
                 </CardContent>
             </Card>
         </div>
