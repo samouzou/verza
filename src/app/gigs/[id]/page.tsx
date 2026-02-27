@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission } from '@/types';
+import type { Gig, GigSubmission, Notification } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -147,7 +148,6 @@ export default function GigDetailPage() {
   const handleAcceptGig = async () => {
     if (!user || !gig) return;
 
-    // Check for connected Stripe account and enabled payouts
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
         title: "Bank Account Required",
@@ -176,24 +176,25 @@ export default function GigDetailPage() {
       const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
       if (newAcceptedIds.length === currentGigData.creatorsNeeded) gigUpdates.status = 'in-progress';
       
-      updateDoc(gigDocRef, gigUpdates).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: gigDocRef.path,
-          operation: 'update',
-          requestResourceData: gigUpdates,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+      await updateDoc(gigDocRef, gigUpdates);
+
+      // Notify Brand
+      const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
+      if (agencySnap.exists()) {
+        const agencyData = agencySnap.data();
+        await addDoc(collection(db, 'notifications'), {
+          userId: agencyData.ownerId,
+          title: "New creator joined!",
+          message: `${user.displayName || 'A creator'} has joined your gig "${gig.title}".`,
+          type: 'gig_accepted',
+          read: false,
+          link: `/gigs/${gig.id}`,
+          createdAt: serverTimestamp(),
+        } as Omit<Notification, 'id'>);
+      }
 
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
-      updateDoc(userDocRef, userUpdates).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: userDocRef.path,
-          operation: 'update',
-          requestResourceData: userUpdates,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+      await updateDoc(userDocRef, userUpdates);
 
       toast({ title: "Gig Accepted!" });
     } catch (error: any) {
@@ -233,23 +234,9 @@ export default function GigDetailPage() {
 
       if (activeSubmission) {
         const subRef = doc(db, 'submissions', activeSubmission.id);
-        updateDoc(subRef, subData).catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: subRef.path,
-            operation: 'update',
-            requestResourceData: subData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
+        await updateDoc(subRef, subData);
       } else {
-        addDoc(collection(db, 'submissions'), subData).catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: 'submissions',
-            operation: 'create',
-            requestResourceData: subData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
+        await addDoc(collection(db, 'submissions'), subData);
       }
       toast({ title: "Upload successful!", description: "Now calculate your Verza Score to verify your work." });
     } catch (error: any) {
@@ -261,7 +248,7 @@ export default function GigDetailPage() {
   };
 
   const handleRunVerzaScore = async () => {
-    if (!activeSubmission) return;
+    if (!activeSubmission || !gig) return;
     setIsRunningVerzaScore(true);
     toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
@@ -274,16 +261,23 @@ export default function GigDetailPage() {
         status: result.score >= 65 ? 'submitted' : 'rejected'
       };
 
-      updateDoc(subRef, updates).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: subRef.path,
-          operation: 'update',
-          requestResourceData: updates,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+      await updateDoc(subRef, updates);
 
       if (result.score >= 65) {
+        // Notify Brand of new submission
+        const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
+        if (agencySnap.exists()) {
+          const agencyData = agencySnap.data();
+          await addDoc(collection(db, 'notifications'), {
+            userId: agencyData.ownerId,
+            title: "New submission received",
+            message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
+            type: 'submission_received',
+            read: false,
+            link: `/gigs/${gig.id}`,
+            createdAt: serverTimestamp(),
+          } as Omit<Notification, 'id'>);
+        }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
         toast({ title: "VERZA SCORE LOW", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
@@ -321,15 +315,20 @@ export default function GigDetailPage() {
       const sub = submissions.find(s => s.creatorId === creator.uid && s.status === 'submitted');
       if (sub) {
         const subRef = doc(db, 'submissions', sub.id);
-        updateDoc(subRef, { status: 'approved' }).catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: subRef.path,
-            operation: 'update',
-            requestResourceData: { status: 'approved' },
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
+        await updateDoc(subRef, { status: 'approved' });
       }
+
+      // Notify Creator
+      await addDoc(collection(db, 'notifications'), {
+        userId: creator.uid,
+        title: "Payout Received!",
+        message: `Your submission for "${gig.title}" has been approved and paid.`,
+        type: 'payout_received',
+        read: false,
+        link: '/wallet',
+        createdAt: serverTimestamp(),
+      } as Omit<Notification, 'id'>);
+
       toast({ title: "Payout Processing!", description: "Creator has been paid (less 5% platform fee)." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });

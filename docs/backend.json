@@ -173,6 +173,22 @@
         }
       },
       "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "videosPerCreator", "status", "createdAt", "paidCreatorIds"]
+    },
+    "notification": {
+      "title": "Notification",
+      "description": "An in-app notification for a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "The recipient's UID." },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["gig_accepted", "submission_received", "submission_approved", "payout_received", "system"] },
+        "read": { "type": "boolean" },
+        "link": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "type", "read", "createdAt"]
     }
   },
   "auth": {
@@ -196,6 +212,12 @@
         "$ref": "#/backend/entities/gig"
       },
       "description": "Stores gig postings from brands for creators."
+    },
+    "/notifications/{notificationId}": {
+      "schema": {
+        "$ref": "#/backend/entities/notification"
+      },
+      "description": "Stores in-app notifications for users."
     }
   }
 }

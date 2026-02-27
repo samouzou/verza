@@ -457,3 +457,14 @@ export interface GigSubmission {
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
   createdAt: ClientTimestamp;
 }
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system';
+  read: boolean;
+  link?: string;
+  createdAt: ClientTimestamp;
+}

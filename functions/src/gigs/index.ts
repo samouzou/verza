@@ -1,8 +1,9 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
-import type {Gig, UserProfileFirestoreData} from "./../types";
+import type {Gig, UserProfileFirestoreData, Notification} from "./../types";
 import * as params from "../config/params";
 import * as admin from "firebase-admin";
 
@@ -57,7 +58,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     const creatorData = creatorSnap.data() as UserProfileFirestoreData;
 
     if (!creatorData.stripeAccountId || !creatorData.stripePayoutsEnabled) {
-      throw new HttpsError("failed-precondition", "The creator does not have a valid Stripe account ready for payouts.");
+      throw new https_1.HttpsError("failed-precondition", "The creator does not have a valid Stripe account ready for payouts.");
     }
 
     const stripeKey = params.STRIPE_SECRET_KEY.value();
@@ -68,7 +69,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     const chargeId = paymentIntent.latest_charge as string;
 
     if (!chargeId) {
-      throw new HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
+      throw new https_1.HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
     }
 
     // Deduct 5% platform fee from the creator's payout as requested
@@ -95,6 +96,17 @@ export const payoutCreatorForGig = onCall(async (request) => {
     await gigDocRef.update({
       paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
     });
+
+    // Notify Creator
+    await db.collection("notifications").add({
+      userId: creatorId,
+      title: "Payout Received!",
+      message: `Your submission for "${gigData.title}" has been approved and paid.`,
+      type: "payout_received",
+      read: false,
+      link: "/wallet",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    } as Omit<Notification, "id">);
 
     logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
       ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.`);

@@ -55,7 +55,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SetupGuide } from "./setup-guide"; // Import the new component
+import { SetupGuide } from "./setup-guide";
+import { NotificationBell } from "./notification-bell";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -172,10 +173,13 @@ export function SidebarNav() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
-            <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
-            <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
-        </Link>
+        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+          <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:mx-auto">
+              <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
+              <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
+          </Link>
+          <NotificationBell />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -389,5 +393,3 @@ export function SidebarNav() {
     </Sidebar>
   );
 }
-
-    
