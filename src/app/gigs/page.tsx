@@ -5,20 +5,22 @@ import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Calendar } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import type { Gig } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
+
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
-  const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
-  const isBrand = gig.brandId === currentUserId || false; // Simple check, might be more complex with agency
   const isAccepted = currentUserId ? gig.acceptedCreatorIds.includes(currentUserId) : false;
 
   return (
@@ -69,7 +71,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         </Button>
       </CardFooter>
     </Card>
-  )
+  );
 }
 
 export default function GigsPage() {
@@ -78,6 +80,11 @@ export default function GigsPage() {
   const [myGigs, setMyGigs] = useState<Gig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("browse");
+
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [minRate, setMinRate] = useState("");
 
   // 1. Fetch "Browse" Gigs (Open ones)
   useEffect(() => {
@@ -105,14 +112,10 @@ export default function GigsPage() {
     return () => unsubscribe();
   }, [user, authLoading]);
 
-  // 2. Fetch "My Gigs" (Gigs I'm in or managing)
+  // 2. Fetch "My Gigs"
   useEffect(() => {
     if (!user) return;
 
-    // We need to fetch gigs where I'm a creator OR where I'm the brand team
-    // Since we can't do OR in Firestore easily across these fields, we run two listeners or merge.
-    // For simplicity and real-time feel, we'll merge them.
-    
     const participatingQuery = query(
       collection(db, "gigs"),
       where("acceptedCreatorIds", "array-contains", user.uid)
@@ -130,10 +133,9 @@ export default function GigsPage() {
         onSnapshot(managingQuery, (brandSnapshot) => {
           const managingGigs = brandSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
           
-          // Merge and Deduplicate
           const combined = new Map<string, Gig>();
-          participatingGigs.forEach(g => combined.set(gigId(g), g));
-          managingGigs.forEach(g => combined.set(gigId(g), g));
+          participatingGigs.forEach(g => combined.set(g.id, g));
+          managingGigs.forEach(g => combined.set(g.id, g));
           
           const sorted = Array.from(combined.values()).sort((a, b) => 
             (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis()
@@ -150,7 +152,30 @@ export default function GigsPage() {
     };
   }, [user]);
 
-  const gigId = (g: Gig) => g.id;
+  const applyFilters = (gigs: Gig[]) => {
+    return gigs.filter(gig => {
+      const matchesSearch = searchTerm === "" || 
+        gig.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        gig.brandName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        gig.description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesPlatform = platformFilter === "all" || gig.platforms.includes(platformFilter as any);
+      
+      const rateLimit = parseFloat(minRate);
+      const matchesRate = isNaN(rateLimit) || gig.ratePerCreator >= rateLimit;
+
+      return matchesSearch && matchesPlatform && matchesRate;
+    });
+  };
+
+  const filteredOpenGigs = useMemo(() => applyFilters(openGigs), [openGigs, searchTerm, platformFilter, minRate]);
+  const filteredMyGigs = useMemo(() => applyFilters(myGigs), [myGigs, searchTerm, platformFilter, minRate]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setPlatformFilter("all");
+    setMinRate("");
+  };
 
   const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
@@ -169,52 +194,101 @@ export default function GigsPage() {
         ) : undefined}
       />
 
-      <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="browse">Browse Gigs</TabsTrigger>
-          <TabsTrigger value="my-gigs">My Gigs</TabsTrigger>
-        </TabsList>
+      <div className="flex flex-col space-y-6">
+        {/* Filter Bar */}
+        <Card className="p-4 shadow-sm border-primary/10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><Search className="h-3 w-3" /> Search</Label>
+              <Input 
+                placeholder="Search gigs or brands..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><Smartphone className="h-3 w-3" /> Platform</Label>
+              <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Platforms" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Platforms</SelectItem>
+                  {platforms.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><DollarSign className="h-3 w-3" /> Min. Rate</Label>
+              <Input 
+                type="number" 
+                placeholder="Any amount" 
+                value={minRate} 
+                onChange={e => setMinRate(e.target.value)}
+              />
+            </div>
+            <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground">
+              <X className="mr-2 h-4 w-4" /> Clear Filters
+            </Button>
+          </div>
+        </Card>
 
-        <TabsContent value="browse" className="space-y-6">
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
-            </div>
-          ) : openGigs.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {openGigs.map(gig => <GigCard key={gig.id} gig={gig} currentUserId={user?.uid} />)}
-            </div>
-          ) : (
-            <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
-              <h3 className="text-xl font-semibold">No Gigs Available</h3>
-              <p className="text-muted-foreground mt-2">Check back later for new opportunities!</p>
-            </div>
-          )}
-        </TabsContent>
+        <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+            <TabsTrigger value="browse">Browse Gigs ({filteredOpenGigs.length})</TabsTrigger>
+            <TabsTrigger value="my-gigs">My Gigs ({filteredMyGigs.length})</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="my-gigs" className="space-y-6">
-          {myGigs.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {myGigs.map(gig => (
-                <GigCard 
-                  key={gig.id} 
-                  gig={gig} 
-                  showRole 
-                  currentUserId={user?.uid} 
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
-              <h3 className="text-xl font-semibold">No Active Gigs</h3>
-              <p className="text-muted-foreground mt-2">Gigs you've accepted or posted will appear here.</p>
-              <Button variant="outline" className="mt-4" onClick={() => setActiveTab("browse")}>
-                Explore Opportunities
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="browse" className="space-y-6">
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+              </div>
+            ) : filteredOpenGigs.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredOpenGigs.map(gig => <GigCard key={gig.id} gig={gig} currentUserId={user?.uid} />)}
+              </div>
+            ) : (
+              <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
+                <Filter className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold">No Gigs Found</h3>
+                <p className="text-muted-foreground mt-2">Try adjusting your filters or search terms.</p>
+                <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="my-gigs" className="space-y-6">
+            {filteredMyGigs.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredMyGigs.map(gig => (
+                  <GigCard 
+                    key={gig.id} 
+                    gig={gig} 
+                    showRole 
+                    currentUserId={user?.uid} 
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
+                <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Gigs" : "No Matching Gigs"}</h3>
+                <p className="text-muted-foreground mt-2">
+                  {myGigs.length === 0 
+                    ? "Gigs you've accepted or posted will appear here." 
+                    : "None of your active gigs match the current filters."}
+                </p>
+                {myGigs.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>}
+                {myGigs.length === 0 && (
+                  <Button variant="outline" className="mt-4" onClick={() => setActiveTab("browse")}>
+                    Explore Opportunities
+                  </Button>
+                )}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </>
   );
 }
