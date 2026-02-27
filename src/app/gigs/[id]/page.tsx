@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
@@ -51,6 +51,7 @@ export default function GigDetailPage() {
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
 
+  // 1. Fetch Gig Data
   useEffect(() => {
     if (!gigId) {
       setIsLoading(false);
@@ -80,14 +81,19 @@ export default function GigDetailPage() {
     return () => unsubscribeGig();
   }, [gigId]);
 
+  // 2. Fetch Submissions - Filtered to satisfy security rules
   useEffect(() => {
     if (!gig || !user) return;
 
-    const canManageGig = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
-    
-    // CRITICAL: Firestore rules are not filters. The query must match the security rule constraints.
-    // We add the brandId filter to the brand's query to satisfy 'isTeamMemberOf(resource.data.brandId)'
-    const submissionsQuery = canManageGig 
+    const isBrandTeam = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
+    const hasAccepted = gig.acceptedCreatorIds.includes(user.uid);
+
+    // Only attempt to query submissions if the user is authorized by the rules
+    if (!isBrandTeam && !hasAccepted) return;
+
+    // Rules require: resource.data.creatorId == auth.uid OR isTeamMemberOf(resource.data.brandId)
+    // We must provide an explicit filter for either brandId or creatorId to satisfy this.
+    const submissionsQuery = isBrandTeam 
       ? query(collection(db, 'submissions'), where('gigId', '==', gigId), where('brandId', '==', gig.brandId))
       : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
 
@@ -96,6 +102,7 @@ export default function GigDetailPage() {
         const subs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GigSubmission));
         setSubmissions(subs);
         
+        // For creators, find their specific submission
         const mySub = subs.find(s => s.creatorId === user.uid);
         setActiveSubmission(mySub || null);
       },
@@ -111,6 +118,7 @@ export default function GigDetailPage() {
     return () => unsubscribeSubmissions();
   }, [gig, user, gigId]);
 
+  // 3. Fetch accepted creator profiles (Brand only)
   useEffect(() => {
     if (gig && gig.acceptedCreatorIds.length > 0) {
       const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.acceptedCreatorIds));
@@ -502,7 +510,7 @@ export default function GigDetailPage() {
         </div>
       </div>
       {contractGenData && (
-        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.userId} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
+        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.uid} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
       )}
     </>
   );
