@@ -58,7 +58,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     const creatorData = creatorSnap.data() as UserProfileFirestoreData;
 
     if (!creatorData.stripeAccountId || !creatorData.stripePayoutsEnabled) {
-      throw new https_1.HttpsError("failed-precondition", "The creator does not have a valid Stripe account ready for payouts.");
+      throw new HttpsError("failed-precondition", "The creator does not have a valid Stripe account ready for payouts.");
     }
 
     const stripeKey = params.STRIPE_SECRET_KEY.value();
@@ -69,7 +69,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     const chargeId = paymentIntent.latest_charge as string;
 
     if (!chargeId) {
-      throw new https_1.HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
+      throw new HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
     }
 
     // Deduct 5% platform fee from the creator's payout as requested

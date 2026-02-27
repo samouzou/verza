@@ -124,8 +124,7 @@ export interface SharedContractVersion {
     "signedDocumentUrl" | "lastSignatureEventAt" | "access">;
   notesForBrand: string | null;
   status: "active" | "revoked"; // Status of this share link
-  brandHasViewed?: boolean;
-  lastViewedByBrandAt?: ClientTimestamp;
+  brandHasViewed: false;
 }
 
 export interface CommentReply {
@@ -167,7 +166,7 @@ export interface RedlineProposal {
 
 export interface EarningsDataPoint {
   month: string; // e.g., "Jan", "Feb"
-  year: number; // e.g., 2024
+  year: number;
   collected: number;
   invoiced: number;
 }
@@ -451,6 +450,7 @@ export interface CreatorMarketplaceProfile {
 export interface GigSubmission {
   id: string;
   gigId: string;
+  brandId: string; // Denormalized for security rules
   creatorId: string;
   creatorName: string;
   creatorAvatarUrl?: string | null;
@@ -458,5 +458,16 @@ export interface GigSubmission {
   verzaScore: number;
   verzaFeedback: string;
   status: "pending_verza_score" | "submitted" | "approved" | "rejected";
+  createdAt: ClientTimestamp;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: "gig_accepted" | "submission_received" | "submission_approved" | "payout_received" | "system";
+  read: boolean;
+  link?: string;
   createdAt: ClientTimestamp;
 }
