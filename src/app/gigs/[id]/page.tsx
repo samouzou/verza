@@ -81,7 +81,7 @@ export default function GigDetailPage() {
     return () => unsubscribeGig();
   }, [gigId]);
 
-  // 2. Fetch Submissions - Filtered to satisfy security rules
+  // 2. Fetch Submissions with Role-Based Filtering
   useEffect(() => {
     if (!gig || !user) return;
 
@@ -91,8 +91,7 @@ export default function GigDetailPage() {
     // Only attempt to query submissions if the user is authorized by the rules
     if (!isBrandTeam && !hasAccepted) return;
 
-    // Rules require: resource.data.creatorId == auth.uid OR isTeamMemberOf(resource.data.brandId)
-    // We must provide an explicit filter for either brandId or creatorId to satisfy this.
+    // We must provide an explicit filter for either brandId or creatorId to satisfy security rules (Rules are not filters)
     const submissionsQuery = isBrandTeam 
       ? query(collection(db, 'submissions'), where('gigId', '==', gigId), where('brandId', '==', gig.brandId))
       : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
@@ -104,6 +103,14 @@ export default function GigDetailPage() {
         
         // For creators, find their specific submission
         const mySub = subs.find(s => s.creatorId === user.uid);
+        
+        // AUTO-HEALING: If a creator sees their submission but it's missing brandId (legacy data),
+        // update it so the brand's filtered query can find it.
+        if (mySub && !mySub.brandId && gig) {
+          const subRef = doc(db, 'submissions', mySub.id);
+          updateDoc(subRef, { brandId: gig.brandId }).catch(e => console.warn("Failed to auto-heal submission brandId:", e));
+        }
+
         setActiveSubmission(mySub || null);
       },
       async (serverError) => {
