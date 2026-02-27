@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig, GigSubmission, Notification } from '@/types';
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -24,12 +25,23 @@ import { Progress } from '@/components/ui/progress';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function GigDetailPage() {
   const params = useParams();
   const gigId = params.id as string;
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
   const [gig, setGig] = useState<Gig | null>(null);
@@ -39,6 +51,8 @@ export default function GigDetailPage() {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isResumingFunding, setIsResumingFunding] = useState(false);
   
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
@@ -50,6 +64,7 @@ export default function GigDetailPage() {
   const [activeSubmission, setActiveSubmission] = useState<GigSubmission | null>(null);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
+  const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
 
   // 1. Fetch Gig Data
   useEffect(() => {
@@ -336,6 +351,48 @@ export default function GigDetailPage() {
     }
   };
 
+  const handleDeleteGig = async () => {
+    if (!gig) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'gigs', gig.id));
+      toast({ title: "Gig Deleted", description: "The project has been removed." });
+      router.push('/gigs');
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleResumeFunding = async () => {
+    if (!gig) return;
+    setIsResumingFunding(true);
+    try {
+      const result = await createGigFundingCheckoutSessionCallable({
+        id: gig.id,
+        title: gig.title,
+        description: gig.description,
+        platforms: gig.platforms,
+        ratePerCreator: gig.ratePerCreator,
+        creatorsNeeded: gig.creatorsNeeded,
+        videosPerCreator: gig.videosPerCreator,
+      });
+      const data = result.data as { url?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("Failed to get payment URL.");
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Funding Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResumingFunding(false);
+    }
+  };
+
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Gig Not Found</h3></div>;
 
@@ -343,6 +400,7 @@ export default function GigDetailPage() {
   const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
+  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
 
   return (
     <>
@@ -471,7 +529,7 @@ export default function GigDetailPage() {
                                             {isPaid ? (
                                               <Badge variant="default" className="bg-green-500">Paid</Badge>
                                             ) : (
-                                              <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || submission?.status !== 'submitted'}>
+                                              <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || (submission?.status !== 'submitted' && submission?.status !== 'approved')}>
                                                 {isPaying === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
                                               </Button>
                                             )}
@@ -522,12 +580,12 @@ export default function GigDetailPage() {
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Needed</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                     <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
-                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status}</Badge></div>
+                    <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status.replace(/_/g, ' ')}</Badge></div>
                     
                     {user && !canManageGig && (
                       hasAccepted ? (
                         <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
-                      ) : spotsLeft > 0 ? (
+                      ) : spotsLeft > 0 && gig.status === 'open' ? (
                         <div className="space-y-3">
                           {!isStripeSetup && (
                             <Alert variant="destructive" className="py-2 px-3 text-xs">
@@ -547,16 +605,48 @@ export default function GigDetailPage() {
                           </Button>
                         </div>
                       ) : (
-                        <Button className="w-full" disabled>Gig Full</Button>
+                        <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Gig Full'}</Button>
                       )
                     )}
                     
                     {canManageGig && (
-                      <Button asChild className="w-full" variant="outline">
-                        <Link href={`/gigs/${gig.id}/edit`}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit Gig
-                        </Link>
-                      </Button>
+                      <div className="space-y-2">
+                        {gig.status === 'pending_payment' && (
+                          <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding}>
+                            {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CreditCard className="mr-2 h-4 w-4"/>}
+                            Complete Funding
+                          </Button>
+                        )}
+                        <Button asChild className="w-full" variant="outline">
+                          <Link href={`/gigs/${gig.id}/edit`}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                          </Link>
+                        </Button>
+                        {canDeleteGig && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button className="w-full" variant="destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Gig
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete this gig?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently remove the gig listing. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteGig} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     )}
                 </CardContent>
             </Card>

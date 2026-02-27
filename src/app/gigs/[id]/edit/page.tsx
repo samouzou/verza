@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, Save } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Gig } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -113,6 +114,7 @@ export default function EditGigPage() {
   };
 
   const canManageGig = user && gig && (user.primaryAgencyId === gig.brandId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
+  const isFunded = gig && gig.status !== 'pending_payment';
 
   if (authLoading || isLoadingGig) {
     return (
@@ -155,58 +157,70 @@ export default function EditGigPage() {
             </Button>
         }
       />
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-            <CardTitle>Gig Details</CardTitle>
-            <CardDescription>Update the details for your user-generated content (UGC) campaign.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="title">Gig Title</Label>
-                <Input id="title" value={title} onChange={e => setTitle(e.target.value)} required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Project Description</Label>
-                <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={5} required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-              <Label>Platforms</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-                {platforms.map(platform => (
-                  <div key={platform} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`platform-${platform}`}
-                      checked={selectedPlatforms.includes(platform)}
-                      onCheckedChange={() => handlePlatformChange(platform)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
-                  </div>
-                ))}
+      <div className="max-w-3xl mx-auto space-y-6">
+        {isFunded && (
+          <Alert variant="default" className="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>Scope Locked</AlertTitle>
+            <AlertDescription>
+              This gig has already been funded. Financial details and creator counts are locked to ensure consistency for creators. You can still update the title, description, and platforms.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <Card>
+          <CardHeader>
+              <CardTitle>Gig Details</CardTitle>
+              <CardDescription>Update the details for your user-generated content (UGC) campaign.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                  <Label htmlFor="title">Gig Title</Label>
+                  <Input id="title" value={title} onChange={e => setTitle(e.target.value)} required disabled={isSubmitting} />
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                    <Label htmlFor="rate">Rate per Creator ($)</Label>
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} required min="1" disabled={isSubmitting}/>
+              <div className="space-y-2">
+                  <Label htmlFor="description">Project Description</Label>
+                  <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={5} required disabled={isSubmitting} />
+              </div>
+              <div className="space-y-2">
+                <Label>Platforms</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                  {platforms.map(platform => (
+                    <div key={platform} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`platform-${platform}`}
+                        checked={selectedPlatforms.includes(platform)}
+                        onCheckedChange={() => handlePlatformChange(platform)}
+                        disabled={isSubmitting}
+                      />
+                      <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="creators">Creators Needed</Label>
-                    <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting}/>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="videos">Videos per Creator</Label>
-                    <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting}/>
-                </div>
-            </div>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Save Changes
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                      <Label htmlFor="rate">Rate per Creator ($)</Label>
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
+                  </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="creators">Creators Needed</Label>
+                      <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
+                  </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="videos">Videos per Creator</Label>
+                      <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
+                  </div>
+              </div>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 }

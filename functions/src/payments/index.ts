@@ -1,3 +1,4 @@
+
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
@@ -736,7 +737,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const {title, description, platforms, ratePerCreator, creatorsNeeded, videosPerCreator} = request.data;
+  const {id: existingGigId, title, description, platforms, ratePerCreator, creatorsNeeded, videosPerCreator} = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator) {
     throw new HttpsError("invalid-argument", "Missing required gig details.");
@@ -767,9 +768,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     await agencyOwnerDoc.ref.update({stripeCustomerId});
   }
 
-  // Create the gig document first with 'pending_payment' status to avoid Stripe metadata limits
-  const gigRef = db.collection("gigs").doc();
-  const initialGigData: Omit<Gig, "id"> = {
+  // Use existing gig or create a new one
+  const gigRef = existingGigId ? db.collection("gigs").doc(existingGigId) : db.collection("gigs").doc();
+  const gigDataToSet: Omit<Gig, "id"> = {
     brandId: userData.primaryAgencyId,
     brandName: agencyData.name,
     brandLogoUrl: agencyOwnerData.companyLogoUrl || null,
@@ -784,7 +785,18 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     status: "pending_payment",
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
   };
-  await gigRef.set(initialGigData);
+  
+  if (existingGigId) {
+    // If updating, preserve existing creators
+    const existingGigSnap = await gigRef.get();
+    if (existingGigSnap.exists) {
+      const existingData = existingGigSnap.data() as Gig;
+      gigDataToSet.acceptedCreatorIds = existingData.acceptedCreatorIds || [];
+      gigDataToSet.paidCreatorIds = existingData.paidCreatorIds || [];
+    }
+  }
+
+  await gigRef.set(gigDataToSet, { merge: true });
 
   const totalAmount = ratePerCreator * creatorsNeeded;
   const totalAmountInCents = Math.round(totalAmount * 100);
@@ -805,7 +817,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         quantity: 1,
       }],
       success_url: `${params.APP_URL.value()}/gigs?funding_success=true`,
-      cancel_url: `${params.APP_URL.value()}/gigs/post`,
+      cancel_url: `${params.APP_URL.value()}/gigs/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
           purchaseType: "gigFunding",
@@ -824,8 +836,10 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
-    // Cleanup the pending gig if session creation fails
-    await gigRef.delete();
+    // Cleanup if new gig failed
+    if (!existingGigId) {
+      await gigRef.delete();
+    }
     throw new Error(error.message || "Could not create checkout session.");
   }
 });

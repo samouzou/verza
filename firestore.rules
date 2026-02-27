@@ -91,6 +91,9 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if isTeamMemberOf(request.resource.data.brandId);
       allow update: if (isTeamMemberOf(resource.data.brandId)) || (request.auth != null && resource.data.status == 'open');
+      allow delete: if isTeamMemberOf(resource.data.brandId) && 
+                      (resource.data.status == 'pending_payment' || 
+                       (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
     }
 
     // Rules for gig submissions
