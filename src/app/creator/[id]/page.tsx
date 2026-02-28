@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UserProfileFirestoreData } from '@/types';
@@ -23,6 +23,7 @@ const formatFollowers = (num: number) => {
 
 export default function CreatorProfilePage() {
   const params = useParams();
+  const router = useRouter();
   const creatorId = params.id as string;
   const [creator, setCreator] = useState<UserProfileFirestoreData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +79,11 @@ export default function CreatorProfilePage() {
       <PageHeader 
         title={creator.displayName || "Creator Profile"} 
         description={creator.niche || "Content Creator"}
-        actions={<Button variant="outline" asChild><Link href="/marketplace"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Marketplace</Link></Button>}
+        actions={
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="mr-2 h-4 w-4"/> Back
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
