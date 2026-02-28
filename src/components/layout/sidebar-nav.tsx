@@ -64,7 +64,6 @@ const mainNavItems = [
 
 const marketplaceNavItems = [
     { id: 'nav-item-gigs', href: "/gigs", label: "Marketplace", icon: FileStack },
-    { id: 'nav-item-marketplace', href: "/marketplace", label: "Find Talent", icon: Store },
 ];
 
 const manageNavItems = [

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -61,9 +62,11 @@ export function TalentRosterCard({ agency }: TalentRosterCardProps) {
             <TableBody>
               {agency.talent.map(t => (
                 <TableRow key={t.userId}>
-                  <TableCell className="font-medium flex items-center gap-2">
-                    <Avatar className="h-8 w-8"><AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
-                    {t.displayName || 'N/A'}
+                  <TableCell className="font-medium p-0">
+                    <Link href={`/creator/${t.userId}`} className="flex items-center gap-2 p-4 hover:bg-muted/50 transition-colors rounded-md">
+                      <Avatar className="h-8 w-8"><AvatarFallback>{t.displayName ? t.displayName.charAt(0) : 'T'}</AvatarFallback></Avatar>
+                      <span className="hover:underline">{t.displayName || 'N/A'}</span>
+                    </Link>
                   </TableCell>
                   <TableCell>{t.email}</TableCell>
                   <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'} className={`capitalize ${t.status === 'active' ? 'bg-green-500' : ''}`}>{t.status}</Badge></TableCell>
