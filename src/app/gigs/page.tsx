@@ -182,7 +182,7 @@ export default function GigsPage() {
   return (
     <>
       <PageHeader
-        title="Gig Board"
+        title="Marketplace"
         description="Discover paid opportunities or manage your active campaigns."
         actions={canPostGig ? (
           <Button asChild>

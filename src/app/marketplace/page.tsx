@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -65,7 +66,7 @@ export default function MarketplacePage() {
   return (
     <>
       <PageHeader
-        title="Creator Marketplace"
+        title="Find Talent"
         description="Discover and connect with talented creators for your next campaign."
       />
 

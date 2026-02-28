@@ -759,15 +759,16 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
 
   // Enforce Agency Subscription Requirement
   const now = Date.now();
-  const isSubscribed = agencyOwnerData.subscriptionStatus === 'active' || 
-                      (agencyOwnerData.subscriptionStatus === 'trialing' && 
-                       agencyOwnerData.trialEndsAt && 
+  const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
+                      (agencyOwnerData.subscriptionStatus === "trialing" &&
+                       agencyOwnerData.trialEndsAt &&
                        (agencyOwnerData.trialEndsAt as any).toMillis() > now);
-  
-  const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith('agency_');
+
+  const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith("agency_");
 
   if (!isSubscribed || !hasAgencyPlan) {
-    throw new HttpsError("failed-precondition", "An active Agency subscription is required to post gigs. Please upgrade your plan.");
+    throw new HttpsError("failed-precondition",
+      "An active Agency subscription is required to post gigs. Please upgrade your plan.");
   }
 
   let stripeCustomerId = agencyOwnerData.stripeCustomerId;

@@ -63,8 +63,8 @@ const mainNavItems = [
 ];
 
 const marketplaceNavItems = [
-    { id: 'nav-item-marketplace', href: "/marketplace", label: "Creator Marketplace", icon: Store },
-    { id: 'nav-item-gigs', href: "/gigs", label: "Gig Board", icon: FileStack },
+    { id: 'nav-item-gigs', href: "/gigs", label: "Marketplace", icon: FileStack },
+    { id: 'nav-item-marketplace', href: "/marketplace", label: "Find Talent", icon: Store },
 ];
 
 const manageNavItems = [
@@ -201,7 +201,7 @@ export function SidebarNav() {
 
             <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center">
-                    <span className="group-data-[collapsible=icon]:hidden">Marketplace</span>
+                    <span className="group-data-[collapsible=icon]:hidden">Exchange</span>
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                     {marketplaceNavItems.map((item) => (
