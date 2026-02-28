@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -16,6 +15,7 @@ import { db, collection, query, where, orderBy, onSnapshot, doc, updateDoc, dele
 import type { Notification } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -90,7 +90,7 @@ export function NotificationBell() {
             <Bell className="h-[1.2rem] w-[1.2rem] text-muted-foreground" />
           )}
           {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-red-500">
+            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-red-500 text-white border-none">
               {unreadCount > 9 ? '9+' : unreadCount}
             </Badge>
           )}
@@ -102,11 +102,11 @@ export function NotificationBell() {
           <h4 className="font-semibold text-sm">Notifications</h4>
           <div className="flex gap-2">
             {unreadCount > 0 && (
-              <Button variant="ghost" size="xs" className="h-7 text-xs text-primary px-2" onClick={markAllAsRead}>
+              <Button variant="ghost" size="xs" className="text-primary hover:text-primary hover:bg-primary/10" onClick={markAllAsRead}>
                 Mark all read
               </Button>
             )}
-            <Button variant="ghost" size="xs" className="h-7 text-xs text-muted-foreground px-2" onClick={clearAll}>
+            <Button variant="ghost" size="xs" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={clearAll}>
               Clear
             </Button>
           </div>
