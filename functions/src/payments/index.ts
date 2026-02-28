@@ -785,7 +785,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     status: "pending_payment",
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
   };
-  
+
   if (existingGigId) {
     // If updating, preserve existing creators
     const existingGigSnap = await gigRef.get();
@@ -796,7 +796,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     }
   }
 
-  await gigRef.set(gigDataToSet, { merge: true });
+  await gigRef.set(gigDataToSet, {merge: true});
 
   const totalAmount = ratePerCreator * creatorsNeeded;
   const totalAmountInCents = Math.round(totalAmount * 100);

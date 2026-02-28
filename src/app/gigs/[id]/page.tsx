@@ -176,6 +176,20 @@ export default function GigDetailPage() {
       return;
     }
 
+    if (!user.showInMarketplace) {
+      toast({
+        title: "Public Profile Required",
+        description: "Your profile must be set to 'Public' in the marketplace before you can accept gigs. Head to your profile settings to enable this.",
+        variant: "destructive",
+        action: (
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/profile">Profile Settings</Link>
+          </Button>
+        ),
+      });
+      return;
+    }
+
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
     const userDocRef = doc(db, 'users', user.uid);
@@ -530,7 +544,7 @@ export default function GigDetailPage() {
                                               <Badge variant="default" className="bg-green-500">Paid</Badge>
                                             ) : (
                                               <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || (submission?.status !== 'submitted' && submission?.status !== 'approved')}>
-                                                {isPaying === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
+                                                {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
                                               </Button>
                                             )}
                                           </div>
@@ -592,6 +606,14 @@ export default function GigDetailPage() {
                               <AlertTriangle className="h-3 w-3" />
                               <AlertDescription>
                                 Bank account connection required to receive payouts.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          {!user.showInMarketplace && (
+                            <Alert variant="destructive" className="py-2 px-3 text-xs">
+                              <AlertTriangle className="h-3 w-3" />
+                              <AlertDescription>
+                                Public profile required to accept gigs.
                               </AlertDescription>
                             </Alert>
                           )}
