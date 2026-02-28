@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react"
@@ -43,17 +42,9 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    if (asChild) {
-      return (
-        <Slot
-          className={cn(buttonVariants({ variant, size, className }))}
-          ref={ref as any}
-          {...props}
-        />
-      )
-    }
+    const Component = asChild ? Slot : "button"
     return (
-      <button
+      <Component
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
