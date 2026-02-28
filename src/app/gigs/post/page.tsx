@@ -1,21 +1,22 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, DollarSign } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase';
+import { functions, db, doc, getDoc } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -31,6 +32,40 @@ export default function PostGigPage() {
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
+  const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
+
+  useEffect(() => {
+    if (!user || !user.primaryAgencyId) {
+      if (!authLoading) setIsLoadingSubscriptionCheck(false);
+      return;
+    }
+    
+    if (user.isAgencyOwner) {
+      setAgencyOwner(user);
+      setIsLoadingSubscriptionCheck(false);
+      return;
+    }
+
+    const checkSubscription = async () => {
+      setIsLoadingSubscriptionCheck(true);
+      try {
+        const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId!));
+        if (agencySnap.exists()) {
+          const ownerSnap = await getDoc(doc(db, 'users', agencySnap.data().ownerId));
+          if (ownerSnap.exists()) {
+            setAgencyOwner(ownerSnap.data() as UserProfile);
+          }
+        }
+      } catch (e) {
+        console.error("Error checking agency subscription:", e);
+      } finally {
+        setIsLoadingSubscriptionCheck(false);
+      }
+    };
+    checkSubscription();
+  }, [user, authLoading]);
 
   const totalAmount = useMemo(() => {
     const rate = parseFloat(ratePerCreator);
@@ -91,19 +126,68 @@ export default function PostGigPage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || isLoadingSubscriptionCheck) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const canPostGigRole = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
-  if (!user || !canPostGig) {
+  if (!user || !canPostGigRole) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
         <p className="text-muted-foreground">Only agency team members can post new gigs.</p>
       </div>
+    );
+  }
+
+  const now = Date.now();
+  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
+                      (agencyOwner?.subscriptionStatus === 'trialing' && 
+                       agencyOwner?.trialEndsAt && 
+                       agencyOwner.trialEndsAt.toMillis() > now);
+  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
+  const canPost = isSubscribed && hasAgencyPlan;
+
+  if (!canPost) {
+    return (
+      <>
+        <PageHeader title="Post a New Gig" description="Find creators for your next campaign." />
+        <Card className="max-w-2xl mx-auto shadow-lg border-primary/20">
+          <CardHeader>
+            <div className="flex items-center gap-2 text-primary font-semibold">
+              <Building className="h-5 w-5" />
+              Agency Requirement
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Alert variant="default" className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
+              <Sparkles className="h-5 w-5" />
+              <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
+              <AlertDescription className="text-primary/90">
+                {user.isAgencyOwner 
+                  ? "You need an active Agency subscription to post gigs to the marketplace. This plan covers talent management and payout fees."
+                  : "Your agency needs an active Agency subscription to post gigs. Please contact your agency owner to upgrade the account plan."}
+              </AlertDescription>
+              {user.isAgencyOwner && (
+                <div className="mt-4">
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Link href="/settings">
+                      Upgrade to Agency Plan <ExternalLink className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </Alert>
+            <Button variant="outline" asChild className="w-full">
+              <Link href="/gigs">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gigs
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </>
     );
   }
 
