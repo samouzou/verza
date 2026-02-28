@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, LifeBuoy, ArrowLeft, Briefcase, UserPlus, Shield, ChevronRight } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, LifeBuoy, ArrowLeft, Briefcase, UserPlus, Shield, ChevronRight, PlusCircle } from 'lucide-react';
 import { functions, db } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { agencyTour } from '@/lib/tours';
 import { AgencyDashboard } from '@/components/agency/agency-dashboard';
 import { TalentAgencyView } from '@/components/agency/talent-agency-view';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
 
 function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
   const [agencyName, setAgencyName] = useState("");
@@ -77,6 +78,7 @@ export default function AgencyPage() {
   const [selectedAgencyOwner, setSelectedAgencyOwner] = useState<UserProfile | null>(null);
   const { startTour } = useTour();
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -86,7 +88,6 @@ export default function AgencyPage() {
 
     setIsLoadingAgencies(true);
     
-    // Get all unique agency IDs the user is associated with
     const membershipIds = user.agencyMemberships?.map(m => m.agencyId) || [];
     const giggingIds = user.giggingForAgencies || [];
     const allAgencyIds = Array.from(new Set([...membershipIds, ...giggingIds, user.primaryAgencyId])).filter(id => !!id) as string[];
@@ -96,14 +97,12 @@ export default function AgencyPage() {
       return;
     }
 
-    // Fetch all relevant agencies
     const q = query(collection(db, "agencies"), where(documentId(), "in", allAgencyIds.slice(0, 30)));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedAgencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
       setAgencies(fetchedAgencies);
       
-      // Auto-select if there's only one
       if (fetchedAgencies.length === 1 && !selectedAgencyId) {
         setSelectedAgencyId(fetchedAgencies[0].id);
       }
@@ -118,7 +117,6 @@ export default function AgencyPage() {
     return () => unsubscribe();
   }, [user, authLoading, selectedAgencyId, toast]);
 
-  // Fetch owner data for selected agency
   useEffect(() => {
     if (!selectedAgencyId || !agencies.length) return;
     
@@ -156,7 +154,6 @@ export default function AgencyPage() {
     );
   }
 
-  // Render detail view if an agency is selected
   if (selectedAgencyId) {
     const agency = agencies.find(a => a.id === selectedAgencyId);
     if (agency) {
@@ -189,7 +186,6 @@ export default function AgencyPage() {
     }
   }
 
-  // Render Hub view if no agency selected
   return (
     <>
       <PageHeader
@@ -224,7 +220,7 @@ export default function AgencyPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="pt-0 border-t bg-muted/5 group-hover:bg-muted/20 transition-colors">
-                  <Button variant="ghost" className="w-full justify-between mt-2" onClick={() => setSelectedAgencyId(agency.id)}>
+                  <Button variant="ghost" className="w-full justify-between mt-2" onClick={(e) => { e.stopPropagation(); setSelectedAgencyId(agency.id); }}>
                     {isOwner || (membership && membership.role !== 'talent') ? 'Manage Agency' : 'View Representation'}
                     <ChevronRight className="h-4 w-4" />
                   </Button>
