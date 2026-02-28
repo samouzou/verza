@@ -194,6 +194,15 @@ export interface UserProfileFirestoreData {
   agencyMemberships?: AgencyMembership[];
   giggingForAgencies?: string[];
 
+  // Media Kit / Insights Fields
+  missionStatement?: string | null;
+  brandWishlist?: string[];
+  followers?: number;
+  engagementRate?: number;
+  instagramConnected?: boolean;
+  tiktokConnected?: boolean;
+  youtubeConnected?: boolean;
+
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
