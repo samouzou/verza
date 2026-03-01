@@ -431,18 +431,18 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
       const {
-        contractId, 
-        userId, 
-        clientEmail, 
-        paymentType, 
-        internalPayoutId, 
-        agencyId, 
+        contractId,
+        userId,
+        clientEmail,
+        paymentType,
+        internalPayoutId,
+        agencyId,
         milestoneId,
         purchaseType,
         gigId,
         firebaseUID,
         creditAmount,
-        priceId
+        priceId,
       } = metadata;
 
       if (internalPayoutId) {
@@ -516,8 +516,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           } else {
             watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
           }
-          if (watermarkedHtml.includes('<div class="invoice-box">')) {
-            watermarkedHtml = watermarkedHtml.replace('<div class="invoice-box">',
+          if (watermarkedHtml.includes("<div class=\"invoice-box\">")) {
+            watermarkedHtml = watermarkedHtml.replace("<div class=\"invoice-box\">",
               "<div class=\"invoice-box\" style=\"position: relative;\">" + paidStampDiv);
           } else {
             watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
@@ -670,7 +670,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           logger.info(`Successfully activated gig "${gigId}" via handlePaymentSuccess.`);
 
           // Send Receipt Email to Agency Owner/Team Member who funded it
-          const ownerId = firebaseUID; 
+          const ownerId = firebaseUID;
           const ownerDoc = await db.collection("users").doc(ownerId).get();
           const ownerData = ownerDoc.data() as UserProfileFirestoreData;
 
@@ -679,7 +679,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             if (sendgridKey) {
               sgMail.setApiKey(sendgridKey);
               const receiptHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto;
+                padding: 20px; border: 1px solid #eee; border-radius: 8px;">
                   <div style="text-align: center; margin-bottom: 20px;">
                     <h2 style="color: #6B37FF; margin: 0;">Gig Funding Receipt</h2>
                     <p style="color: #666; font-size: 14px;">Thank you for launching your campaign on Verza.</p>
@@ -700,13 +701,16 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                       </tr>
                       <tr>
                         <td style="padding: 20px 0 8px; color: #666; font-size: 16px;">Total Funded:</td>
-                        <td style="padding: 20px 0 8px; text-align: right; font-size: 22px; font-weight: bold; color: #6B37FF;">$${(amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td style="padding: 20px 0 8px; text-align: right; font-size: 22px; font-weight: bold;
+                          color: #6B37FF;">$${(amount / 100).toLocaleString("en-US", {minimumFractionDigits: 2})}
+                        </td>
                       </tr>
                     </table>
                   </div>
                   <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
                     <p style="font-size: 13px; color: #666; margin: 0;">
-                      This gig is funded for <strong>${gigData.creatorsNeeded}</strong> creators at <strong>$${gigData.ratePerCreator}</strong> per creator.
+                      This gig is funded for <strong>${gigData.creatorsNeeded}</strong> creators at
+                      <strong>$${gigData.ratePerCreator}</strong> per creator.
                     </p>
                     <p style="font-size: 12px; color: #999; margin-top: 15px;">
                       Your gig is now live in the Verza Marketplace and ready for creators to accept.
@@ -717,7 +721,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               await sgMail.send({
                 to: ownerData.email,
-                from: { name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com" },
+                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
                 subject: `Receipt: Funding for "${gigData.title}"`,
                 html: receiptHtml,
               });
