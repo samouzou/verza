@@ -430,7 +430,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
-      const {contractId, userId, clientEmail, paymentType, internalPayoutId, agencyId, milestoneId} = metadata;
+      const {
+        contractId, 
+        userId, 
+        clientEmail, 
+        paymentType, 
+        internalPayoutId, 
+        agencyId, 
+        milestoneId,
+        purchaseType,
+        gigId,
+        firebaseUID,
+        creditAmount,
+        priceId
+      } = metadata;
 
       if (internalPayoutId) {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
@@ -503,8 +516,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           } else {
             watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
           }
-          if (watermarkedHtml.includes("<div class=\"invoice-box\">")) {
-            watermarkedHtml = watermarkedHtml.replace("<div class=\"invoice-box\">",
+          if (watermarkedHtml.includes('<div class="invoice-box">')) {
+            watermarkedHtml = watermarkedHtml.replace('<div class="invoice-box">',
               "<div class=\"invoice-box\" style=\"position: relative;\">" + paidStampDiv);
           } else {
             watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
@@ -644,8 +657,44 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           status: "succeeded",
           timestamp: admin.firestore.Timestamp.now(),
         });
+      } else if (purchaseType === "gigFunding" && gigId) {
+        try {
+          const gigRef = db.collection("gigs").doc(gigId);
+          await gigRef.update({
+            status: "open",
+            fundingPaymentIntentId: paymentIntent.id,
+          });
+          logger.info(`Successfully activated gig "${gigId}" via handlePaymentSuccess.`);
+        } catch (error) {
+          logger.error(`Error updating gig from handlePaymentSuccess for gig ${gigId}:`, error);
+        }
+      } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
+        const userId = firebaseUID;
+        const creditsToAdd = parseInt(creditAmount, 10);
+        if (!isNaN(creditsToAdd)) {
+          try {
+            const userRef = db.collection("users").doc(userId);
+            const transactionRef = db.collection("credit_transactions").doc();
+            await db.runTransaction(async (transaction) => {
+              const userDoc = await transaction.get(userRef);
+              if (!userDoc.exists) throw new Error(`User with ID ${userId} not found.`);
+              transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
+              transaction.set(transactionRef, {
+                userId: userId,
+                creditAmount: creditsToAdd,
+                priceId: priceId || "unknown",
+                paymentIntentId: paymentIntent.id,
+                status: "completed",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              } as Omit<CreditTransaction, "id">);
+            });
+            logger.info(`Successfully added ${creditsToAdd} credits to user ${userId} via handlePaymentSuccess.`);
+          } catch (error) {
+            logger.error(`Error updating user credits in handlePaymentSuccess for user ${userId}:`, error);
+          }
+        }
       } else {
-        logger.warn("Webhook received for payment_intent.succeeded without contractId or internalPayoutId in metadata.",
+        logger.warn("Webhook received for payment_intent.succeeded without recognizable ID in metadata.",
           metadata);
       }
     }
