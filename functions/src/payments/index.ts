@@ -660,13 +660,72 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       } else if (purchaseType === "gigFunding" && gigId) {
         try {
           const gigRef = db.collection("gigs").doc(gigId);
+          const gigSnap = await gigRef.get();
+          const gigData = gigSnap.data() as Gig;
+
           await gigRef.update({
             status: "open",
             fundingPaymentIntentId: paymentIntent.id,
           });
           logger.info(`Successfully activated gig "${gigId}" via handlePaymentSuccess.`);
+
+          // Send Receipt Email to Agency Owner/Team Member who funded it
+          const ownerId = firebaseUID; 
+          const ownerDoc = await db.collection("users").doc(ownerId).get();
+          const ownerData = ownerDoc.data() as UserProfileFirestoreData;
+
+          if (ownerData?.email) {
+            const sendgridKey = params.SENDGRID_API_KEY.value();
+            if (sendgridKey) {
+              sgMail.setApiKey(sendgridKey);
+              const receiptHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #6B37FF; margin: 0;">Gig Funding Receipt</h2>
+                    <p style="color: #666; font-size: 14px;">Thank you for launching your campaign on Verza.</p>
+                  </div>
+                  <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; color: #666;">Gig Title:</td>
+                        <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${gigData.title}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #666;">Brand:</td>
+                        <td style="padding: 8px 0; text-align: right; color: #333;">${gigData.brandName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #666;">Transaction ID:</td>
+                        <td style="padding: 8px 0; text-align: right; font-size: 11px; color: #999;">${paymentIntent.id}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 20px 0 8px; color: #666; font-size: 16px;">Total Funded:</td>
+                        <td style="padding: 20px 0 8px; text-align: right; font-size: 22px; font-weight: bold; color: #6B37FF;">$${(amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
+                    <p style="font-size: 13px; color: #666; margin: 0;">
+                      This gig is funded for <strong>${gigData.creatorsNeeded}</strong> creators at <strong>$${gigData.ratePerCreator}</strong> per creator.
+                    </p>
+                    <p style="font-size: 12px; color: #999; margin-top: 15px;">
+                      Your gig is now live in the Verza Marketplace and ready for creators to accept.
+                    </p>
+                  </div>
+                </div>
+              `;
+
+              await sgMail.send({
+                to: ownerData.email,
+                from: { name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com" },
+                subject: `Receipt: Funding for "${gigData.title}"`,
+                html: receiptHtml,
+              });
+              logger.info(`Funding receipt sent to ${ownerData.email}`);
+            }
+          }
         } catch (error) {
-          logger.error(`Error updating gig from handlePaymentSuccess for gig ${gigId}:`, error);
+          logger.error(`Error updating gig or sending receipt in handlePaymentSuccess for gig ${gigId}:`, error);
         }
       } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
         const userId = firebaseUID;
@@ -1008,7 +1067,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
   const webhookSecret = params.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET.value();
 
   if (!sig || !webhookSecret) {
-    logger.error("Missing stripe signature or credit purchase webhook secret");
+    logger.error("Missing stripe signature or webhook secret");
     response.status(400).send("Missing stripe signature or webhook secret");
     return;
   }
