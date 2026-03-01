@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,53 +9,21 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users, Check, X, Percent, Loader2 } from 'lucide-react';
+import { Users, Check, X, Percent } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, Talent, UserProfileFirestoreData } from '@/types';
-import { doc, updateDoc, collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 interface TalentRosterCardProps {
   agency: Agency;
+  liveProfiles: Record<string, UserProfileFirestoreData>;
 }
 
-export function TalentRosterCard({ agency }: TalentRosterCardProps) {
+export function TalentRosterCard({ agency, liveProfiles }: TalentRosterCardProps) {
   const { toast } = useToast();
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
   const [newCommissionRate, setNewCommissionRate] = useState<number>(0);
-  
-  const [liveProfiles, setLiveProfiles] = useState<Record<string, UserProfileFirestoreData>>({});
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
-
-  useEffect(() => {
-    if (!agency.talent || agency.talent.length === 0) {
-      setLiveProfiles({});
-      setIsLoadingProfiles(false);
-      return;
-    }
-
-    const talentIds = agency.talent.map(t => t.userId);
-    
-    // Fetch live data for the talent (Firestore limit is 30 for 'in' queries)
-    const usersQuery = query(
-      collection(db, 'users'),
-      where(documentId(), 'in', talentIds.slice(0, 30))
-    );
-
-    const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
-      const profiles: Record<string, UserProfileFirestoreData> = {};
-      snapshot.docs.forEach(doc => {
-        profiles[doc.id] = doc.data() as UserProfileFirestoreData;
-      });
-      setLiveProfiles(profiles);
-      setIsLoadingProfiles(false);
-    }, (error) => {
-      console.error("Error fetching live talent profiles:", error);
-      setIsLoadingProfiles(false);
-    });
-
-    return () => unsubscribe();
-  }, [agency.talent]);
 
   const handleUpdateCommission = async () => {
     if (!editingTalent) return;
@@ -89,9 +57,7 @@ export function TalentRosterCard({ agency }: TalentRosterCardProps) {
         <CardDescription>View your current roster of creators. ({activeTalentCount} active talents)</CardDescription>
       </CardHeader>
       <CardContent>
-         {isLoadingProfiles ? (
-           <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
-         ) : agency.talent && agency.talent.length > 0 ? (
+         {agency.talent && agency.talent.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>

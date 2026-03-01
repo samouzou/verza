@@ -1,11 +1,12 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Agency } from '@/types';
+import type { Agency, UserProfileFirestoreData } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { InviteTalentCard } from './invite-talent-card';
 import { CreatePayoutCard } from './create-payout-card';
@@ -15,6 +16,8 @@ import { PayoutHistoryCard } from './payout-history-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
 import { AgencyGigsCard } from './agency-gigs-card';
+import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface AgencyDashboardProps {
   agency: Agency;
@@ -23,6 +26,8 @@ interface AgencyDashboardProps {
 
 export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
   const { user } = useAuth();
+  const [liveProfiles, setLiveProfiles] = useState<Record<string, UserProfileFirestoreData>>({});
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   
   // Use the agency owner's subscription data if available, otherwise fall back to the current user's
   const subscriptionHolder = agencyOwner || user;
@@ -33,6 +38,39 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
   const isNotOnAgencyPlan = !subscriptionHolder?.subscriptionPlanId?.startsWith('agency_');
 
   const canInviteTeam = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin');
+
+  useEffect(() => {
+    const talentIds = agency.talent.map(t => t.userId);
+    const teamIds = agency.team?.map(t => t.userId) || [];
+    const allUserIds = Array.from(new Set([...talentIds, ...teamIds])).filter(id => !!id);
+
+    if (allUserIds.length === 0) {
+      setLiveProfiles({});
+      setIsLoadingProfiles(false);
+      return;
+    }
+
+    setIsLoadingProfiles(true);
+    // Firestore limit is 30 for 'in' queries
+    const usersQuery = query(
+      collection(db, 'users'),
+      where(documentId(), 'in', allUserIds.slice(0, 30))
+    );
+
+    const unsubscribe = onSnapshot(usersQuery, (snapshot) => {
+      const profiles: Record<string, UserProfileFirestoreData> = {};
+      snapshot.docs.forEach(doc => {
+        profiles[doc.id] = doc.data() as UserProfileFirestoreData;
+      });
+      setLiveProfiles(profiles);
+      setIsLoadingProfiles(false);
+    }, (error) => {
+      console.error("Error fetching live agency profiles:", error);
+      setIsLoadingProfiles(false);
+    });
+
+    return () => unsubscribe();
+  }, [agency.talent, agency.team]);
 
   return (
     <div className="space-y-6">
@@ -60,20 +98,29 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit || isNotOnAgencyPlan} />
-        <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan || !canInviteTeam} />
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CreatePayoutCard agency={agency} disabled={isNotOnAgencyPlan} />
-        <AIGeneratorCard agency={agency} disabled={isNotOnAgencyPlan} />
-      </div>
-      
-      <TalentRosterCard agency={agency} />
-      <TeamRosterCard agency={agency} />
-      <AgencyGigsCard agencyId={agency.id} />
-      <PayoutHistoryCard agencyId={agency.id} />
+      {isLoadingProfiles ? (
+        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Syncing live agency data...</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit || isNotOnAgencyPlan} />
+            <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan || !canInviteTeam} />
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CreatePayoutCard agency={agency} liveProfiles={liveProfiles} disabled={isNotOnAgencyPlan} />
+            <AIGeneratorCard agency={agency} liveProfiles={liveProfiles} disabled={isNotOnAgencyPlan} />
+          </div>
+          
+          <TalentRosterCard agency={agency} liveProfiles={liveProfiles} />
+          <TeamRosterCard agency={agency} liveProfiles={liveProfiles} />
+          <AgencyGigsCard agencyId={agency.id} />
+          <PayoutHistoryCard agencyId={agency.id} />
+        </>
+      )}
     </div>
   );
 }

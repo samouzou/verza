@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Building, Users, LifeBuoy, ArrowLeft, Briefcase, UserPlus, Shield, ChevronRight, PlusCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, Building, Users, LifeBuoy, ArrowLeft, Briefcase, ChevronRight, PlusCircle, Shield } from 'lucide-react';
 import { functions, db } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
