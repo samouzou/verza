@@ -317,7 +317,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
       const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
 
-      const platformFee = Math.round(amountInCents * 0.05);
+      const platformFee = Math.round(amountInCents * 0.15);
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
@@ -359,7 +359,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         throw new Error("Creator does not have a valid Stripe account");
       }
 
-      const platformFee = Math.round(amountInCents * 0.05);
+      const platformFee = Math.round(amountInCents * 0.15);
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
@@ -548,7 +548,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
             if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
               const stripeFeeInCents = Math.round(amount * 0.029) + 30;
-              const platformFeeInCents = Math.round(amount * 0.05);
+              const platformFeeInCents = Math.round(amount * 0.15);
               const totalPlatformCut = stripeFeeInCents + platformFeeInCents;
               const netForDistribution = amount - totalPlatformCut;
 
