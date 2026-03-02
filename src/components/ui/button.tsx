@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react"
@@ -42,6 +41,7 @@ export interface ButtonProps
   ref?: React.Ref<HTMLButtonElement>
 }
 
+// React 19 standard: ref is a regular prop
 export function Button({ className, variant, size, asChild = false, ref, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
   return (
