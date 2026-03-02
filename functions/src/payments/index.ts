@@ -516,8 +516,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           } else {
             watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
           }
-          if (watermarkedHtml.includes("<div class=\"invoice-box\">")) {
-            watermarkedHtml = watermarkedHtml.replace("<div class=\"invoice-box\">",
+          if (watermarkedHtml.includes('<div class="invoice-box">')) {
+            watermarkedHtml = watermarkedHtml.replace('<div class="invoice-box">',
               "<div class=\"invoice-box\" style=\"position: relative;\">" + paidStampDiv);
           } else {
             watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);

@@ -1,3 +1,4 @@
+
 "use client";
 
 import Script from 'next/script';
@@ -8,7 +9,7 @@ export function FacebookSDK() {
     // This ensures initialization happens only on the client
     (window as any).fbAsyncInit = function() {
       (window as any).FB.init({
-        appId      : '823225343427188',
+        appId      : '1903627140270068',
         cookie     : true,
         xfbml      : true,
         version    : 'v20.0'

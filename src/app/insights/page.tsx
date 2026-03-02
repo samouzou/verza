@@ -49,13 +49,13 @@ export default function InsightsPage() {
       return;
     }
 
-    // Use standard synchronous wrapper to avoid "asyncfunction" runtime errors
+    // Use standard synchronous wrapper to avoid "asyncfunction" runtime errors in React 19 / Next 15
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
           const accessToken = response.authResponse.accessToken;
           
-          // Move async logic into an internal self-calling block
+          // Execute async logic within a synchronous wrapper
           (async () => {
             toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
             setIsLoadingToken(true);
