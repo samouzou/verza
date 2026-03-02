@@ -42,7 +42,10 @@ export interface ButtonProps
   ref?: React.Ref<HTMLButtonElement>
 }
 
-// React 19 standard: ref is a regular prop. Using named function to resolve asyncfunction error in Next 15.
+/**
+ * Button component updated for React 19 / Next.js 15.
+ * Uses a standard named function to avoid 'asyncfunction' runtime errors in some environments.
+ */
 export function Button({ className, variant, size, asChild = false, ref, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
   return (

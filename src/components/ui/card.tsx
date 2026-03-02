@@ -4,7 +4,11 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-// React 19 pattern: ref passed as prop, named functions for better NextJS 15 compatibility
+/**
+ * Card components updated for React 19 / Next.js 15 stability.
+ * Uses standard named functions to avoid 'asyncfunction' identification errors.
+ */
+
 export function Card({ className, ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {
   return (
     <div

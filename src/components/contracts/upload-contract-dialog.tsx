@@ -28,8 +28,8 @@ import { db, collection, addDoc, serverTimestamp as firebaseServerTimestamp, Tim
 import { ref as storageRefOriginal, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,7 +38,6 @@ if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
 
-// Inject the required modules for the Document Editor
 DocumentEditorContainerComponent.Inject(Toolbar, Ribbon);
 
 interface UploadContractDialogProps {
@@ -417,7 +416,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const newContractRef = doc(collection(db, 'contracts'));
       batch.set(newContractRef, contractDataForFirestore);
       
-      // Update local status for onboarding progress
       const userDocRef = doc(db, 'users', user.uid);
       batch.update(userDocRef, { hasCreatedContract: true });
       

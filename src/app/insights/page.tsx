@@ -49,13 +49,11 @@ export default function InsightsPage() {
       return;
     }
 
-    // Use standard synchronous wrapper to avoid "asyncfunction" runtime errors in React 19 / Next 15
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
           const accessToken = response.authResponse.accessToken;
           
-          // Execute async logic within a synchronous wrapper
           (async () => {
             toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
             setIsLoadingToken(true);
@@ -95,8 +93,7 @@ export default function InsightsPage() {
         }
       },
       { 
-        // Request minimum scopes required for the engagement math
-        scope: 'public_profile,instagram_basic,pages_show_list' 
+        scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement' 
       }
     );
   };
@@ -113,7 +110,6 @@ export default function InsightsPage() {
       const result = await analyzeCreatorProfile({ profileContent });
       setAnalysisResult(result);
 
-      // Save analysis results to profile
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, {
           missionStatement: result.missionStatement,
