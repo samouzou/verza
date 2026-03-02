@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -92,6 +91,9 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       user.trialEndsAt &&
       user.trialEndsAt.toMillis() > now);
 
+  // Unify agency manager check
+  const isAgencyManager = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+
   const talentOptions = useMemo(() => {
     if (!agency) return [];
     const currentTalent = agency.talent || [];
@@ -140,8 +142,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     if (hasInitializedRef.current) return;
 
     const initializeDialog = async () => {
-        const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
-        if (isAgencyUser && user?.primaryAgencyId) {
+        if (isAgencyManager && user?.primaryAgencyId) {
             try {
                 const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
                 const docSnap = await getDoc(agencyDocRef);
@@ -181,7 +182,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
     initializeDialog();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialSFDT, initialSelectedOwner, initialFileName]);
+  }, [isOpen, initialSFDT, initialSelectedOwner, initialFileName, isAgencyManager]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -340,9 +341,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     const accessMap: { [key: string]: 'owner' | 'viewer' | 'talent' } = {};
     accessMap[user.uid] = 'owner';
 
-    const isAgencyUser = user.isAgencyOwner || user.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
-
-    if (!isAgencyUser) {
+    if (!isAgencyManager) {
         ownerType = 'user';
         ownerId = user.uid;
         finalUserId = user.uid;
@@ -482,7 +481,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   };
 
   const currentTotalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
-  const isAgencyUserRole = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
 
   const renderAiAnalysis = () => (
     <>
@@ -537,7 +535,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
           <ScrollArea className="h-full"><div className="space-y-6 pr-6">
-            {isAgencyUserRole && agency && (
+            {isAgencyManager && agency && (
               <div>
                 <Label htmlFor="contractOwner">Contract For</Label>
                 <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
