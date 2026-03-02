@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react"
-
 import { cn } from "@/lib/utils"
 
-function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
@@ -15,9 +14,8 @@ function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
     />
   )
 }
-Card.displayName = "Card"
 
-function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn("flex flex-col space-y-1.5 p-6", className)}
@@ -25,9 +23,8 @@ function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement
     />
   )
 }
-CardHeader.displayName = "CardHeader"
 
-function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
@@ -38,9 +35,8 @@ function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>
     />
   )
 }
-CardTitle.displayName = "CardTitle"
 
-function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn("text-sm text-muted-foreground", className)}
@@ -48,16 +44,14 @@ function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivEl
     />
   )
 }
-CardDescription.displayName = "CardDescription"
 
-function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("p-6 pt-0", className)} {...props} />
   )
 }
-CardContent.displayName = "CardContent"
 
-function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn("flex items-center p-6 pt-0", className)}
@@ -65,6 +59,3 @@ function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement
     />
   )
 }
-CardFooter.displayName = "CardFooter"
-
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }

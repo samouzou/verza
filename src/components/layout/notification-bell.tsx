@@ -83,7 +83,7 @@ export function NotificationBell() {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
+        <Button variant="ghost" size="icon" className="relative">
           {unreadCount > 0 ? (
             <BellDot className="h-[1.2rem] w-[1.2rem] text-primary animate-pulse" />
           ) : (
@@ -97,16 +97,16 @@ export function NotificationBell() {
           <span className="sr-only">Notifications</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0 shadow-2xl border-sidebar-border">
+      <PopoverContent align="end" className="w-80 p-0 shadow-2xl">
         <div className="flex items-center justify-between p-4 border-b">
           <h4 className="font-semibold text-sm">Notifications</h4>
           <div className="flex gap-2">
             {unreadCount > 0 && (
-              <Button variant="ghost" size="xs" className="text-primary hover:text-primary hover:bg-primary/10" onClick={markAllAsRead}>
+              <Button variant="ghost" className="text-primary text-xs h-7 px-2" onClick={markAllAsRead}>
                 Mark all read
               </Button>
             )}
-            <Button variant="ghost" size="xs" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={clearAll}>
+            <Button variant="ghost" className="text-muted-foreground text-xs h-7 px-2" onClick={clearAll}>
               Clear
             </Button>
           </div>
