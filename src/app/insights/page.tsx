@@ -49,15 +49,14 @@ export default function InsightsPage() {
       return;
     }
 
-    // LEGACY FIX: FB.login expects a standard synchronous function callback.
-    // Providing an async function causes "Expression is of type asyncfunction" errors.
+    // Use standard synchronous wrapper to avoid "asyncfunction" runtime errors
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
           const accessToken = response.authResponse.accessToken;
           
-          // Handle the asynchronous sync logic outside the synchronous callback
-          const performSync = async () => {
+          // Move async logic into an internal self-calling block
+          (async () => {
             toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
             setIsLoadingToken(true);
             
@@ -85,9 +84,7 @@ export default function InsightsPage() {
             } finally {
               setIsLoadingToken(false);
             }
-          };
-
-          performSync();
+          })();
 
         } else {
           toast({
@@ -98,7 +95,8 @@ export default function InsightsPage() {
         }
       },
       { 
-        scope: 'instagram_basic,pages_show_list,instagram_manage_insights' 
+        // Request minimum scopes required for the engagement math
+        scope: 'public_profile,instagram_basic,pages_show_list' 
       }
     );
   };
