@@ -1,7 +1,5 @@
-
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
-import Script from 'next/script';
 import './globals.css';
 import '@syncfusion/ej2-base/styles/tailwind.css';
 import '@syncfusion/ej2-buttons/styles/tailwind.css';
@@ -19,6 +17,7 @@ import { ThemeProvider } from "next-themes";
 import { TourProvider } from '@/hooks/use-tour';
 import { TourGuide } from '@/components/tour/tour-guide';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
+import { FacebookSDK } from '@/components/facebook-sdk';
 
 export const metadata: Metadata = {
   title: 'Verza',
@@ -36,26 +35,7 @@ export default function RootLayout({
         className={`${GeistSans.className} antialiased`}
         suppressHydrationWarning
       >
-        <Script id="fb-sdk-init" strategy="afterInteractive">
-          {`
-            window.fbAsyncInit = function() {
-              FB.init({
-                appId      : '823225343427188',
-                cookie     : true,
-                xfbml      : true,
-                version    : 'v20.0'
-              });
-              FB.AppEvents.logPageView();
-            };
-          `}
-        </Script>
-        <Script
-          async
-          defer
-          src="https://connect.facebook.net/en_US/sdk.js"
-          id="facebook-jssdk"
-          strategy="afterInteractive"
-        />
+        <FacebookSDK />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
