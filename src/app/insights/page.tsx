@@ -1,8 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +12,8 @@ import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
-import { db, doc, updateDoc } from '@/lib/firebase';
+import { db, doc, updateDoc, functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 declare global {
   interface Window {
@@ -49,29 +49,35 @@ export default function InsightsPage() {
       return;
     }
 
+    // Requesting specific B2B scopes for Instagram Graph API
     window.FB.login(
       async (response: any) => {
         if (response.authResponse && user) {
-          toast({ title: "Connecting to Instagram", description: "Finalizing connection..." });
+          const accessToken = response.authResponse.accessToken;
+          toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
           setIsLoadingToken(true);
           
           try {
-            // Simulate fetching data from Meta API
-            const mockFollowers = Math.floor(Math.random() * (250000 - 10000) + 10000);
-            const mockEngagement = parseFloat((Math.random() * (6 - 2) + 2).toFixed(1));
+            const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
+            const result = await syncInstagramStats({ accessToken });
+            const data = result.data as { success: boolean; followers: number; engagementRate: number };
 
-            const userDocRef = doc(db, 'users', user.uid);
-            await updateDoc(userDocRef, {
-                instagramConnected: true,
-                followers: mockFollowers,
-                engagementRate: mockEngagement,
+            if (data.success) {
+              await refreshAuthUser();
+              toast({ 
+                title: "Instagram Connected!", 
+                description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+              });
+            } else {
+              throw new Error("Sync function returned failure.");
+            }
+          } catch (e: any) {
+            console.error("Instagram sync failed:", e);
+            toast({ 
+              title: "Connection Failed", 
+              description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
+              variant: "destructive" 
             });
-
-            await refreshAuthUser();
-            toast({ title: "Instagram Connected!", description: "Your verified stats are now live on your profile." });
-          } catch (e) {
-            console.error(e);
-            toast({ title: "Connection Failed", variant: "destructive" });
           } finally {
             setIsLoadingToken(false);
           }
@@ -84,7 +90,9 @@ export default function InsightsPage() {
           });
         }
       },
-      { scope: 'instagram_basic,instagram_manage_insights,pages_read_engagement,pages_show_list' }
+      { 
+        scope: 'instagram_basic,pages_show_list,instagram_manage_insights' 
+      }
     );
   };
   
@@ -146,19 +154,19 @@ export default function InsightsPage() {
           <CardHeader>
             <CardTitle>1. Connect Your Accounts</CardTitle>
             <CardDescription>
-              Link your social platforms to begin importing your engagement data. Verza uses read-only access and will never post on your behalf.
+              Link your social platforms to begin importing verified engagement data. Verza uses read-only access and will never post on your behalf.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Button variant={isConnected ? "secondary" : "outline"} size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectAccount} disabled={isConnected || isLoadingToken}>
                 {isLoadingToken ? <Loader2 className="h-6 w-6 animate-spin"/> : isConnected ? <CheckCircle className="h-6 w-6 text-green-500" /> : <Instagram className="h-6 w-6 text-pink-500" />}
-                {isLoadingToken ? 'Connecting...' : isConnected ? 'Instagram Connected' : 'Connect Instagram'}
+                {isLoadingToken ? 'Syncing...' : isConnected ? 'Instagram Connected' : 'Connect Instagram'}
             </Button>
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
+            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
                 <TikTokIcon />
                 Connect TikTok
             </Button>
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled>
+            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
                 <Youtube className="h-6 w-6 text-red-500" />
                 Connect YouTube
             </Button>
