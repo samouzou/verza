@@ -49,38 +49,45 @@ export default function InsightsPage() {
       return;
     }
 
-    // Requesting specific B2B scopes for Instagram Graph API
+    // LEGACY FIX: FB.login expects a standard synchronous function callback.
+    // Providing an async function causes "Expression is of type asyncfunction" errors.
     window.FB.login(
-      async (response: any) => {
+      function(response: any) {
         if (response.authResponse && user) {
           const accessToken = response.authResponse.accessToken;
-          toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
-          setIsLoadingToken(true);
           
-          try {
-            const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
-            const result = await syncInstagramStats({ accessToken });
-            const data = result.data as { success: boolean; followers: number; engagementRate: number };
+          // Handle the asynchronous sync logic outside the synchronous callback
+          const performSync = async () => {
+            toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
+            setIsLoadingToken(true);
+            
+            try {
+              const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
+              const result = await syncInstagramStats({ accessToken });
+              const data = result.data as { success: boolean; followers: number; engagementRate: number };
 
-            if (data.success) {
-              await refreshAuthUser();
+              if (data.success) {
+                await refreshAuthUser();
+                toast({ 
+                  title: "Instagram Connected!", 
+                  description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+                });
+              } else {
+                throw new Error("Sync function returned failure.");
+              }
+            } catch (e: any) {
+              console.error("Instagram sync failed:", e);
               toast({ 
-                title: "Instagram Connected!", 
-                description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+                title: "Connection Failed", 
+                description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
+                variant: "destructive" 
               });
-            } else {
-              throw new Error("Sync function returned failure.");
+            } finally {
+              setIsLoadingToken(false);
             }
-          } catch (e: any) {
-            console.error("Instagram sync failed:", e);
-            toast({ 
-              title: "Connection Failed", 
-              description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
-              variant: "destructive" 
-            });
-          } finally {
-            setIsLoadingToken(false);
-          }
+          };
+
+          performSync();
 
         } else {
           toast({
