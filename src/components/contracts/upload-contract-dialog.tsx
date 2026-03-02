@@ -83,6 +83,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval'] | undefined>(undefined);
   
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const now = Date.now();
   const canPerformProAction =
@@ -93,10 +94,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
   const talentOptions = useMemo(() => {
     if (!agency) return [];
-    
     const currentTalent = agency.talent || [];
-    
-    // Check if affiliatedCreator exists and is not already in the talent list
     if (affiliatedCreator && !currentTalent.some(t => t.userId === affiliatedCreator.uid)) {
         const newTalentFromAffiliation: Talent = {
             userId: affiliatedCreator.uid,
@@ -106,10 +104,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         };
         return [...currentTalent, newTalentFromAffiliation].filter(t => t.status === 'active');
     }
-
     return currentTalent.filter(t => t.status === 'active');
   }, [agency, affiliatedCreator]);
-
 
   const resetState = () => {
       if (editorRef.current?.documentEditor) {
@@ -132,16 +128,23 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       setRecurrenceInterval(undefined);
       setAgency(null);
       setSelectedOwner("personal");
+      hasInitializedRef.current = false;
   };
 
   useEffect(() => {
     if (!isOpen) {
       resetState();
-    } else {
+      return;
+    }
+
+    if (hasInitializedRef.current) return;
+
+    const initializeDialog = async () => {
         const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
         if (isAgencyUser && user?.primaryAgencyId) {
-            const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
-            getDoc(agencyDocRef).then(docSnap => {
+            try {
+                const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
+                const docSnap = await getDoc(agencyDocRef);
                 if (docSnap.exists()) {
                     setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
                     if (initialSelectedOwner) {
@@ -150,8 +153,11 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                       setSelectedOwner('personal');
                     }
                 }
-            });
+            } catch (e) {
+                console.error("Error fetching agency info:", e);
+            }
         }
+
         if (initialSFDT) {
             if (editorRef.current?.documentEditor) {
                 editorRef.current.documentEditor.open(initialSFDT);
@@ -165,12 +171,17 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 }, 500);
             }
         }
+
         if (initialFileName) {
             setFileName(initialFileName);
         }
-    }
+        
+        hasInitializedRef.current = true;
+    };
+
+    initializeDialog();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user, initialSFDT, initialSelectedOwner, initialFileName]);
+  }, [isOpen, initialSFDT, initialSelectedOwner, initialFileName]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
     toast({ title: "Analyzing Contract", description: "AI is extracting details, summarizing, and providing suggestions..." });
@@ -313,8 +324,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       return;
     }
 
-    const totalAmount = milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
-    if (totalAmount <= 0) {
+    const totalAmountValue = milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+    if (totalAmountValue <= 0) {
       toast({ title: "Invalid Amount", description: "Total amount from milestones must be greater than zero.", variant: "destructive"});
       return;
     }
@@ -357,7 +368,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         }
     }
 
-
     try {
       const batch = writeBatch(db);
 
@@ -369,7 +379,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       }
       
       const sfdtString = await editorRef.current.documentEditor.serialize();
-
       const finalMilestones: PaymentMilestone[] = milestones.map(m => ({ ...m, status: 'pending' }));
 
       const contractDataForFirestore: Omit<Contract, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, access: any } = {
@@ -378,7 +387,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         ownerType: ownerType,
         ownerId: ownerId,
         brand: parsedDetails?.brand || "Unknown Brand",
-        amount: totalAmount,
+        amount: totalAmountValue,
         dueDate: milestones.reduce((latest, m) => m.dueDate > latest ? m.dueDate : latest, "1970-01-01"),
         status: 'pending' as Contract['status'],
         contractType: 'other' as Contract['contractType'],
@@ -410,16 +419,13 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const newContractRef = doc(collection(db, 'contracts'));
       batch.set(newContractRef, contractDataForFirestore);
       
-      // If this contract was assigned to a talent, ensure they are in the agency roster and membership is linked.
       if (ownerType === 'agency' && selectedOwner !== 'personal' && agency) {
         const agencyDocRef = doc(db, "agencies", agency.id);
         const creatorDocRef = doc(db, 'users', finalUserId);
-
         const agencySnap = await getDoc(agencyDocRef);
         if (agencySnap.exists()) {
             const agencyData = agencySnap.data() as Agency;
             const isAlreadyTalent = agencyData.talent.some(t => t.userId === finalUserId);
-            
             if (!isAlreadyTalent) {
                 const creatorDocSnap = await getDoc(creatorDocRef);
                 if (creatorDocSnap.exists()) {
@@ -433,13 +439,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                         commissionRate: 0,
                     };
                     batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
-                    
-                    const newMembership = {
-                        agencyId: agency.id,
-                        agencyName: agency.name,
-                        role: 'talent',
-                        status: 'active'
-                    };
+                    const newMembership = { agencyId: agency.id, agencyName: agency.name, role: 'talent', status: 'active' };
                     batch.update(creatorDocRef, { agencyMemberships: arrayUnion(newMembership) });
                 }
             }
@@ -448,13 +448,12 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
       const userDocRef = doc(db, 'users', user.uid);
       batch.update(userDocRef, { hasCreatedContract: true });
-      
       await batch.commit();
       
-      await refreshAuthUser();
-      
-      toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
+      // Close first, then refresh to avoid the initialization effect re-firing
       onOpenChange(false);
+      await refreshAuthUser();
+      toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
     } catch (error) {
       console.error("Error saving contract:", error);
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -482,9 +481,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     }
   };
 
-  const totalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
-  
-  const isAgencyUser = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+  const currentTotalAmount = milestones.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+  const isAgencyUserRole = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
 
   const renderAiAnalysis = () => (
     <>
@@ -492,7 +490,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />AI-Extracted Details</CardTitle></CardHeader>
         <CardContent className="text-sm space-y-2">
           <p><strong>Brand:</strong> {parsedDetails?.brand || '...'}</p>
-          <p><strong>Total Amount:</strong> ${totalAmount.toLocaleString()}</p>
+          <p><strong>Total Amount:</strong> ${currentTotalAmount.toLocaleString()}</p>
           <p><strong>Final Due Date:</strong> {milestones.reduce((latest, m) => m.dueDate > latest ? m.dueDate : latest, "N/A")}</p>
         </CardContent>
       </Card>
@@ -539,7 +537,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
         <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden p-1">
           <ScrollArea className="h-full"><div className="space-y-6 pr-6">
-            {isAgencyUser && agency && (
+            {isAgencyUserRole && agency && (
               <div>
                 <Label htmlFor="contractOwner">Contract For</Label>
                 <Select value={selectedOwner} onValueChange={setSelectedOwner} disabled={isSaving}>
@@ -576,7 +574,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
-              <div className="text-right font-semibold">Total Amount: ${totalAmount.toLocaleString()}</div>
+              <div className="text-right font-semibold">Total Amount: ${currentTotalAmount.toLocaleString()}</div>
             </CardContent></Card>
             
             <Card><CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader><CardContent className="space-y-4">

@@ -1129,7 +1129,7 @@ export const stripeCreditWebhookHandler = onRequest(async (request, response) =>
         return;
       }
     } else if (purchaseType === "gigFunding") {
-      const {gigId} = paymentIntent.metadata || {};
+      const { gigId } = paymentIntent.metadata || {};
       if (!gigId) {
         logger.warn("payment_intent.succeeded received gigFunding without gigId metadata.", paymentIntent.id);
         response.status(200).send("Received but missing gig metadata.");
