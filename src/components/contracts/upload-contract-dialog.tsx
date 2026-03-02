@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       user.trialEndsAt &&
       user.trialEndsAt.toMillis() > now);
 
-  // Unify agency manager check
-  const isAgencyManager = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin' || m.role === 'member');
+  const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
   const talentOptions = useMemo(() => {
     if (!agency) return [];
@@ -181,7 +181,6 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
     };
 
     initializeDialog();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialSFDT, initialSelectedOwner, initialFileName, isAgencyManager]);
 
   const handleFullAnalysis = async (textToAnalyze: string) => {
@@ -418,38 +417,12 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const newContractRef = doc(collection(db, 'contracts'));
       batch.set(newContractRef, contractDataForFirestore);
       
-      if (ownerType === 'agency' && selectedOwner !== 'personal' && agency) {
-        const agencyDocRef = doc(db, "agencies", agency.id);
-        const creatorDocRef = doc(db, 'users', finalUserId);
-        const agencySnap = await getDoc(agencyDocRef);
-        if (agencySnap.exists()) {
-            const agencyData = agencySnap.data() as Agency;
-            const isAlreadyTalent = agencyData.talent.some(t => t.userId === finalUserId);
-            if (!isAlreadyTalent) {
-                const creatorDocSnap = await getDoc(creatorDocRef);
-                if (creatorDocSnap.exists()) {
-                    const creatorData = creatorDocSnap.data() as UserProfile;
-                    const newTalentEntry: Talent = {
-                        userId: finalUserId,
-                        email: creatorData.email || 'unknown',
-                        displayName: creatorData.displayName || 'Creator',
-                        status: 'active',
-                        joinedAt: Timestamp.now(),
-                        commissionRate: 0,
-                    };
-                    batch.update(agencyDocRef, { talent: arrayUnion(newTalentEntry) });
-                    const newMembership = { agencyId: agency.id, agencyName: agency.name, role: 'talent', status: 'active' };
-                    batch.update(creatorDocRef, { agencyMemberships: arrayUnion(newMembership) });
-                }
-            }
-        }
-      }
-
+      // Update local status for onboarding progress
       const userDocRef = doc(db, 'users', user.uid);
       batch.update(userDocRef, { hasCreatedContract: true });
+      
       await batch.commit();
       
-      // Close first, then refresh to avoid the initialization effect re-firing
       onOpenChange(false);
       await refreshAuthUser();
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
