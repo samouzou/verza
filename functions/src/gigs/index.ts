@@ -72,7 +72,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Could not find the original charge to source the transfer from.");
     }
 
-    // Deduct 15% platform fee from the creator's payout as requested
+    // Deduct 15% platform fee from the creator's payout
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
     const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
     const finalPayoutAmountInCents = rawPayoutAmountInCents - platformFeeInCents;
@@ -83,7 +83,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       currency: "usd",
       destination: creatorData.stripeAccountId,
       source_transaction: chargeId,
-      description: `Payout for gig: ${gigData.title} (less 15% platform fee)`,
+      description: `Payout for gig: ${gigData.title}`,
       metadata: {
         gigId: gigId,
         creatorId: creatorId,

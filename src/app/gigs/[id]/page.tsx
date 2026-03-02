@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -56,14 +57,12 @@ export default function GigDetailPage() {
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
 
-  // Submission State
-  const [isUploading, setIsUploading] = useState<number | null>(null); // Index of slot
-  const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null); // Submission ID
+  const [isUploading, setIsUploading] = useState<number | null>(null);
+  const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
 
-  // 1. Fetch Gig Data
   useEffect(() => {
     if (!gigId) {
       setIsLoading(false);
@@ -93,7 +92,6 @@ export default function GigDetailPage() {
     return () => unsubscribeGig();
   }, [gigId]);
 
-  // 2. Fetch Submissions with Role-Based Filtering
   useEffect(() => {
     if (!gig || !user) return;
 
@@ -123,7 +121,6 @@ export default function GigDetailPage() {
     return () => unsubscribeSubmissions();
   }, [gig, user, gigId]);
 
-  // 3. Fetch accepted creator profiles (Brand only)
   useEffect(() => {
     if (gig && gig.acceptedCreatorIds.length > 0) {
       const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.acceptedCreatorIds));
@@ -193,7 +190,6 @@ export default function GigDetailPage() {
       
       await updateDoc(gigDocRef, gigUpdates);
 
-      // Notify Brand
       const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (agencySnap.exists()) {
         const agencyData = agencySnap.data();
@@ -246,7 +242,6 @@ export default function GigDetailPage() {
         createdAt: serverTimestamp() as any,
       };
 
-      // Check if we already have a submission for this user at this slot (using metadata or just checking list)
       const existingAtSlot = mySubmissions[slotIndex];
       if (existingAtSlot) {
         await updateDoc(doc(db, 'submissions', existingAtSlot.id), subData);
@@ -279,7 +274,6 @@ export default function GigDetailPage() {
       await updateDoc(subRef, updates);
 
       if (result.score >= 65) {
-        // Notify Brand of new submission
         const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
         if (agencySnap.exists()) {
           const agencyData = agencySnap.data();
@@ -328,13 +322,11 @@ export default function GigDetailPage() {
     try {
       await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
       
-      // Update all submitted/rejected videos to 'approved'
       const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'rejected'));
       for (const sub of batch) {
         await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
       }
 
-      // Notify Creator
       await addDoc(collection(db, 'notifications'), {
         userId: creator.uid,
         title: "Payout Received!",
@@ -345,7 +337,7 @@ export default function GigDetailPage() {
         createdAt: serverTimestamp(),
       } as Omit<Notification, 'id'>);
 
-      toast({ title: "Payout Processing!", description: "Creator has been paid (less 5% platform fee)." });
+      toast({ title: "Payout Processing!", description: "The creator has been paid successfully." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
     } finally {
