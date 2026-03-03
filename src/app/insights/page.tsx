@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -72,7 +73,7 @@ export default function InsightsPage() {
       return;
     }
 
-    // Wrap the async logic in a standard function to prevent 'asyncfunction' errors
+    // Wrap the async logic in a standard function to prevent 'asyncfunction' errors in Next.js 15
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
@@ -95,7 +96,7 @@ export default function InsightsPage() {
 
     try {
       const provider = new GoogleAuthProvider();
-      // Using the minimal readonly scope
+      // Using the minimal readonly scope for safety and easier verification
       provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
       
       const result = await signInWithPopup(auth, provider);
