@@ -29,17 +29,17 @@ export const syncInstagramStats = onCall(async (request) => {
       },
     });
 
-    const pages = pagesResponse.data.data;
-    if (!pages || pages.length === 0) {
+    const pages = pagesResponse.data?.data;
+    if (!pages || !Array.isArray(pages) || pages.length === 0) {
       logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Page linked to your IG account.");
+      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
     }
 
     const pageWithIg = pages.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIg) {
       logger.warn("No linked Instagram Business account found in Pages.");
-      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Ensure your IG account is professional (Business or Creator) and linked to a Page.");
+      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
     }
 
     const igUserId = pageWithIg.instagram_business_account.id;
@@ -52,7 +52,7 @@ export const syncInstagramStats = onCall(async (request) => {
         access_token: accessToken,
       },
     });
-    const followers = userResponse.data.followers_count || 0;
+    const followers = userResponse.data?.followers_count || 0;
 
     // 3. Get Engagement Data (Likes & Comments) from last 10 posts
     const mediaResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}/media`, {
@@ -63,7 +63,7 @@ export const syncInstagramStats = onCall(async (request) => {
       },
     });
 
-    const mediaItems = mediaResponse.data.data || [];
+    const mediaItems = mediaResponse.data?.data || [];
     let totalLikes = 0;
     let totalComments = 0;
 
@@ -74,8 +74,9 @@ export const syncInstagramStats = onCall(async (request) => {
 
     // 4. Calculate Average Engagement Rate
     const totalInteractions = totalLikes + totalComments;
-    // Divide by 10 as per formula: [(Total interactions on last 10 posts) / 10] / Followers * 100
-    const avgInteractionsPerPost = totalInteractions / 10;
+    // Divide by the number of posts found (up to 10) to avoid skewed math for new accounts
+    const postCount = mediaItems.length || 1;
+    const avgInteractionsPerPost = totalInteractions / postCount;
 
     let engagementRate = 0;
     if (followers > 0) {

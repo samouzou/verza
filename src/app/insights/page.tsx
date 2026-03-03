@@ -39,6 +39,36 @@ export default function InsightsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
+  const performSync = async (accessToken: string) => {
+    toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
+    setIsLoadingToken(true);
+    
+    try {
+      const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
+      const result = await syncInstagramStats({ accessToken });
+      const data = result.data as { success: boolean; followers: number; engagementRate: number };
+
+      if (data.success) {
+        await refreshAuthUser();
+        toast({ 
+          title: "Instagram Connected!", 
+          description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+        });
+      } else {
+        throw new Error("Sync function returned failure.");
+      }
+    } catch (e: any) {
+      console.error("Instagram sync failed:", e);
+      toast({ 
+        title: "Connection Failed", 
+        description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsLoadingToken(false);
+    }
+  };
+
   const handleConnectAccount = () => {
     if (typeof window.FB === 'undefined') {
       toast({
@@ -49,55 +79,31 @@ export default function InsightsPage() {
       return;
     }
 
-    // Use a regular function for the callback to avoid the asyncfunction runtime error
-    window.FB.login(
-      function(response: any) {
-        if (response.authResponse && user) {
-          const accessToken = response.authResponse.accessToken;
-          
-          // Trigger the async logic inside the synchronous callback
-          (async () => {
-            toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
-            setIsLoadingToken(true);
-            
-            try {
-              const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
-              const result = await syncInstagramStats({ accessToken });
-              const data = result.data as { success: boolean; followers: number; engagementRate: number };
-
-              if (data.success) {
-                await refreshAuthUser();
-                toast({ 
-                  title: "Instagram Connected!", 
-                  description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
-                });
-              } else {
-                throw new Error("Sync function returned failure.");
-              }
-            } catch (e: any) {
-              console.error("Instagram sync failed:", e);
-              toast({ 
-                title: "Connection Failed", 
-                description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
-                variant: "destructive" 
+    // Check login status first to avoid overriding valid tokens unnecessarily
+    window.FB.getLoginStatus((statusResponse: any) => {
+      if (statusResponse.status === 'connected') {
+        // User is already logged into FB and connected to the app
+        performSync(statusResponse.authResponse.accessToken);
+      } else {
+        // User not logged in, trigger FB Login
+        window.FB.login(
+          function(loginResponse: any) {
+            if (loginResponse.authResponse && user) {
+              performSync(loginResponse.authResponse.accessToken);
+            } else {
+              toast({
+                title: 'Authorization Canceled',
+                description: 'You did not connect your Instagram account.',
+                variant: 'default',
               });
-            } finally {
-              setIsLoadingToken(false);
             }
-          })();
-
-        } else {
-          toast({
-            title: 'Authorization Canceled',
-            description: 'You did not connect your Instagram account.',
-            variant: 'default',
-          });
-        }
-      },
-      { 
-        scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement' 
+          },
+          { 
+            scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement' 
+          }
+        );
       }
-    );
+    });
   };
   
   const handleAnalyzeProfile = async () => {
