@@ -74,7 +74,7 @@ export const syncInstagramStats = onCall(async (request) => {
 
     // 4. Calculate Average Engagement Rate
     const totalInteractions = totalLikes + totalComments;
-    // Divide by 10 as per prompt requirement for "Average Engagement Rate" based on a 10-post sample
+    // Divide by 10 as per formula: [(Total interactions on last 10 posts) / 10] / Followers * 100
     const avgInteractionsPerPost = totalInteractions / 10;
 
     let engagementRate = 0;
