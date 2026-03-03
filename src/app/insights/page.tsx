@@ -53,6 +53,7 @@ export default function InsightsPage() {
         router.replace('/insights');
         performTikTokSync(code);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
 
   const performIgSync = async (accessToken: string) => {
@@ -174,8 +175,8 @@ export default function InsightsPage() {
     setIsSyncingTt(true);
     toast({ title: "Syncing TikTok", description: "Fetching verified follower counts..." });
     try {
-        const syncTikTokStats = httpsCallable(functions, 'syncTikTokStats');
-        const result = await syncTikTokStats({ authCode: code });
+        const syncTikTokStatsCallable = httpsCallable(functions, 'syncTikTokStats');
+        const result = await syncTikTokStatsCallable({ authCode: code });
         const data = result.data as { success: boolean; followers: number };
 
         if (data.success) {

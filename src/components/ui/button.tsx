@@ -50,13 +50,9 @@ export function Button({ className, variant, size, asChild = false, ref, ...prop
   const Comp = asChild ? Slot : "button"
   return (
     <Comp
-      className={cn(sidebarMenuButtonVariants ? cn(buttonVariants({ variant, size, className })) : buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, className }))}
       ref={ref}
       {...props}
     />
   )
-}
-
-function sidebarMenuButtonVariants(arg0: { variant: string; size: string; }) {
-    throw new Error("Function not implemented.")
 }

@@ -33,17 +33,14 @@ export const syncInstagramStats = onCall(async (request) => {
     const pages = pagesResponse.data?.data;
     if (!pages || !Array.isArray(pages) || pages.length === 0) {
       logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found", "No Facebook Pages found." +
-        " Ensure you have a Facebook Page linked to your professional Instagram account.");
+      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
     }
 
     const pageWithIg = pages.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIg) {
       logger.warn("No linked Instagram Business account found in Pages.");
-      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages." +
-        " Please ensure your Instagram is a 'Business' or 'Creator'" +
-        " account and is connected to a Facebook Page.");
+      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
     }
 
     const igUserId = pageWithIg.instagram_business_account.id;
@@ -85,30 +82,31 @@ export const syncInstagramStats = onCall(async (request) => {
     const postCount = mediaItems.length || 1;
     const avgInteractionsPerPost = totalInteractions / postCount;
 
-    let engagementRate = 0;
+    let engagementRateValue = 0;
     if (followers > 0) {
-      engagementRate = (avgInteractionsPerPost / followers) * 100;
+      engagementRateValue = (avgInteractionsPerPost / followers) * 100;
     }
+
+    const finalEngagementRate = parseFloat(engagementRateValue.toFixed(2));
 
     // 5. Save to Firestore
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       instagramConnected: true,
       followers: followers,
-      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.instagram"]: concatenatedCaptions.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers,
-      ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${finalEngagementRate}% engagement.`);
 
     return {
       success: true,
-      followers,
-      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      followers: followers,
+      engagementRate: finalEngagementRate,
     };
   } catch (error: any) {
     logger.error("Instagram sync failed:", error.message);
@@ -205,30 +203,31 @@ export const syncYouTubeStats = onCall(async (request) => {
     // 4. Calculate Average Engagement Rate
     const postCount = videoStats.length || 1;
     const avgInteractionsPerVideo = totalInteractions / postCount;
-    let engagementRate = 0;
+    let engagementRateValue = 0;
     if (subscribers > 0) {
-      engagementRate = (avgInteractionsPerVideo / subscribers) * 100;
+      engagementRateValue = (avgInteractionsPerVideo / subscribers) * 100;
     }
+
+    const finalEngagementRate = parseFloat(engagementRateValue.toFixed(2));
 
     // 5. Save to Firestore
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       youtubeConnected: true,
       followers: subscribers,
-      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.youtube"]: concatenatedMetadata.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs,
-      ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${finalEngagementRate}% engagement.`);
 
     return {
       success: true,
-      followers,
-      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      followers: subscribers,
+      engagementRate: finalEngagementRate,
     };
   } catch (error: any) {
     logger.error("YouTube sync failed:", error.message);
@@ -281,8 +280,8 @@ export const syncTikTokStats = onCall({
       headers: { "Authorization": `Bearer ${accessToken}` }
     });
 
-    const userData = userResponse.data.data.user;
-    const followers = userData.follower_count || 0;
+    const tiktokUser = userResponse.data.data.user;
+    const followerCount = tiktokUser.follower_count || 0;
 
     // 3. Get Video List for content metadata
     const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
@@ -301,16 +300,16 @@ export const syncTikTokStats = onCall({
     const userDocRef = db.collection("users").doc(request.auth.uid);
     await userDocRef.update({
       tiktokConnected: true,
-      followers: followers,
+      followers: followerCount,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     });
 
-    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followers} followers.`);
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followerCount} followers.`);
 
     return {
       success: true,
-      followers,
+      followers: followerCount,
     };
   } catch (error: any) {
     logger.error("TikTok sync failed:", error.message, error.response?.data);
