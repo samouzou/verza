@@ -3,6 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
 import {db} from "../config/firebase";
+import * as params from "../config/params";
 
 /**
  * syncInstagramStats - Exchanges a client token for real IG data.
@@ -96,12 +97,13 @@ export const syncInstagramStats = onCall(async (request) => {
       followers: followers,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       lastSocialSync: new Date().toISOString(),
-      [`socialContent.instagram`]: concatenatedCaptions.trim(),
+      ["socialContent.instagram"]: concatenatedCaptions.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers,
+      ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,
@@ -166,9 +168,9 @@ export const syncYouTubeStats = onCall(async (request) => {
     // Collect titles and descriptions for AI analysis
     let concatenatedMetadata = "";
     items.forEach((item: any) => {
-        if (item.snippet) {
-            concatenatedMetadata += `${item.snippet.title}: ${item.snippet.description} | `;
-        }
+      if (item.snippet) {
+        concatenatedMetadata += `${item.snippet.title}: ${item.snippet.description} | `;
+      }
     });
 
     if (videoIds.length === 0) {
@@ -177,7 +179,7 @@ export const syncYouTubeStats = onCall(async (request) => {
         youtubeConnected: true,
         followers: subscribers,
         lastSocialSync: new Date().toISOString(),
-        [`socialContent.youtube`]: concatenatedMetadata.trim(),
+        ["socialContent.youtube"]: concatenatedMetadata.trim(),
       });
       return {success: true, followers: subscribers, engagementRate: 0};
     }
@@ -215,16 +217,17 @@ export const syncYouTubeStats = onCall(async (request) => {
       followers: subscribers,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       lastSocialSync: new Date().toISOString(),
-      [`socialContent.youtube`]: concatenatedMetadata.trim(),
+      ["socialContent.youtube"]: concatenatedMetadata.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs,
+      ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,
-      followers: subscribers,
+      followers,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
     };
   } catch (error: any) {
@@ -235,9 +238,11 @@ export const syncYouTubeStats = onCall(async (request) => {
 });
 
 /**
- * syncTikTokStats - Scaffolding for TikTok data synchronization.
+ * syncTikTokStats - Exchanges a TikTok code for real stats.
  */
-export const syncTikTokStats = onCall(async (request) => {
+export const syncTikTokStats = onCall({
+  secrets: [params.TIKTOK_CLIENT_SECRET],
+}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
   }
@@ -247,30 +252,68 @@ export const syncTikTokStats = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "TikTok auth code is required.");
   }
 
+  const clientKey = params.TIKTOK_CLIENT_KEY.value();
+  const clientSecret = params.TIKTOK_CLIENT_SECRET.value();
+  const redirectUri = params.APP_URL.value() + "/insights";
+
   try {
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
-    
-    // Mock response for prototype
-    const followers = 15000;
-    const engagementRate = 4.2;
-    const mockContent = "Daily lifestyle vlogs | Sustainable fashion tips | Coffee lover";
 
+    // 1. Exchange code for access token
+    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/", 
+      new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        code: authCode,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+      }).toString(),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+    if (!accessToken) {
+      throw new Error("Failed to obtain TikTok access token.");
+    }
+
+    // 2. Get User Info & Stats
+    const userResponse = await axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    });
+
+    const userData = userResponse.data.data.user;
+    const followers = userData.follower_count || 0;
+
+    // 3. Get Video List for content metadata
+    const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    });
+
+    const videos = videoResponse.data.data.videos || [];
+    let concatenatedMetadata = "";
+    videos.forEach((v: any) => {
+      if (v.video_description) {
+        concatenatedMetadata += `${v.title || 'Video'}: ${v.video_description} | `;
+      }
+    });
+
+    // 4. Update Firestore
     const userDocRef = db.collection("users").doc(request.auth.uid);
     await userDocRef.update({
       tiktokConnected: true,
       followers: followers,
-      engagementRate: engagementRate,
       lastSocialSync: new Date().toISOString(),
-      [`socialContent.tiktok`]: mockContent,
+      ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     });
+
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followers} followers.`);
 
     return {
       success: true,
       followers,
-      engagementRate,
     };
   } catch (error: any) {
-    logger.error("TikTok sync failed:", error.message);
+    logger.error("TikTok sync failed:", error.message, error.response?.data);
     throw new HttpsError("internal", `TikTok Sync Error: ${error.message}`);
   }
 });

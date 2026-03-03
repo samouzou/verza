@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
 import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, linkWithPopup } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 declare global {
   interface Window {
@@ -32,6 +33,8 @@ export default function InsightsPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [isSyncingYt, setIsSyncingYt] = useState(false);
@@ -39,6 +42,18 @@ export default function InsightsPage() {
   const [manualProfileContent, setManualProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
+
+  // Handle TikTok OAuth Callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    
+    if (code && state === 'tiktok_auth') {
+        // Clear query params
+        router.replace('/insights');
+        performTikTokSync(code);
+    }
+  }, [searchParams, router]);
 
   const performIgSync = async (accessToken: string) => {
     toast({ title: "Syncing Instagram", description: "Fetching verified content & engagement stats..." });
@@ -155,20 +170,37 @@ export default function InsightsPage() {
     }
   };
 
-  const handleConnectTikTok = async () => {
+  const performTikTokSync = async (code: string) => {
     setIsSyncingTt(true);
-    toast({
-        title: "TikTok Integration",
-        description: "Redirecting to TikTok for secure account verification...",
-    });
-    setTimeout(() => {
+    toast({ title: "Syncing TikTok", description: "Fetching verified follower counts..." });
+    try {
+        const syncTikTokStats = httpsCallable(functions, 'syncTikTokStats');
+        const result = await syncTikTokStats({ authCode: code });
+        const data = result.data as { success: boolean; followers: number };
+
+        if (data.success) {
+            await refreshAuthUser();
+            toast({ title: "TikTok Synced!", description: `Verified ${data.followers.toLocaleString()} followers.` });
+        }
+    } catch (error: any) {
+        console.error("TikTok sync error:", error);
+        toast({ title: "Sync Failed", description: error.message || "Could not sync TikTok data.", variant: "destructive" });
+    } finally {
         setIsSyncingTt(false);
-        toast({
-            title: "OAuth Required",
-            description: "To finalize TikTok sync, please ensure your TikTok Developer credentials are added to the environment variables.",
-            variant: "default"
-        });
-    }, 2000);
+    }
+  };
+
+  const handleConnectTikTok = async () => {
+    const clientKey = "sbawwp6t4wfkbsrk3o";
+    const redirectUri = encodeURIComponent(window.location.origin + "/insights");
+    const scope = "user.info.basic,user.info.stats,video.list";
+    const state = "tiktok_auth";
+    
+    const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}&state=${state}`;
+    
+    setIsSyncingTt(true);
+    toast({ title: "Redirecting to TikTok", description: "Please authorize Verza to see your stats." });
+    window.location.href = authUrl;
   };
   
   const handleAnalyzeProfile = async () => {

@@ -14,6 +14,9 @@ export const STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET = defineSecret("STRIPE_CREDIT
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
+// TikTok Secrets
+export const TIKTOK_CLIENT_SECRET = defineSecret("TIKTOK_CLIENT_SECRET");
+
 
 // --- String Parameters (can be set as env vars in .env file for local emulation) ---
 export const APP_URL = defineString("APP_URL", {
@@ -33,6 +36,11 @@ export const SENDGRID_FROM_EMAIL = defineString("SENDGRID_FROM_EMAIL", {
 
 export const APP_STORAGE_BUCKET = defineString("APP_STORAGE_BUCKET", {
   description: "The default Firebase Storage bucket name.",
+});
+
+// TikTok Parameters
+export const TIKTOK_CLIENT_KEY = defineString("TIKTOK_CLIENT_KEY", {
+  default: "sbawwp6t4wfkbsrk3o",
 });
 
 
