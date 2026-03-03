@@ -19,8 +19,9 @@ export const syncInstagramStats = onCall(async (request) => {
   }
 
   try {
+    logger.info(`Starting IG sync for user: ${request.auth.uid}`);
+
     // 1. Get the Instagram Business Account ID via linked Pages
-    // Endpoint: GET /me/accounts?fields=instagram_business_account
     const pagesResponse = await axios.get("https://graph.facebook.com/v20.0/me/accounts", {
       params: {
         fields: "instagram_business_account,name",
@@ -29,18 +30,22 @@ export const syncInstagramStats = onCall(async (request) => {
     });
 
     const pages = pagesResponse.data.data;
+    if (!pages || pages.length === 0) {
+      logger.warn("No Facebook Pages found for user.");
+      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Page linked to your IG account.");
+    }
+
     const pageWithIg = pages.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIg) {
-      throw new HttpsError("not-found",
-        "No Instagram Business account found linked to your Facebook Pages." +
-        " Ensure your IG account is professional and linked to a Page.");
+      logger.warn("No linked Instagram Business account found in Pages.");
+      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Ensure your IG account is professional (Business or Creator) and linked to a Page.");
     }
 
     const igUserId = pageWithIg.instagram_business_account.id;
+    logger.info(`Found IG User ID: ${igUserId} from Page: ${pageWithIg.name}`);
 
     // 2. Get Follower Count
-    // Endpoint: GET /{ig-user-id}?fields=followers_count
     const userResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}`, {
       params: {
         fields: "followers_count",
@@ -50,10 +55,9 @@ export const syncInstagramStats = onCall(async (request) => {
     const followers = userResponse.data.followers_count || 0;
 
     // 3. Get Engagement Data (Likes & Comments) from last 10 posts
-    // Endpoint: GET /{ig-user-id}/media?fields=like_count,comments_count&limit=10
     const mediaResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}/media`, {
       params: {
-        fields: "like_count,comments_count",
+        fields: "id,like_count,comments_count",
         limit: 10,
         access_token: accessToken,
       },
@@ -69,8 +73,8 @@ export const syncInstagramStats = onCall(async (request) => {
     });
 
     // 4. Calculate Average Engagement Rate
-    // Formula: [(Total Likes + Total Comments on last 10 posts) / 10] / Total Followers * 100
     const totalInteractions = totalLikes + totalComments;
+    // Divide by 10 as per prompt requirement for "Average Engagement Rate" based on a 10-post sample
     const avgInteractionsPerPost = totalInteractions / 10;
 
     let engagementRate = 0;
@@ -89,8 +93,7 @@ export const syncInstagramStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers,
-      ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,
@@ -98,8 +101,20 @@ export const syncInstagramStats = onCall(async (request) => {
       engagementRate: parseFloat(engagementRate.toFixed(2)),
     };
   } catch (error: any) {
-    logger.error("Instagram sync failed:", error.response?.data || error.message);
-    const fbError = error.response?.data?.error?.message || "Internal error during Instagram sync.";
-    throw new HttpsError("internal", fbError);
+    // Log the full error for backend debugging
+    logger.error("Instagram sync failed with error:", {
+      message: error.message,
+      response: error.response?.data,
+      stack: error.stack,
+    });
+
+    // If it's already an HttpsError, rethrow it
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    // Otherwise, construct a useful message from FB's response if available
+    const fbErrorMsg = error.response?.data?.error?.message || error.message || "Internal error during Instagram sync.";
+    throw new HttpsError("internal", `Instagram Sync Error: ${fbErrorMsg}`);
   }
 });

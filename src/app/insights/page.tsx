@@ -49,11 +49,13 @@ export default function InsightsPage() {
       return;
     }
 
+    // Use a regular function for the callback to avoid the asyncfunction runtime error
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
           const accessToken = response.authResponse.accessToken;
           
+          // Trigger the async logic inside the synchronous callback
           (async () => {
             toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
             setIsLoadingToken(true);
