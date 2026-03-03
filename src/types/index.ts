@@ -201,6 +201,11 @@ export interface UserProfileFirestoreData {
   instagramConnected?: boolean;
   tiktokConnected?: boolean;
   youtubeConnected?: boolean;
+  socialContent?: {
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
 
   // Subscription Fields
   stripeCustomerId?: string | null;

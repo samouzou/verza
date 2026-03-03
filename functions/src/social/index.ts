@@ -6,7 +6,7 @@ import {db} from "../config/firebase";
 
 /**
  * syncInstagramStats - Exchanges a client token for real IG data.
- * Calculates engagement based on the last 10 posts.
+ * Pulls follower count, engagement, and content captions for AI analysis.
  */
 export const syncInstagramStats = onCall(async (request) => {
   if (!request.auth) {
@@ -57,10 +57,10 @@ export const syncInstagramStats = onCall(async (request) => {
     });
     const followers = userResponse.data?.followers_count || 0;
 
-    // 3. Get Engagement Data (Likes & Comments) from last 10 posts
+    // 3. Get Engagement Data & Captions from last 10 posts
     const mediaResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}/media`, {
       params: {
-        fields: "id,like_count,comments_count",
+        fields: "id,like_count,comments_count,caption",
         limit: 10,
         access_token: accessToken,
       },
@@ -69,15 +69,18 @@ export const syncInstagramStats = onCall(async (request) => {
     const mediaItems = mediaResponse.data?.data || [];
     let totalLikes = 0;
     let totalComments = 0;
+    let concatenatedCaptions = "";
 
     mediaItems.forEach((item: any) => {
       totalLikes += (item.like_count || 0);
       totalComments += (item.comments_count || 0);
+      if (item.caption) {
+        concatenatedCaptions += item.caption + " | ";
+      }
     });
 
     // 4. Calculate Average Engagement Rate
     const totalInteractions = totalLikes + totalComments;
-    // Divide by the number of posts found (up to 10) to avoid skewed math for new accounts
     const postCount = mediaItems.length || 1;
     const avgInteractionsPerPost = totalInteractions / postCount;
 
@@ -93,12 +96,12 @@ export const syncInstagramStats = onCall(async (request) => {
       followers: followers,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       lastSocialSync: new Date().toISOString(),
+      [`socialContent.instagram`]: concatenatedCaptions.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers,
-      ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,
@@ -114,7 +117,7 @@ export const syncInstagramStats = onCall(async (request) => {
 
 /**
  * syncYouTubeStats - Exchanges a Google access token for real YT data.
- * Fetches subscriber count and calculates engagement from the last 10 videos.
+ * Pulls subscriber count, engagement, and video metadata for AI analysis.
  */
 export const syncYouTubeStats = onCall(async (request) => {
   if (!request.auth) {
@@ -145,32 +148,41 @@ export const syncYouTubeStats = onCall(async (request) => {
 
     const subscribers = parseInt(channel.statistics.subscriberCount) || 0;
 
-    // 2. Get Last 10 Videos via Activities (Uploads)
+    // 2. Get Last 10 Videos via Activities
     const activitiesResponse = await axios.get("https://www.googleapis.com/youtube/v3/activities", {
       params: {
-        part: "contentDetails",
+        part: "contentDetails,snippet",
         mine: true,
         maxResults: 10,
         access_token: accessToken,
       },
     });
 
-    const videoIds = (activitiesResponse.data?.items || [])
+    const items = activitiesResponse.data?.items || [];
+    const videoIds = items
       .filter((a: any) => a.contentDetails?.upload?.videoId)
       .map((a: any) => a.contentDetails.upload.videoId);
 
+    // Collect titles and descriptions for AI analysis
+    let concatenatedMetadata = "";
+    items.forEach((item: any) => {
+        if (item.snippet) {
+            concatenatedMetadata += `${item.snippet.title}: ${item.snippet.description} | `;
+        }
+    });
+
     if (videoIds.length === 0) {
-      // If no videos, update with just subscriber count
       const userDocRef = db.collection("users").doc(request.auth.uid);
       await userDocRef.update({
         youtubeConnected: true,
-        followers: subscribers, // For consistency, we use followers field for totals
+        followers: subscribers,
         lastSocialSync: new Date().toISOString(),
+        [`socialContent.youtube`]: concatenatedMetadata.trim(),
       });
       return {success: true, followers: subscribers, engagementRate: 0};
     }
 
-    // 3. Get Statistics for those Videos (Likes & Comments)
+    // 3. Get Statistics for those Videos
     const videosResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
       params: {
         part: "statistics",
@@ -203,12 +215,12 @@ export const syncYouTubeStats = onCall(async (request) => {
       followers: subscribers,
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       lastSocialSync: new Date().toISOString(),
+      [`socialContent.youtube`]: concatenatedMetadata.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs,
-      ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,
@@ -224,7 +236,6 @@ export const syncYouTubeStats = onCall(async (request) => {
 
 /**
  * syncTikTokStats - Scaffolding for TikTok data synchronization.
- * Requires TikTok Developer App setup and client credentials.
  */
 export const syncTikTokStats = onCall(async (request) => {
   if (!request.auth) {
@@ -239,15 +250,10 @@ export const syncTikTokStats = onCall(async (request) => {
   try {
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
     
-    // Placeholder for TikTok API logic:
-    // 1. Exchange authCode for access_token (requires TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET)
-    // 2. Fetch user profile (follower_count)
-    // 3. Fetch video list and engagement data
-    // 4. Calculate engagementRate
-    
     // Mock response for prototype
     const followers = 15000;
     const engagementRate = 4.2;
+    const mockContent = "Daily lifestyle vlogs | Sustainable fashion tips | Coffee lover";
 
     const userDocRef = db.collection("users").doc(request.auth.uid);
     await userDocRef.update({
@@ -255,6 +261,7 @@ export const syncTikTokStats = onCall(async (request) => {
       followers: followers,
       engagementRate: engagementRate,
       lastSocialSync: new Date().toISOString(),
+      [`socialContent.tiktok`]: mockContent,
     });
 
     return {

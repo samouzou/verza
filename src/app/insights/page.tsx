@@ -36,12 +36,12 @@ export default function InsightsPage() {
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [isSyncingYt, setIsSyncingYt] = useState(false);
   const [isSyncingTt, setIsSyncingTt] = useState(false);
-  const [profileContent, setProfileContent] = useState('');
+  const [manualProfileContent, setManualProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
   const performIgSync = async (accessToken: string) => {
-    toast({ title: "Syncing Instagram", description: "Calculating engagement stats..." });
+    toast({ title: "Syncing Instagram", description: "Fetching verified content & engagement stats..." });
     setIsSyncingIg(true);
     
     try {
@@ -53,7 +53,7 @@ export default function InsightsPage() {
         await refreshAuthUser();
         toast({ 
           title: "Instagram Synced!", 
-          description: `Verified ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+          description: `Imported ${data.followers.toLocaleString()} followers. Content aggregated for AI analysis.` 
         });
       }
     } catch (e: any) {
@@ -91,6 +91,7 @@ export default function InsightsPage() {
 
   const performYoutubeSync = async (token: string) => {
     setIsSyncingYt(true);
+    toast({ title: "Syncing YouTube", description: "Aggregating video data for analysis..." });
     try {
       const syncYouTubeStats = httpsCallable(functions, 'syncYouTubeStats');
       const syncResult = await syncYouTubeStats({ accessToken: token });
@@ -100,7 +101,7 @@ export default function InsightsPage() {
         await refreshAuthUser();
         toast({ 
           title: "YouTube Synced!", 
-          description: `Verified ${data.followers.toLocaleString()} subscribers with ${data.engagementRate}% engagement.` 
+          description: `Verified ${data.followers.toLocaleString()} subscribers. Content imported.` 
         });
       }
     } catch (error: any) {
@@ -160,8 +161,6 @@ export default function InsightsPage() {
         title: "TikTok Integration",
         description: "Redirecting to TikTok for secure account verification...",
     });
-    // For prototype purposes, we display instructions. 
-    // In a production environment, this would redirect to TikTok's OAuth login.
     setTimeout(() => {
         setIsSyncingTt(false);
         toast({
@@ -173,15 +172,27 @@ export default function InsightsPage() {
   };
   
   const handleAnalyzeProfile = async () => {
-    if (!profileContent.trim() || !user) {
-      toast({ title: 'Missing Content', description: "Please paste your profile content to analyze.", variant: "destructive" });
+    if (!user) return;
+    
+    // Aggregate manual input with data from connected accounts
+    const aggregatedContent = [
+        manualProfileContent.trim(),
+        user.socialContent?.instagram ? `[Instagram Content]: ${user.socialContent.instagram}` : '',
+        user.socialContent?.youtube ? `[YouTube Content]: ${user.socialContent.youtube}` : '',
+        user.socialContent?.tiktok ? `[TikTok Content]: ${user.socialContent.tiktok}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    if (!aggregatedContent.trim()) {
+      toast({ title: 'Missing Content', description: "Connect an account or paste your profile content to analyze.", variant: "destructive" });
       return;
     }
+
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    toast({ title: 'Analysis Started', description: "The AI is working its magic..." });
+    toast({ title: 'AI Analysis Started', description: "The system is analyzing your cross-platform content..." });
+    
     try {
-      const result = await analyzeCreatorProfile({ profileContent });
+      const result = await analyzeCreatorProfile({ profileContent: aggregatedContent });
       setAnalysisResult(result);
 
       const userDocRef = doc(db, 'users', user.uid);
@@ -192,7 +203,7 @@ export default function InsightsPage() {
       });
 
       await refreshAuthUser();
-      toast({ title: 'Analysis Complete!', description: "Your brand insights are now featured on your public profile." });
+      toast({ title: 'Analysis Complete!', description: "Your unified brand insights are now live." });
     } catch (error: any) {
       console.error("Error analyzing creator profile:", error);
       toast({ title: "Analysis Failed", description: error.message || "Could not analyze the profile content.", variant: "destructive" });
@@ -204,6 +215,7 @@ export default function InsightsPage() {
   const igConnected = !!user?.instagramConnected;
   const ytConnected = !!user?.youtubeConnected;
   const ttConnected = !!user?.tiktokConnected;
+  const anyConnected = igConnected || ytConnected || ttConnected;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -231,7 +243,7 @@ export default function InsightsPage() {
           <CardHeader>
             <CardTitle>1. Connect Your Accounts</CardTitle>
             <CardDescription>
-              Link your social platforms to begin importing verified engagement data.
+              Link your social platforms to begun importing verified metrics and content for AI analysis.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -268,47 +280,59 @@ export default function InsightsPage() {
           </CardContent>
         </Card>
         
-        {(igConnected || ytConnected || ttConnected) && (
-            <Card id="analyze-profile-card">
-                <CardHeader>
-                    <CardTitle>2. Analyze Your Profile</CardTitle>
-                    <CardDescription>Paste your bio and recent post content below for AI brand analysis.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Textarea 
-                        value={profileContent}
-                        onChange={e => setProfileContent(e.target.value)}
-                        placeholder="Paste your bio and recent post content here..."
-                        rows={8}
-                        disabled={isAnalyzing}
-                    />
-                    <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
+        <Card id="analyze-profile-card">
+            <CardHeader>
+                <CardTitle>2. Unified Brand Analysis</CardTitle>
+                <CardDescription>
+                    {anyConnected 
+                        ? "The AI will automatically use content from your connected accounts. You can add extra context below."
+                        : "Paste your bio and recent post content below for AI brand analysis."
+                    }
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <Textarea 
+                    value={manualProfileContent}
+                    onChange={e => setManualProfileContent(e.target.value)}
+                    placeholder="Tell the AI more about your style, goals, or upcoming projects..."
+                    rows={6}
+                    disabled={isAnalyzing}
+                />
+                <div className="flex items-center justify-between">
+                    <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || (!manualProfileContent.trim() && !anyConnected)}>
                         {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Analyze My Brand
+                        {anyConnected ? "Run Unified Analysis" : "Analyze My Brand"}
                     </Button>
-                </CardContent>
-            </Card>
-        )}
+                    {anyConnected && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 italic">
+                            <Sparkles className="h-3 w-3 text-primary" /> Including data from {([igConnected, ytConnected, ttConnected].filter(Boolean).length)} connected platform(s)
+                        </p>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
 
         {(analysisResult || user.missionStatement) && (
             <Card id="insights-results-card" className="bg-muted/30">
                 <CardHeader>
-                    <CardTitle>Your Brand Insights</CardTitle>
-                    <CardDescription>This information is now live on your public profile.</CardDescription>
+                    <CardTitle>Your AI Brand Strategy</CardTitle>
+                    <CardDescription>Based on your cross-platform content and verified data.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="p-4 border rounded-lg bg-background">
+                    <div className="p-4 border rounded-lg bg-background shadow-sm">
                         <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Lightbulb className="text-yellow-500" />Your Mission Statement</h3>
                         <p className="text-muted-foreground italic">"{analysisResult?.missionStatement || user.missionStatement}"</p>
                     </div>
-                     <div className="p-4 border rounded-lg bg-background">
-                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Award className="text-blue-500" />Your Niche</h3>
+                     <div className="p-4 border rounded-lg bg-background shadow-sm">
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Award className="text-blue-500" />Your Specialized Niche</h3>
                         <p className="text-muted-foreground">{analysisResult?.niche || user.niche}</p>
                     </div>
-                     <div className="p-4 border rounded-lg bg-background">
-                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Star className="text-red-500" />Brand Wishlist</h3>
-                        <ul className="list-disc list-inside grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {(analysisResult?.brandWishlist || user.brandWishlist || []).map((brand, i) => <li key={i} className="text-muted-foreground">{brand}</li>)}
+                     <div className="p-4 border rounded-lg bg-background shadow-sm">
+                        <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Star className="text-red-500" />Top 5 Ideal Brand Partners</h3>
+                        <ul className="list-disc list-inside grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                            {(analysisResult?.brandWishlist || user.brandWishlist || []).map((brand, i) => (
+                                <li key={i} className="text-muted-foreground">{brand}</li>
+                            ))}
                         </ul>
                     </div>
                 </CardContent>
