@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, CheckCircle } from "lucide-react";
+import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, CheckCircle, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
@@ -22,7 +21,6 @@ declare global {
   }
 }
 
-// Placeholder for TikTok Icon
 const TikTokIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.35 1.92-3.58 3.17-5.91 3.21-2.43.05-4.86-.45-6.6-1.8-1.49-1.15-2.55-2.88-2.9-4.75-.24-1.25-.3-2.5-.3-3.75.02-3.48-.02-6.96.02-10.43.01-1.49.53-2.96 1.5-4.04 1.04-1.14 2.56-1.74 4.13-1.82.08-.01.15-.01.23-.01.02.52.01 1.05-.01 1.57-.21.53-.41 1.07-.63 1.6-.22.53-.46 1.05-.69 1.58-.04.1-.06.21-.07.32.02.05.04.09.06.13.25.5.53.98.83 1.44.31.47.65.92 1 1.35.02.02.04.04.05.06.02.04.02.09.01.14-.24 1.52-.52 3.03-.78 4.55-.01.05-.02.11-.02.16-.21-.05-.42-.09-.63-.15-.53-.15-1.07-.26-1.6-.42-.53-.16-1.07-.28-1.6-.45-.29-.09-.58-.15-.88-.23-.02-3.13.01-6.27-.02-9.4.04-.52.12-1.03.23-1.54.11-.5.25-1 .41-1.48.11-.33.24-.65.38-.97.16-.35.34-.69.54-1.03.02-.04.05-.07.08-.1.02.01.05.01.07.02z"/>
@@ -51,8 +49,8 @@ export default function InsightsPage() {
       if (data.success) {
         await refreshAuthUser();
         toast({ 
-          title: "Instagram Connected!", 
-          description: `Synced ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
+          title: "Instagram Synced!", 
+          description: `Verified ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
         });
       } else {
         throw new Error("Sync function returned failure.");
@@ -60,7 +58,7 @@ export default function InsightsPage() {
     } catch (e: any) {
       console.error("Instagram sync failed:", e);
       toast({ 
-        title: "Connection Failed", 
+        title: "Sync Failed", 
         description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
         variant: "destructive" 
       });
@@ -79,31 +77,27 @@ export default function InsightsPage() {
       return;
     }
 
-    // Check login status first to avoid overriding valid tokens unnecessarily
-    window.FB.getLoginStatus((statusResponse: any) => {
-      if (statusResponse.status === 'connected') {
-        // User is already logged into FB and connected to the app
-        performSync(statusResponse.authResponse.accessToken);
-      } else {
-        // User not logged in, trigger FB Login
-        window.FB.login(
-          function(loginResponse: any) {
-            if (loginResponse.authResponse && user) {
-              performSync(loginResponse.authResponse.accessToken);
-            } else {
-              toast({
-                title: 'Authorization Canceled',
-                description: 'You did not connect your Instagram account.',
-                variant: 'default',
-              });
-            }
-          },
-          { 
-            scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement' 
-          }
-        );
+    // Always trigger login when user explicitly requests sync/connect
+    // This resolves issues where the session might have expired or been logged out externally
+    window.FB.login(
+      function(loginResponse: any) {
+        if (loginResponse.authResponse && user) {
+          // Wrapped in a regular function to prevent 'asyncfunction' runtime error
+          performSync(loginResponse.authResponse.accessToken);
+        } else {
+          toast({
+            title: 'Authorization Canceled',
+            description: 'You did not complete the Instagram connection.',
+            variant: 'default',
+          });
+        }
+      },
+      { 
+        // Use rerequest to prompt for any denied permissions
+        scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement',
+        auth_type: 'rerequest'
       }
-    });
+    );
   };
   
   const handleAnalyzeProfile = async () => {
@@ -167,9 +161,15 @@ export default function InsightsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Button variant={isConnected ? "secondary" : "outline"} size="lg" className="justify-start gap-3 p-6 text-lg" onClick={handleConnectAccount} disabled={isConnected || isLoadingToken}>
-                {isLoadingToken ? <Loader2 className="h-6 w-6 animate-spin"/> : isConnected ? <CheckCircle className="h-6 w-6 text-green-500" /> : <Instagram className="h-6 w-6 text-pink-500" />}
-                {isLoadingToken ? 'Syncing...' : isConnected ? 'Instagram Connected' : 'Connect Instagram'}
+            <Button 
+              variant={isConnected ? "secondary" : "outline"} 
+              size="lg" 
+              className="justify-start gap-3 p-6 text-lg" 
+              onClick={handleConnectAccount} 
+              disabled={isLoadingToken}
+            >
+                {isLoadingToken ? <Loader2 className="h-6 w-6 animate-spin"/> : isConnected ? <RefreshCcw className="h-6 w-6 text-green-500" /> : <Instagram className="h-6 w-6 text-pink-500" />}
+                {isLoadingToken ? 'Syncing...' : isConnected ? 'Refresh Instagram Stats' : 'Connect Instagram'}
             </Button>
             <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
                 <TikTokIcon />
@@ -196,10 +196,12 @@ export default function InsightsPage() {
                         rows={8}
                         disabled={isAnalyzing}
                     />
-                    <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
-                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Analyze My Brand
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
+                          {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                          Analyze My Brand
+                      </Button>
+                    </div>
                 </CardContent>
             </Card>
         )}

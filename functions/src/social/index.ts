@@ -32,14 +32,17 @@ export const syncInstagramStats = onCall(async (request) => {
     const pages = pagesResponse.data?.data;
     if (!pages || !Array.isArray(pages) || pages.length === 0) {
       logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
+      throw new HttpsError("not-found", "No Facebook Pages found." +
+        " Ensure you have a Facebook Page linked to your professional Instagram account.");
     }
 
     const pageWithIg = pages.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIg) {
       logger.warn("No linked Instagram Business account found in Pages.");
-      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
+      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages." +
+        " Please ensure your Instagram is a 'Business' or 'Creator'" +
+        " account and is connected to a Facebook Page.");
     }
 
     const igUserId = pageWithIg.instagram_business_account.id;
@@ -94,7 +97,8 @@ export const syncInstagramStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers,
+      ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,

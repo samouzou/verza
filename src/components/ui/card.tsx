@@ -1,13 +1,7 @@
-
 "use client";
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-
-/**
- * Card components updated for React 19 / Next.js 15 stability.
- * Uses standard named functions to avoid 'asyncfunction' identification errors.
- */
 
 export function Card({ className, ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {
   return (
