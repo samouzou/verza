@@ -67,6 +67,15 @@ export interface UserProfile {
   };
   credits?: number;
 
+  // Media Kit / Insights Fields
+  missionStatement?: string | null;
+  brandWishlist?: string[];
+  followers?: number;
+  engagementRate?: number;
+  instagramConnected?: boolean;
+  tiktokConnected?: boolean;
+  youtubeConnected?: boolean;
+
   // Marketplace fields
   showInMarketplace?: boolean;
   niche?: string;
@@ -145,11 +154,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.niche = '';
     updates.contentType = null;
 
+    // Insights fields
+    updates.instagramConnected = false;
+    updates.youtubeConnected = false;
+    updates.tiktokConnected = false;
+
     needsUpdate = true;
 
     try {
       await setDoc(userDocRef, updates);
-      // console.log("User document created in Firestore for UID:", uid);
     } catch (error) {
       console.error("Error creating user document in Firestore:", error);
     }
@@ -248,10 +261,14 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.niche === undefined) { updates.niche = ''; needsUpdate = true; }
     if (existingData.contentType === undefined) { updates.contentType = null; needsUpdate = true; }
 
+    // Initialize insights fields if missing
+    if (existingData.instagramConnected === undefined) { updates.instagramConnected = false; needsUpdate = true; }
+    if (existingData.youtubeConnected === undefined) { updates.youtubeConnected = false; needsUpdate = true; }
+    if (existingData.tiktokConnected === undefined) { updates.tiktokConnected = false; needsUpdate = true; }
+
     if (needsUpdate) {
       try {
         await setDoc(userDocRef, updates, { merge: true });
-        // console.log("User document updated for UID:", firebaseUser.uid, "with updates:", updates);
       } catch (error) {
         console.error("Error updating user document:", error);
       }
@@ -321,9 +338,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               showInMarketplace: firestoreUserData.showInMarketplace,
               niche: firestoreUserData.niche,
               contentType: firestoreUserData.contentType || null,
+              instagramConnected: firestoreUserData.instagramConnected,
+              youtubeConnected: firestoreUserData.youtubeConnected,
+              tiktokConnected: firestoreUserData.tiktokConnected,
+              missionStatement: firestoreUserData.missionStatement,
+              brandWishlist: firestoreUserData.brandWishlist,
+              followers: firestoreUserData.followers,
+              engagementRate: firestoreUserData.engagementRate,
             });
           } else {
-             console.warn(`User document for ${"'" + currentFirebaseUser.uid + "'"} not found during listener setup.`);
              setUser(null);
           }
           setIsLoading(false);
@@ -352,8 +375,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentFbUser = auth.currentUser;
     if (currentFbUser) {
       await currentFbUser.reload();
-      // The onSnapshot listener will handle the update automatically, 
-      // but a manual fetch could be triggered here if needed for immediate feedback.
     }
   }, []);
 
@@ -496,7 +517,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
     }
-    console.warn("getUserIdToken called but no Firebase user instance is available.");
     return null;
   };
 

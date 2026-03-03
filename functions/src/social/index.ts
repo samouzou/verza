@@ -1,3 +1,4 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
@@ -218,5 +219,51 @@ export const syncYouTubeStats = onCall(async (request) => {
     logger.error("YouTube sync failed:", error.message);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", `YouTube Sync Error: ${error.message}`);
+  }
+});
+
+/**
+ * syncTikTokStats - Scaffolding for TikTok data synchronization.
+ * Requires TikTok Developer App setup and client credentials.
+ */
+export const syncTikTokStats = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {authCode} = request.data;
+  if (!authCode) {
+    throw new HttpsError("invalid-argument", "TikTok auth code is required.");
+  }
+
+  try {
+    logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
+    
+    // Placeholder for TikTok API logic:
+    // 1. Exchange authCode for access_token (requires TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET)
+    // 2. Fetch user profile (follower_count)
+    // 3. Fetch video list and engagement data
+    // 4. Calculate engagementRate
+    
+    // Mock response for prototype
+    const followers = 15000;
+    const engagementRate = 4.2;
+
+    const userDocRef = db.collection("users").doc(request.auth.uid);
+    await userDocRef.update({
+      tiktokConnected: true,
+      followers: followers,
+      engagementRate: engagementRate,
+      lastSocialSync: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      followers,
+      engagementRate,
+    };
+  } catch (error: any) {
+    logger.error("TikTok sync failed:", error.message);
+    throw new HttpsError("internal", `TikTok Sync Error: ${error.message}`);
   }
 });

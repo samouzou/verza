@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, RefreshCcw } from "lucide-react";
+import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, RefreshCcw, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
@@ -35,6 +35,7 @@ export default function InsightsPage() {
   
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [isSyncingYt, setIsSyncingYt] = useState(false);
+  const [isSyncingTt, setIsSyncingTt] = useState(false);
   const [profileContent, setProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
@@ -124,8 +125,6 @@ export default function InsightsPage() {
       provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
       provider.setCustomParameters({ prompt: 'select_account' });
       
-      // Use linkWithPopup to attach the identity to the existing user
-      // rather than signInWithPopup which replaces the current user.
       try {
         const result = await linkWithPopup(auth.currentUser, provider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -134,8 +133,6 @@ export default function InsightsPage() {
         if (!token) throw new Error("Could not obtain access token from Google.");
         await performYoutubeSync(token);
       } catch (linkError: any) {
-        // If the account is already in use by another Verza user, linkWithPopup fails.
-        // We can still extract the token from the error to perform a one-time sync.
         if (linkError.code === 'auth/credential-already-in-use') {
           const credential = GoogleAuthProvider.credentialFromError(linkError);
           const token = credential?.accessToken;
@@ -155,6 +152,24 @@ export default function InsightsPage() {
       });
       setIsSyncingYt(false);
     }
+  };
+
+  const handleConnectTikTok = async () => {
+    setIsSyncingTt(true);
+    toast({
+        title: "TikTok Integration",
+        description: "Redirecting to TikTok for secure account verification...",
+    });
+    // For prototype purposes, we display instructions. 
+    // In a production environment, this would redirect to TikTok's OAuth login.
+    setTimeout(() => {
+        setIsSyncingTt(false);
+        toast({
+            title: "OAuth Required",
+            description: "To finalize TikTok sync, please ensure your TikTok Developer credentials are added to the environment variables.",
+            variant: "default"
+        });
+    }, 2000);
   };
   
   const handleAnalyzeProfile = async () => {
@@ -188,6 +203,7 @@ export default function InsightsPage() {
 
   const igConnected = !!user?.instagramConnected;
   const ytConnected = !!user?.youtubeConnected;
+  const ttConnected = !!user?.tiktokConnected;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -239,14 +255,20 @@ export default function InsightsPage() {
                 {isSyncingYt ? <Loader2 className="h-6 w-6 animate-spin"/> : ytConnected ? <RefreshCcw className="h-6 w-6 text-green-500" /> : <Youtube className="h-6 w-6 text-red-500" />}
                 {isSyncingYt ? 'Syncing...' : ytConnected ? 'Refresh YouTube' : 'Connect YouTube'}
             </Button>
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
-                <TikTokIcon />
-                Connect TikTok
+            <Button 
+              variant={ttConnected ? "secondary" : "outline"} 
+              size="lg" 
+              className="justify-start gap-3 p-6 text-lg" 
+              onClick={handleConnectTikTok}
+              disabled={isSyncingTt}
+            >
+                {isSyncingTt ? <Loader2 className="h-6 w-6 animate-spin"/> : <TikTokIcon />}
+                {isSyncingTt ? 'Syncing...' : ttConnected ? 'Refresh TikTok' : 'Connect TikTok'}
             </Button>
           </CardContent>
         </Card>
         
-        {(igConnected || ytConnected) && (
+        {(igConnected || ytConnected || ttConnected) && (
             <Card id="analyze-profile-card">
                 <CardHeader>
                     <CardTitle>2. Analyze Your Profile</CardTitle>
