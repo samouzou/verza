@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react"
@@ -5,6 +6,7 @@ import { cn } from "@/lib/utils"
 
 /**
  * Card components updated to standard named functions for Next.js 15 stability.
+ * React 19 pattern: 'ref' is passed as a standard prop.
  */
 
 export function Card({ className, ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {

@@ -206,7 +206,8 @@ export const syncYouTubeStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% engagement.`);
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs,
+      ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,

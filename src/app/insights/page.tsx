@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -38,9 +39,6 @@ export default function InsightsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  /**
-   * performIgSync - Backend call to exchange Meta token for verified IG engagement data.
-   */
   const performIgSync = async (accessToken: string) => {
     toast({ title: "Syncing Instagram", description: "Calculating engagement stats..." });
     setIsSyncingIg(true);
@@ -69,16 +67,12 @@ export default function InsightsPage() {
     }
   };
 
-  /**
-   * handleConnectInstagram - Standard sync callback logic to avoid Next.js 15 'asyncfunction' errors.
-   */
   const handleConnectInstagram = () => {
     if (typeof window.FB === 'undefined') {
       toast({ title: 'Meta SDK not loaded', description: 'Please wait a moment and try again.', variant: 'destructive' });
       return;
     }
 
-    // Use a synchronous wrapper for the FB.login callback to ensure older SDK compatibility
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
@@ -94,9 +88,6 @@ export default function InsightsPage() {
     );
   };
 
-  /**
-   * handleConnectYoutube - Google OAuth popup to fetch YouTube subscriber and engagement data.
-   */
   const handleConnectYoutube = async () => {
     if (!user) return;
     setIsSyncingYt(true);
@@ -125,10 +116,19 @@ export default function InsightsPage() {
       }
     } catch (error: any) {
       console.error("YouTube sync failed:", error);
+      
+      let message = "Could not sync YouTube data.";
+      if (error.code === 'auth/invalid-credential') {
+        message = "Configuration Error: Please ensure your Google OAuth client ID and secret are correctly set in the Firebase Console.";
+      } else if (error.message) {
+        message = error.message;
+      }
+
       toast({ 
         title: "Connection Failed", 
-        description: error.message || "Could not sync YouTube data.", 
-        variant: "destructive" 
+        description: message, 
+        variant: "destructive",
+        duration: 10000
       });
     } finally {
       setIsSyncingYt(false);
