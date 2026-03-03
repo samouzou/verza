@@ -1,4 +1,3 @@
-
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
@@ -114,6 +113,7 @@ export const syncInstagramStats = onCall(async (request) => {
 
 /**
  * syncYouTubeStats - Exchanges a Google access token for real YT data.
+ * Fetches subscriber count and calculates engagement from the last 10 videos.
  */
 export const syncYouTubeStats = onCall(async (request) => {
   if (!request.auth) {
@@ -128,7 +128,7 @@ export const syncYouTubeStats = onCall(async (request) => {
   try {
     logger.info(`Starting YouTube sync for user: ${request.auth.uid}`);
 
-    // 1. Get Channel Stats
+    // 1. Get Channel Stats (Subscriber Count)
     const channelResponse = await axios.get("https://www.googleapis.com/youtube/v3/channels", {
       params: {
         part: "statistics",
@@ -144,7 +144,7 @@ export const syncYouTubeStats = onCall(async (request) => {
 
     const subscribers = parseInt(channel.statistics.subscriberCount) || 0;
 
-    // 2. Get Last 10 Videos via Activities
+    // 2. Get Last 10 Videos via Activities (Uploads)
     const activitiesResponse = await axios.get("https://www.googleapis.com/youtube/v3/activities", {
       params: {
         part: "contentDetails",
@@ -163,13 +163,13 @@ export const syncYouTubeStats = onCall(async (request) => {
       const userDocRef = db.collection("users").doc(request.auth.uid);
       await userDocRef.update({
         youtubeConnected: true,
-        followers: subscribers, // For consistency, use followers field
+        followers: subscribers, // For consistency, we use followers field for totals
         lastSocialSync: new Date().toISOString(),
       });
-      return { success: true, followers: subscribers, engagementRate: 0 };
+      return {success: true, followers: subscribers, engagementRate: 0};
     }
 
-    // 3. Get Statistics for those Videos
+    // 3. Get Statistics for those Videos (Likes & Comments)
     const videosResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
       params: {
         part: "statistics",
@@ -206,7 +206,7 @@ export const syncYouTubeStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% ER.`);
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% engagement.`);
 
     return {
       success: true,

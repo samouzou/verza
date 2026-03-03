@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -6,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, CheckCircle, RefreshCcw } from "lucide-react";
+import { Loader2, AlertTriangle, Instagram, Youtube, Sparkles, LifeBuoy, Lightbulb, Star, Award, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
@@ -39,8 +38,11 @@ export default function InsightsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
+  /**
+   * performIgSync - Backend call to exchange Meta token for verified IG engagement data.
+   */
   const performIgSync = async (accessToken: string) => {
-    toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
+    toast({ title: "Syncing Instagram", description: "Calculating engagement stats..." });
     setIsSyncingIg(true);
     
     try {
@@ -54,8 +56,6 @@ export default function InsightsPage() {
           title: "Instagram Synced!", 
           description: `Verified ${data.followers.toLocaleString()} followers with ${data.engagementRate}% engagement.` 
         });
-      } else {
-        throw new Error("Sync function returned failure.");
       }
     } catch (e: any) {
       console.error("Instagram sync failed:", e);
@@ -69,13 +69,16 @@ export default function InsightsPage() {
     }
   };
 
+  /**
+   * handleConnectInstagram - Standard sync callback logic to avoid Next.js 15 'asyncfunction' errors.
+   */
   const handleConnectInstagram = () => {
     if (typeof window.FB === 'undefined') {
       toast({ title: 'Meta SDK not loaded', description: 'Please wait a moment and try again.', variant: 'destructive' });
       return;
     }
 
-    // Wrap the async logic in a synchronous callback to resolve the "asyncfunction" runtime error
+    // Use a synchronous wrapper for the FB.login callback to ensure older SDK compatibility
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
@@ -84,10 +87,16 @@ export default function InsightsPage() {
           toast({ title: 'Auth Canceled', description: 'Instagram connection was not completed.' });
         }
       },
-      { scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement', auth_type: 'rerequest' }
+      { 
+        scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement', 
+        auth_type: 'rerequest' 
+      }
     );
   };
 
+  /**
+   * handleConnectYoutube - Google OAuth popup to fetch YouTube subscriber and engagement data.
+   */
   const handleConnectYoutube = async () => {
     if (!user) return;
     setIsSyncingYt(true);
@@ -113,8 +122,6 @@ export default function InsightsPage() {
           title: "YouTube Synced!", 
           description: `Verified ${data.followers.toLocaleString()} subscribers with ${data.engagementRate}% engagement.` 
         });
-      } else {
-        throw new Error("Sync function returned failure.");
       }
     } catch (error: any) {
       console.error("YouTube sync failed:", error);

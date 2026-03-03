@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react"
@@ -42,6 +41,10 @@ export interface ButtonProps
   ref?: React.Ref<HTMLButtonElement>
 }
 
+/**
+ * Button component using the React 19 pattern where 'ref' is a standard prop.
+ * Named function prevents 'asyncfunction' errors in Next.js 15 / React 19.
+ */
 export function Button({ className, variant, size, asChild = false, ref, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
   return (
