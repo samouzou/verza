@@ -12,7 +12,7 @@ import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
-import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, signInWithPopup } from '@/lib/firebase';
+import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, linkWithPopup } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 
 declare global {
@@ -73,7 +73,6 @@ export default function InsightsPage() {
       return;
     }
 
-    // Wrap the async logic in a standard function to prevent 'asyncfunction' errors in Next.js 15
     window.FB.login(
       function(response: any) {
         if (response.authResponse && user) {
@@ -89,22 +88,9 @@ export default function InsightsPage() {
     );
   };
 
-  const handleConnectYoutube = async () => {
-    if (!user) return;
+  const performYoutubeSync = async (token: string) => {
     setIsSyncingYt(true);
-    toast({ title: "Connecting to YouTube", description: "Requesting access to channel stats..." });
-
     try {
-      const provider = new GoogleAuthProvider();
-      // Using the minimal readonly scope for safety and easier verification
-      provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
-      
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken;
-
-      if (!token) throw new Error("Could not obtain access token from Google.");
-
       const syncYouTubeStats = httpsCallable(functions, 'syncYouTubeStats');
       const syncResult = await syncYouTubeStats({ accessToken: token });
       const data = syncResult.data as { success: boolean; followers: number; engagementRate: number };
@@ -118,21 +104,55 @@ export default function InsightsPage() {
       }
     } catch (error: any) {
       console.error("YouTube sync failed:", error);
-      
-      let message = "Could not sync YouTube data.";
-      if (error.code === 'auth/invalid-credential') {
-        message = "Configuration Error: Please ensure your Google OAuth client ID and secret are correctly set in the Firebase Console.";
-      } else if (error.message) {
-        message = error.message;
-      }
-
       toast({ 
-        title: "Connection Failed", 
-        description: message, 
-        variant: "destructive",
-        duration: 10000
+        title: "Sync Failed", 
+        description: error.message || "Could not sync YouTube data.", 
+        variant: "destructive" 
       });
     } finally {
+      setIsSyncingYt(false);
+    }
+  };
+
+  const handleConnectYoutube = async () => {
+    if (!user || !auth.currentUser) return;
+    setIsSyncingYt(true);
+    toast({ title: "Connecting to YouTube", description: "Requesting access to channel stats..." });
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      // Use linkWithPopup to attach the identity to the existing user
+      // rather than signInWithPopup which replaces the current user.
+      try {
+        const result = await linkWithPopup(auth.currentUser, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const token = credential?.accessToken;
+
+        if (!token) throw new Error("Could not obtain access token from Google.");
+        await performYoutubeSync(token);
+      } catch (linkError: any) {
+        // If the account is already in use by another Verza user, linkWithPopup fails.
+        // We can still extract the token from the error to perform a one-time sync.
+        if (linkError.code === 'auth/credential-already-in-use') {
+          const credential = GoogleAuthProvider.credentialFromError(linkError);
+          const token = credential?.accessToken;
+          if (token) {
+            await performYoutubeSync(token);
+            return;
+          }
+        }
+        throw linkError;
+      }
+    } catch (error: any) {
+      console.error("YouTube connection failed:", error);
+      toast({ 
+        title: "Connection Failed", 
+        description: error.message || "Could not connect to YouTube.", 
+        variant: "destructive"
+      });
       setIsSyncingYt(false);
     }
   };
