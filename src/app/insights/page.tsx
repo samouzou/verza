@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
-import { db, doc, updateDoc, functions } from '@/lib/firebase';
+import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, signInWithPopup } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 
 declare global {
@@ -32,14 +33,15 @@ export default function InsightsPage() {
   const { toast } = useToast();
   const { startTour } = useTour();
   
-  const [isLoadingToken, setIsLoadingToken] = useState(false);
+  const [isSyncingIg, setIsSyncingIg] = useState(false);
+  const [isSyncingYt, setIsSyncingYt] = useState(false);
   const [profileContent, setProfileContent] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  const performSync = async (accessToken: string) => {
+  const performIgSync = async (accessToken: string) => {
     toast({ title: "Connecting to Instagram", description: "Calculating engagement stats..." });
-    setIsLoadingToken(true);
+    setIsSyncingIg(true);
     
     try {
       const syncInstagramStats = httpsCallable(functions, 'syncInstagramStats');
@@ -59,45 +61,71 @@ export default function InsightsPage() {
       console.error("Instagram sync failed:", e);
       toast({ 
         title: "Sync Failed", 
-        description: e.message || "Ensure your Instagram is a Business/Creator account and linked to a Facebook Page.", 
+        description: e.message || "Ensure your Instagram is a Business account linked to a Page.", 
         variant: "destructive" 
       });
     } finally {
-      setIsLoadingToken(false);
+      setIsSyncingIg(false);
     }
   };
 
-  const handleConnectAccount = () => {
+  const handleConnectInstagram = () => {
     if (typeof window.FB === 'undefined') {
-      toast({
-        title: 'Facebook SDK not loaded',
-        description: 'Please wait a moment and try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Meta SDK not loaded', description: 'Please wait a moment and try again.', variant: 'destructive' });
       return;
     }
 
-    // Always trigger login when user explicitly requests sync/connect
-    // This resolves issues where the session might have expired or been logged out externally
+    // Wrap the async logic in a synchronous callback to resolve the "asyncfunction" runtime error
     window.FB.login(
-      function(loginResponse: any) {
-        if (loginResponse.authResponse && user) {
-          // Wrapped in a regular function to prevent 'asyncfunction' runtime error
-          performSync(loginResponse.authResponse.accessToken);
+      function(response: any) {
+        if (response.authResponse && user) {
+          performIgSync(response.authResponse.accessToken);
         } else {
-          toast({
-            title: 'Authorization Canceled',
-            description: 'You did not complete the Instagram connection.',
-            variant: 'default',
-          });
+          toast({ title: 'Auth Canceled', description: 'Instagram connection was not completed.' });
         }
       },
-      { 
-        // Use rerequest to prompt for any denied permissions
-        scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement',
-        auth_type: 'rerequest'
-      }
+      { scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement', auth_type: 'rerequest' }
     );
+  };
+
+  const handleConnectYoutube = async () => {
+    if (!user) return;
+    setIsSyncingYt(true);
+    toast({ title: "Connecting to YouTube", description: "Requesting access to channel stats..." });
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
+      
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+
+      if (!token) throw new Error("Could not obtain access token from Google.");
+
+      const syncYouTubeStats = httpsCallable(functions, 'syncYouTubeStats');
+      const syncResult = await syncYouTubeStats({ accessToken: token });
+      const data = syncResult.data as { success: boolean; followers: number; engagementRate: number };
+
+      if (data.success) {
+        await refreshAuthUser();
+        toast({ 
+          title: "YouTube Synced!", 
+          description: `Verified ${data.followers.toLocaleString()} subscribers with ${data.engagementRate}% engagement.` 
+        });
+      } else {
+        throw new Error("Sync function returned failure.");
+      }
+    } catch (error: any) {
+      console.error("YouTube sync failed:", error);
+      toast({ 
+        title: "Connection Failed", 
+        description: error.message || "Could not sync YouTube data.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSyncingYt(false);
+    }
   };
   
   const handleAnalyzeProfile = async () => {
@@ -129,7 +157,8 @@ export default function InsightsPage() {
     }
   };
 
-  const isConnected = !!user?.instagramConnected;
+  const igConnected = !!user?.instagramConnected;
+  const ytConnected = !!user?.youtubeConnected;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -157,36 +186,42 @@ export default function InsightsPage() {
           <CardHeader>
             <CardTitle>1. Connect Your Accounts</CardTitle>
             <CardDescription>
-              Link your social platforms to begin importing verified engagement data. Verza uses read-only access and will never post on your behalf.
+              Link your social platforms to begin importing verified engagement data.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Button 
-              variant={isConnected ? "secondary" : "outline"} 
+              variant={igConnected ? "secondary" : "outline"} 
               size="lg" 
               className="justify-start gap-3 p-6 text-lg" 
-              onClick={handleConnectAccount} 
-              disabled={isLoadingToken}
+              onClick={handleConnectInstagram} 
+              disabled={isSyncingIg}
             >
-                {isLoadingToken ? <Loader2 className="h-6 w-6 animate-spin"/> : isConnected ? <RefreshCcw className="h-6 w-6 text-green-500" /> : <Instagram className="h-6 w-6 text-pink-500" />}
-                {isLoadingToken ? 'Syncing...' : isConnected ? 'Refresh Instagram Stats' : 'Connect Instagram'}
+                {isSyncingIg ? <Loader2 className="h-6 w-6 animate-spin"/> : igConnected ? <RefreshCcw className="h-6 w-6 text-green-500" /> : <Instagram className="h-6 w-6 text-pink-500" />}
+                {isSyncingIg ? 'Syncing...' : igConnected ? 'Refresh Instagram' : 'Connect Instagram'}
+            </Button>
+            <Button 
+              variant={ytConnected ? "secondary" : "outline"} 
+              size="lg" 
+              className="justify-start gap-3 p-6 text-lg" 
+              onClick={handleConnectYoutube} 
+              disabled={isSyncingYt}
+            >
+                {isSyncingYt ? <Loader2 className="h-6 w-6 animate-spin"/> : ytConnected ? <RefreshCcw className="h-6 w-6 text-green-500" /> : <Youtube className="h-6 w-6 text-red-500" />}
+                {isSyncingYt ? 'Syncing...' : ytConnected ? 'Refresh YouTube' : 'Connect YouTube'}
             </Button>
             <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
                 <TikTokIcon />
                 Connect TikTok
             </Button>
-            <Button variant="outline" size="lg" className="justify-start gap-3 p-6 text-lg" disabled title="Coming Soon">
-                <Youtube className="h-6 w-6 text-red-500" />
-                Connect YouTube
-            </Button>
           </CardContent>
         </Card>
         
-        {isConnected && (
+        {(igConnected || ytConnected) && (
             <Card id="analyze-profile-card">
                 <CardHeader>
                     <CardTitle>2. Analyze Your Profile</CardTitle>
-                    <CardDescription>Paste your profile bio and recent post captions/descriptions into the box below for the AI to analyze.</CardDescription>
+                    <CardDescription>Paste your bio and recent post content below for AI brand analysis.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <Textarea 
@@ -196,31 +231,19 @@ export default function InsightsPage() {
                         rows={8}
                         disabled={isAnalyzing}
                     />
-                    <div className="flex gap-2">
-                      <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
-                          {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                          Analyze My Brand
-                      </Button>
-                    </div>
+                    <Button onClick={handleAnalyzeProfile} disabled={isAnalyzing || !profileContent.trim()}>
+                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Analyze My Brand
+                    </Button>
                 </CardContent>
             </Card>
-        )}
-
-        {isAnalyzing && (
-             <Card>
-                <CardContent className="p-10 flex flex-col items-center justify-center text-center">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <h3 className="text-lg font-semibold">Generating Insights...</h3>
-                    <p className="text-muted-foreground">The AI is analyzing your profile. This might take a moment.</p>
-                </CardContent>
-             </Card>
         )}
 
         {(analysisResult || user.missionStatement) && (
             <Card id="insights-results-card" className="bg-muted/30">
                 <CardHeader>
                     <CardTitle>Your Brand Insights</CardTitle>
-                    <CardDescription>This information is now live on your public profile for brands to see.</CardDescription>
+                    <CardDescription>This information is now live on your public profile.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="p-4 border rounded-lg bg-background">

@@ -106,20 +106,116 @@ export const syncInstagramStats = onCall(async (request) => {
       engagementRate: parseFloat(engagementRate.toFixed(2)),
     };
   } catch (error: any) {
-    // Log the full error for backend debugging
-    logger.error("Instagram sync failed with error:", {
-      message: error.message,
-      response: error.response?.data,
-      stack: error.stack,
+    logger.error("Instagram sync failed:", error.message);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", `Instagram Sync Error: ${error.message}`);
+  }
+});
+
+/**
+ * syncYouTubeStats - Exchanges a Google access token for real YT data.
+ */
+export const syncYouTubeStats = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const {accessToken} = request.data;
+  if (!accessToken) {
+    throw new HttpsError("invalid-argument", "A Google access token is required.");
+  }
+
+  try {
+    logger.info(`Starting YouTube sync for user: ${request.auth.uid}`);
+
+    // 1. Get Channel Stats
+    const channelResponse = await axios.get("https://www.googleapis.com/youtube/v3/channels", {
+      params: {
+        part: "statistics",
+        mine: true,
+        access_token: accessToken,
+      },
     });
 
-    // If it's already an HttpsError, rethrow it
-    if (error instanceof HttpsError) {
-      throw error;
+    const channel = channelResponse.data?.items?.[0];
+    if (!channel) {
+      throw new HttpsError("not-found", "No YouTube channel found for this account.");
     }
 
-    // Otherwise, construct a useful message from FB's response if available
-    const fbErrorMsg = error.response?.data?.error?.message || error.message || "Internal error during Instagram sync.";
-    throw new HttpsError("internal", `Instagram Sync Error: ${fbErrorMsg}`);
+    const subscribers = parseInt(channel.statistics.subscriberCount) || 0;
+
+    // 2. Get Last 10 Videos via Activities
+    const activitiesResponse = await axios.get("https://www.googleapis.com/youtube/v3/activities", {
+      params: {
+        part: "contentDetails",
+        mine: true,
+        maxResults: 10,
+        access_token: accessToken,
+      },
+    });
+
+    const videoIds = (activitiesResponse.data?.items || [])
+      .filter((a: any) => a.contentDetails?.upload?.videoId)
+      .map((a: any) => a.contentDetails.upload.videoId);
+
+    if (videoIds.length === 0) {
+      // If no videos, update with just subscriber count
+      const userDocRef = db.collection("users").doc(request.auth.uid);
+      await userDocRef.update({
+        youtubeConnected: true,
+        followers: subscribers, // For consistency, use followers field
+        lastSocialSync: new Date().toISOString(),
+      });
+      return { success: true, followers: subscribers, engagementRate: 0 };
+    }
+
+    // 3. Get Statistics for those Videos
+    const videosResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+      params: {
+        part: "statistics",
+        id: videoIds.join(","),
+        access_token: accessToken,
+      },
+    });
+
+    const videoStats = videosResponse.data?.items || [];
+    let totalInteractions = 0;
+
+    videoStats.forEach((v: any) => {
+      const likes = parseInt(v.statistics.likeCount) || 0;
+      const comments = parseInt(v.statistics.commentCount) || 0;
+      totalInteractions += (likes + comments);
+    });
+
+    // 4. Calculate Average Engagement Rate
+    const postCount = videoStats.length || 1;
+    const avgInteractionsPerVideo = totalInteractions / postCount;
+    let engagementRate = 0;
+    if (subscribers > 0) {
+      engagementRate = (avgInteractionsPerVideo / subscribers) * 100;
+    }
+
+    // 5. Save to Firestore
+    const userDocRef = db.collection("users").doc(request.auth.uid);
+    const statsUpdate = {
+      youtubeConnected: true,
+      followers: subscribers,
+      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      lastSocialSync: new Date().toISOString(),
+    };
+
+    await userDocRef.update(statsUpdate);
+
+    logger.info(`Synced YouTube stats for user ${request.auth.uid}: ${subscribers} subs, ${engagementRate.toFixed(2)}% ER.`);
+
+    return {
+      success: true,
+      followers: subscribers,
+      engagementRate: parseFloat(engagementRate.toFixed(2)),
+    };
+  } catch (error: any) {
+    logger.error("YouTube sync failed:", error.message);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", `YouTube Sync Error: ${error.message}`);
   }
 });
