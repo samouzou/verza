@@ -33,14 +33,17 @@ export const syncInstagramStats = onCall(async (request) => {
     const pages = pagesResponse.data?.data;
     if (!pages || !Array.isArray(pages) || pages.length === 0) {
       logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found", "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
+      throw new HttpsError("not-found", 
+        "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
     }
 
     const pageWithIg = pages.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIg) {
       logger.warn("No linked Instagram Business account found in Pages.");
-      throw new HttpsError("not-found", "No Instagram Business account found linked to your Facebook Pages. Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
+      throw new HttpsError("not-found",
+        "No Instagram Business account found linked to your Facebook Pages." +
+        " Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
     }
 
     const igUserId = pageWithIg.instagram_business_account.id;
@@ -259,7 +262,7 @@ export const syncTikTokStats = onCall({
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
 
     // 1. Exchange code for access token
-    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/", 
+    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/",
       new URLSearchParams({
         client_key: clientKey,
         client_secret: clientSecret,
@@ -267,7 +270,7 @@ export const syncTikTokStats = onCall({
         grant_type: "authorization_code",
         redirect_uri: redirectUri,
       }).toString(),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      {headers: {"Content-Type": "application/x-www-form-urlencoded"}}
     );
 
     const accessToken = tokenResponse.data.access_token;
@@ -276,8 +279,9 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info & Stats
-    const userResponse = await axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
-      headers: { "Authorization": `Bearer ${accessToken}` }
+    const userResponse = await 
+      axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+      headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
     const tiktokUser = userResponse.data.data.user;
@@ -285,14 +289,14 @@ export const syncTikTokStats = onCall({
 
     // 3. Get Video List for content metadata
     const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
-      headers: { "Authorization": `Bearer ${accessToken}` }
+      headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
     const videos = videoResponse.data.data.videos || [];
     let concatenatedMetadata = "";
     videos.forEach((v: any) => {
       if (v.video_description) {
-        concatenatedMetadata += `${v.title || 'Video'}: ${v.video_description} | `;
+        concatenatedMetadata += `${v.title || "Video"}: ${v.video_description} | `;
       }
     });
 
