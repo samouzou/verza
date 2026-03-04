@@ -179,6 +179,7 @@ export const syncYouTubeStats = onCall(async (request) => {
       await userDocRef.update({
         youtubeConnected: true,
         followers: subscribers,
+        engagementRate: 0,
         lastSocialSync: new Date().toISOString(),
         ["socialContent.youtube"]: concatenatedMetadata.trim(),
       });
@@ -300,9 +301,12 @@ export const syncTikTokStats = onCall({
 
     // 3. Get Video List - V2 Endpoint is a POST request
     const videoResponse = await axios.post(
-      "https://open.tiktokapis.com/v2/video/list/?fields=title,video_description",
+      "https://open.tiktokapis.com/v2/video/list/",
       {}, // V2 POST request for video list requires an empty JSON body if no filters
       {
+        params: {
+          fields: "title,video_description,like_count,comment_count,share_count"
+        },
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
@@ -311,29 +315,42 @@ export const syncTikTokStats = onCall({
     );
 
     const videos = videoResponse.data?.data?.videos || [];
+    let totalInteractions = 0;
     let concatenatedMetadata = "";
+    
     videos.forEach((v: any) => {
+      totalInteractions += (v.like_count || 0) + (v.comment_count || 0) + (v.share_count || 0);
       if (v.video_description) {
         concatenatedMetadata += `${v.title || "Video"}: ${v.video_description} | `;
       }
     });
 
-    // 4. Update Firestore
+    // 4. Calculate Average Engagement Rate
+    const postCount = videos.length || 1;
+    const avgInteractionsPerVideo = totalInteractions / postCount;
+    let finalEngagementRate = 0;
+    if (followers > 0) {
+      finalEngagementRate = parseFloat(((avgInteractionsPerVideo / followers) * 100).toFixed(2));
+    }
+
+    // 5. Update Firestore
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       tiktokConnected: true,
       followers: followers,
+      engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followers} followers.`);
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followers} followers, ${finalEngagementRate}% engagement.`);
 
     return {
       success: true,
       followers: followers,
+      engagementRate: finalEngagementRate,
     };
   } catch (error: any) {
     const errorData = error.response?.data;
