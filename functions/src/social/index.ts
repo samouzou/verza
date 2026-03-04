@@ -321,7 +321,7 @@ export const syncTikTokStats = onCall({
 
     return {
       success: true,
-      followers: followersCountValue, // Explicit mapping to fix TS scope error
+      followers: followersCountValue,
     };
   } catch (error: any) {
     logger.error("TikTok sync failed:", error.message, error.response?.data);
