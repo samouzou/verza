@@ -75,6 +75,11 @@ export interface UserProfile {
   instagramConnected?: boolean;
   tiktokConnected?: boolean;
   youtubeConnected?: boolean;
+  socialContent?: {
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
 
   // Marketplace fields
   showInMarketplace?: boolean;
@@ -158,6 +163,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.instagramConnected = false;
     updates.youtubeConnected = false;
     updates.tiktokConnected = false;
+    updates.socialContent = {
+      instagram: '',
+      youtube: '',
+      tiktok: '',
+    };
 
     needsUpdate = true;
 
@@ -265,6 +275,14 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.instagramConnected === undefined) { updates.instagramConnected = false; needsUpdate = true; }
     if (existingData.youtubeConnected === undefined) { updates.youtubeConnected = false; needsUpdate = true; }
     if (existingData.tiktokConnected === undefined) { updates.tiktokConnected = false; needsUpdate = true; }
+    if (existingData.socialContent === undefined) {
+      updates.socialContent = {
+        instagram: '',
+        youtube: '',
+        tiktok: '',
+      };
+      needsUpdate = true;
+    }
 
     if (needsUpdate) {
       try {
@@ -341,6 +359,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               instagramConnected: firestoreUserData.instagramConnected,
               youtubeConnected: firestoreUserData.youtubeConnected,
               tiktokConnected: firestoreUserData.tiktokConnected,
+              socialContent: firestoreUserData.socialContent,
               missionStatement: firestoreUserData.missionStatement,
               brandWishlist: firestoreUserData.brandWishlist,
               followers: firestoreUserData.followers,
