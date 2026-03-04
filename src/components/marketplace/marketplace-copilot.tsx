@@ -3,10 +3,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy, Lock } from "lucide-react";
+import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy, Lock, UserCheck, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type CoPilotContext = 'browse' | 'post' | 'details_brand' | 'details_creator';
+export type CoPilotContext = 'browse' | 'post' | 'details_brand' | 'details_creator' | 'find_talent';
 
 interface Tip {
   icon: React.ElementType;
@@ -32,6 +32,24 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
       icon: Trophy,
       title: "Winning Hooks",
       description: "Use Scene Spawner to iterate on your first 3 seconds. The hook determines your Verza Score.",
+    }
+  ],
+  find_talent: [
+    {
+      icon: ShieldCheck,
+      title: "Verified Accuracy",
+      description: "Verified creators have 100% accurate engagement and reach data synced directly from their platforms.",
+      badge: "RELIABILITY"
+    },
+    {
+      icon: Flame,
+      title: "Score History",
+      description: "Look for creators with a high average Verza Score to ensure your UGC hits retention benchmarks.",
+    },
+    {
+      icon: Zap,
+      title: "Instant Onboarding",
+      description: "Once you find a creator, Verza can generate a one-click UGC agreement to get the project started immediately.",
     }
   ],
   post: [
