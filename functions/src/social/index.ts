@@ -285,7 +285,8 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info - V2 Endpoint with trailing slash
-    const userResponse = await axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+    const userResponse = await
+    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
@@ -294,7 +295,7 @@ export const syncTikTokStats = onCall({
       logger.error("TikTok user data missing. Response:", userResponse.data);
       throw new Error("TikTok user data not found.");
     }
-    
+
     // Explicitly initialize to avoid shorthand scope issues
     const followersCount = userData.follower_count || 0;
 
@@ -303,9 +304,9 @@ export const syncTikTokStats = onCall({
       "https://open.tiktokapis.com/v2/video/list/?fields=title,video_description",
       {}, // V2 POST request for video list requires a JSON body
       {
-        headers: { 
+        headers: {
           "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
       }
     );
