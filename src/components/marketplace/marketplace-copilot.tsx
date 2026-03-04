@@ -3,15 +3,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy } from "lucide-react";
+import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type CoPilotContext = 'browse' | 'post' | 'details_brand' | 'details_creator';
-
-interface MarketplaceCoPilotProps {
-  context: CoPilotContext;
-  className?: string;
-}
 
 interface Tip {
   icon: React.ElementType;
@@ -47,9 +42,9 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
       badge: "STRATEGY"
     },
     {
-      icon: ShieldCheck,
-      title: "Gauntlet Guardrails",
-      description: "Verza automatically verifies every submission. You only pay for content that hits your quality threshold.",
+      icon: Lock,
+      title: "Campaign Vault",
+      description: "Your funds are held securely in the campaign vault and only released when you approve verified submissions.",
     },
     {
       icon: Lightbulb,
@@ -72,20 +67,25 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
   ],
   details_creator: [
     {
+      icon: Lock,
+      title: "Pre-Funded Gigs",
+      description: "The brand has already funded this gig. Your payment is waiting in the vault and is released upon approval.",
+      badge: "SECURE"
+    },
+    {
       icon: Flame,
       title: "Hit the 65%",
       description: "You can re-upload videos until you pass the Verza Score. Focus on pacing and visual aesthetic.",
-      badge: "SUBMISSION"
     },
     {
       icon: Zap,
-      title: "Instant Payouts",
-      description: "Once the brand approves your verified submission, funds are transferred instantly via Stripe.",
+      title: "Direct Release",
+      description: "Once the brand approves your verified submission, the vault releases your funds directly to your wallet.",
     }
   ]
 };
 
-export function MarketplaceCoPilot({ context, className }: MarketplaceCoPilotProps) {
+export function MarketplaceCoPilot({ context, className }: { context: CoPilotContext; className?: string }) {
   const currentTips = TIPS[context];
 
   return (
@@ -111,7 +111,7 @@ export function MarketplaceCoPilot({ context, className }: MarketplaceCoPilotPro
             <CardTitle className="text-sm font-bold mt-2">{tip.title}</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <p className="text-xs text-muted-foreground leading-relaxed leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               {tip.description}
             </p>
           </CardContent>
