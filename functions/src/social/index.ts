@@ -319,17 +319,24 @@ export const syncTikTokStats = onCall({
     let concatenatedMetadata = "";
     
     videos.forEach((v: any) => {
-      totalInteractions += (v.like_count || 0) + (v.comment_count || 0) + (v.share_count || 0);
+      // V2 fields are typically top-level, but adding fallback for robustness
+      const likes = v.like_count ?? v.statistics?.like_count ?? 0;
+      const comments = v.comment_count ?? v.statistics?.comment_count ?? 0;
+      const shares = v.share_count ?? v.statistics?.share_count ?? 0;
+      
+      totalInteractions += (likes + comments + shares);
+      
       if (v.video_description) {
         concatenatedMetadata += `${v.title || "Video"}: ${v.video_description} | `;
       }
     });
 
     // 4. Calculate Average Engagement Rate
-    const postCount = videos.length || 1;
-    const avgInteractionsPerVideo = totalInteractions / postCount;
+    const postCount = videos.length;
     let finalEngagementRate = 0;
-    if (followers > 0) {
+    
+    if (followers > 0 && postCount > 0) {
+      const avgInteractionsPerVideo = totalInteractions / postCount;
       finalEngagementRate = parseFloat(((avgInteractionsPerVideo / followers) * 100).toFixed(2));
     }
 
