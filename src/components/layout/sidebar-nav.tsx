@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -25,6 +26,7 @@ import {
   BarChart3,
   Video,
   ExternalLink,
+  Store,
 } from "lucide-react";
 import {
   Sidebar,
@@ -53,16 +55,20 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SetupGuide } from "./setup-guide"; // Import the new component
+import { SetupGuide } from "./setup-guide";
+import { NotificationBell } from "./notification-bell";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
+const marketplaceNavItems = [
+    { id: 'nav-item-gigs', href: "/gigs", label: "Marketplace", icon: FileStack },
+];
+
 const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
   { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
-  { id: 'nav-item-integrations', href: "/integrations", label: "Integrations", icon: Link2 },
 ];
 
 const financialsNavItems = [
@@ -91,6 +97,7 @@ const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 const aiToolsNavItems = [
+    { id: 'nav-item-insights', href: "/insights", label: "Creator Insights", icon: Sparkles },
     { id: 'nav-item-scene-spawner', href: "/scene-spawner", label: "Scene Spawner", icon: Video },
     { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
     { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: GauntletIcon, external: true }
@@ -165,10 +172,13 @@ export function SidebarNav() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
-            <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
-            <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
-        </Link>
+        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+          <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:mx-auto">
+              <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
+              <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
+          </Link>
+          <NotificationBell />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -187,6 +197,29 @@ export function SidebarNav() {
                 </Link>
             </SidebarMenuItem>
             ))}
+
+            <SidebarGroup>
+                <SidebarGroupLabel className="flex items-center">
+                    <span className="group-data-[collapsible=icon]:hidden">Exchange</span>
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                    {marketplaceNavItems.map((item) => (
+                        <SidebarMenuItem key={item.label} id={item.id}>
+                        <Link href={item.href} legacyBehavior passHref>
+                            <SidebarMenuButton
+                            onClick={() => isMobile && setOpenMobile(false)}
+                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                            isActive={pathname.startsWith(item.href)}
+                            tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                            >
+                            <item.icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                            </SidebarMenuButton>
+                        </Link>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarGroupContent>
+            </SidebarGroup>
 
             <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center">

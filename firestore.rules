@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -13,14 +14,31 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
     }
 
+    // Helper to check if the user is a team member (owner, admin, or member) of the specified agency
+    function isTeamMemberOf(agencyId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // Check if user's primary agency matches and their role is one of the team roles
+      return request.auth != null && 
+             userDoc.primaryAgencyId == agencyId &&
+             (userDoc.role == "agency_owner" || userDoc.role == "agency_admin" || userDoc.role == "agency_member");
+    }
+
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
-        let requesterAgencyId = request.auth.token.primaryAgencyId;
-        if (requesterAgencyId == null) {
-          return false;
-        }
-        let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-        return targetUser.primaryAgencyId == requesterAgencyId;
+      let requesterAgencyId = request.auth.token.primaryAgencyId;
+      // If the requester doesn't belong to an agency, they can't have talent.
+      return requesterAgencyId != null &&
+             'talent' in get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data &&
+             get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data.talent.exists(t, t.userId == targetUserId);
+    }
+    
+    // Helper to check if a creator has accepted a gig for the requesting agency
+    function isGigAffiliated(userId) {
+      let requesterAgencyId = request.auth.token.primaryAgencyId;
+       // Returns true only if requester has an agency AND the target user's profile has that agency in giggingForAgencies.
+      return requesterAgencyId != null &&
+             'giggingForAgencies' in get(/databases/$(database)/documents/users/$(userId)).data &&
+             requesterAgencyId in get(/databases/$(database)/documents/users/$(userId)).data.giggingForAgencies;
     }
 
     // Helper to check if a user can access a receipt, either by being the owner
@@ -36,15 +54,14 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      // Allow a user to read their own profile,
-      // OR allow an agency member to read the profile of a talent in their agency.
-      allow read: if isOwner(userId) || isTalentInMyAgency(userId);
+      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || resource.data.showInMarketplace == true;
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && 
-                       // Prevent users from elevating their own role to agency_owner
-                       !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
-                       // Prevent users from making themselves an agency owner directly
-                       !(request.resource.data.isAgencyOwner == true && resource.data.isAgencyOwner == false);
+      allow update: if isOwner(userId) &&
+                       (request.resource.data.hasCompletedOnboarding == true && resource.data.get('hasCompletedOnboarding', false) == false ||
+                       (
+                         !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
+                         !(request.resource.data.isAgencyOwner == true && resource.data.get('isAgencyOwner', false) == false)
+                       ));
       
       match /private_credentials/{credId} {
           allow read, write: if false; // Only backend functions
@@ -57,11 +74,8 @@ service cloud.firestore {
 
     // Rules for the contracts collection
     match /contracts/{contractId} {
-        // Allow read if the user is the direct owner OR their UID is in the access map.
         allow read: if isOwner(resource.data.userId) || request.auth.uid in resource.data.access;
-        // Allow write/update/delete access if the user's UID is a key in the 'access' map.
-        allow update, delete: if request.auth.uid in resource.data.access;
-        // Allow create if the user's UID is in the new document's access map OR if they are the direct user.
+        allow update, delete: if isOwner(resource.data.userId) || request.auth.uid in resource.data.access;
         allow create: if isOwner(request.resource.data.userId) || request.auth.uid in request.resource.data.access;
     }
     
@@ -72,10 +86,41 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Rules for gigs
+    match /gigs/{gigId} {
+      allow read: if request.auth != null;
+      allow create: if isTeamMemberOf(request.resource.data.brandId);
+      allow update: if (isTeamMemberOf(resource.data.brandId)) || (request.auth != null && resource.data.status == 'open');
+      allow delete: if isTeamMemberOf(resource.data.brandId) && 
+                      (resource.data.status == 'pending_payment' || 
+                       (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
+    }
+
+    // Rules for gig submissions
+    match /submissions/{submissionId} {
+      allow read: if request.auth != null && (
+        resource.data.creatorId == request.auth.uid || 
+        isTeamMemberOf(resource.data.brandId)
+      );
+      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+      allow update: if request.auth != null && (
+        (resource.data.creatorId == request.auth.uid && request.resource.data.brandId == resource.data.brandId) ||
+        (isTeamMemberOf(resource.data.brandId))
+      );
+    }
+
+    // Rules for notifications
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if request.auth != null; // Ideally restricted to backend but allowed for client-side triggered notifications
+      allow delete: if isOwner(resource.data.userId);
+    }
+
     // Rules for brand_research collection
     match /brand_research/{researchId} {
       allow read, update, delete: if isOwner(resource.data.uid);
-      allow create: if isOwner(request.resource.data.uid);
+      allow create: if isOwner(resource.data.uid);
     }
     
     // Rules for credit transactions collection
@@ -84,73 +129,59 @@ service cloud.firestore {
       allow write: if false; // Only backend can write
     }
 
-    // Rules for payment intents (server-side only access)
     match /paymentIntents/{intentId} {
       allow read: if isOwner(resource.data.userId) || isOwner(resource.data.creatorId);
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false;
     }
     
-    // Rules for payments log (server-side only access)
+    // Rules for payments
     match /payments/{paymentId} {
        allow read: if isOwner(resource.data.userId) || isOwner(resource.data.creatorId);
-      allow create, update, delete: if false; // Only backend via Admin SDK
+      allow create, update, delete: if false;
     }
     
-    // Rules for email logs (server-side only access)
     match /emailLogs/{logId} {
-      // A user can read logs for contracts they own/are part of
       allow read: if resource.data.contractId != null && 
                      get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.access[request.auth.uid] != null;
-      allow write: if false; // Only backend via Admin SDK
+      allow write: if false;
     }
     
-    // Rules for bank accounts (user-specific access)
     match /users/{userId}/bankAccounts/{accountId} {
       allow read, write: if isOwner(userId);
     }
     
-    // Rules for bank transactions (user-specific access)
     match /users/{userId}/bankTransactions/{transactionId} {
       allow read, write: if isOwner(userId);
     }
     
-    // Rules for receipts (user-specific access, now with contract access check)
     match /receipts/{receiptId} {
-      // Allow reading/deleting a single document with the expensive check
       allow get, delete: if isAllowedToAccessReceipt(resource.data);
-
-      // For listing documents, we use a simpler rule to prevent timeouts.
-      // This relies on the client app using queries to filter by userId or accessible contract IDs.
       allow list: if request.auth != null;
-
       allow create: if isAllowedToAccessReceipt(request.resource.data);
       allow update: if isAllowedToAccessReceipt(resource.data) && isAllowedToAccessReceipt(request.resource.data);
     }
     
-    // Rules for agencies
     match /agencies/{agencyId} {
-      allow read: if request.auth != null; // Allow any authenticated user to see basic agency details (e.g., for invitations)
-      allow create: if isOwner(request.resource.data.ownerId); // User can create an agency for themselves
-      allow update: if isMemberOfAgency(agencyId); // Any member can update (e.g., talent updating commission)
-      allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid; // Only owner can delete
+      allow read: if request.auth != null;
+      allow create: if isOwner(request.resource.data.ownerId);
+      allow update: if isMemberOfAgency(agencyId);
+      allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
     
-    // Rules for internal agency payouts
     match /internalPayouts/{payoutId} {
       allow read: if isMemberOfAgency(resource.data.agencyId) || isOwner(resource.data.talentId);
       allow create: if get(/databases/$(database)/documents/agencies/$(request.resource.data.agencyId)).data.ownerId == request.auth.uid || (request.auth.token.isAgencyAdmin == true && request.auth.token.primaryAgencyId == request.resource.data.agencyId);
-      allow update, delete: if false; // Payouts are immutable for now
+      allow update, delete: if false;
     }
     
      match /agencyInvitations/{invitationId} {
         allow read: if request.auth.uid != null;
-        allow write: if false; // Only backend can write
+        allow write: if false;
      }
      
      match /teamInvitations/{invitationId} {
         allow read: if request.auth.uid != null;
-        allow write: if false; // Only backend can write
+        allow write: if false;
      }
-     
   }
 }

@@ -1,6 +1,5 @@
 
 import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
-import type { NegotiationSuggestionsOutput } from '../ai/flows/negotiation-suggestions-flow';
 
 export interface PaymentMilestone {
   id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
@@ -71,7 +70,6 @@ export interface Contract {
   previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
-  negotiationSuggestions?: NegotiationSuggestionsOutput | null;
   
   // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
@@ -96,6 +94,9 @@ export interface Contract {
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   access: { [key: string]: 'owner' | 'viewer' | 'talent' };
+  metadata?: {
+    gigId?: string;
+  };
 }
 
 export interface EmailLog {
@@ -190,6 +191,21 @@ export interface UserProfileFirestoreData {
   isAgencyOwner?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
+  giggingForAgencies?: string[];
+
+  // Media Kit / Insights Fields
+  missionStatement?: string | null;
+  brandWishlist?: string[];
+  followers?: number;
+  engagementRate?: number;
+  instagramConnected?: boolean;
+  tiktokConnected?: boolean;
+  youtubeConnected?: boolean;
+  socialContent?: {
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -218,6 +234,11 @@ export interface UserProfileFirestoreData {
 
   // SceneSpawner Credits
   credits?: number;
+
+  // Marketplace fields
+  showInMarketplace?: boolean;
+  niche?: string;
+  contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
 }
 
 // Credit transaction
@@ -226,7 +247,7 @@ export interface CreditTransaction {
   userId: string;
   creditAmount: number;
   priceId: string;
-  checkoutSessionId: string;
+  paymentIntentId: string;
   status: "completed" | "failed";
   createdAt: ClientTimestamp;
 }
@@ -406,5 +427,58 @@ export interface BrandResearch {
     }[];
   };
   error?: string;
+  createdAt: ClientTimestamp;
+}
+
+export interface Gig {
+  id: string;
+  brandId: string; // The UID of the brand user/agency owner
+  brandName: string;
+  brandLogoUrl?: string | null;
+  title: string;
+  description: string;
+  platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook')[];
+  ratePerCreator: number;
+  creatorsNeeded: number;
+  videosPerCreator: number;
+  acceptedCreatorIds: string[];
+  paidCreatorIds: string[];
+  fundingPaymentIntentId?: string;
+  status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
+  createdAt: ClientTimestamp;
+}
+
+export interface CreatorMarketplaceProfile {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  niche: string;
+  contentType: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
+  followers: number;
+  engagementRate: number;
+}
+
+export interface GigSubmission {
+  id: string;
+  gigId: string;
+  brandId: string; // Denormalized for security rules
+  creatorId: string;
+  creatorName: string;
+  creatorAvatarUrl?: string | null;
+  videoUrl: string;
+  verzaScore: number;
+  verzaFeedback: string;
+  status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  createdAt: ClientTimestamp;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system';
+  read: boolean;
+  link?: string;
   createdAt: ClientTimestamp;
 }

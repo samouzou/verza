@@ -96,6 +96,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     role: finalRole, // Set the role determined from the invitation check
     isAgencyOwner: false, // This is only set when an agency is created
     agencyMemberships: agencyMemberships,
+    giggingForAgencies: [],
     primaryAgencyId: null, // This is only set upon accepting an invitation
     stripeCustomerId: null,
     stripeSubscriptionId: null,

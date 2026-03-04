@@ -63,5 +63,21 @@ service firebase.storage {
       // Allow authenticated users to write to their own scenes folder
       allow write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Rules for gig submissions
+    match /submissions/{gigId}/{userId}/{fileName} {
+      // Allow creators to upload their own submissions
+      // We limit to video types and 50MB as enforced in the UI
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 50 * 1024 * 1024
+                   && request.resource.contentType.matches('video/.*');
+
+      // Creators can read their own submissions, 
+      // and agency members can read submissions for gigs their agency owns.
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || 
+        isMemberOfAgency(firestore.get(/databases/(default)/documents/gigs/$(gigId)).data.brandId)
+      );
+    }
   }
 }

@@ -51,6 +51,7 @@ export function TalentAgencyView({ agencies, memberships }: TalentAgencyViewProp
         {agencies.map(agency => {
           const membership = memberships.find(m => m.agencyId === agency.id);
           const isPending = membership?.status === 'pending';
+          const isTalent = membership?.role === 'talent';
 
           return (
             <div key={agency.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md bg-muted/50 gap-4">
@@ -83,7 +84,9 @@ export function TalentAgencyView({ agencies, memberships }: TalentAgencyViewProp
                     </Button>
                   </>
                 ) : (
-                   <Badge variant="default" className="bg-green-500">Active Member</Badge>
+                   <Badge variant="default" className={isTalent ? "bg-primary" : "bg-green-500"}>
+                     {isTalent ? "Active Talent" : "Active Member"}
+                   </Badge>
                 )}
               </div>
             </div>

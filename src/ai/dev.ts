@@ -12,3 +12,6 @@ import '@/ai/flows/ocr-flow.ts'; // Add new OCR flow
 import '@/ai/flows/generate-talent-contract-flow.ts'; // Add new contract generation flow
 import '@/ai/flows/classify-transaction-flow.ts'; // Add transaction classification
 import '@/ai/flows/edit-invoice-note-flow.ts'; // Add new invoice note editing flow
+import '@/ai/flows/creator-analysis-flow.ts';
+import '@/ai/flows/generate-ugc-contract-flow.ts'; // Add new UGC contract flow
+import '@/ai/flows/gauntlet-flow.ts'; // Add new Gauntlet flow

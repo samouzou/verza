@@ -14,14 +14,15 @@ import { Loader2, DollarSign, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
-import type { Agency } from '@/types';
+import type { Agency, UserProfileFirestoreData } from '@/types';
 
 interface CreatePayoutCardProps {
   agency: Agency;
+  liveProfiles: Record<string, UserProfileFirestoreData>;
   disabled: boolean;
 }
 
-export function CreatePayoutCard({ agency, disabled }: CreatePayoutCardProps) {
+export function CreatePayoutCard({ agency, liveProfiles, disabled }: CreatePayoutCardProps) {
   const { toast } = useToast();
   const [payoutTalentId, setPayoutTalentId] = useState("");
   const [payoutAmount, setPayoutAmount] = useState("");
@@ -83,7 +84,8 @@ export function CreatePayoutCard({ agency, disabled }: CreatePayoutCardProps) {
     }
   };
   
-  const selectedTalentForPayout = agency.talent.find(t => t.userId === payoutTalentId);
+  const selectedTalentProfile = liveProfiles[payoutTalentId];
+  const selectedTalentName = selectedTalentProfile?.displayName || agency.talent.find(t => t.userId === payoutTalentId)?.displayName || 'Talent';
 
   return (
     <Card id="create-payout-card">
@@ -97,9 +99,13 @@ export function CreatePayoutCard({ agency, disabled }: CreatePayoutCardProps) {
           <Select value={payoutTalentId} onValueChange={setPayoutTalentId} disabled={isSendingPayout || disabled}>
             <SelectTrigger id="payout-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
             <SelectContent>
-              {agency.talent.filter(t => t.status === 'active').map(t => (
-                <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
-              ))}
+              {agency.talent.filter(t => t.status === 'active').map(t => {
+                const profile = liveProfiles[t.userId];
+                const name = profile?.displayName || t.displayName;
+                return (
+                  <SelectItem key={t.userId} value={t.userId}>{name}</SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -119,7 +125,7 @@ export function CreatePayoutCard({ agency, disabled }: CreatePayoutCardProps) {
         </div>
         {payoutAmount && (
           <div className="p-3 border rounded-md bg-muted text-sm space-y-2">
-            <div className="flex justify-between"><span>Payout to {selectedTalentForPayout?.displayName || 'Talent'}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Payout to {selectedTalentName}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
             <div className="flex justify-between"><span>Platform & Processing Fee</span><span>${platformFee.toFixed(2)}</span></div>
             <Separator />
             <div className="flex justify-between font-bold"><span>Total Charge</span><span>${totalCharge.toFixed(2)}</span></div>
@@ -136,7 +142,7 @@ export function CreatePayoutCard({ agency, disabled }: CreatePayoutCardProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
               <AlertDialogDescription>
-                You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentForPayout?.displayName || "this talent"}</span>. 
+                You are about to send a payment of <span className="font-bold">${parseFloat(payoutAmount || "0").toLocaleString()}</span> to <span className="font-bold">{selectedTalentName}</span>. 
                 The total charge to your payment method will be <span className="font-bold">${totalCharge.toFixed(2)}</span>. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
