@@ -262,7 +262,8 @@ export const syncTikTokStats = onCall({
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
 
     // 1. Exchange code for access token
-    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/",
+    // Note: Remove trailing slash from oauth/token to avoid Janus 404
+    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token",
       new URLSearchParams({
         client_key: clientKey,
         client_secret: clientSecret,
@@ -279,16 +280,17 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info & Stats
+    // Note: Use paths without trailing slashes before query params
     const userResponse = await
-    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+    axios.get("https://open.tiktokapis.com/v2/user/info?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
     const tiktokUser = userResponse.data.data.user;
-    const followersCount = tiktokUser.follower_count || 0;
+    const followersCountValue = tiktokUser.follower_count || 0;
 
     // 3. Get Video List for content metadata
-    const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
+    const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list?fields=title,video_description", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
@@ -304,16 +306,16 @@ export const syncTikTokStats = onCall({
     const userDocRef = db.collection("users").doc(request.auth.uid);
     await userDocRef.update({
       tiktokConnected: true,
-      followers: followersCount,
+      followers: followersCountValue,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     });
 
-    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followersCount} followers.`);
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followersCountValue} followers.`);
 
     return {
       success: true,
-      followers: followersCount,
+      followers: followersCountValue,
     };
   } catch (error: any) {
     logger.error("TikTok sync failed:", error.message, error.response?.data);
