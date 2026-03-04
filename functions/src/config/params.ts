@@ -38,7 +38,7 @@ export const APP_STORAGE_BUCKET = defineString("APP_STORAGE_BUCKET", {
   description: "The default Firebase Storage bucket name.",
 });
 
-// TikTok Parameters
+// TikTok Parameters - Updated to Production Key
 export const TIKTOK_CLIENT_KEY = defineString("TIKTOK_CLIENT_KEY", {
   default: "awlruae6rknutxeh",
 });

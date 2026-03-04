@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
@@ -49,7 +48,7 @@ function InsightsContent() {
     const state = searchParams.get('state');
     
     if (code && state === 'tiktok_auth') {
-        const redirectUri = window.location.origin + "/insights";
+        const redirectUri = "https://app.tryverza.com/insights";
         // Clear query params
         router.replace('/insights');
         performTikTokSync(code, redirectUri);
@@ -194,7 +193,7 @@ function InsightsContent() {
 
   const handleConnectTikTok = async () => {
     const clientKey = "awlruae6rknutxeh";
-    const redirectUri = encodeURIComponent(window.location.origin + "/insights");
+    const redirectUri = encodeURIComponent("https://app.tryverza.com/insights");
     const scope = "user.info.basic,user.info.stats,video.list";
     const state = "tiktok_auth";
     
