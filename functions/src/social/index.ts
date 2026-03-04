@@ -104,7 +104,8 @@ export const syncInstagramStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followersCountValue} followers, ${finalEngagementRate}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followersCountValue} followers,
+      ${finalEngagementRate}% engagement.`);
 
     return {
       success: true,
@@ -241,6 +242,7 @@ export const syncYouTubeStats = onCall(async (request) => {
 
 /**
  * syncTikTokStats - Exchanges a TikTok code for real stats.
+ * Following V2 Web Auth flow: https://developers.tiktok.com/doc/login-kit-web
  */
 export const syncTikTokStats = onCall({
   secrets: [params.TIKTOK_CLIENT_SECRET],
@@ -262,8 +264,8 @@ export const syncTikTokStats = onCall({
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
 
     // 1. Exchange code for access token
-    // Note: Remove trailing slash from oauth/token to avoid Janus 404
-    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token",
+    // IMPORTANT: TikTok V2 OAuth requires the trailing slash
+    const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/",
       new URLSearchParams({
         client_key: clientKey,
         client_secret: clientSecret,
@@ -280,21 +282,25 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info & Stats
-    // Note: Use paths without trailing slashes before query params
+    // IMPORTANT: TikTok V2 requires trailing slash before query parameters
     const userResponse = await
-    axios.get("https://open.tiktokapis.com/v2/user/info?fields=follower_count,display_name,avatar_url", {
+    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
-    const tiktokUser = userResponse.data.data.user;
+    const tiktokUser = userResponse.data?.data?.user;
+    if (!tiktokUser) {
+        throw new Error("TikTok user data not found in response.");
+    }
     const followersCountValue = tiktokUser.follower_count || 0;
 
     // 3. Get Video List for content metadata
-    const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list?fields=title,video_description", {
+    // IMPORTANT: TikTok V2 requires trailing slash
+    const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
-    const videos = videoResponse.data.data.videos || [];
+    const videos = videoResponse.data?.data?.videos || [];
     let concatenatedMetadata = "";
     videos.forEach((v: any) => {
       if (v.video_description) {
@@ -315,7 +321,7 @@ export const syncTikTokStats = onCall({
 
     return {
       success: true,
-      followers: followersCountValue,
+      followers: followersCountValue, // Explicit mapping to fix TS scope error
     };
   } catch (error: any) {
     logger.error("TikTok sync failed:", error.message, error.response?.data);

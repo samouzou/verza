@@ -164,7 +164,7 @@ export default function InsightsPage() {
       console.error("YouTube connection failed:", error);
       toast({ 
         title: "Connection Failed", 
-        description: error.message || "Could not connect to YouTube.", 
+        description: error.message || "Could not connect to YouTube. Check your Google Cloud configuration.", 
         variant: "destructive"
       });
       setIsSyncingYt(false);
