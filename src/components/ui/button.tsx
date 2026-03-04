@@ -39,14 +39,13 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
-  ref?: React.Ref<HTMLButtonElement>
 }
 
 /**
  * Button component using the React 19 pattern where 'ref' is a standard prop.
  * Named function prevents 'asyncfunction' errors in Next.js 15 / React 19.
  */
-export function Button({ className, variant, size, asChild = false, ref, ...props }: ButtonProps) {
+export function Button({ className, variant, size, asChild = false, ref, ...props }: ButtonProps & { ref?: React.Ref<HTMLButtonElement> }) {
   const Comp = asChild ? Slot : "button"
   return (
     <Comp

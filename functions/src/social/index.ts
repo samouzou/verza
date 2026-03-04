@@ -33,7 +33,7 @@ export const syncInstagramStats = onCall(async (request) => {
     const pages = pagesResponse.data?.data;
     if (!pages || !Array.isArray(pages) || pages.length === 0) {
       logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found", 
+      throw new HttpsError("not-found",
         "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
     }
 
@@ -56,7 +56,7 @@ export const syncInstagramStats = onCall(async (request) => {
         access_token: accessToken,
       },
     });
-    const followers = userResponse.data?.followers_count || 0;
+    const followersCountValue = userResponse.data?.followers_count || 0;
 
     // 3. Get Engagement Data & Captions from last 10 posts
     const mediaResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}/media`, {
@@ -86,8 +86,8 @@ export const syncInstagramStats = onCall(async (request) => {
     const avgInteractionsPerPost = totalInteractions / postCount;
 
     let engagementRateValue = 0;
-    if (followers > 0) {
-      engagementRateValue = (avgInteractionsPerPost / followers) * 100;
+    if (followersCountValue > 0) {
+      engagementRateValue = (avgInteractionsPerPost / followersCountValue) * 100;
     }
 
     const finalEngagementRate = parseFloat(engagementRateValue.toFixed(2));
@@ -96,7 +96,7 @@ export const syncInstagramStats = onCall(async (request) => {
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       instagramConnected: true,
-      followers: followers,
+      followers: followersCountValue,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.instagram"]: concatenatedCaptions.trim(),
@@ -104,11 +104,11 @@ export const syncInstagramStats = onCall(async (request) => {
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followers} followers, ${finalEngagementRate}% engagement.`);
+    logger.info(`Synced IG stats for user ${request.auth.uid}: ${followersCountValue} followers, ${finalEngagementRate}% engagement.`);
 
     return {
       success: true,
-      followers: followers,
+      followers: followersCountValue,
       engagementRate: finalEngagementRate,
     };
   } catch (error: any) {
@@ -279,13 +279,13 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info & Stats
-    const userResponse = await 
-      axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+    const userResponse = await
+    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
     const tiktokUser = userResponse.data.data.user;
-    const followerCount = tiktokUser.follower_count || 0;
+    const followersCount = tiktokUser.follower_count || 0;
 
     // 3. Get Video List for content metadata
     const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
@@ -304,16 +304,16 @@ export const syncTikTokStats = onCall({
     const userDocRef = db.collection("users").doc(request.auth.uid);
     await userDocRef.update({
       tiktokConnected: true,
-      followers: followerCount,
+      followers: followersCount,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     });
 
-    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followerCount} followers.`);
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followersCount} followers.`);
 
     return {
       success: true,
-      followers: followerCount,
+      followers: followersCount,
     };
   } catch (error: any) {
     logger.error("TikTok sync failed:", error.message, error.response?.data);
