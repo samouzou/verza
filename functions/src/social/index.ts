@@ -262,41 +262,43 @@ export const syncTikTokStats = onCall({
   const clientKey = params.TIKTOK_CLIENT_KEY.value();
   const clientSecret = params.TIKTOK_CLIENT_SECRET.value();
 
-  try {
-    logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
+  // Robust logging to catch credential mismatches
+  logger.info(`TikTok Sync: Exchange for user ${request.auth.uid}. ClientKey: ${clientKey.substring(0, 3)}...${clientKey.slice(-2)}`);
 
-    // 1. Exchange code for access token
+  try {
+    // 1. Exchange code for access token - Use V2 endpoint with mandatory trailing slash
+    const tokenParams = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      code: authCode,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+    });
+
     const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/",
-      new URLSearchParams({
-        client_key: clientKey,
-        client_secret: clientSecret,
-        code: authCode,
-        grant_type: "authorization_code",
-        redirect_uri: redirectUri,
-      }).toString(),
+      tokenParams.toString(),
       {headers: {"Content-Type": "application/x-www-form-urlencoded"}}
     );
 
-    const accessToken = tokenResponse.data.access_token;
+    const accessToken = tokenResponse.data?.access_token;
     if (!accessToken) {
-      logger.error("TikTok token exchange failed. Response data:", tokenResponse.data);
-      throw new Error(`Failed to obtain TikTok access token. ${tokenResponse.data.error_description || "Unknown error"}`);
+      logger.error("TikTok token exchange failed. Response:", tokenResponse.data);
+      throw new Error(`Failed to obtain TikTok access token. ${tokenResponse.data?.error_description || "Check logs for detail"}`);
     }
 
-    // 2. Get User Info & Stats
-    const userResponse = await
-    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
+    // 2. Get User Info & Stats - V2 Endpoint with trailing slash
+    const userResponse = await axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
 
-    const tiktokUser = userResponse.data?.data?.user;
-    if (!tiktokUser) {
+    const userData = userResponse.data?.data?.user;
+    if (!userData) {
       logger.error("TikTok user data missing. Response:", userResponse.data);
       throw new Error("TikTok user data not found in response.");
     }
-    const followersCountValue = tiktokUser.follower_count || 0;
+    const followers = userData.follower_count || 0;
 
-    // 3. Get Video List for content metadata
+    // 3. Get Video List for content metadata - V2 Endpoint with trailing slash
     const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
@@ -313,18 +315,18 @@ export const syncTikTokStats = onCall({
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       tiktokConnected: true,
-      followers: followersCountValue,
+      followers: followers,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
     };
 
     await userDocRef.update(statsUpdate);
 
-    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followersCountValue} followers.`);
+    logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followers} followers.`);
 
     return {
       success: true,
-      followers: followersCountValue,
+      followers: followers,
     };
   } catch (error: any) {
     const errorMsg = error.response?.data?.error_description || error.response?.data?.message || error.message;
