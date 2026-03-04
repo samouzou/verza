@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -48,9 +49,10 @@ export default function InsightsPage() {
     const state = searchParams.get('state');
     
     if (code && state === 'tiktok_auth') {
+        const redirectUri = window.location.origin + "/insights";
         // Clear query params
         router.replace('/insights');
-        performTikTokSync(code);
+        performTikTokSync(code, redirectUri);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
@@ -170,12 +172,12 @@ export default function InsightsPage() {
     }
   };
 
-  const performTikTokSync = async (code: string) => {
+  const performTikTokSync = async (code: string, redirectUri: string) => {
     setIsSyncingTt(true);
     toast({ title: "Syncing TikTok", description: "Fetching verified follower counts..." });
     try {
         const syncTikTokStatsCallable = httpsCallable(functions, 'syncTikTokStats');
-        const result = await syncTikTokStatsCallable({ authCode: code });
+        const result = await syncTikTokStatsCallable({ authCode: code, redirectUri: redirectUri });
         const data = result.data as { success: boolean; followers: number };
 
         if (data.success) {

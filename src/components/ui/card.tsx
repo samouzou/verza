@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react"
@@ -56,7 +57,7 @@ export function CardDescription({ className, ref, ...props }: React.HTMLAttribut
 
 export function CardContent({ className, ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {
   return (
-    <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+    <div ref={ref} className="p-6 pt-0" {...props} />
   )
 }
 

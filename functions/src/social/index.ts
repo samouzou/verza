@@ -1,3 +1,4 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
@@ -250,20 +251,21 @@ export const syncTikTokStats = onCall({
     throw new HttpsError("unauthenticated", "Must be authenticated.");
   }
 
-  const {authCode} = request.data;
+  const {authCode, redirectUri} = request.data;
   if (!authCode) {
     throw new HttpsError("invalid-argument", "TikTok auth code is required.");
+  }
+  if (!redirectUri) {
+    throw new HttpsError("invalid-argument", "Redirect URI is required for verification.");
   }
 
   const clientKey = params.TIKTOK_CLIENT_KEY.value();
   const clientSecret = params.TIKTOK_CLIENT_SECRET.value();
-  const redirectUri = params.APP_URL.value() + "/insights";
 
   try {
     logger.info(`Starting TikTok sync for user: ${request.auth.uid}`);
 
     // 1. Exchange code for access token
-    // IMPORTANT: TikTok V2 OAuth requires the trailing slash
     const tokenResponse = await axios.post("https://open.tiktokapis.com/v2/oauth/token/",
       new URLSearchParams({
         client_key: clientKey,
@@ -277,11 +279,11 @@ export const syncTikTokStats = onCall({
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) {
-      throw new Error("Failed to obtain TikTok access token.");
+      logger.error("TikTok token exchange failed. Response data:", tokenResponse.data);
+      throw new Error(`Failed to obtain TikTok access token. ${tokenResponse.data.error_description || "Unknown error"}`);
     }
 
     // 2. Get User Info & Stats
-    // IMPORTANT: TikTok V2 requires trailing slash before query parameters
     const userResponse = await
     axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
       headers: {"Authorization": `Bearer ${accessToken}`},
@@ -289,12 +291,12 @@ export const syncTikTokStats = onCall({
 
     const tiktokUser = userResponse.data?.data?.user;
     if (!tiktokUser) {
+      logger.error("TikTok user data missing. Response:", userResponse.data);
       throw new Error("TikTok user data not found in response.");
     }
     const followersCountValue = tiktokUser.follower_count || 0;
 
     // 3. Get Video List for content metadata
-    // IMPORTANT: TikTok V2 requires trailing slash
     const videoResponse = await axios.get("https://open.tiktokapis.com/v2/video/list/?fields=title,video_description", {
       headers: {"Authorization": `Bearer ${accessToken}`},
     });
@@ -325,7 +327,8 @@ export const syncTikTokStats = onCall({
       followers: followersCountValue,
     };
   } catch (error: any) {
-    logger.error("TikTok sync failed:", error.message, error.response?.data);
-    throw new HttpsError("internal", `TikTok Sync Error: ${error.message}`);
+    const errorMsg = error.response?.data?.error_description || error.response?.data?.message || error.message;
+    logger.error("TikTok sync failed:", errorMsg, error.response?.data);
+    throw new HttpsError("internal", `TikTok Sync Error: ${errorMsg}`);
   }
 });
