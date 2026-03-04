@@ -108,7 +108,7 @@ export function MarketplaceCoPilot({ context, className }: { context: CoPilotCon
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2 animate-in fade-in slide-in-from-right-4 duration-500 fill-mode-both">
         <div className="p-1.5 bg-primary/10 rounded-full">
           <Sparkles className="h-4 w-4 text-primary" />
         </div>
@@ -116,7 +116,14 @@ export function MarketplaceCoPilot({ context, className }: { context: CoPilotCon
       </div>
       
       {currentTips.map((tip, i) => (
-        <Card key={i} className="border-primary/10 shadow-sm hover:border-primary/30 transition-colors bg-gradient-to-br from-background to-muted/30">
+        <Card 
+          key={i} 
+          className={cn(
+            "border-primary/10 shadow-sm hover:border-primary/30 transition-colors bg-gradient-to-br from-background to-muted/30",
+            "animate-in fade-in slide-in-from-right-8 duration-500 fill-mode-both"
+          )}
+          style={{ animationDelay: `${i * 100}ms` }}
+        >
           <CardHeader className="p-4 pb-2">
             <div className="flex items-center justify-between">
               <tip.icon className="h-5 w-5 text-primary" />
@@ -136,7 +143,10 @@ export function MarketplaceCoPilot({ context, className }: { context: CoPilotCon
         </Card>
       ))}
 
-      <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 mt-6">
+      <div 
+        className="p-4 rounded-lg bg-primary/5 border border-primary/10 mt-6 animate-in fade-in duration-700 fill-mode-both"
+        style={{ animationDelay: `${currentTips.length * 100}ms` }}
+      >
         <p className="text-[10px] text-primary/60 font-medium uppercase tracking-widest text-center">
           Powered by Verza AI
         </p>
