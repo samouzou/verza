@@ -47,9 +47,9 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
       description: "Your funds are held securely in the campaign vault and only released when you approve verified submissions.",
     },
     {
-      icon: Lightbulb,
-      title: "UGC Pricing",
-      description: "Market data shows $150-$300 is the sweet spot for high-quality organic content creators.",
+      icon: Flame,
+      title: "The Quality Gate",
+      description: "The Verza Score acts as your quality gate. Only pay for content that actually passes our engagement simulation.",
     }
   ],
   details_brand: [
