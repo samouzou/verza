@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -406,8 +407,8 @@ export default function GigDetailPage() {
           description={`Posted by ${gig.brandName}`}
           actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
         />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="lg:col-span-3 space-y-8">
               <Card>
                   <CardHeader><CardTitle>Project Details</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
@@ -686,6 +687,11 @@ export default function GigDetailPage() {
                       )}
                   </CardContent>
               </Card>
+
+              <MarketplaceCoPilot 
+                context={canManageGig ? 'details_brand' : (hasAccepted ? 'details_creator' : 'browse')} 
+                className="hidden lg:block"
+              />
           </div>
         </div>
       </div>

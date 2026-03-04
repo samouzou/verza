@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
 import { functions, db, doc, getDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -202,67 +203,76 @@ export default function PostGigPage() {
             </Button>
         }
       />
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-            <CardTitle>Gig Details</CardTitle>
-            <CardDescription>Fill out the details for your user-generated content (UGC) campaign.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="title">Gig Title</Label>
-                <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Project Description</Label>
-                <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the content you need, key talking points, and any do's or don'ts." rows={5} required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-              <Label>Platforms</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-                {platforms.map(platform => (
-                  <div key={platform} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`platform-${platform}`}
-                      checked={selectedPlatforms.includes(platform)}
-                      onCheckedChange={() => handlePlatformChange(platform)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3">
+          <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>Gig Details</CardTitle>
+                <CardDescription>Fill out the details for your user-generated content (UGC) campaign.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="title">Gig Title</Label>
+                    <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="description">Project Description</Label>
+                    <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the content you need, key talking points, and any do's or don'ts." rows={5} required disabled={isSubmitting} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Platforms</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                    {platforms.map(platform => (
+                      <div key={platform} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`platform-${platform}`}
+                          checked={selectedPlatforms.includes(platform)}
+                          onCheckedChange={() => handlePlatformChange(platform)}
+                          disabled={isSubmitting}
+                        />
+                        <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                    <Label htmlFor="rate">Rate per Creator ($)</Label>
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="150" required min="1" disabled={isSubmitting}/>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="creators">Creators Needed</Label>
-                    <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="rate">Rate per Creator ($)</Label>
+                        <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="150" required min="1" disabled={isSubmitting}/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="creators">Creators Needed</Label>
+                        <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="videos">Videos per Creator</Label>
+                        <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
+                    </div>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="videos">Videos per Creator</Label>
-                    <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
-                </div>
-            </div>
 
-            {totalAmount > 0 && (
-              <div className="p-4 border rounded-lg bg-muted text-center">
-                <p className="text-sm text-muted-foreground">Total Project Funding</p>
-                <p className="text-3xl font-bold">${totalAmount.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">({creatorsNeeded} creators x ${ratePerCreator})</p>
-              </div>
-            )}
+                {totalAmount > 0 && (
+                  <div className="p-4 border rounded-lg bg-muted text-center">
+                    <p className="text-sm text-muted-foreground">Total Project Funding</p>
+                    <p className="text-3xl font-bold">${totalAmount.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">({creatorsNeeded} creators x ${ratePerCreator})</p>
+                  </div>
+                )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || totalAmount <= 0}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-              Fund & Post Gig
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                <Button type="submit" className="w-full" disabled={isSubmitting || totalAmount <= 0}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
+                  Fund & Post Gig
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-1">
+          <MarketplaceCoPilot context="post" className="sticky top-8" />
+        </div>
+      </div>
     </>
   );
 }

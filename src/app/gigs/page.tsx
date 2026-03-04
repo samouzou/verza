@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -194,100 +195,106 @@ export default function GigsPage() {
         ) : undefined}
       />
 
-      <div className="flex flex-col space-y-6">
-        {/* Filter Bar */}
-        <Card className="p-4 shadow-sm border-primary/10">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Search className="h-3 w-3" /> Search</Label>
-              <Input 
-                placeholder="Search gigs or brands..." 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)}
-              />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3 space-y-6">
+          {/* Filter Bar */}
+          <Card className="p-4 shadow-sm border-primary/10">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Search className="h-3 w-3" /> Search</Label>
+                <Input 
+                  placeholder="Search gigs or brands..." 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Smartphone className="h-3 w-3" /> Platform</Label>
+                <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Platforms" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Platforms</SelectItem>
+                    {platforms.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><DollarSign className="h-3 w-3" /> Min. Rate</Label>
+                <Input 
+                  type="number" 
+                  placeholder="Any amount" 
+                  value={minRate} 
+                  onChange={e => setMinRate(e.target.value)}
+                />
+              </div>
+              <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground">
+                <X className="mr-2 h-4 w-4" /> Clear Filters
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><Smartphone className="h-3 w-3" /> Platform</Label>
-              <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Platforms" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Platforms</SelectItem>
-                  {platforms.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><DollarSign className="h-3 w-3" /> Min. Rate</Label>
-              <Input 
-                type="number" 
-                placeholder="Any amount" 
-                value={minRate} 
-                onChange={e => setMinRate(e.target.value)}
-              />
-            </div>
-            <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground">
-              <X className="mr-2 h-4 w-4" /> Clear Filters
-            </Button>
-          </div>
-        </Card>
+          </Card>
 
-        <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-            <TabsTrigger value="browse">Browse Gigs ({filteredOpenGigs.length})</TabsTrigger>
-            <TabsTrigger value="my-gigs">My Gigs ({filteredMyGigs.length})</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+            <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+              <TabsTrigger value="browse">Browse Gigs ({filteredOpenGigs.length})</TabsTrigger>
+              <TabsTrigger value="my-gigs">My Gigs ({filteredMyGigs.length})</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="browse" className="space-y-6">
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
-              </div>
-            ) : filteredOpenGigs.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOpenGigs.map(gig => <GigCard key={gig.id} gig={gig} currentUserId={user?.uid} />)}
-              </div>
-            ) : (
-              <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
-                <Filter className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold">No Gigs Found</h3>
-                <p className="text-muted-foreground mt-2">Try adjusting your filters or search terms.</p>
-                <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>
-              </div>
-            )}
-          </TabsContent>
+            <TabsContent value="browse" className="space-y-6">
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+                </div>
+              ) : filteredOpenGigs.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredOpenGigs.map(gig => <GigCard key={gig.id} gig={gig} currentUserId={user?.uid} />)}
+                </div>
+              ) : (
+                <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
+                  <Filter className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold">No Gigs Found</h3>
+                  <p className="text-muted-foreground mt-2">Try adjusting your filters or search terms.</p>
+                  <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>
+                </div>
+              )}
+            </TabsContent>
 
-          <TabsContent value="my-gigs" className="space-y-6">
-            {filteredMyGigs.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredMyGigs.map(gig => (
-                  <GigCard 
-                    key={gig.id} 
-                    gig={gig} 
-                    showRole 
-                    currentUserId={user?.uid} 
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
-                <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Gigs" : "No Matching Gigs"}</h3>
-                <p className="text-muted-foreground mt-2">
-                  {myGigs.length === 0 
-                    ? "Gigs you've accepted or posted will appear here." 
-                    : "None of your active gigs match the current filters."}
-                </p>
-                {myGigs.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>}
-                {myGigs.length === 0 && (
-                  <Button variant="outline" className="mt-4" onClick={() => setActiveTab("browse")}>
-                    Explore Opportunities
-                  </Button>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="my-gigs" className="space-y-6">
+              {filteredMyGigs.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredMyGigs.map(gig => (
+                    <GigCard 
+                      key={gig.id} 
+                      gig={gig} 
+                      showRole 
+                      currentUserId={user?.uid} 
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
+                  <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Gigs" : "No Matching Gigs"}</h3>
+                  <p className="text-muted-foreground mt-2">
+                    {myGigs.length === 0 
+                      ? "Gigs you've accepted or posted will appear here." 
+                      : "None of your active gigs match the current filters."}
+                  </p>
+                  {myGigs.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>}
+                  {myGigs.length === 0 && (
+                    <Button variant="outline" className="mt-4" onClick={() => setActiveTab("browse")}>
+                      Explore Opportunities
+                    </Button>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="lg:col-span-1">
+          <MarketplaceCoPilot context="browse" className="sticky top-8" />
+        </div>
       </div>
     </>
   );
