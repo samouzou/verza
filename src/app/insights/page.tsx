@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +29,7 @@ const TikTokIcon = () => (
     </svg>
 );
 
-export default function InsightsPage() {
+function InsightsContent() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
@@ -43,14 +43,14 @@ export default function InsightsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  // Handle TikTok OAuth Callback (Forwarded from root page)
+  // Handle TikTok OAuth Callback
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
     if (code && state === 'tiktok_auth') {
-        const redirectUri = window.location.origin + "/"; // Use the same URI configured in the portal
-        // Clear query params to clean up the URL
+        const redirectUri = window.location.origin + "/insights";
+        // Clear query params
         router.replace('/insights');
         performTikTokSync(code, redirectUri);
     }
@@ -194,8 +194,7 @@ export default function InsightsPage() {
 
   const handleConnectTikTok = async () => {
     const clientKey = "awlruae6rknutxeh";
-    // We use the root URL to match your TikTok portal configuration exactly
-    const redirectUri = encodeURIComponent(window.location.origin + "/");
+    const redirectUri = encodeURIComponent(window.location.origin + "/insights");
     const scope = "user.info.basic,user.info.stats,video.list";
     const state = "tiktok_auth";
     
@@ -209,7 +208,6 @@ export default function InsightsPage() {
   const handleAnalyzeProfile = async () => {
     if (!user) return;
     
-    // Aggregate manual input with data from connected accounts
     const aggregatedContent = [
         manualProfileContent.trim(),
         user.socialContent?.instagram ? `[Instagram Content]: ${user.socialContent.instagram}` : '',
@@ -247,11 +245,6 @@ export default function InsightsPage() {
     }
   };
 
-  const igConnected = !!user?.instagramConnected;
-  const ytConnected = !!user?.youtubeConnected;
-  const ttConnected = !!user?.tiktokConnected;
-  const anyConnected = igConnected || ytConnected || ttConnected;
-
   if (authLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
@@ -265,6 +258,11 @@ export default function InsightsPage() {
       </div>
     );
   }
+
+  const igConnected = !!user?.instagramConnected;
+  const ytConnected = !!user?.youtubeConnected;
+  const ttConnected = !!user?.tiktokConnected;
+  const anyConnected = igConnected || ytConnected || ttConnected;
 
   return (
     <>
@@ -375,5 +373,13 @@ export default function InsightsPage() {
         )}
       </div>
     </>
+  );
+}
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+      <InsightsContent />
+    </Suspense>
   );
 }

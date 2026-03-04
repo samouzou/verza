@@ -12,17 +12,6 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isLoading) {
-      // Check for TikTok OAuth parameters in the URL
-      const searchParams = new URLSearchParams(window.location.search);
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-
-      // If this is a TikTok callback, forward the user to the insights page
-      if (code && state === 'tiktok_auth') {
-        router.replace(`/insights?code=${code}&state=${state}`);
-        return;
-      }
-
       if (isAuthenticated) {
         router.replace('/dashboard');
       } else {
