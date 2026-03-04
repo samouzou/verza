@@ -8,6 +8,7 @@
  * - Scheduled tasks
  * - Contract Sharing functions
  * - E-Signature functions
+ * - Social Media integration functions
  */
 
 // Import and export v2 functions using ES module syntax
@@ -20,18 +21,19 @@ import {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
+  createGigFundingCheckoutSession,
 } from "./payments";
 
 import {
   sendContractNotification,
-  handleSendGridEmailWebhook, // Added SendGrid webhook handler
+  handleSendGridEmailWebhook,
 } from "./notifications";
 
 import {
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
-  sendDripCampaignEmails, // Import new drip campaign function
+  sendDripCampaignEmails,
 } from "./scheduler";
 
 import {
@@ -61,12 +63,14 @@ import {
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
-  inviteTeamMemberToAgency, // New function for team members
+  inviteTeamMemberToAgency,
 } from "./agency";
 
+import {payoutCreatorForGig} from "./gigs";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
+import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
 
 // Export v2 functions
 export {
@@ -78,12 +82,13 @@ export {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
+  createGigFundingCheckoutSession,
   sendContractNotification,
-  handleSendGridEmailWebhook, // Export new webhook handler
+  handleSendGridEmailWebhook,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
-  sendDripCampaignEmails, // Export new drip campaign function
+  sendDripCampaignEmails,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
@@ -98,10 +103,14 @@ export {
   acceptAgencyInvitation,
   declineAgencyInvitation,
   createInternalPayout,
-  inviteTeamMemberToAgency, // Export new function
+  inviteTeamMemberToAgency,
+  payoutCreatorForGig,
   generateScene,
   generateImage,
   analyzeBrand,
+  syncInstagramStats,
+  syncYouTubeStats,
+  syncTikTokStats,
 };
 
 // Import and export v1 auth trigger using require/exports

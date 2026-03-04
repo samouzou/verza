@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import './globals.css';
@@ -17,9 +16,11 @@ import { AuthGuard } from '@/components/auth-gaurd';
 import { ThemeProvider } from "next-themes";
 import { TourProvider } from '@/hooks/use-tour';
 import { TourGuide } from '@/components/tour/tour-guide';
+import { FirebaseErrorListener } from '@/components/firebase-error-listener';
+import { FacebookSDK } from '@/components/facebook-sdk';
 
 export const metadata: Metadata = {
-  title: 'Verza', // Updated title
+  title: 'Verza',
   description: 'The operating system for the creator economy.',
 };
 
@@ -34,6 +35,7 @@ export default function RootLayout({
         className={`${GeistSans.className} antialiased`}
         suppressHydrationWarning
       >
+        <FacebookSDK />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -45,6 +47,7 @@ export default function RootLayout({
               <AuthGuard>
                 {children}
               </AuthGuard>
+              <FirebaseErrorListener />
               <TourGuide />
               <Toaster />
             </TourProvider>

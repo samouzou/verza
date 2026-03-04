@@ -10,25 +10,29 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { generateTalentContract } from '@/ai/flows/generate-talent-contract-flow';
-import type { Agency, Talent } from '@/types';
+import type { Agency, Talent, UserProfileFirestoreData } from '@/types';
 import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 
 interface AIGeneratorCardProps {
   agency: Agency;
+  liveProfiles: Record<string, UserProfileFirestoreData>;
   disabled: boolean;
 }
 
-export function AIGeneratorCard({ agency, disabled }: AIGeneratorCardProps) {
+export function AIGeneratorCard({ agency, liveProfiles, disabled }: AIGeneratorCardProps) {
   const { toast } = useToast();
   const [aiContractPrompt, setAiContractPrompt] = useState("");
   const [aiContractTalentId, setAiContractTalentId] = useState("");
   const [isGeneratingContract, setIsGeneratingContract] = useState(false);
-  const [generatedContractData, setGeneratedContractData] = useState<{ sfdt: string; talent: Talent } | null>(null);
+  const [generatedContractData, setGeneratedContractData] = useState<{ sfdt: string; talentId: string; displayName: string } | null>(null);
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
 
   const handleGenerateContract = async () => {
-    const selectedTalent = agency.talent.find(t => t.userId === aiContractTalentId);
-    if (!aiContractPrompt.trim() || !selectedTalent) {
+    const talentInfo = agency.talent.find(t => t.userId === aiContractTalentId);
+    const liveProfile = liveProfiles[aiContractTalentId];
+    const talentDisplayName = liveProfile?.displayName || talentInfo?.displayName || 'The Talent';
+
+    if (!aiContractPrompt.trim() || !aiContractTalentId) {
         toast({ title: "Missing Information", description: "Please provide a prompt and select a talent.", variant: "destructive" });
         return;
     }
@@ -37,9 +41,9 @@ export function AIGeneratorCard({ agency, disabled }: AIGeneratorCardProps) {
         const result = await generateTalentContract({
             prompt: aiContractPrompt,
             agencyName: agency.name,
-            talentName: selectedTalent.displayName || 'The Talent',
+            talentName: talentDisplayName,
         });
-        setGeneratedContractData({ sfdt: result.contractSfdt, talent: selectedTalent });
+        setGeneratedContractData({ sfdt: result.contractSfdt, talentId: aiContractTalentId, displayName: talentDisplayName });
         setIsContractDialogOpen(true);
         toast({ title: "Contract Generated", description: "Review and save the AI-generated contract." });
     } catch (error: any) {
@@ -74,9 +78,13 @@ export function AIGeneratorCard({ agency, disabled }: AIGeneratorCardProps) {
             <Select value={aiContractTalentId} onValueChange={setAiContractTalentId} disabled={isGeneratingContract || disabled}>
               <SelectTrigger id="ai-contract-talent"><SelectValue placeholder="Select a talent..." /></SelectTrigger>
               <SelectContent>
-                {agency.talent.filter(t => t.status === 'active').map(t => (
-                  <SelectItem key={t.userId} value={t.userId}>{t.displayName}</SelectItem>
-                ))}
+                {agency.talent.filter(t => t.status === 'active').map(t => {
+                  const profile = liveProfiles[t.userId];
+                  const name = profile?.displayName || t.displayName;
+                  return (
+                    <SelectItem key={t.userId} value={t.userId}>{name}</SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -92,8 +100,8 @@ export function AIGeneratorCard({ agency, disabled }: AIGeneratorCardProps) {
           isOpen={isContractDialogOpen} 
           onOpenChange={setIsContractDialogOpen}
           initialSFDT={generatedContractData.sfdt}
-          initialSelectedOwner={generatedContractData.talent.userId}
-          initialFileName={`Talent Agreement - ${generatedContractData.talent.displayName}.docx`}
+          initialSelectedOwner={generatedContractData.talentId}
+          initialFileName={`Talent Agreement - ${generatedContractData.displayName}.docx`}
         />
       )}
     </>

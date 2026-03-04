@@ -11,6 +11,7 @@ import {
   updateProfile,
   sendPasswordResetEmail,
   sendEmailVerification,
+  linkWithPopup, // Added for connecting accounts without switching users
   type User as FirebaseUser
 } from 'firebase/auth';
 import {
@@ -31,7 +32,7 @@ import {
   writeBatch,
   onSnapshot,
   arrayUnion,
-  arrayRemove, // Added arrayRemove
+  arrayRemove,
   documentId,
   limit
 } from 'firebase/firestore';
@@ -47,7 +48,6 @@ const firebaseConfigValues = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Check if essential config values are present
 if (!firebaseConfigValues.apiKey || !firebaseConfigValues.projectId) {
   const missingKeys = [];
   if (!firebaseConfigValues.apiKey) missingKeys.push("NEXT_PUBLIC_FIREBASE_API_KEY");
@@ -60,7 +60,6 @@ if (!firebaseConfigValues.apiKey || !firebaseConfigValues.projectId) {
   );
 }
 
-
 const firebaseConfig: FirebaseOptions = firebaseConfigValues;
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -69,7 +68,6 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 const googleAuthProvider = new GoogleAuthProvider();
-
 
 export {
   app,
@@ -87,6 +85,7 @@ export {
   sendPasswordResetEmail,
   sendEmailVerification,
   updateProfile,
+  linkWithPopup, // Exported for connecting accounts
   type FirebaseUser,
   collection,
   doc,
@@ -108,7 +107,7 @@ export {
   getDownloadURL,
   deleteObject,
   arrayUnion,
-  arrayRemove, // Export arrayRemove
+  arrayRemove,
   documentId,
   limit
 };
