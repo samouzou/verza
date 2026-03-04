@@ -177,11 +177,14 @@ function InsightsContent() {
     try {
         const syncTikTokStatsCallable = httpsCallable(functions, 'syncTikTokStats');
         const result = await syncTikTokStatsCallable({ authCode: code, redirectUri: redirectUri });
-        const data = result.data as { success: boolean; followers: number };
+        const data = result.data as { success: boolean; followers: number; engagementRate: number };
 
         if (data.success) {
             await refreshAuthUser();
-            toast({ title: "TikTok Synced!", description: `Verified ${data.followers.toLocaleString()} followers.` });
+            toast({ 
+              title: "TikTok Synced!", 
+              description: `Verified ${data.followers.toLocaleString()} followers and ${data.engagementRate}% engagement.` 
+            });
         }
     } catch (error: any) {
         console.error("TikTok sync error:", error);
