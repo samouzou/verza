@@ -43,14 +43,14 @@ export default function InsightsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  // Handle TikTok OAuth Callback
+  // Handle TikTok OAuth Callback (Forwarded from root page)
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
     if (code && state === 'tiktok_auth') {
-        const redirectUri = window.location.origin + "/insights";
-        // Clear query params
+        const redirectUri = window.location.origin + "/"; // Use the same URI configured in the portal
+        // Clear query params to clean up the URL
         router.replace('/insights');
         performTikTokSync(code, redirectUri);
     }
@@ -174,7 +174,7 @@ export default function InsightsPage() {
 
   const performTikTokSync = async (code: string, redirectUri: string) => {
     setIsSyncingTt(true);
-    toast({ title: "Syncing TikTok", description: "Fetching verified follower counts..." });
+    toast({ title: "Syncing TikTok", description: "Fetching verified metrics..." });
     try {
         const syncTikTokStatsCallable = httpsCallable(functions, 'syncTikTokStats');
         const result = await syncTikTokStatsCallable({ authCode: code, redirectUri: redirectUri });
@@ -194,11 +194,11 @@ export default function InsightsPage() {
 
   const handleConnectTikTok = async () => {
     const clientKey = "awlruae6rknutxeh";
-    const redirectUri = encodeURIComponent(window.location.origin + "/insights");
+    // We use the root URL to match your TikTok portal configuration exactly
+    const redirectUri = encodeURIComponent(window.location.origin + "/");
     const scope = "user.info.basic,user.info.stats,video.list";
     const state = "tiktok_auth";
     
-    // Using official V2 authorize path with required trailing slash
     const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}&state=${state}`;
     
     setIsSyncingTt(true);
