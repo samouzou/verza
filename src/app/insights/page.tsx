@@ -197,7 +197,7 @@ export default function InsightsPage() {
     const scope = "user.info.basic,user.info.stats,video.list";
     const state = "tiktok_auth";
     
-    // Using official path with trailing slash
+    // IMPORTANT: Using official path from documentation
     const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}&state=${state}`;
     
     setIsSyncingTt(true);
