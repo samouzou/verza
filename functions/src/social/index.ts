@@ -1,4 +1,3 @@
-
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
@@ -290,7 +289,7 @@ export const syncTikTokStats = onCall({
 
     const tiktokUser = userResponse.data?.data?.user;
     if (!tiktokUser) {
-        throw new Error("TikTok user data not found in response.");
+      throw new Error("TikTok user data not found in response.");
     }
     const followersCountValue = tiktokUser.follower_count || 0;
 
@@ -310,12 +309,14 @@ export const syncTikTokStats = onCall({
 
     // 4. Update Firestore
     const userDocRef = db.collection("users").doc(request.auth.uid);
-    await userDocRef.update({
+    const statsUpdate = {
       tiktokConnected: true,
       followers: followersCountValue,
       lastSocialSync: new Date().toISOString(),
       ["socialContent.tiktok"]: concatenatedMetadata.trim(),
-    });
+    };
+
+    await userDocRef.update(statsUpdate);
 
     logger.info(`Synced TikTok stats for ${request.auth.uid}: ${followersCountValue} followers.`);
 

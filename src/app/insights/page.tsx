@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -192,12 +191,12 @@ export default function InsightsPage() {
   };
 
   const handleConnectTikTok = async () => {
-    const clientKey = "sbawwp6t4wfkbsrk3o";
+    const clientKey = "awlruae6rknutxeh";
     const redirectUri = encodeURIComponent(window.location.origin + "/insights");
     const scope = "user.info.basic,user.info.stats,video.list";
     const state = "tiktok_auth";
     
-    // IMPORTANT: Using official path from documentation
+    // Using official V2 authorize path with required trailing slash
     const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}&state=${state}`;
     
     setIsSyncingTt(true);
