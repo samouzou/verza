@@ -42,14 +42,12 @@ function InsightsContent() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CreatorAnalysisOutput | null>(null);
 
-  // Handle TikTok OAuth Callback
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
     if (code && state === 'tiktok_auth') {
         const redirectUri = "https://app.tryverza.com/insights";
-        // Clear query params
         router.replace('/insights');
         performTikTokSync(code, redirectUri);
     }
@@ -69,7 +67,7 @@ function InsightsContent() {
         await refreshAuthUser();
         toast({ 
           title: "Instagram Synced!", 
-          description: `Imported ${data.followers.toLocaleString()} followers. Content aggregated for AI analysis.` 
+          description: `Imported ${data.followers.toLocaleString()} followers and ${data.engagementRate}% engagement.` 
         });
       }
     } catch (e: any) {
@@ -117,7 +115,7 @@ function InsightsContent() {
         await refreshAuthUser();
         toast({ 
           title: "YouTube Synced!", 
-          description: `Verified ${data.followers.toLocaleString()} subscribers. Content imported.` 
+          description: `Verified ${data.followers.toLocaleString()} subscribers and ${data.engagementRate}% engagement.` 
         });
       }
     } catch (error: any) {

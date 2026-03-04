@@ -305,7 +305,7 @@ export const syncTikTokStats = onCall({
       {}, // V2 POST request for video list requires an empty JSON body if no filters
       {
         params: {
-          fields: "title,video_description,like_count,comment_count,share_count"
+          fields: "title,video_description,like_count,comment_count,share_count",
         },
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -317,15 +317,15 @@ export const syncTikTokStats = onCall({
     const videos = videoResponse.data?.data?.videos || [];
     let totalInteractions = 0;
     let concatenatedMetadata = "";
-    
+
     videos.forEach((v: any) => {
       // V2 fields are typically top-level, but adding fallback for robustness
       const likes = v.like_count ?? v.statistics?.like_count ?? 0;
       const comments = v.comment_count ?? v.statistics?.comment_count ?? 0;
       const shares = v.share_count ?? v.statistics?.share_count ?? 0;
-      
+
       totalInteractions += (likes + comments + shares);
-      
+
       if (v.video_description) {
         concatenatedMetadata += `${v.title || "Video"}: ${v.video_description} | `;
       }
@@ -334,7 +334,7 @@ export const syncTikTokStats = onCall({
     // 4. Calculate Average Engagement Rate
     const postCount = videos.length;
     let finalEngagementRate = 0;
-    
+
     if (followers > 0 && postCount > 0) {
       const avgInteractionsPerVideo = totalInteractions / postCount;
       finalEngagementRate = parseFloat(((avgInteractionsPerVideo / followers) * 100).toFixed(2));
@@ -362,7 +362,7 @@ export const syncTikTokStats = onCall({
   } catch (error: any) {
     const errorData = error.response?.data;
     const errorMsg = errorData?.error_description || errorData?.message || error.message;
-    logger.error("TikTok sync failed:", errorMsg, { fullErrorData: errorData });
+    logger.error("TikTok sync failed:", errorMsg, {fullErrorData: errorData});
     throw new HttpsError("internal", `TikTok Sync Error: ${errorMsg}`);
   }
 });
