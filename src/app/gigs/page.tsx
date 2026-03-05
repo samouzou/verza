@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +18,8 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
+import { useTour } from '@/hooks/use-tour';
+import { marketplaceTour } from '@/lib/tours';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -77,6 +79,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
 
 export default function GigsPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const { startTour } = useTour();
   const [openGigs, setOpenGigs] = useState<Gig[]>([]);
   const [myGigs, setMyGigs] = useState<Gig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -185,14 +188,21 @@ export default function GigsPage() {
       <PageHeader
         title="Marketplace"
         description="Discover paid opportunities or manage your active campaigns."
-        actions={canPostGig ? (
-          <Button asChild>
-            <Link href="/gigs/post">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Post a New Gig
-            </Link>
-          </Button>
-        ) : undefined}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => startTour(marketplaceTour)}>
+              <LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour
+            </Button>
+            {canPostGig && (
+              <Button asChild>
+                <Link href="/gigs/post">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Post a New Gig
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
