@@ -77,6 +77,26 @@ env:
     availability:
       - RUNTIME
 
+  - variable: STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
   - variable: STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
     secret: VERZA_STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID
     availability:
@@ -123,7 +143,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
-
-
-

@@ -19,21 +19,21 @@ type PlanId =
  * Helper function to map a Stripe Price ID to our internal plan details.
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
-  // Map price IDs from params to plan configurations. 
-  // We use the param names from defineString in params.ts.
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
     [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
     [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
-    // For agency plans, we check for specific new IDs. 
-    // We assume params are updated to reflect these new price IDs in the environment.
-    "agency_pilot_monthly_id": {planId: "agency_pilot_monthly", talentLimit: 9},
-    "agency_pilot_yearly_id": {planId: "agency_pilot_yearly", talentLimit: 9},
-    [params.STRIPE_AGENCY_PRO_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 24},
+    
+    [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
+    [params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_yearly", talentLimit: 9},
+    
+    [params.STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 24},
     [params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pro_yearly", talentLimit: 24},
-    "agency_network_monthly_id": {planId: "agency_network_monthly", talentLimit: 124},
-    "agency_network_yearly_id": {planId: "agency_network_yearly", talentLimit: 124},
-    "agency_enterprise_monthly_id": {planId: "agency_enterprise_monthly", talentLimit: 500},
-    "agency_enterprise_yearly_id": {planId: "agency_enterprise_yearly", talentLimit: 500},
+    
+    [params.STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_network_monthly", talentLimit: 124},
+    [params.STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_network_yearly", talentLimit: 124},
+    
+    [params.STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_enterprise_monthly", talentLimit: 500},
+    [params.STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_enterprise_yearly", talentLimit: 500},
   };
 
   return priceIdMap[priceId] || {planId: null, talentLimit: 0};
@@ -90,18 +90,29 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
       priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
       break;
     case "agency_pilot_monthly":
-      priceId = params.STRIPE_AGENCY_START_PRICE_ID.value(); // Reusing start param for pilot
+      priceId = params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value();
       break;
     case "agency_pilot_yearly":
-      priceId = params.STRIPE_AGENCY_START_YEARLY_PRICE_ID.value();
+      priceId = params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value();
       break;
     case "agency_pro_monthly":
-      priceId = params.STRIPE_AGENCY_PRO_PRICE_ID.value();
+      priceId = params.STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID.value();
       break;
     case "agency_pro_yearly":
       priceId = params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value();
       break;
-    // Note: network and enterprise will need specific price IDs configured in the environment
+    case "agency_network_monthly":
+      priceId = params.STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID.value();
+      break;
+    case "agency_network_yearly":
+      priceId = params.STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID.value();
+      break;
+    case "agency_enterprise_monthly":
+      priceId = params.STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID.value();
+      break;
+    case "agency_enterprise_yearly":
+      priceId = params.STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID.value();
+      break;
     default:
       throw new HttpsError("invalid-argument", `Invalid or disallowed planId: ${planId}`);
     }
