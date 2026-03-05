@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, ChangeEvent } from 'react';
@@ -43,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { useTour } from '@/hooks/use-tour';
 import { sceneSpawnerTour } from '@/lib/tours';
+import { trackEvent } from '@/lib/analytics';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -190,6 +190,8 @@ export default function SceneSpawnerPage() {
         });
       }
       
+      trackEvent({ action: 'spawn_scene_start', category: 'ai_tool', label: mode });
+
       if (mode === 'image-to-image') {
         const generateImageCallable = httpsCallable(functions, 'generateImage');
         result = await generateImageCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
@@ -201,6 +203,8 @@ export default function SceneSpawnerPage() {
         data = result.data as { videoUrl: string, remainingCredits: number };
         setGeneratedMedia({ url: data.videoUrl, type: 'video' });
       }
+
+      trackEvent({ action: 'spawn_scene_success', category: 'ai_tool', label: mode });
 
       toast({ title: "Generation Complete!", description: `Your media is ready. You have ${data.remainingCredits} credits left.` });
       await refreshAuthUser();
@@ -227,6 +231,7 @@ export default function SceneSpawnerPage() {
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
+        trackEvent({ action: 'create_character', category: 'engagement', label: 'scene_spawner' });
         toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
         setNewCharacterName("");
         setNewCharacterDescription("");

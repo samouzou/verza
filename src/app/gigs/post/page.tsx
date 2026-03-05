@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -18,6 +17,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions, db, doc, getDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
+import { trackEvent } from '@/lib/analytics';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -105,6 +105,7 @@ export default function PostGigPage() {
     toast({ title: "Redirecting to Payment", description: "Please complete the payment to post your gig." });
     
     try {
+      trackEvent({ action: 'fund_gig_start', category: 'marketplace', label: title });
       const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
       const result = await createCheckout({
         title: title.trim(),

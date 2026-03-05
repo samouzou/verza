@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -37,6 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
+import { trackEvent } from '@/lib/analytics';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -191,6 +191,8 @@ export default function GigDetailPage() {
       
       await updateDoc(gigDocRef, gigUpdates);
 
+      trackEvent({ action: 'accept_gig', category: 'marketplace', label: gig.title });
+
       const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (agencySnap.exists()) {
         const agencyData = agencySnap.data();
@@ -249,6 +251,7 @@ export default function GigDetailPage() {
       } else {
         await addDoc(collection(db, 'submissions'), subData);
       }
+      trackEvent({ action: 'video_upload', category: 'marketplace', label: `slot_${slotIndex}` });
       toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Calculate your Verza Score to verify your work." });
     } catch (error: any) {
       console.error(error);
@@ -263,6 +266,7 @@ export default function GigDetailPage() {
     setIsRunningVerzaScore(submission.id);
     toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
+      trackEvent({ action: 'verza_score_start', category: 'ai_tool', label: gig.title });
       const result = await runVerzaScore({ videoUrl: submission.videoUrl });
       const subRef = doc(db, 'submissions', submission.id);
       
@@ -275,6 +279,7 @@ export default function GigDetailPage() {
       await updateDoc(subRef, updates);
 
       if (result.score >= 65) {
+        trackEvent({ action: 'verza_score_pass', category: 'ai_tool', label: gig.title, value: result.score });
         const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
         if (agencySnap.exists()) {
           const agencyData = agencySnap.data();
@@ -290,6 +295,7 @@ export default function GigDetailPage() {
         }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
+        trackEvent({ action: 'verza_score_fail', category: 'ai_tool', label: gig.title, value: result.score });
         toast({ title: "VERZA SCORE LOW", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
       }
     } catch (error: any) {
@@ -307,6 +313,7 @@ export default function GigDetailPage() {
         brandName: gig.brandName, creatorName: creator.displayName || 'The Creator', gigDescription: gig.description, rate: gig.ratePerCreator,
       });
       if (contractSfdt) {
+        trackEvent({ action: 'generate_ugc_agreement', category: 'ai_tool', label: gig.title });
         setContractGenData({ sfdt: contractSfdt, talent: creator });
         setIsContractDialogOpen(true);
       }
@@ -338,6 +345,7 @@ export default function GigDetailPage() {
         createdAt: serverTimestamp(),
       } as Omit<Notification, 'id'>);
 
+      trackEvent({ action: 'gig_payout', category: 'marketplace', label: gig.title, value: gig.ratePerCreator });
       toast({ title: "Payout Processing!", description: "The creator has been paid successfully." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });

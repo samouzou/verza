@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@syncfusion/ej2-react-documenteditor';
 import { registerLicense } from '@syncfusion/ej2-base';
 import { v4 as uuidv4 } from 'uuid';
+import { trackEvent } from "@/lib/analytics";
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -208,6 +208,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             dueDate: details.dueDate || new Date().toISOString().split('T')[0]
         }]);
       }
+
+      trackEvent({ action: 'analyze_contract', category: 'ai_tool', label: details.brand });
 
       toast({
         title: "AI Analysis Successful",
@@ -421,6 +423,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       
       await batch.commit();
       
+      trackEvent({ action: 'save_contract', category: 'engagement', label: ownerType });
+
       onOpenChange(false);
       await refreshAuthUser();
       toast({ title: "Contract Saved", description: `${contractDataForFirestore.brand} contract added successfully.` });
