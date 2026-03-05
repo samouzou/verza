@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -361,5 +360,3 @@ del.diff-del {
     background: #e5e7eb;
     color: #171616;
 }
-
-    
