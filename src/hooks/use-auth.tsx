@@ -45,7 +45,7 @@ export interface UserProfile {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_pilot_monthly' | 'agency_pilot_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_network_monthly' | 'agency_network_yearly' | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
   talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;

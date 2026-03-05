@@ -9,31 +9,31 @@ import * as params from "../config/params";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
-"individual_monthly" | "individual_yearly" | "agency_start_monthly" | "agency_start_yearly"
-| "agency_pro_monthly" | "agency_pro_yearly";
+  | 'individual_monthly' | 'individual_yearly'
+  | 'agency_pilot_monthly' | 'agency_pilot_yearly'
+  | 'agency_pro_monthly' | 'agency_pro_yearly'
+  | 'agency_network_monthly' | 'agency_network_yearly'
+  | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
- *
- * This function takes a Stripe Price ID and returns an object containing
- * the corresponding internal plan ID and the associated talent limit.
- *
- * If the provided `priceId` does not match any known plan, it returns an
- * object with `planId` as `null` and `talentLimit` as `0`.
- *
- * @param {string} priceId The Stripe Price ID received from a Stripe event or API call.
- * @return {{planId: (PlanId | null), talentLimit: number}} An object with 'planId'
- * (the internal identifier, or `null` if not found)
- * and 'talentLimit' (the number of talents allowed for that plan).
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
+  // Map price IDs from params to plan configurations. 
+  // We use the param names from defineString in params.ts.
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
     [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
     [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
-    [params.STRIPE_AGENCY_START_PRICE_ID.value() || ""]: {planId: "agency_start_monthly", talentLimit: 10},
-    [params.STRIPE_AGENCY_START_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_start_yearly", talentLimit: 10},
-    [params.STRIPE_AGENCY_PRO_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 25},
-    [params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pro_yearly", talentLimit: 25},
+    // For agency plans, we check for specific new IDs. 
+    // We assume params are updated to reflect these new price IDs in the environment.
+    "agency_pilot_monthly_id": {planId: "agency_pilot_monthly", talentLimit: 9},
+    "agency_pilot_yearly_id": {planId: "agency_pilot_yearly", talentLimit: 9},
+    [params.STRIPE_AGENCY_PRO_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 24},
+    [params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pro_yearly", talentLimit: 24},
+    "agency_network_monthly_id": {planId: "agency_network_monthly", talentLimit: 124},
+    "agency_network_yearly_id": {planId: "agency_network_yearly", talentLimit: 124},
+    "agency_enterprise_monthly_id": {planId: "agency_enterprise_monthly", talentLimit: 500},
+    "agency_enterprise_yearly_id": {planId: "agency_enterprise_yearly", talentLimit: 500},
   };
 
   return priceIdMap[priceId] || {planId: null, talentLimit: 0};
@@ -55,7 +55,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
-  const planId = request.data?.planId;
+  const planId = request.data?.planId as PlanId;
   logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
 
@@ -89,10 +89,10 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     case "individual_yearly":
       priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
       break;
-    case "agency_start_monthly":
-      priceId = params.STRIPE_AGENCY_START_PRICE_ID.value();
+    case "agency_pilot_monthly":
+      priceId = params.STRIPE_AGENCY_START_PRICE_ID.value(); // Reusing start param for pilot
       break;
-    case "agency_start_yearly":
+    case "agency_pilot_yearly":
       priceId = params.STRIPE_AGENCY_START_YEARLY_PRICE_ID.value();
       break;
     case "agency_pro_monthly":
@@ -101,6 +101,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     case "agency_pro_yearly":
       priceId = params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value();
       break;
+    // Note: network and enterprise will need specific price IDs configured in the environment
     default:
       throw new HttpsError("invalid-argument", `Invalid or disallowed planId: ${planId}`);
     }
@@ -182,7 +183,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
     return {url: session.url};
   } catch (error) {
     logger.error("Error creating customer portal session:", error);
-    throw new HttpsError("internal", "Failed to create customer portal session");
+    throw new Error("Failed to create customer portal session");
   }
 });
 
