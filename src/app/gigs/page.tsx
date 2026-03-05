@@ -28,7 +28,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isCompleted = gig.status === 'completed';
 
   return (
-    <Card className={`flex flex-col h-full hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''}`}>
+    <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''}`}>
       <CardHeader>
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
@@ -44,7 +44,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-2">{gig.description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{gig.description}</p>
         <div className="flex flex-wrap gap-2">
           {gig.platforms.map(platform => (
             <Badge key={platform} variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
@@ -53,7 +53,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           ))}
         </div>
         {showRole && (
-          <div className="flex items-center gap-2 pt-2 border-t">
+          <div className="flex items-center gap-2 pt-2 border-t mt-auto">
             {isAccepted && (
               <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-1">
                 <User className="h-3 w-3" /> Creator
