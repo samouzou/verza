@@ -92,10 +92,20 @@ export const payoutCreatorForGig = onCall(async (request) => {
       },
     });
 
-    // Update the gig document to mark the creator as paid
-    await gigDocRef.update({
-      paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
-    });
+    // Calculate new paid list
+    const newPaidCreatorIds = [...(gigData.paidCreatorIds || []), creatorId];
+    const isGigFullyPaid = newPaidCreatorIds.length === gigData.creatorsNeeded;
+
+    // Update the gig document to mark the creator as paid and potentially complete the gig
+    const gigUpdates: Partial<Gig> = {
+      paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId) as any,
+    };
+
+    if (isGigFullyPaid) {
+      gigUpdates.status = "completed";
+    }
+
+    await gigDocRef.update(gigUpdates);
 
     // Notify Creator
     await db.collection("notifications").add({
@@ -108,8 +118,25 @@ export const payoutCreatorForGig = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     } as Omit<Notification, "id">);
 
+    // Notify Brand if the project is now complete
+    if (isGigFullyPaid) {
+      const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+      if (agencySnap.exists) {
+        const agencyData = agencySnap.data();
+        await db.collection("notifications").add({
+          userId: agencyData?.ownerId,
+          title: "Project Completed!",
+          message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
+          type: "system",
+          read: false,
+          link: `/gigs/${gig.id}`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        } as Omit<Notification, "id">);
+      }
+    }
+
     logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
-      ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.`);
+      ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.${isGigFullyPaid ? " Gig marked as completed." : ""}`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
     logger.error(`Error processing payout for gig ${gigId} to creator ${creatorId}:`, error);

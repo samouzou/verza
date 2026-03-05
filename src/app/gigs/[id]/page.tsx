@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -406,6 +407,7 @@ export default function GigDetailPage() {
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
   const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
+  const isCompleted = gig.status === 'completed';
 
   return (
     <>
@@ -415,6 +417,19 @@ export default function GigDetailPage() {
           description={`Posted by ${gig.brandName}`}
           actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
         />
+
+        {isCompleted && (
+          <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300">
+            <PartyPopper className="h-5 w-5" />
+            <AlertTitle className="font-bold">Campaign Completed!</AlertTitle>
+            <AlertDescription>
+              {canManageGig 
+                ? `All ${gig.creatorsNeeded} spots have been filled and creators have been paid. This campaign is officially finished.`
+                : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8">
               <Card>
@@ -429,8 +444,12 @@ export default function GigDetailPage() {
               {hasAccepted && !canManageGig && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> Submit Your Work</CardTitle>
-                    <CardDescription>Upload {gig.videosPerCreator} video{gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> {isCompleted ? 'Your Submissions' : 'Submit Your Work'}</CardTitle>
+                    <CardDescription>
+                      {isCompleted 
+                        ? 'Review the work you submitted for this completed gig.'
+                        : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
                     {Array.from({ length: gig.videosPerCreator }).map((_, i) => {
@@ -446,7 +465,7 @@ export default function GigDetailPage() {
                               Video Slot {i + 1}
                             </h4>
                             {submission && (
-                              <Badge variant={submission.status === 'submitted' ? 'default' : 'secondary'} className={submission.status === 'submitted' ? 'bg-green-500' : ''}>
+                              <Badge variant={submission.status === 'submitted' || submission.status === 'approved' ? 'default' : 'secondary'} className={submission.status === 'submitted' || submission.status === 'approved' ? 'bg-green-500' : ''}>
                                 {submission.status.replace(/_/g, ' ')}
                               </Badge>
                             )}
@@ -476,19 +495,21 @@ export default function GigDetailPage() {
                                       <p className="text-sm italic text-muted-foreground">"{submission.verzaFeedback}"</p>
                                     </div>
                                   )}
-                                  <Button className="w-full" onClick={() => handleRunVerzaScore(submission)} disabled={!!isRunningVerzaScore}>
-                                    {scoreRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
-                                    {submission.status === 'rejected' ? 'Retry Verza Score' : 'Calculate Verza Score'}
-                                  </Button>
+                                  {!isCompleted && (
+                                    <Button className="w-full" onClick={() => handleRunVerzaScore(submission)} disabled={!!isRunningVerzaScore}>
+                                      {scoreRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
+                                      {submission.status === 'rejected' ? 'Retry Verza Score' : 'Calculate Verza Score'}
+                                    </Button>
+                                  )}
                                 </div>
                               ) : (
                                 <div className="p-4 border rounded-lg bg-green-500/10 text-green-700 flex items-center gap-3">
                                   <CheckCircle className="h-5 w-5"/>
-                                  <p className="text-sm font-medium">Verified & Submitted! Verza Score: {submission.verzaScore}%</p>
+                                  <p className="text-sm font-medium">Verified & {submission.status === 'approved' ? 'Approved' : 'Submitted'}! Verza Score: {submission.verzaScore}%</p>
                                 </div>
                               )}
                               
-                              {submission.status !== 'approved' && (
+                              {!isCompleted && submission.status !== 'approved' && (
                                 <div className="pt-2 flex justify-center">
                                   <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
                                     <Edit className="h-3 w-3"/> Replace Video
@@ -498,18 +519,24 @@ export default function GigDetailPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
-                              <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading}/>
-                              <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
-                                <div className="p-4 bg-muted rounded-full">
-                                  {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary"/> : <UploadCloud className="h-8 w-8 text-primary"/>}
-                                </div>
-                                <div className="text-center">
-                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
-                                  <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
-                                </div>
-                              </label>
-                            </div>
+                            !isCompleted ? (
+                              <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
+                                <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading}/>
+                                <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
+                                  <div className="p-4 bg-muted rounded-full">
+                                    {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary"/> : <UploadCloud className="h-8 w-8 text-primary"/>}
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
+                                    <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
+                                  </div>
+                                </label>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background">
+                                <p className="text-muted-foreground text-sm italic">Slot empty. This campaign is completed.</p>
+                              </div>
+                            )
                           )}
                         </div>
                       );
@@ -521,8 +548,12 @@ export default function GigDetailPage() {
               {canManageGig && (
                    <Card>
                       <CardHeader>
-                          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Creator Roster & Submissions</CardTitle>
-                          <CardDescription>Manage accepted creators and review their {gig.videosPerCreator} requested video{gig.videosPerCreator > 1 ? 's' : ''}.</CardDescription>
+                          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
+                          <CardDescription>
+                            {isCompleted 
+                              ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                              : `Manage accepted creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
+                          </CardDescription>
                       </CardHeader>
                       <CardContent>
                           {acceptedCreators.length > 0 ? (
@@ -549,9 +580,11 @@ export default function GigDetailPage() {
                                               </Link>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
-                                              <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
-                                                {isGenerating === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4 mr-1"/>} Agreement
-                                              </Button>
+                                              {!isCompleted && (
+                                                <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
+                                                  {isGenerating === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4 mr-1"/>} Agreement
+                                                </Button>
+                                              )}
                                               {isPaid ? (
                                                 <Badge variant="default" className="bg-green-500">Paid</Badge>
                                               ) : (
@@ -616,10 +649,12 @@ export default function GigDetailPage() {
                   <CardContent className="space-y-4">
                       <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status.replace(/_/g, ' ')}</Badge></div>
+                      {!isCompleted && (
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
+                      )}
+                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{gig.status.replace(/_/g, ' ')}</Badge></div>
                       
-                      {user && !canManageGig && (
+                      {user && !canManageGig && !isCompleted && (
                         hasAccepted ? (
                           <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
                         ) : spotsLeft > 0 && gig.status === 'open' ? (
@@ -662,11 +697,13 @@ export default function GigDetailPage() {
                               Complete Funding
                             </Button>
                           )}
-                          <Button asChild className="w-full" variant="outline">
-                            <Link href={`/gigs/${gig.id}/edit`}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Gig
-                            </Link>
-                          </Button>
+                          {!isCompleted && (
+                            <Button asChild className="w-full" variant="outline">
+                              <Link href={`/gigs/${gig.id}/edit`}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                              </Link>
+                            </Button>
+                          )}
                           {canDeleteGig && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -696,10 +733,12 @@ export default function GigDetailPage() {
                   </CardContent>
               </Card>
 
-              <MarketplaceCoPilot 
-                context={canManageGig ? 'details_brand' : (hasAccepted ? 'details_creator' : 'browse')} 
-                className="hidden lg:block"
-              />
+              {!isCompleted && (
+                <MarketplaceCoPilot 
+                  context={canManageGig ? 'details_brand' : (hasAccepted ? 'details_creator' : 'browse')} 
+                  className="hidden lg:block"
+                />
+              )}
           </div>
         </div>
       </div>
