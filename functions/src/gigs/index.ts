@@ -129,14 +129,15 @@ export const payoutCreatorForGig = onCall(async (request) => {
           message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
           type: "system",
           read: false,
-          link: `/gigs/${gig.id}`,
+          link: `/gigs/${gigId}`,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         } as Omit<Notification, "id">);
       }
     }
 
     logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
-      ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.${isGigFullyPaid ? " Gig marked as completed." : ""}`);
+      ${creatorId} for gig ${gigId}. Platform fee: $${platformFeeInCents / 100}.${isGigFullyPaid ?
+  " Gig marked as completed." : ""}`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
     logger.error(`Error processing payout for gig ${gigId} to creator ${creatorId}:`, error);
