@@ -52,10 +52,10 @@ export const marketplaceTour: Tour = {
   id: 'marketplace-tour',
   steps: [
     {
-      selector: '[data-sidebar="sidebar"]', // Target filters generally if no ID
+      selector: '#marketplace-filters',
       title: 'Filter Opportunities',
       content: 'Filter by platform, niche, or minimum rate to find the gigs that match your style and value.',
-      side: 'right',
+      side: 'bottom',
     },
     {
       selector: '.lg\\:col-span-1 .sticky', // Target the Co-Pilot
