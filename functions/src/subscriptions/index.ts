@@ -9,29 +9,37 @@ import * as params from "../config/params";
 
 // Define PlanId type matching the frontend for consistency
 type PlanId =
-  | 'individual_monthly' | 'individual_yearly'
-  | 'agency_pilot_monthly' | 'agency_pilot_yearly'
-  | 'agency_pro_monthly' | 'agency_pro_yearly'
-  | 'agency_network_monthly' | 'agency_network_yearly'
-  | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
+  | "individual_monthly" | "individual_yearly"
+  | "agency_pilot_monthly" | "agency_pilot_yearly"
+  | "agency_pro_monthly" | "agency_pro_yearly"
+  | "agency_network_monthly" | "agency_network_yearly"
+  | "agency_enterprise_monthly" | "agency_enterprise_yearly";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
+ * This function takes a Stripe Price ID and returns an object containing
+ * the corresponding internal plan ID and the associated talent limit.
+ * If the provided `priceId` does not match any known plan, it returns an
+ * object with `planId` as `null` and `talentLimit` as `0`.
+ * @param {string} priceId The Stripe Price ID received from a Stripe event or API call.
+ * @return {{planId: (PlanId | null), talentLimit: number}} An object with 'planId'
+ * (the internal identifier, or `null` if not found)
+ * and 'talentLimit' (the number of talents allowed for that plan).
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
     [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
     [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
-    
+
     [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
     [params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_yearly", talentLimit: 9},
-    
+
     [params.STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pro_monthly", talentLimit: 24},
     [params.STRIPE_AGENCY_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pro_yearly", talentLimit: 24},
-    
+
     [params.STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_network_monthly", talentLimit: 124},
     [params.STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_network_yearly", talentLimit: 124},
-    
+
     [params.STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_enterprise_monthly", talentLimit: 500},
     [params.STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_enterprise_yearly", talentLimit: 500},
   };

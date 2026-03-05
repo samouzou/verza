@@ -57,12 +57,12 @@ env:
     availability:
       - RUNTIME
       
-  - variable: STRIPE_AGENCY_START_PRICE_ID
+  - variable: STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_START_PRICE_ID
     availability:
       - RUNTIME
       
-  - variable: STRIPE_AGENCY_START_YEARLY_PRICE_ID
+  - variable: STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_START_YEARLY_PRICE_ID
     availability:
       - RUNTIME

@@ -1,3 +1,4 @@
+
 import {defineString, defineSecret} from "firebase-functions/params";
 
 // --- Secrets (backed by Secret Manager) ---
@@ -48,8 +49,8 @@ export const TIKTOK_CLIENT_KEY = defineString("TIKTOK_CLIENT_KEY", {
 export const STRIPE_INDIVIDUAL_PRO_PRICE_ID = defineString("STRIPE_INDIVIDUAL_PRO_PRICE_ID");
 export const STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID = defineString("STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID");
 
-export const STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID = defineString("STRIPE_AGENCY_START_PRICE_ID");
-export const STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID = defineString("STRIPE_AGENCY_START_YEARLY_PRICE_ID");
+export const STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID = defineString("STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID");
+export const STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID = defineString("STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID");
 
 export const STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID = defineString("STRIPE_AGENCY_PRO_PRICE_ID");
 export const STRIPE_AGENCY_PRO_YEARLY_PRICE_ID = defineString("STRIPE_AGENCY_PRO_YEARLY_PRICE_ID");
