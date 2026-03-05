@@ -261,6 +261,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.hasCompletedOnboarding = false;
       needsUpdate = true;
     }
+    if (existingData.isAgencyOwner === undefined) {
+      updates.isAgencyOwner = false;
+      needsUpdate = true;
+    }
     if (existingData.credits === undefined) {
       updates.credits = NEW_USER_BONUS;
       needsUpdate = true;
