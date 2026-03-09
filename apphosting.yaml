@@ -13,12 +13,12 @@ runConfig:
 env:
 
   - variable: GEMINI_API_KEY
-    secret: VERZA_GEMINI_API_KEY
+    secret: GEMINI_API_KEY
     availability:
       - RUNTIME
 
   - variable: VERTEX_API_KEY
-    secret: VERZA_VERTEX_API_KEY
+    secret: VERTEX_API_KEY
     availability:
       - RUNTIME
 
@@ -45,7 +45,7 @@ env:
     secret: VERZA_STRIPE_SECRET_KEY
   
   - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
-    secret: VERZA_STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
+    secret: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
 
   - variable: STRIPE_INDIVIDUAL_PRO_PRICE_ID
     secret: VERZA_STRIPE_INDIVIDUAL_PRO_PRICE_ID
