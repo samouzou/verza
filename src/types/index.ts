@@ -188,16 +188,26 @@ export type SubscriptionStatus =
   | 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
   | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
 
+export type TaxClassification = 
+  | 'individual' 
+  | 'c_corp' 
+  | 's_corp' 
+  | 'partnership' 
+  | 'trust_estate' 
+  | 'llc';
+
 // For Firestore user document
 export interface UserProfileFirestoreData {
   uid: string;
   email: string | null;
   displayName: string | null;
+  legalName?: string | null;
   avatarUrl: string | null;
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
+  taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;
   role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
