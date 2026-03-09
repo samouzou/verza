@@ -9,10 +9,18 @@ import * as params from "../config/params";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
+ * This function takes a Stripe Price ID and returns an object containing
+ * the corresponding internal plan ID and the associated talent limit.
+ * If the provided `priceId` does not match any known plan, it returns an
+ * object with `planId` as `null` and `talentLimit` as `0`.
+ * @param {string} priceId The Stripe Price ID received from a Stripe event or API call.
+ * @return {{planId: (SubscriptionPlanId | null), talentLimit: number}} An object with 'planId'
+ * (the internal identifier, or `null` if not found)
+ * and 'talentLimit' (the number of talents allowed for that plan).
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: SubscriptionPlanId; talentLimit: number } } = {
-    [params.STRIPE_INDIVIDUAL_PRO_MONTHLY_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
+    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
     [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
 
     [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
@@ -33,12 +41,14 @@ function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanI
 
 /**
  * Helper to derive talent limit from SubscriptionPlanId if Price ID lookup fails.
+ * @param {string} planId The internal plan identifier string.
+ * @return {number} The number of talents allowed for that plan.
  */
 function getTalentLimitFromPlanId(planId: string): number {
-  if (planId.includes('enterprise')) return 500;
-  if (planId.includes('network')) return 124;
-  if (planId.includes('pro')) return 24;
-  if (planId.includes('pilot')) return 9;
+  if (planId.includes("enterprise")) return 500;
+  if (planId.includes("network")) return 124;
+  if (planId.includes("pro")) return 24;
+  if (planId.includes("pilot")) return 9;
   return 0;
 }
 
@@ -87,7 +97,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     let priceId;
     switch (planId) {
     case "individual_monthly":
-      priceId = params.STRIPE_INDIVIDUAL_PRO_MONTHLY_PRICE_ID.value();
+      priceId = params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value();
       break;
     case "individual_yearly":
       priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
@@ -262,7 +272,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     } else if ("customer" in event.data.object && typeof (event.data.object as any).customer === "string") {
       const customer = await stripe.customers.retrieve((event.data.object as any).customer);
       if (!customer.deleted && "metadata" in customer) {
-        firebaseUID = customer.metadata.firebaseUID;
+        firebaseUID = (customer.metadata as any).firebaseUID;
       }
     }
     if (!firebaseUID) {
@@ -299,10 +309,11 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         const planIdFromMeta = session.metadata?.planId as SubscriptionPlanId;
         const priceId = subscription.items.data[0]?.price.id;
         const {talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
-        
+
         // Fallback to deriving from planId if price mapping failed
         const talentLimit = limitFromPrice || getTalentLimitFromPlanId(planIdFromMeta);
-        const interval = subscription.items.data[0]?.price?.recurring?.interval || (planIdFromMeta?.endsWith('yearly') ? 'year' : 'month');
+        const interval = subscription.items.data[0]?.price?.recurring?.interval ||
+        (planIdFromMeta?.endsWith("yearly") ? "year" : "month");
 
         await userDocRef.update({
           stripeSubscriptionId: subscription.id,
@@ -340,10 +351,10 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
       const priceId = subscription.items.data[0]?.price.id;
       const {planId: planFromPrice, talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
-      
+
       const planId = planFromPrice || subscription.metadata?.planId;
       const talentLimit = limitFromPrice || (planId ? getTalentLimitFromPlanId(planId) : 0);
-      const interval = subscription.items.data[0]?.price?.recurring?.interval || (planId?.endsWith('yearly') ? 'year' : 'month');
+      const interval = subscription.items.data[0]?.price?.recurring?.interval || (planId?.endsWith("yearly") ? "year" : "month");
 
       const updates: Partial<UserProfileFirestoreData> = {
         stripeSubscriptionId: subscription.id,
