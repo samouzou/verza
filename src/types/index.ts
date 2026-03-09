@@ -213,7 +213,7 @@ export interface UserProfileFirestoreData {
   subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
   subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_pilot_monthly' | 'agency_pilot_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_network_monthly' | 'agency_network_yearly' | 'agency_enterprise_monthly' | 'agency_enterprise_yearly' | null;
   talentLimit?: number;
-  subscriptionInterval?: 'day' | 'week' | 'month' | 'year' | null;
+  subscriptionInterval?: 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;
   subscriptionEndsAt?: ClientTimestamp | null;
   trialExtensionUsed?: boolean;
