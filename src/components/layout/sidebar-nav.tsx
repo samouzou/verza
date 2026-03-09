@@ -149,8 +149,13 @@ export function SidebarNav() {
        return <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0.5 group-data-[collapsible=icon]:hidden">Free</Badge>;
     }
     
-    const planName = activeUser.subscriptionPlanId?.includes('agency_pro') ? 'Agency Pro' : 
-                     activeUser.subscriptionPlanId?.includes('agency_start') ? 'Agency Start' : 'Pro';
+    // Determine Friendly Name for the badge
+    let planName = 'Pro';
+    const planId = activeUser.subscriptionPlanId || '';
+    if (planId.includes('pilot')) planName = 'Pilot';
+    else if (planId.includes('agency_pro')) planName = 'Agency Pro';
+    else if (planId.includes('network')) planName = 'Network';
+    else if (planId.includes('enterprise')) planName = 'Enterprise';
 
     switch (activeUser.subscriptionStatus) {
       case 'active':
