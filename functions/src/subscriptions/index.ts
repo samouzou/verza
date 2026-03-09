@@ -145,8 +145,11 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
     };
 
     // Add trial period if user is not currently subscribed and has no subscription history
+    // EXCEPTION: Agency plans do not get a free trial to ensure talent limits are activated immediately.
     const hasActiveSubscription = userData.stripeSubscriptionId && userData.subscriptionStatus === "active";
-    if (!hasActiveSubscription) {
+    const isAgencyPlan = planId.startsWith('agency_');
+    
+    if (!hasActiveSubscription && !isAgencyPlan) {
       subscriptionData.trial_period_days = 7;
     }
 
