@@ -176,6 +176,18 @@ export interface AtRiskPayment extends Pick<Contract, 'id' | 'brand' | 'amount' 
   riskReason: string;
 }
 
+export type SubscriptionPlanId =
+  | 'individual_free'
+  | 'individual_monthly' | 'individual_yearly'
+  | 'agency_pilot_monthly' | 'agency_pilot_yearly'
+  | 'agency_pro_monthly' | 'agency_pro_yearly'
+  | 'agency_network_monthly' | 'agency_network_yearly'
+  | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
+
+export type SubscriptionStatus =
+  | 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
+  | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
+
 // For Firestore user document
 export interface UserProfileFirestoreData {
   uid: string;
@@ -210,8 +222,8 @@ export interface UserProfileFirestoreData {
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
-  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_pilot_monthly' | 'agency_pilot_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_network_monthly' | 'agency_network_yearly' | 'agency_enterprise_monthly' | 'agency_enterprise_yearly' | null;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlanId?: SubscriptionPlanId | null;
   talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null;
   trialEndsAt?: ClientTimestamp | null;

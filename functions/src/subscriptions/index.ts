@@ -4,22 +4,14 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
-import type {UserProfileFirestoreData} from "./../types";
+import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
-
-// Define PlanId type matching the frontend for consistency
-type PlanId =
-  | "individual_monthly" | "individual_yearly"
-  | "agency_pilot_monthly" | "agency_pilot_yearly"
-  | "agency_pro_monthly" | "agency_pro_yearly"
-  | "agency_network_monthly" | "agency_network_yearly"
-  | "agency_enterprise_monthly" | "agency_enterprise_yearly";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
  */
-function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; talentLimit: number } {
-  const priceIdMap: { [key: string]: { planId: PlanId; talentLimit: number } } = {
+function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanId | null; talentLimit: number } {
+  const priceIdMap: { [key: string]: { planId: SubscriptionPlanId; talentLimit: number } } = {
     [params.STRIPE_INDIVIDUAL_PRO_MONTHLY_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
     [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
 
@@ -40,7 +32,7 @@ function getPlanDetailsFromPriceId(priceId: string): { planId: PlanId | null; ta
 }
 
 /**
- * Helper to derive talent limit from PlanId if Price ID lookup fails.
+ * Helper to derive talent limit from SubscriptionPlanId if Price ID lookup fails.
  */
 function getTalentLimitFromPlanId(planId: string): number {
   if (planId.includes('enterprise')) return 500;
@@ -66,7 +58,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   }
 
   const userId = request.auth.uid;
-  const planId = request.data?.planId as PlanId;
+  const planId = request.data?.planId as SubscriptionPlanId;
   logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
 
@@ -157,7 +149,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
         quantity: 1,
       }],
       success_url: `${params.APP_URL.value()}/dashboard?subscription_success=true`,
-      cancel_url: `${params.APP_URL.value()}/settings`, // Changed cancel URL to settings page
+      cancel_url: `${params.APP_URL.value()}/settings`,
       subscription_data: subscriptionData,
       metadata: { // Top-level metadata for session itself
         firebaseUID: userId,
@@ -265,10 +257,10 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     // Get Firebase UID from event metadata
     let firebaseUID: string | undefined;
     // Use type narrowing to access metadata or customer property safely
-    if ("metadata" in event.data.object && event.data.object.metadata?.firebaseUID) {
-      firebaseUID = event.data.object.metadata.firebaseUID;
-    } else if ("customer" in event.data.object && typeof event.data.object.customer === "string") {
-      const customer = await stripe.customers.retrieve(event.data.object.customer);
+    if ("metadata" in event.data.object && (event.data.object as any).metadata?.firebaseUID) {
+      firebaseUID = (event.data.object as any).metadata.firebaseUID;
+    } else if ("customer" in event.data.object && typeof (event.data.object as any).customer === "string") {
+      const customer = await stripe.customers.retrieve((event.data.object as any).customer);
       if (!customer.deleted && "metadata" in customer) {
         firebaseUID = customer.metadata.firebaseUID;
       }
@@ -304,7 +296,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
         }
 
-        const planIdFromMeta = session.metadata?.planId as PlanId;
+        const planIdFromMeta = session.metadata?.planId as SubscriptionPlanId;
         const priceId = subscription.items.data[0]?.price.id;
         const {talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
         
@@ -355,7 +347,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
       const updates: Partial<UserProfileFirestoreData> = {
         stripeSubscriptionId: subscription.id,
-        subscriptionStatus: subscription.status,
+        subscriptionStatus: subscription.status as any,
         subscriptionInterval: interval as any,
         subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
         trialEndsAt: firestoreTrialEndsAt as any,
@@ -363,7 +355,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       };
 
       if (planId) {
-        updates.subscriptionPlanId = planId as PlanId;
+        updates.subscriptionPlanId = planId as SubscriptionPlanId;
       }
 
       await userDocRef.update(updates);
