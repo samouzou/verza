@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -61,6 +62,9 @@ export default function GigDetailPage() {
 
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
+
+  // Acceptance State
+  const [hasAgreedToLegal, setHasAgreedToLegal] = useState(false);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
@@ -147,6 +151,11 @@ export default function GigDetailPage() {
 
   const handleAcceptGig = async () => {
     if (!user || !gig) return;
+
+    if (!hasAgreedToLegal) {
+      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before accepting the gig.", variant: "destructive" });
+      return;
+    }
 
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
@@ -409,6 +418,8 @@ export default function GigDetailPage() {
   const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
   const isCompleted = gig.status === 'completed';
 
+  const usageRightsLabel = gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year');
+
   return (
     <>
       <div className="flex flex-col gap-8 pb-20">
@@ -439,6 +450,30 @@ export default function GigDetailPage() {
                       <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
                       <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
                   </CardContent>
+              </Card>
+
+              <Card className="border-primary/10 bg-muted/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> Legal Summary</CardTitle>
+                  <CardDescription>Standard terms for this UGC agreement.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Usage Rights</p>
+                    <p className="text-sm font-medium">{usageRightsLabel}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Paid Whitelisting</p>
+                    <p className="text-sm font-medium">{gig.allowWhitelisting ? 'Allowed' : 'Not Allowed'}</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deliverables</p>
+                    <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
+                    By clicking "Accept Gig", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                  </div>
+                </CardContent>
               </Card>
 
               {hasAccepted && !canManageGig && (
@@ -658,31 +693,45 @@ export default function GigDetailPage() {
                         hasAccepted ? (
                           <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
                         ) : spotsLeft > 0 && gig.status === 'open' ? (
-                          <div className="space-y-3">
-                            {!isStripeSetup && (
-                              <Alert variant="destructive" className="py-2 px-3 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                                <AlertDescription>
-                                  Bank account connection required to receive payouts.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            {!user.showInMarketplace && (
-                              <Alert variant="destructive" className="py-2 px-3 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                                <AlertDescription>
-                                  Public profile required to accept gigs.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            <Button 
-                              className="w-full" 
-                              onClick={handleAcceptGig} 
-                              disabled={isAccepting}
-                            >
-                              {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                              Accept Gig
-                            </Button>
+                          <div className="space-y-4 border-t pt-4">
+                            <div className="flex items-start space-x-2">
+                              <Checkbox 
+                                id="legal-agreement" 
+                                checked={hasAgreedToLegal} 
+                                onCheckedChange={(val) => setHasAgreedToLegal(val as boolean)}
+                                className="mt-1"
+                              />
+                              <Label htmlFor="legal-agreement" className="text-xs leading-relaxed text-muted-foreground cursor-pointer">
+                                I agree to the <span className="text-primary hover:underline">Verza Standard Creator Agreement</span> and the usage terms defined in this brief.
+                              </Label>
+                            </div>
+
+                            <div className="space-y-3">
+                              {!isStripeSetup && (
+                                <Alert variant="destructive" className="py-2 px-3 text-xs">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <AlertDescription>
+                                    Bank account connection required to receive payouts.
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                              {!user.showInMarketplace && (
+                                <Alert variant="destructive" className="py-2 px-3 text-xs">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <AlertDescription>
+                                    Public profile required to accept gigs.
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                              <Button 
+                                className="w-full" 
+                                onClick={handleAcceptGig} 
+                                disabled={isAccepting || !hasAgreedToLegal}
+                              >
+                                {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                                Accept Gig
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Gig Full'}</Button>

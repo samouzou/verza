@@ -189,13 +189,13 @@ export type SubscriptionStatus =
   | "trialing" | "active" | "past_due" | "canceled" | "incomplete"
   | "unpaid" | "paused" | "none" | "incomplete_expired";
 
-export type TaxClassification = 
-  | 'individual' 
-  | 'c_corp' 
-  | 's_corp' 
-  | 'partnership' 
-  | 'trust_estate' 
-  | 'llc';
+export type TaxClassification =
+  | "individual"
+  | "c_corp"
+  | "s_corp"
+  | "partnership"
+  | "trust_estate"
+  | "llc";
 
 // For Firestore user document
 export interface UserProfileFirestoreData {

@@ -468,6 +468,8 @@ export interface Gig {
   fundingPaymentIntentId?: string;
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
   createdAt: ClientTimestamp;
+  usageRights?: '30_days' | '1_year' | 'perpetuity';
+  allowWhitelisting?: boolean;
 }
 
 export interface CreatorMarketplaceProfile {

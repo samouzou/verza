@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +19,7 @@ import { functions, db, doc, getDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -33,6 +35,10 @@ export default function PostGigPage() {
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Legal Fields
+  const [usageRights, setUsageRights] = useState<'30_days' | '1_year' | 'perpetuity'>('1_year');
+  const [allowWhitelisting, setAllowWhitelisting] = useState(false);
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
@@ -114,6 +120,8 @@ export default function PostGigPage() {
         ratePerCreator: rateNum,
         creatorsNeeded: creatorsNum,
         videosPerCreator: videosNum,
+        usageRights,
+        allowWhitelisting,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -207,13 +215,13 @@ export default function PostGigPage() {
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3">
-          <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle>Gig Details</CardTitle>
-                <CardDescription>Fill out the details for your user-generated content (UGC) campaign.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <Card className="shadow-lg">
+              <CardHeader>
+                  <CardTitle>1. Project Details</CardTitle>
+                  <CardDescription>Describe your user-generated content (UGC) campaign.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
                 <div className="space-y-2">
                     <Label htmlFor="title">Gig Title</Label>
                     <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
@@ -252,22 +260,67 @@ export default function PostGigPage() {
                         <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
                     </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                {totalAmount > 0 && (
-                  <div className="p-4 border rounded-lg bg-muted text-center">
-                    <p className="text-sm text-muted-foreground">Total Project Funding</p>
-                    <p className="text-3xl font-bold">${totalAmount.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">({creatorsNeeded} creators x ${ratePerCreator})</p>
+            <Card className="shadow-lg border-primary/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 2. Usage Rights & Legal</CardTitle>
+                <CardDescription>Define how you plan to use the content created for this gig.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-3">
+                  <Label>Usage Rights Duration</Label>
+                  <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="30_days" id="30days" />
+                      <Label htmlFor="30days" className="font-normal">30 Days</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="1_year" id="1year" />
+                      <Label htmlFor="1year" className="font-normal">1 Year</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="perpetuity" id="perpetuity" />
+                      <Label htmlFor="perpetuity" className="font-normal">In Perpetuity</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="whitelisting">Paid Whitelisting Allowed?</Label>
+                    <p className="text-xs text-muted-foreground">Allows your brand to run ads directly from the creator's profile.</p>
                   </div>
-                )}
+                  <Checkbox 
+                    id="whitelisting" 
+                    checked={allowWhitelisting} 
+                    onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
+                  />
+                </div>
 
-                <Button type="submit" className="w-full" disabled={isSubmitting || totalAmount <= 0}>
-                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                  Fund & Post Gig
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
+                  <p className="text-sm text-muted-foreground">By posting this gig, you agree that Verza will generate a standard clickwrap agreement for creators based on these terms. All payments will be held in the campaign vault until verified submission approval.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              {totalAmount > 0 && (
+                <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
+                  <p className="text-sm text-muted-foreground font-medium">Total Project Funding Required</p>
+                  <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting || totalAmount <= 0}>
+                {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
+                Fund & Post Campaign
+              </Button>
+            </div>
+          </form>
         </div>
 
         <div className="lg:col-span-1">
