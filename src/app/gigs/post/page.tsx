@@ -294,11 +294,11 @@ export default function PostGigPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                         <Label htmlFor="rate">Rate per Creator ($)</Label>
-                        <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="150" required min="1" disabled={isSubmitting}/>
+                        <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" required min="1" disabled={isSubmitting}/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="creators">Creators Needed</Label>
-                        <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
+                        <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting}/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="videos">Videos per Creator</Label>
