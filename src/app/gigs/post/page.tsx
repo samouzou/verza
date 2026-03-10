@@ -21,6 +21,7 @@ import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot
 import { trackEvent } from '@/lib/analytics';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 

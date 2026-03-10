@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
