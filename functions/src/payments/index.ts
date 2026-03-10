@@ -678,25 +678,38 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const sendgridKey = params.SENDGRID_API_KEY.value();
             if (sendgridKey) {
               sgMail.setApiKey(sendgridKey);
+              
+              const emailLogoHeader = `
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="32" height="24" 
+                    style="vertical-align: middle; margin-right: 8px;">
+                  <span style="font-weight: bold; font-size: 24px; color: #6B37FF; 
+                    vertical-align: middle; font-family: sans-serif;">Verza</span>
+                </div>
+              `;
+
               const receiptHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto;
-                padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+                <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif;">
+                <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
+                  border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                  ${emailLogoHeader}
                   <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #6B37FF; margin: 0;">Gig Funding Receipt</h2>
+                    <h2 style="color: #6B37FF; margin: 0; font-size: 22px;">Gig Funding Receipt</h2>
                     <p style="color: #666; font-size: 14px;">Thank you for launching your campaign on Verza.</p>
                   </div>
                   <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                     <table style="width: 100%; border-collapse: collapse;">
                       <tr>
-                        <td style="padding: 8px 0; color: #666;">Gig Title:</td>
+                        <td style="padding: 8px 0; color: #666; font-size: 14px;">Gig Title:</td>
                         <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${gigData.title}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 8px 0; color: #666;">Brand:</td>
+                        <td style="padding: 8px 0; color: #666; font-size: 14px;">Brand:</td>
                         <td style="padding: 8px 0; text-align: right; color: #333;">${gigData.brandName}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 8px 0; color: #666;">Transaction ID:</td>
+                        <td style="padding: 8px 0; color: #666; font-size: 14px;">Transaction ID:</td>
                         <td style="padding: 8px 0; text-align: right; font-size: 11px; color: #999;">${paymentIntent.id}</td>
                       </tr>
                       <tr>
@@ -717,8 +730,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     </p>
                   </div>
                 </div>
+                </body></html>
               `;
-
               await sgMail.send({
                 to: ownerData.email,
                 from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},

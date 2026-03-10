@@ -206,32 +206,60 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
   const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
   const actionText = isExistingUser ? "View Invitation" : "Sign Up & Accept";
 
-  let html: string;
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="32" height="24" 
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #6B37FF; vertical-align: middle; font-family: sans-serif;">
+        Verza
+      </span>
+    </div>
+  `;
+
+  let bodyContent: string;
 
   if (type === "talent") {
-    html = `
-      <h2>You've been invited to join ${agencyName}'s Roster!</h2>
-      <p>Hello,</p>
-      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join their talent roster.
+    bodyContent = `
+      <h2 style="color: #333; font-size: 20px;">You've been invited to join ${agencyName}'s Roster!</h2>
+      <p style="color: #555; line-height: 1.6;">Hello,</p>
+      <p style="color: #555; line-height: 1.6;"><strong>${agencyName}</strong> is using Verza to manage their contracts 
+      and has invited you to join their talent roster.
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
-      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
-      <p>Thanks,<br/>The Verza Team</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
+      </div>
     `;
   } else { // Team member
-    html = `
-      <h2>You've been invited to join the ${agencyName} Team!</h2>
-      <p>Hello,</p>
-      <p>You have been invited to join the management team for <strong>${agencyName}</strong>
-      on Verza as an <strong>${role}</strong>.
+    bodyContent = `
+      <h2 style="color: #333; font-size: 20px;">You've been invited to join the ${agencyName} Team!</h2>
+      <p style="color: #555; line-height: 1.6;">Hello,</p>
+      <p style="color: #555; line-height: 1.6;">You have been invited to join the management team for 
+      <strong>${agencyName}</strong> on Verza as an <strong>${role}</strong>.
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
-      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
-      <p>Thanks,<br/>The Verza Team</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
+      </div>
     `;
   }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        ${bodyContent}
+        <p style="color: #555; line-height: 1.6;">Thanks,<br/>The Verza Team</p>
+      </div>
+    </body>
+    </html>
+  `;
 
   const msg = {
     to: inviteeEmail,
@@ -326,6 +354,16 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     return;
   }
 
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="32" height="24" 
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #6B37FF; vertical-align: middle; font-family: sans-serif;">
+        Verza
+      </span>
+    </div>
+  `;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -335,14 +373,11 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
       <title>${subject}</title>
     </head>
     <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
-      <div style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; 
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
         border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="48" height="48" style="margin-bottom: 10px;">
-          <div style="font-weight: bold; font-size: 24px; color: #6B37FF;">Verza</div>
-        </div>
+        ${emailLogoHeader}
         
-        <div style="padding: 10px 20px;">
+        <div style="padding: 10px 0;">
           ${content}
         </div>
 
