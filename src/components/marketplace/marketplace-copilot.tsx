@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy, Lock, UserCheck, Search } from "lucide-react";
+import { Sparkles, Lightbulb, Zap, ShieldCheck, Flame, Trophy, Lock, UserCheck, Search, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type CoPilotContext = 'browse' | 'post' | 'details_brand' | 'details_creator' | 'find_talent';
@@ -48,8 +48,8 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     },
     {
       icon: Zap,
-      title: "Instant Onboarding",
-      description: "Once you find a creator, Verza can generate a one-click UGC agreement to get the project started immediately.",
+      title: "Automated Onboarding",
+      description: "Verza handles the legal heavy lifting. A standard agreement is accepted instantly when a creator joins your gig.",
     }
   ],
   post: [
@@ -72,10 +72,10 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
   ],
   details_brand: [
     {
-      icon: Sparkles,
-      title: "One-Click Agreements",
-      description: "Use the AI generator to create a fair UGC agreement instantly. Don't let legal slow you down.",
-      badge: "EFFICIENCY"
+      icon: ShieldCheck,
+      title: "Zero-Friction Legal",
+      description: "Legal protection is built-in. Every creator who joins your gig is automatically bound by your defined usage terms.",
+      badge: "PROTECTION"
     },
     {
       icon: Zap,
