@@ -678,7 +678,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const sendgridKey = params.SENDGRID_API_KEY.value();
             if (sendgridKey) {
               sgMail.setApiKey(sendgridKey);
-              
+
               const emailLogoHeader = `
                 <div style="text-align: center; margin-bottom: 30px;">
                   <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
