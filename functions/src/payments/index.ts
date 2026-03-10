@@ -181,7 +181,7 @@ export const getStripeAccountBalance = onCall(async (request) => {
     };
   } catch (error) {
     logger.error(`Error retrieving Stripe balance for user ${userId}:`, error);
-    if (error instanceof https_1.HttpsError) {
+    if (error instanceof HttpsError) {
       throw error;
     }
     // Don't throw a generic internal error, which could crash client.
@@ -859,7 +859,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     videosPerCreator,
     campaignType,
     usageRights,
-    allowWhitelisting
+    allowWhitelisting,
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {

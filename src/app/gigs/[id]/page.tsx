@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,13 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
-import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { Progress } from '@/components/ui/progress';
@@ -36,10 +33,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -53,14 +60,10 @@ export default function GigDetailPage() {
   const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResumingFunding, setIsResumingFunding] = useState(false);
   
-  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
-  const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
-
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
 
@@ -316,25 +319,6 @@ export default function GigDetailPage() {
     }
   };
 
-  const handleGenerateAgreement = async (creator: UserProfile) => {
-    if (!gig) return;
-    setIsGenerating(creator.uid);
-    try {
-      const { contractSfdt } = await generateUgcContract({
-        brandName: gig.brandName, creatorName: creator.displayName || 'The Creator', gigDescription: gig.description, rate: gig.ratePerCreator,
-      });
-      if (contractSfdt) {
-        trackEvent({ action: 'generate_ugc_agreement', category: 'ai_tool', label: gig.title });
-        setContractGenData({ sfdt: contractSfdt, talent: creator });
-        setIsContractDialogOpen(true);
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsGenerating(null);
-    }
-  };
-
   const handlePayout = async (creator: UserProfile) => {
     if (!user || !gig) return;
     setIsPaying(creator.uid);
@@ -481,7 +465,7 @@ export default function GigDetailPage() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="max-w-[250px]">
                               <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
@@ -645,11 +629,6 @@ export default function GigDetailPage() {
                                               </Link>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
-                                              {!isCompleted && (
-                                                <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
-                                                  {isGenerating === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4 mr-1"/>} Agreement
-                                                </Button>
-                                              )}
                                               {isPaid ? (
                                                 <Badge variant="default" className="bg-green-500">Paid</Badge>
                                               ) : (
@@ -731,9 +710,54 @@ export default function GigDetailPage() {
                                 onCheckedChange={(val) => setHasAgreedToLegal(val as boolean)}
                                 className="mt-1"
                               />
-                              <Label htmlFor="legal-agreement" className="text-xs leading-relaxed text-muted-foreground cursor-pointer">
-                                I agree to the <span className="text-primary hover:underline">Verza Standard Creator Agreement</span> and the usage terms defined in this brief.
-                              </Label>
+                              <div className="text-xs leading-relaxed text-muted-foreground">
+                                <Label htmlFor="legal-agreement" className="cursor-pointer">
+                                  I agree to the
+                                </Label>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <button className="text-primary hover:underline font-medium ml-1 inline-flex items-center">
+                                      Verza Standard Creator Agreement
+                                    </button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                    <DialogHeader>
+                                      <DialogTitle className="flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        Standard Creator Agreement
+                                      </DialogTitle>
+                                      <DialogDescription>
+                                        The base terms for all Verza Marketplace collaborations.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                                      <div className="space-y-4 text-sm leading-relaxed">
+                                        <p className="font-bold">1. PARTIES & SCOPE</p>
+                                        <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific project ('Gig') defined in this brief.</p>
+                                        
+                                        <p className="font-bold">2. SERVICES & DELIVERABLES</p>
+                                        <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the Gig brief. Deliverables must pass the Verza Quality Score (simulation) to be eligible for payout.</p>
+                                        
+                                        <p className="font-bold">3. PAYMENT & ESCROW</p>
+                                        <p>The Client has pre-funded this Gig. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions.</p>
+                                        
+                                        <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
+                                        <p>Unless the Gig is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the Gig brief. Creator retains original ownership of the underlying content.</p>
+                                        
+                                        <p className="font-bold">5. INDEPENDENT CONTRACTOR</p>
+                                        <p>Creator is an independent contractor. Nothing in this Agreement creates an employer-employee relationship or partnership.</p>
+                                        
+                                        <p className="font-bold">6. CONFIDENTIALITY</p>
+                                        <p>Both parties agree to keep the terms of this Gig and any proprietary brand information confidential.</p>
+                                      </div>
+                                    </ScrollArea>
+                                    <DialogFooter className="mt-4">
+                                      <Button onClick={() => {}} variant="outline">Close</Button>
+                                    </DialogFooter>
+                                  </DialogContent>
+                                </Dialog>
+                                <span className="ml-1">and the usage terms defined in this brief.</span>
+                              </div>
                             </div>
 
                             <div className="space-y-3">
@@ -821,9 +845,6 @@ export default function GigDetailPage() {
           </div>
         </div>
       </div>
-      {contractGenData && (
-        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.uid} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
-      )}
     </>
   );
 }
