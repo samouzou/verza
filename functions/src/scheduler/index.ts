@@ -21,9 +21,10 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    const activeStatuses = ["pending", "invoiced", "partially_paid", "overdue", "sent", "viewed"];
     const contractsSnapshot = await db
       .collection("contracts")
-      .where("status", "in", ["pending", "invoiced", "partially_paid", "overdue", "sent", "viewed"])
+      .where("status", "in", activeStatuses)
       .get();
 
     logger.info(`Found ${contractsSnapshot.docs.length} active contracts to check for overdue milestones.`);
@@ -37,7 +38,10 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         const lastReminder = milestone.lastReminderSentAt?.toDate();
         const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-        if (milestone.status !== "paid" && milestoneDueDate < todayMidnight && (!lastReminder || lastReminder < threeDaysAgo)) {
+        const isOverdue = milestoneDueDate < todayMidnight;
+        const needsReminder = !lastReminder || lastReminder < threeDaysAgo;
+
+        if (milestone.status !== "paid" && isOverdue && needsReminder) {
           // This milestone is overdue and needs a reminder
           logger.info(`Found overdue milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
 
@@ -146,9 +150,10 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysFromNow = new Date(todayMidnight.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+    const activeStatuses = ["pending", "invoiced", "partially_paid", "sent", "viewed"];
     const contractsSnapshot = await db
       .collection("contracts")
-      .where("status", "in", ["pending", "invoiced", "partially_paid", "sent", "viewed"])
+      .where("status", "in", activeStatuses)
       .get();
 
     logger.info(`Found ${contractsSnapshot.docs.length} active contracts to check for upcoming milestones.`);
@@ -162,8 +167,10 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
         const lastReminder = milestone.lastReminderSentAt?.toDate();
         const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-        if (milestone.status === "pending" && milestoneDueDate >= todayMidnight &&
-          milestoneDueDate <= sevenDaysFromNow && (!lastReminder || lastReminder < threeDaysAgo)) {
+        const isSoon = milestoneDueDate >= todayMidnight && milestoneDueDate <= sevenDaysFromNow;
+        const needsReminder = !lastReminder || lastReminder < threeDaysAgo;
+
+        if (milestone.status === "pending" && isSoon && needsReminder) {
           logger.info(`Found upcoming milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
 
           if (!contract.clientEmail) {
