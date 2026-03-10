@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
 import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale } from 'lucide-react';
@@ -22,8 +20,21 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+
+const quillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
 
 export default function EditGigPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -234,7 +245,16 @@ export default function EditGigPage() {
               </div>
               <div className="space-y-2">
                   <Label htmlFor="description">Project Description</Label>
-                  <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={5} required disabled={isSubmitting} />
+                  <div className="min-h-[200px] rounded-md border border-input bg-background">
+                    <ReactQuill
+                      theme="snow"
+                      value={description}
+                      onChange={setDescription}
+                      placeholder="Update your project description..."
+                      readOnly={isSubmitting}
+                      modules={quillModules}
+                    />
+                  </div>
               </div>
               <div className="space-y-2">
                 <Label>Platforms</Label>

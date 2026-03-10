@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -151,6 +150,35 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* Quill Styling Overrides */
+.ql-container.ql-snow, .ql-toolbar.ql-snow {
+  border-color: hsl(var(--border)) !important;
+}
+.ql-editor {
+  min-height: 150px;
+  font-size: 14px;
+}
+.dark .ql-toolbar.ql-snow {
+  background-color: hsl(var(--muted) / 0.5);
+  border-bottom-color: hsl(var(--border)) !important;
+}
+.dark .ql-snow .ql-stroke {
+  stroke: hsl(var(--foreground)) !important;
+}
+.dark .ql-snow .ql-fill {
+  fill: hsl(var(--foreground)) !important;
+}
+.dark .ql-snow .ql-picker {
+  color: hsl(var(--foreground)) !important;
+}
+.dark .ql-snow .ql-picker-options {
+  background-color: hsl(var(--popover)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+.dark .ql-editor.ql-blank::before {
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 /* Print specific styles */

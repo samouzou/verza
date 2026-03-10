@@ -443,7 +443,9 @@ export default function GigDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
-                      <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
+                      <div className="prose dark:prose-invert max-w-none text-muted-foreground prose-slate prose-sm sm:prose-base">
+                        <div dangerouslySetInnerHTML={{ __html: gig.description }} />
+                      </div>
                       <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
                   </CardContent>
               </Card>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale, Info } from 'lucide-react';
@@ -22,8 +20,21 @@ import { trackEvent } from '@/lib/analytics';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+
+const quillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
 
 export default function PostGigPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -273,7 +284,16 @@ export default function PostGigPage() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="description">Project Description</Label>
-                    <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the content you need, key talking points, and any do's or don'ts." rows={5} required disabled={isSubmitting} />
+                    <div className="min-h-[200px] rounded-md border border-input bg-background">
+                      <ReactQuill
+                        theme="snow"
+                        value={description}
+                        onChange={setDescription}
+                        placeholder="Describe the content you need, key talking points, and any do's or don'ts."
+                        readOnly={isSubmitting}
+                        modules={quillModules}
+                      />
+                    </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Platforms</Label>
