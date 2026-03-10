@@ -72,7 +72,7 @@ const manageNavItems = [
 ];
 
 const financialsNavItems = [
-  { id: 'nav-item-wallet', href: "/wallet", label: "Creator Wallet", icon: Wallet },
+  { id: 'nav-item-wallet', href: "/wallet", label: "Wallet", icon: Wallet },
   { id: 'nav-item-receipts', href: "/receipts", label: "Receipts", icon: ReceiptText },
   { id: 'nav-item-banking', href: "/banking", label: "Banking & Taxes", icon: Landmark },
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
