@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -39,6 +39,7 @@ import {
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -391,6 +392,9 @@ export default function GigDetailPage() {
         ratePerCreator: gig.ratePerCreator,
         creatorsNeeded: gig.creatorsNeeded,
         videosPerCreator: gig.videosPerCreator,
+        campaignType: gig.campaignType || 'standard_sponsorship',
+        usageRights: gig.usageRights || '1_year',
+        allowWhitelisting: !!gig.allowWhitelisting,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -418,7 +422,8 @@ export default function GigDetailPage() {
   const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
   const isCompleted = gig.status === 'completed';
 
-  const usageRightsLabel = gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year');
+  const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
+  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
 
   return (
     <>
@@ -444,7 +449,14 @@ export default function GigDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8">
               <Card>
-                  <CardHeader><CardTitle>Project Details</CardTitle></CardHeader>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle>Project Details</CardTitle>
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {campaignTypeLabel}
+                      </Badge>
+                    </div>
+                  </CardHeader>
                   <CardContent className="space-y-4">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
                       <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
@@ -459,14 +471,32 @@ export default function GigDetailPage() {
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Usage Rights</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Campaign Type</p>
+                    <p className="text-sm font-medium">{campaignTypeLabel}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      Usage Rights
+                      {gig.usageRights === 'none' && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </p>
                     <p className="text-sm font-medium">{usageRightsLabel}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Paid Whitelisting</p>
                     <p className="text-sm font-medium">{gig.allowWhitelisting ? 'Allowed' : 'Not Allowed'}</p>
                   </div>
-                  <div className="space-y-1 md:col-span-2">
+                  <div className="space-y-1">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deliverables</p>
                     <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
                   </div>

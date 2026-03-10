@@ -469,6 +469,9 @@ export interface Gig {
   fundingPaymentIntentId?: string;
   status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
+  campaignType: "standard_sponsorship" | "production_grant";
+  usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
+  allowWhitelisting?: boolean;
 }
 
 export interface CreatorMarketplaceProfile {

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale, Info } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -28,6 +29,7 @@ export default function PostGigPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -37,7 +39,7 @@ export default function PostGigPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Legal Fields
-  const [usageRights, setUsageRights] = useState<'30_days' | '1_year' | 'perpetuity'>('1_year');
+  const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
@@ -73,6 +75,16 @@ export default function PostGigPage() {
     };
     checkSubscription();
   }, [user, authLoading]);
+
+  // Adjust defaults based on campaign type
+  useEffect(() => {
+    if (campaignType === 'production_grant') {
+      setUsageRights('none');
+      setAllowWhitelisting(false);
+    } else {
+      setUsageRights('1_year');
+    }
+  }, [campaignType]);
 
   const totalAmount = useMemo(() => {
     const rate = parseFloat(ratePerCreator);
@@ -120,6 +132,7 @@ export default function PostGigPage() {
         ratePerCreator: rateNum,
         creatorsNeeded: creatorsNum,
         videosPerCreator: videosNum,
+        campaignType,
         usageRights,
         allowWhitelisting,
       });
@@ -218,8 +231,39 @@ export default function PostGigPage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             <Card className="shadow-lg">
               <CardHeader>
-                  <CardTitle>1. Project Details</CardTitle>
-                  <CardDescription>Describe your user-generated content (UGC) campaign.</CardDescription>
+                <CardTitle>1. Campaign Selection</CardTitle>
+                <CardDescription>Choose the type of engagement for this campaign.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={campaignType} onValueChange={(val) => setCampaignType(val as any)} className="space-y-4">
+                  <div className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    campaignType === 'standard_sponsorship' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                  )}>
+                    <RadioGroupItem value="standard_sponsorship" id="standard" className="mt-1" />
+                    <Label htmlFor="standard" className="flex-1 cursor-pointer">
+                      <p className="font-bold text-base">Standard Sponsorship</p>
+                      <p className="text-sm text-muted-foreground mt-1">Includes ad-reads, usage rights, and whitelisting options. Standard commercial requirements apply.</p>
+                    </Label>
+                  </div>
+                  <div className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    campaignType === 'production_grant' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                  )}>
+                    <RadioGroupItem value="production_grant" id="grant" className="mt-1" />
+                    <Label htmlFor="grant" className="flex-1 cursor-pointer">
+                      <p className="font-bold text-base">Production Grant / Editorial Funding</p>
+                      <p className="text-sm text-muted-foreground mt-1">No ad-read required. Funds are used to support independent creator content. Brand receives editorial credit.</p>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg">
+              <CardHeader>
+                  <CardTitle>2. Project Details</CardTitle>
+                  <CardDescription>Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
@@ -265,13 +309,31 @@ export default function PostGigPage() {
 
             <Card className="shadow-lg border-primary/10">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 2. Usage Rights & Legal</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
                 <CardDescription>Define how you plan to use the content created for this gig.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
                   <Label>Usage Rights Duration</Label>
-                  <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row gap-4">
+                  <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4">
+                    {campaignType === 'production_grant' && (
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="none" id="none" />
+                        <Label htmlFor="none" className="font-normal flex items-center gap-1.5 cursor-pointer">
+                          None (Editorial Support Only)
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[250px]">
+                                <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                      </div>
+                    )}
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="30_days" id="30days" />
                       <Label htmlFor="30days" className="font-normal">30 Days</Label>
@@ -296,6 +358,7 @@ export default function PostGigPage() {
                     id="whitelisting" 
                     checked={allowWhitelisting} 
                     onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
+                    disabled={campaignType === 'production_grant'}
                   />
                 </div>
 

@@ -181,7 +181,7 @@ export const getStripeAccountBalance = onCall(async (request) => {
     };
   } catch (error) {
     logger.error(`Error retrieving Stripe balance for user ${userId}:`, error);
-    if (error instanceof HttpsError) {
+    if (error instanceof https_1.HttpsError) {
       throw error;
     }
     // Don't throw a generic internal error, which could crash client.
@@ -849,9 +849,20 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const {id: existingGigId, title, description, platforms, ratePerCreator, creatorsNeeded, videosPerCreator} = request.data;
+  const {
+    id: existingGigId,
+    title,
+    description,
+    platforms,
+    ratePerCreator,
+    creatorsNeeded,
+    videosPerCreator,
+    campaignType,
+    usageRights,
+    allowWhitelisting
+  } = request.data;
 
-  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator) {
+  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
     throw new HttpsError("invalid-argument", "Missing required gig details.");
   }
 
@@ -906,6 +917,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     ratePerCreator: Number(ratePerCreator),
     creatorsNeeded: Number(creatorsNeeded),
     videosPerCreator: Number(videosPerCreator),
+    campaignType,
+    usageRights: usageRights || null,
+    allowWhitelisting: !!allowWhitelisting,
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",

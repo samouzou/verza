@@ -468,7 +468,8 @@ export interface Gig {
   fundingPaymentIntentId?: string;
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
   createdAt: ClientTimestamp;
-  usageRights?: '30_days' | '1_year' | 'perpetuity';
+  campaignType: 'standard_sponsorship' | 'production_grant';
+  usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
 }
 
