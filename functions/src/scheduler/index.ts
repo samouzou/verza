@@ -31,7 +31,7 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
 
     const emailLogoHeader = `
       <div style="text-align: center; margin-bottom: 30px;">
-        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="32" height="24" 
+        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
           style="vertical-align: middle; margin-right: 8px;">
         <span style="font-weight: bold; font-size: 24px; color: #6B37FF; 
           vertical-align: middle; font-family: sans-serif;">Verza</span>
@@ -150,7 +150,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
     const emailLogoHeader = `
       <div style="text-align: center; margin-bottom: 30px;">
-        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="32" height="24" 
+        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
           style="vertical-align: middle; margin-right: 8px;">
         <span style="font-weight: bold; font-size: 24px; color: #6B37FF; 
           vertical-align: middle; font-family: sans-serif;">Verza</span>
@@ -192,7 +192,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                 border-radius: 12px; overflow: hidden; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                 ${emailLogoHeader}
                 <div style="text-align: center; margin-bottom: 20px;">
-                  <h2 style="color: #333; margin: 0; font-size: 20px;">Upcoming Payment Reminder</h2>
+                  <h2 style="color: #333; font-size: 20px;">Upcoming Payment Reminder</h2>
                 </div>
                 <div style="color: #555; line-height: 1.6;">
                   <p>Hello,</p>
@@ -226,6 +226,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
           await doc.ref.update({
             milestones: updatedMilestones,
+            invoiceStatus: "overdue",
             invoiceHistory: admin.firestore.FieldValue.arrayUnion({
               timestamp: admin.firestore.Timestamp.now(),
               action: `Upcoming Reminder Sent for Milestone: ${milestone.description}`,
