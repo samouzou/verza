@@ -6,7 +6,7 @@ import { WalletOverview } from "@/components/wallet/wallet-overview";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { InternalPayout } from "@/types";
 import { db, collection, query, where, onSnapshot, orderBy } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
@@ -23,62 +23,85 @@ type StripeBalance = {
 export default function WalletPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [payouts, setPayouts] = useState<InternalPayout[]>([]);
+  const [receivedPayouts, setReceivedPayouts] = useState<InternalPayout[]>([]);
+  const [sentPayouts, setSentPayouts] = useState<InternalPayout[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [stripeBalance, setStripeBalance] = useState<StripeBalance | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
 
   useEffect(() => {
-    if (user && !authLoading) {
-      setIsLoadingData(true);
-      setIsLoadingBalance(true);
+    if (!user || authLoading) return;
 
-      const payoutsQuery = query(
+    setIsLoadingData(true);
+
+    // 1. Fetch payouts received as talent
+    const receivedQuery = query(
+      collection(db, "internalPayouts"),
+      where("talentId", "==", user.uid),
+      orderBy("initiatedAt", "desc")
+    );
+
+    const unsubscribeReceived = onSnapshot(receivedQuery, (snapshot) => {
+      setReceivedPayouts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as InternalPayout)));
+      setIsLoadingData(false);
+    }, (error) => {
+      console.error("Error fetching received payouts:", error);
+      setIsLoadingData(false);
+    });
+
+    // 2. Fetch payouts sent by agency (if user is owner/manager)
+    let unsubscribeSent = () => {};
+    const isAgencyManager = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
+    
+    if (isAgencyManager && user.primaryAgencyId) {
+      const sentQuery = query(
         collection(db, "internalPayouts"),
-        where("talentId", "==", user.uid),
+        where("agencyId", "==", user.primaryAgencyId),
         orderBy("initiatedAt", "desc")
       );
 
-      const unsubscribePayouts = onSnapshot(payoutsQuery, (snapshot) => {
-        const history = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as InternalPayout));
-        setPayouts(history);
-        setIsLoadingData(false);
+      unsubscribeSent = onSnapshot(sentQuery, (snapshot) => {
+        // Filter out those where user is the talent (already in received) to avoid duplicates
+        const sent = snapshot.docs
+          .map(doc => ({ ...doc.data(), id: doc.id } as InternalPayout))
+          .filter(p => p.talentId !== user.uid);
+        setSentPayouts(sent);
       }, (error) => {
-        console.error("Error fetching payout history:", error);
-        toast({ title: "History Error", description: "Could not fetch your payout history.", variant: "destructive" });
-        setIsLoadingData(false);
+        console.error("Error fetching sent payouts:", error);
       });
-
-      const getBalance = async () => {
-        try {
-          const getStripeAccountBalance = httpsCallable(functions, 'getStripeAccountBalance');
-          const result = await getStripeAccountBalance();
-          const balanceData = result.data as StripeBalance;
-          if (balanceData.error) {
-            toast({ title: "Balance Error", description: balanceData.error, variant: "destructive" });
-            setStripeBalance(null);
-          } else {
-            setStripeBalance(balanceData);
-          }
-        } catch (error) {
-          console.error("Error calling getStripeAccountBalance function:", error);
-          toast({ title: "Balance Error", description: "Could not connect to Stripe to get your live balance.", variant: "destructive" });
-          setStripeBalance(null);
-        } finally {
-          setIsLoadingBalance(false);
-        }
-      };
-
-      getBalance();
-
-      return () => {
-        unsubscribePayouts();
-      };
-    } else if (!authLoading) {
-      setIsLoadingData(false);
-      setIsLoadingBalance(false);
     }
+
+    const getBalance = async () => {
+      try {
+        const getStripeAccountBalance = httpsCallable(functions, 'getStripeAccountBalance');
+        const result = await getStripeAccountBalance();
+        const balanceData = result.data as StripeBalance;
+        if (balanceData.error) {
+          toast({ title: "Balance Error", description: balanceData.error, variant: "destructive" });
+          setStripeBalance(null);
+        } else {
+          setStripeBalance(balanceData);
+        }
+      } catch (error) {
+        console.error("Error calling getStripeAccountBalance function:", error);
+        setStripeBalance(null);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    };
+
+    getBalance();
+
+    return () => {
+      unsubscribeReceived();
+      unsubscribeSent();
+    };
   }, [user, authLoading, toast]);
+
+  const allTransactions = useMemo(() => {
+    const combined = [...receivedPayouts, ...sentPayouts];
+    return combined.sort((a, b) => b.initiatedAt.toMillis() - a.initiatedAt.toMillis());
+  }, [receivedPayouts, sentPayouts]);
 
 
   if (authLoading || (isLoadingData && isLoadingBalance)) {
@@ -102,12 +125,12 @@ export default function WalletPage() {
   return (
     <>
       <PageHeader
-        title="Creator Wallet"
+        title="Wallet"
         description="View your earnings, manage payouts, and see your transaction history."
       />
       <div className="space-y-8">
         <WalletOverview balance={stripeBalance} isLoading={isLoadingBalance} />
-        <TransactionHistory transactions={payouts} />
+        <TransactionHistory transactions={allTransactions} currentUserId={user.uid} />
       </div>
     </>
   );

@@ -12,7 +12,6 @@ import { InviteTalentCard } from './invite-talent-card';
 import { CreatePayoutCard } from './create-payout-card';
 import { AIGeneratorCard } from './ai-generator-card';
 import { TalentRosterCard } from './talent-roster-card';
-import { PayoutHistoryCard } from './payout-history-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
 import { AgencyGigsCard } from './agency-gigs-card';
@@ -118,7 +117,6 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
           <TalentRosterCard agency={agency} liveProfiles={liveProfiles} />
           <TeamRosterCard agency={agency} liveProfiles={liveProfiles} />
           <AgencyGigsCard agencyId={agency.id} />
-          <PayoutHistoryCard agencyId={agency.id} />
         </>
       )}
     </div>
