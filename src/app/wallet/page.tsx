@@ -4,6 +4,7 @@
 import { PageHeader } from "@/components/page-header";
 import { WalletOverview } from "@/components/wallet/wallet-overview";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
+import { PayoutHistoryCard } from "@/components/agency/payout-history-card";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -24,7 +25,6 @@ export default function WalletPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [receivedPayouts, setReceivedPayouts] = useState<InternalPayout[]>([]);
-  const [sentPayouts, setSentPayouts] = useState<InternalPayout[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [stripeBalance, setStripeBalance] = useState<StripeBalance | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
@@ -34,7 +34,7 @@ export default function WalletPage() {
 
     setIsLoadingData(true);
 
-    // 1. Fetch payouts received as talent
+    // Fetch payouts received as talent (Personal Earnings)
     const receivedQuery = query(
       collection(db, "internalPayouts"),
       where("talentId", "==", user.uid),
@@ -48,28 +48,6 @@ export default function WalletPage() {
       console.error("Error fetching received payouts:", error);
       setIsLoadingData(false);
     });
-
-    // 2. Fetch payouts sent by agency (if user is owner/manager)
-    let unsubscribeSent = () => {};
-    const isAgencyManager = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
-    
-    if (isAgencyManager && user.primaryAgencyId) {
-      const sentQuery = query(
-        collection(db, "internalPayouts"),
-        where("agencyId", "==", user.primaryAgencyId),
-        orderBy("initiatedAt", "desc")
-      );
-
-      unsubscribeSent = onSnapshot(sentQuery, (snapshot) => {
-        // Filter out those where user is the talent (already in received) to avoid duplicates
-        const sent = snapshot.docs
-          .map(doc => ({ ...doc.data(), id: doc.id } as InternalPayout))
-          .filter(p => p.talentId !== user.uid);
-        setSentPayouts(sent);
-      }, (error) => {
-        console.error("Error fetching sent payouts:", error);
-      });
-    }
 
     const getBalance = async () => {
       try {
@@ -94,15 +72,12 @@ export default function WalletPage() {
 
     return () => {
       unsubscribeReceived();
-      unsubscribeSent();
     };
   }, [user, authLoading, toast]);
 
-  const allTransactions = useMemo(() => {
-    const combined = [...receivedPayouts, ...sentPayouts];
-    return combined.sort((a, b) => b.initiatedAt.toMillis() - a.initiatedAt.toMillis());
-  }, [receivedPayouts, sentPayouts]);
-
+  const sortedEarnings = useMemo(() => {
+    return [...receivedPayouts].sort((a, b) => b.initiatedAt.toMillis() - a.initiatedAt.toMillis());
+  }, [receivedPayouts]);
 
   if (authLoading || (isLoadingData && isLoadingBalance)) {
     return (
@@ -122,6 +97,8 @@ export default function WalletPage() {
     );
   }
 
+  const isAgencyManager = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
+
   return (
     <>
       <PageHeader
@@ -130,7 +107,24 @@ export default function WalletPage() {
       />
       <div className="space-y-8">
         <WalletOverview balance={stripeBalance} isLoading={isLoadingBalance} />
-        <TransactionHistory transactions={allTransactions} currentUserId={user.uid} />
+        
+        <div className="space-y-6">
+          <div id="personal-earnings-section">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              Personal Earnings
+            </h3>
+            <TransactionHistory transactions={sortedEarnings} currentUserId={user.uid} />
+          </div>
+
+          {isAgencyManager && user.primaryAgencyId && (
+            <div id="agency-disbursements-section">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                Agency Payout History
+              </h3>
+              <PayoutHistoryCard agencyId={user.primaryAgencyId} />
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

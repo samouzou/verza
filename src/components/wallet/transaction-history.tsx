@@ -18,12 +18,12 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle>Transaction History</CardTitle>
-        <CardDescription>Recent activity in your Verza wallet.</CardDescription>
+        <CardTitle>Earnings History</CardTitle>
+        <CardDescription>Recent payouts received into your Verza wallet.</CardDescription>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">No transactions yet.</p>
+          <p className="text-muted-foreground text-center py-8">No earnings recorded yet.</p>
         ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -32,7 +32,7 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
                 <TableHead>Type</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead className="hidden sm:table-cell">Date</TableHead>
-                <TableHead className="hidden md:table-cell">Entity</TableHead>
+                <TableHead className="hidden md:table-cell">From</TableHead>
                 <TableHead className="hidden md:table-cell">Status</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
@@ -67,12 +67,12 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
                         {isReceived ? (
                           <>
                             <Briefcase className="h-3 w-3" />
-                            <span>From {txn.agencyName}</span>
+                            <span>{txn.agencyName}</span>
                           </>
                         ) : (
                           <>
                             <User className="h-3 w-3" />
-                            <span>To {txn.talentName}</span>
+                            <span>{txn.talentName}</span>
                           </>
                         )}
                       </div>
