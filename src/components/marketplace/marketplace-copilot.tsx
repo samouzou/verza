@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,13 +86,13 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: Lock,
       title: "Pre-Funded Gigs",
-      description: "The brand has already funded this gig. Your payment is waiting in the vault and is released upon approval.",
+      description: "The brand has already funded this gig. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
       badge: "SECURE"
     },
     {
       icon: Flame,
       title: "Hit the 65%",
-      description: "You can re-upload videos until you pass the Verza Score. Focus on pacing and visual aesthetic.",
+      description: "You can re-upload videos until you pass the Verza Score. Focus on pacing and visual aesthetic to guarantee payout.",
     },
     {
       icon: Zap,

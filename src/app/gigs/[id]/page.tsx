@@ -693,7 +693,18 @@ export default function GigDetailPage() {
               <Card>
                   <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Rate per Creator</span>
+                          <span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span>
+                        </div>
+                        {!canManageGig && (
+                          <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
+                            <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
+                            <span className="text-xs font-semibold">${(gig.ratePerCreator * 0.85).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                       {!isCompleted && (
                         <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
@@ -741,7 +752,7 @@ export default function GigDetailPage() {
                                         <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the Gig brief. Deliverables must pass the Verza Quality Score (simulation) to be eligible for payout.</p>
                                         
                                         <p className="font-bold">3. PAYMENT & ESCROW</p>
-                                        <p>The Client has pre-funded this Gig. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions.</p>
+                                        <p>The Client has pre-funded this Gig. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
                                         
                                         <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
                                         <p>Unless the Gig is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the Gig brief. Creator retains original ownership of the underlying content.</p>
