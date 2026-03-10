@@ -683,7 +683,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 <div style="text-align: center; margin-bottom: 30px;">
                   <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
                     style="vertical-align: middle; margin-right: 8px;">
-                  <span style="font-weight: bold; font-size: 24px; color: #6B37FF; 
+                  <span style="font-weight: bold; font-size: 24px; color: #000000; 
                     vertical-align: middle; font-family: sans-serif;">Verza</span>
                 </div>
               `;

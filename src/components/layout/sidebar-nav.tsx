@@ -182,7 +182,7 @@ export function SidebarNav() {
         <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
           <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:mx-auto">
               <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
-              <span className="font-semibold text-lg text-primary group-data-[collapsible=icon]:hidden">Verza</span>
+              <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">Verza</span>
           </Link>
           <NotificationBell />
         </div>

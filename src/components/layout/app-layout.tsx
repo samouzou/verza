@@ -33,7 +33,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
              <SidebarTrigger className="mr-2" />
              <div className="flex items-center gap-2">
                 <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} />
-                <span className="font-semibold text-lg text-primary">Verza</span>
+                <span className="font-semibold text-lg">Verza</span>
               </div>
           </div>
         </div>
