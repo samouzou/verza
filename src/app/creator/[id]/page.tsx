@@ -136,13 +136,20 @@ export default function CreatorProfilePage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-            {creator.missionStatement && (
+            {(creator.missionStatement || creator.niche) && (
                 <Card className="bg-primary/5 border-primary/10">
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary"/> Creator Mission</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-xl italic font-medium text-primary/80">"{creator.missionStatement}"</p>
+                    <CardContent className="space-y-4">
+                        {creator.missionStatement && (
+                          <p className="text-xl italic font-medium text-primary/80">"{creator.missionStatement}"</p>
+                        )}
+                        {creator.niche && (
+                          <div className="pt-2 border-t border-primary/10">
+                            <p className="text-sm text-muted-foreground">{creator.niche}</p>
+                          </div>
+                        )}
                     </CardContent>
                 </Card>
             )}
