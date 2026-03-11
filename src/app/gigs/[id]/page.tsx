@@ -424,7 +424,7 @@ export default function GigDetailPage() {
             <AlertTitle className="font-bold">Campaign Completed!</AlertTitle>
             <AlertDescription>
               {canManageGig 
-                ? `All ${gig.creatorsNeeded} spots have been filled and creators have been paid. This campaign is officially finished.`
+                ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
             </AlertDescription>
           </Alert>
@@ -634,9 +634,28 @@ export default function GigDetailPage() {
                                               {isPaid ? (
                                                 <Badge variant="default" className="bg-green-500">Paid</Badge>
                                               ) : (
-                                                <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || !allVideosSubmitted}>
-                                                  {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
-                                                </Button>
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button size="sm" disabled={isPaying === creator.uid || !allVideosSubmitted}>
+                                                      {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        You are about to release <span className="font-bold text-foreground">${gig.ratePerCreator.toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>. 
+                                                        This action confirms the work is complete and releases the funds from escrow. This cannot be undone.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handlePayout(creator)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                                        Confirm & Pay
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
                                               )}
                                             </div>
                                           </div>
