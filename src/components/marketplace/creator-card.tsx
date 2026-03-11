@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, BarChart, Instagram, Youtube, BadgeCheck } from 'lucide-react';
+import { Users, BarChart, Instagram, Youtube, BadgeCheck, Flame } from 'lucide-react';
 import Link from 'next/link';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -66,7 +66,13 @@ export function CreatorCard({ creator }: CreatorCardProps) {
   return (
     <Link href={`/creator/${creator.id}`} className="block">
       <Card className="hover:shadow-lg hover:border-primary/50 transition-all duration-200 h-full flex flex-col group">
-        <CardHeader className="items-center text-center p-4 pb-2">
+        <CardHeader className="items-center text-center p-4 pb-2 relative">
+          {creator.averageVerzaScore !== undefined && creator.averageVerzaScore > 0 && (
+            <div className="absolute top-4 right-4 flex items-center gap-1">
+              <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
+              <span className="text-xs font-bold">{creator.averageVerzaScore}%</span>
+            </div>
+          )}
           <Avatar className="h-24 w-24 mb-3 border-2 border-primary/20 relative">
             <AvatarImage src={creator.avatarUrl} alt={creator.name} data-ai-hint="person" />
             <AvatarFallback>{creator.name.charAt(0)}</AvatarFallback>

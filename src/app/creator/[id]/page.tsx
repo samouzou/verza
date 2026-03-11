@@ -11,7 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube, CheckCircle2 } from 'lucide-react';
+import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube, CheckCircle2, Flame, Trophy } from 'lucide-react';
 import Link from 'next/link';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -199,6 +199,52 @@ export default function CreatorProfilePage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <Card className="bg-gradient-to-br from-orange-500/10 to-transparent border-orange-500/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Flame className="h-4 w-4 text-orange-500 fill-orange-500" /> Avg. Verza Score
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-4xl font-black text-orange-600">
+                                {creator.averageVerzaScore !== undefined && creator.averageVerzaScore > 0 
+                                    ? `${creator.averageVerzaScore}%` 
+                                    : '---'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Attention Retention</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Simulated across 10,000 Gen Z scrollers. Benchmarks for high-performing UGC.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Trophy className="h-4 w-4 text-primary" /> Verified Reach
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-4xl font-black text-primary">
+                                {formatFollowers(
+                                    (creator.instagramFollowers || 0) + 
+                                    (creator.tiktokFollowers || 0) + 
+                                    (creator.youtubeFollowers || 0)
+                                )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Total Audience</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Combined following across all connected and verified social platforms.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
             {(creator.missionStatement || creator.niche) && (
                 <Card className="bg-primary/5 border-primary/10">
                     <CardHeader>

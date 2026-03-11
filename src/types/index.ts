@@ -234,6 +234,7 @@ export interface UserProfileFirestoreData {
     youtube?: string;
     tiktok?: string;
   };
+  averageVerzaScore?: number;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -496,6 +497,7 @@ export interface CreatorMarketplaceProfile {
   youtubeConnected?: boolean;
   youtubeFollowers?: number;
   youtubeEngagement?: number;
+  averageVerzaScore?: number;
 }
 
 export interface GigSubmission {

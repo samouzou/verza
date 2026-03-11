@@ -65,7 +65,8 @@
         "tiktokEngagement": { "type": "number" },
         "youtubeConnected": { "type": "boolean" },
         "youtubeFollowers": { "type": "number" },
-        "youtubeEngagement": { "type": "number" }
+        "youtubeEngagement": { "type": "number" },
+        "averageVerzaScore": { "type": "number", "description": "The average quality score across all verified submissions." }
       },
       "required": ["uid", "email"]
     },
