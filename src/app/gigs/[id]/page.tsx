@@ -436,7 +436,7 @@ export default function GigDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8 min-w-0">
-              <Card>
+              <Card className="overflow-hidden">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <CardTitle>Project Details</CardTitle>
@@ -447,7 +447,7 @@ export default function GigDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
-                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words">
+                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words overflow-hidden">
                         <div dangerouslySetInnerHTML={{ __html: gig.description }} />
                       </div>
                       
@@ -566,7 +566,7 @@ export default function GigDetailPage() {
                                   )}
                                 </div>
                               ) : (
-                                <div className="p-4 border rounded-lg bg-green-500/10 text-green-700 flex items-center gap-3">
+                                <div className="p-4 border rounded-lg bg-green-50/10 text-green-700 flex items-center gap-3">
                                   <CheckCircle className="h-5 w-5"/>
                                   <p className="text-sm font-medium">Verified & {submission.status === 'approved' ? 'Approved' : 'Submitted'}! Verza Score: {submission.verzaScore}%</p>
                                 </div>

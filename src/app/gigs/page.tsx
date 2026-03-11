@@ -28,12 +28,12 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isCompleted = gig.status === 'completed';
 
   return (
-    <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''}`}>
+    <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''} min-w-0`}>
       <CardHeader>
         <div className="flex justify-between items-start gap-2">
-          <div className="flex-1">
-            <CardTitle className="text-lg line-clamp-1">{gig.title}</CardTitle>
-            <CardDescription className="flex items-center gap-1 mt-1">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg line-clamp-1 break-words">{gig.title}</CardTitle>
+            <CardDescription className="flex items-center gap-1 mt-1 truncate">
               <Briefcase className="h-3 w-3" /> {gig.brandName}
             </CardDescription>
           </div>
@@ -43,10 +43,9 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow space-y-4">
-        {/* Support HTML rendering while maintaining 3-line clamp */}
+      <CardContent className="flex-grow space-y-4 min-w-0">
         <div 
-          className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words prose-sm prose-slate dark:prose-invert max-w-none"
+          className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words prose-sm prose-slate dark:prose-invert max-w-none overflow-hidden"
           dangerouslySetInnerHTML={{ __html: gig.description }}
         />
         <div className="flex flex-wrap gap-2">
@@ -213,7 +212,7 @@ export default function GigsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-6 min-w-0">
           {/* Filter Bar */}
           <Card id="marketplace-filters" className="p-4 shadow-sm border-primary/10">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
