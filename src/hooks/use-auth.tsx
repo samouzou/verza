@@ -75,13 +75,20 @@ export interface UserProfile {
   followers?: number;
   engagementRate?: number;
   instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
   tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
   youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
   socialContent?: {
     instagram?: string;
     youtube?: string;
     tiktok?: string;
   };
+  averageVerzaScore?: number;
 
   // Marketplace fields
   showInMarketplace?: boolean;
@@ -165,8 +172,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 
     // Insights fields
     updates.instagramConnected = false;
+    updates.instagramFollowers = 0;
+    updates.instagramEngagement = 0;
     updates.youtubeConnected = false;
+    updates.youtubeFollowers = 0;
+    updates.youtubeEngagement = 0;
     updates.tiktokConnected = false;
+    updates.tiktokFollowers = 0;
+    updates.tiktokEngagement = 0;
+    updates.averageVerzaScore = 0;
     updates.socialContent = {
       instagram: '',
       youtube: '',
@@ -289,8 +303,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 
     // Initialize insights fields if missing
     if (existingData.instagramConnected === undefined) { updates.instagramConnected = false; needsUpdate = true; }
+    if (existingData.instagramFollowers === undefined) { updates.instagramFollowers = 0; needsUpdate = true; }
+    if (existingData.instagramEngagement === undefined) { updates.instagramEngagement = 0; needsUpdate = true; }
     if (existingData.youtubeConnected === undefined) { updates.youtubeConnected = false; needsUpdate = true; }
+    if (existingData.youtubeFollowers === undefined) { updates.youtubeFollowers = 0; needsUpdate = true; }
+    if (existingData.youtubeEngagement === undefined) { updates.youtubeEngagement = 0; needsUpdate = true; }
     if (existingData.tiktokConnected === undefined) { updates.tiktokConnected = false; needsUpdate = true; }
+    if (existingData.tiktokFollowers === undefined) { updates.tiktokFollowers = 0; needsUpdate = true; }
+    if (existingData.tiktokEngagement === undefined) { updates.tiktokEngagement = 0; needsUpdate = true; }
+    if (existingData.averageVerzaScore === undefined) { updates.averageVerzaScore = 0; needsUpdate = true; }
     if (existingData.socialContent === undefined) {
       updates.socialContent = {
         instagram: '',
@@ -375,13 +396,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               niche: firestoreUserData.niche,
               contentType: firestoreUserData.contentType || null,
               instagramConnected: firestoreUserData.instagramConnected,
+              instagramFollowers: firestoreUserData.instagramFollowers,
+              instagramEngagement: firestoreUserData.instagramEngagement,
               youtubeConnected: firestoreUserData.youtubeConnected,
+              youtubeFollowers: firestoreUserData.youtubeFollowers,
+              youtubeEngagement: firestoreUserData.youtubeEngagement,
               tiktokConnected: firestoreUserData.tiktokConnected,
+              tiktokFollowers: firestoreUserData.tiktokFollowers,
+              tiktokEngagement: firestoreUserData.tiktokEngagement,
               socialContent: firestoreUserData.socialContent,
               missionStatement: firestoreUserData.missionStatement,
               brandWishlist: firestoreUserData.brandWishlist,
               followers: firestoreUserData.followers,
               engagementRate: firestoreUserData.engagementRate,
+              averageVerzaScore: firestoreUserData.averageVerzaScore,
             });
           } else {
              setUser(null);

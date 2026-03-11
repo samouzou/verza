@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,7 +24,6 @@ import { marketplaceTour } from '@/lib/tours';
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
-  // Defensive check for acceptedCreatorIds array
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
   const isCompleted = gig.status === 'completed';
 
@@ -39,7 +39,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           </div>
           <Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'secondary' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500/10 text-blue-600 border-blue-200' : '')}>
             {isCompleted && <CheckCircle2 className="mr-1 h-3 w-3 inline" />}
-            {gig.status?.replace('_', ' ') || 'unknown'}
+            {gig.status?.replace(/_/g, ' ') || 'unknown'}
           </Badge>
         </div>
       </CardHeader>
@@ -49,7 +49,6 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           dangerouslySetInnerHTML={{ __html: gig.description }}
         />
         <div className="flex flex-wrap gap-2">
-          {/* Defensive check for platforms array */}
           {gig.platforms?.map(platform => (
             <Badge key={platform} variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
               {platform}
