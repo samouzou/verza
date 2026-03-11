@@ -481,6 +481,9 @@ export interface CreatorMarketplaceProfile {
   contentType: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
   followers: number;
   engagementRate: number;
+  instagramConnected?: boolean;
+  tiktokConnected?: boolean;
+  youtubeConnected?: boolean;
 }
 
 export interface GigSubmission {

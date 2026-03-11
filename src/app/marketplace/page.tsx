@@ -39,9 +39,11 @@ export default function MarketplacePage() {
           avatarUrl: data.avatarUrl || `https://picsum.photos/seed/${data.uid}/200`,
           niche: data.niche || 'Creator',
           contentType: creatorContentType,
-          // Using actual stats from profile where available
           followers: data.followers || 0,
           engagementRate: data.engagementRate || 0,
+          instagramConnected: data.instagramConnected,
+          tiktokConnected: data.tiktokConnected,
+          youtubeConnected: data.youtubeConnected,
         } as CreatorMarketplaceProfile;
       });
       setCreators(creatorsData);
@@ -62,7 +64,7 @@ export default function MarketplacePage() {
     return matchesSearch && matchesFilter;
   });
 
-  const contentTypes = ["all", ...Array.from(new Set(creators.map(c => c.contentType)))];
+  const contentTypes = ["all", "Tech", "Fashion", "Comedy", "Gaming", "Lifestyle", "Food"];
 
   return (
     <>

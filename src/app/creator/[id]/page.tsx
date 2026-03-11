@@ -11,8 +11,14 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star } from 'lucide-react';
+import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube } from 'lucide-react';
 import Link from 'next/link';
+
+const TikTokIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.35 1.92-3.58 3.17-5.91 3.21-2.43.05-4.86-.45-6.6-1.8-1.49-1.15-2.55-2.88-2.9-4.75-.24-1.25-.3-2.5-.3-3.75.02-3.48-.02-6.96.02-10.43.01-1.49.53-2.96 1.5-4.04 1.04-1.14 2.56-1.74 4.13-1.82.08-.01.15-.01.23-.01.02.52.01 1.05-.01 1.57-.21.53-.41 1.07-.63 1.6-.22.53-.46 1.05-.69 1.58-.04.1-.06.21-.07.32.02.05.04.09.06.13.25.5.53.98.83 1.44.31.47.65.92 1 1.35.02.02.04.04.05.06.02.04.02.09.01.14-.24 1.52-.52 3.03-.78 4.55-.01.05-.02.11-.02.16-.21-.05-.42-.09-.63-.15-.53-.15-1.07-.26-1.6-.42-.53-.16-1.07-.28-1.6-.45-.29-.09-.58-.15-.88-.23-.02-3.13.01-6.27-.02-9.4.04-.52.12-1.03.23-1.54.11-.5.25-1 .41-1.48.11-.33.24-.65.38-.97.16-.35.34-.69.54-1.03.02-.04.05-.07.08-.1.02.01.05.01.07.02z"/>
+    </svg>
+);
 
 const formatFollowers = (num: number) => {
     if (!num) return '0';
@@ -93,9 +99,16 @@ export default function CreatorProfilePage() {
                     </div>
                 )}
               </Avatar>
-              <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold">{creator.displayName}</h2>
-                {isVerified && <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20 gap-1"><BadgeCheck className="h-3 w-3" /> Verified</Badge>}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold">{creator.displayName}</h2>
+                    {isVerified && <BadgeCheck className="h-5 w-5 text-primary" />}
+                </div>
+                <div className="flex items-center gap-3 py-1">
+                    {creator.instagramConnected && <Instagram className="h-5 w-5 text-pink-500" />}
+                    {creator.youtubeConnected && <Youtube className="h-5 w-5 text-red-500" />}
+                    {creator.tiktokConnected && <span className="text-foreground"><TikTokIcon /></span>}
+                </div>
               </div>
               <Badge variant="outline" className="mt-2 text-muted-foreground font-normal">{creator.contentType || 'General'}</Badge>
               
