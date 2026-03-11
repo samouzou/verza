@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -23,6 +22,7 @@ import { Progress } from '@/components/ui/progress';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -435,7 +435,7 @@ export default function GigDetailPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3 space-y-8">
+          <div className="lg:col-span-3 space-y-8 min-w-0">
               <Card>
                   <CardHeader>
                     <div className="flex justify-between items-start">
@@ -445,12 +445,20 @@ export default function GigDetailPage() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-6">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
-                      <div className="prose dark:prose-invert max-w-none text-muted-foreground prose-slate prose-sm sm:prose-base">
+                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words">
                         <div dangerouslySetInnerHTML={{ __html: gig.description }} />
                       </div>
-                      <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
+                      
+                      <Separator />
+
+                      <div>
+                        <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-3">Target Platforms</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {gig.platforms?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}
+                        </div>
+                      </div>
                   </CardContent>
               </Card>
 
@@ -712,7 +720,7 @@ export default function GigDetailPage() {
                    </Card>
               )}
           </div>
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-6 min-w-0">
               <Card>
                   <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
