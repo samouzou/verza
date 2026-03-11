@@ -56,7 +56,16 @@
                 "type": "string"
             },
             "description": "A list of agency IDs for which the creator has accepted a gig but is not yet official talent."
-        }
+        },
+        "instagramConnected": { "type": "boolean" },
+        "instagramFollowers": { "type": "number" },
+        "instagramEngagement": { "type": "number" },
+        "tiktokConnected": { "type": "boolean" },
+        "tiktokFollowers": { "type": "number" },
+        "tiktokEngagement": { "type": "number" },
+        "youtubeConnected": { "type": "boolean" },
+        "youtubeFollowers": { "type": "number" },
+        "youtubeEngagement": { "type": "number" }
       },
       "required": ["uid", "email"]
     },
