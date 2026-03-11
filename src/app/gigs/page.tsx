@@ -1,14 +1,13 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -45,7 +44,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{gig.description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{gig.description.replace(/<[^>]*>?/gm, '')}</p>
         <div className="flex flex-wrap gap-2">
           {/* Defensive check for platforms array */}
           {gig.platforms?.map(platform => (
