@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { CreatorMarketplaceProfile } from "@/types";
@@ -32,6 +33,36 @@ export function CreatorCard({ creator }: CreatorCardProps) {
 
   const isVerified = creator.instagramConnected || creator.tiktokConnected || creator.youtubeConnected;
 
+  const platforms = [
+    { 
+      id: 'instagram', 
+      connected: creator.instagramConnected, 
+      followers: creator.instagramFollowers, 
+      engagement: creator.instagramEngagement, 
+      icon: Instagram, 
+      color: 'text-pink-500',
+      label: 'Followers'
+    },
+    { 
+      id: 'tiktok', 
+      connected: creator.tiktokConnected, 
+      followers: creator.tiktokFollowers, 
+      engagement: creator.tiktokEngagement, 
+      icon: TikTokIcon, 
+      color: 'text-foreground',
+      label: 'Followers'
+    },
+    { 
+      id: 'youtube', 
+      connected: creator.youtubeConnected, 
+      followers: creator.youtubeFollowers, 
+      engagement: creator.youtubeEngagement, 
+      icon: Youtube, 
+      color: 'text-red-500',
+      label: 'Subscribers'
+    }
+  ].filter(p => p.connected);
+
   return (
     <Link href={`/creator/${creator.id}`} className="block">
       <Card className="hover:shadow-lg hover:border-primary/50 transition-all duration-200 h-full flex flex-col group">
@@ -48,37 +79,41 @@ export function CreatorCard({ creator }: CreatorCardProps) {
           <CardTitle className="text-lg line-clamp-1 group-hover:text-primary transition-colors">{creator.name}</CardTitle>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="secondary" className="font-normal">{creator.contentType}</Badge>
-            <div className="flex items-center gap-1">
-                {creator.instagramConnected && <Instagram className="h-3.5 w-3.5 text-pink-500" />}
-                {creator.youtubeConnected && <Youtube className="h-3.5 w-3.5 text-red-500" />}
-                {creator.tiktokConnected && <TikTokIcon className="h-3.5 w-3.5 text-foreground" />}
-            </div>
           </div>
         </CardHeader>
-        <CardContent className="text-center p-4 pt-0 flex-grow flex flex-col">
+        <CardContent className="p-4 pt-0 flex-grow flex flex-col">
           <div className="flex-grow">
-            <p className="text-sm text-muted-foreground mb-4 line-clamp-3 min-h-[3rem] leading-relaxed">
+            <p className="text-sm text-muted-foreground mb-4 line-clamp-3 min-h-[3rem] leading-relaxed text-center">
               {creator.niche}
             </p>
           </div>
-          <div className="border-t pt-4">
-            <div className="flex justify-around mb-4">
-              <div className="text-center">
-                <p className="font-bold text-base flex items-center justify-center gap-1">
-                  <Users className="h-4 w-4 text-muted-foreground" /> 
-                  {formatFollowers(creator.followers)}
-                </p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Followers</p>
+          
+          <div className="border-t pt-4 space-y-3">
+            {platforms.length > 0 ? (
+              platforms.map(platform => (
+                <div key={platform.id} className="flex items-center justify-between bg-muted/30 p-2 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <platform.icon className={`h-4 w-4 ${platform.color}`} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{platform.id}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs font-bold leading-tight">{formatFollowers(platform.followers || 0)}</p>
+                      <p className="text-[8px] text-muted-foreground uppercase">{platform.label}</p>
+                    </div>
+                    <div className="text-right border-l pl-3">
+                      <p className="text-xs font-bold leading-tight">{platform.engagement?.toFixed(1) || '0'}%</p>
+                      <p className="text-[8px] text-muted-foreground uppercase">Eng.</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-2">
+                <p className="text-[10px] text-muted-foreground italic">No platforms connected</p>
               </div>
-              <div className="text-center">
-                <p className="font-bold text-base flex items-center justify-center gap-1">
-                  <BarChart className="h-4 w-4 text-muted-foreground" /> 
-                  {creator.engagementRate.toFixed(1)}%
-                </p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Engagement</p>
-              </div>
-            </div>
-            <Button className="w-full" variant="outline">View Profile</Button>
+            )}
+            <Button className="w-full mt-2" variant="outline">View Profile</Button>
           </div>
         </CardContent>
       </Card>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,7 +11,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube } from 'lucide-react';
+import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -78,6 +79,36 @@ export default function CreatorProfilePage() {
 
   const isVerified = creator.instagramConnected || creator.tiktokConnected || creator.youtubeConnected;
 
+  const platforms = [
+    { 
+      id: 'Instagram', 
+      connected: creator.instagramConnected, 
+      followers: creator.instagramFollowers, 
+      engagement: creator.instagramEngagement, 
+      icon: Instagram, 
+      color: 'text-pink-500',
+      metricLabel: 'Followers'
+    },
+    { 
+      id: 'TikTok', 
+      connected: creator.tiktokConnected, 
+      followers: creator.tiktokFollowers, 
+      engagement: creator.tiktokEngagement, 
+      icon: TikTokIcon, 
+      color: 'text-foreground',
+      metricLabel: 'Followers'
+    },
+    { 
+      id: 'YouTube', 
+      connected: creator.youtubeConnected, 
+      followers: creator.youtubeFollowers, 
+      engagement: creator.youtubeEngagement, 
+      icon: Youtube, 
+      color: 'text-red-500',
+      metricLabel: 'Subscribers'
+    }
+  ].filter(p => p.connected);
+
   return (
     <>
       <PageHeader 
@@ -108,24 +139,39 @@ export default function CreatorProfilePage() {
                     <h2 className="text-2xl font-bold">{creator.displayName}</h2>
                     {isVerified && <BadgeCheck className="h-5 w-5 text-primary" />}
                 </div>
-                <div className="flex items-center gap-3 py-1">
-                    {creator.instagramConnected && <Instagram className="h-5 w-5 text-pink-500" />}
-                    {creator.youtubeConnected && <Youtube className="h-5 w-5 text-red-500" />}
-                    {creator.tiktokConnected && <TikTokIcon className="h-5 w-5 text-foreground" />}
-                </div>
               </div>
               <Badge variant="outline" className="mt-2 text-muted-foreground font-normal">{creator.contentType || 'General'}</Badge>
               
-              <div className="flex justify-around w-full mt-6 pt-6 border-t">
-                <div className="text-center">
-                  <p className="font-bold text-xl flex items-center justify-center gap-1"><Users className="h-5 w-5 text-muted-foreground" /> {formatFollowers(creator.followers || 0)}</p>
-                  <p className="text-xs text-muted-foreground">Followers</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl flex items-center justify-center gap-1"><BarChart className="h-5 w-5 text-muted-foreground" /> {creator.engagementRate || 0}%</p>
-                  <p className="text-xs text-muted-foreground">Engagement</p>
-                </div>
+              <div className="w-full mt-6 pt-6 border-t space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" /> Verified Platforms
+                </h3>
+                {platforms.length > 0 ? (
+                  <div className="space-y-3">
+                    {platforms.map(p => (
+                      <div key={p.id} className="flex items-center justify-between bg-muted/50 p-3 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <p.icon className={`h-5 w-5 ${p.color}`} />
+                          <span className="font-bold text-sm">{p.id}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-bold text-sm">{formatFollowers(p.followers || 0)}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">{p.metricLabel}</p>
+                          </div>
+                          <div className="text-right border-l pl-4">
+                            <p className="font-bold text-sm">{p.engagement?.toFixed(1) || '0'}%</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">Eng.</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No verified accounts connected.</p>
+                )}
               </div>
+
               <Button asChild className="w-full mt-6">
                 <a href={`mailto:${creator.email}`}>
                   <Mail className="mr-2 h-4 w-4" /> Reach Out

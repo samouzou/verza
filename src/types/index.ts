@@ -221,8 +221,14 @@ export interface UserProfileFirestoreData {
   followers?: number;
   engagementRate?: number;
   instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
   tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
   youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
   socialContent?: {
     instagram?: string;
     youtube?: string;
@@ -482,8 +488,14 @@ export interface CreatorMarketplaceProfile {
   followers: number;
   engagementRate: number;
   instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
   tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
   youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
 }
 
 export interface GigSubmission {

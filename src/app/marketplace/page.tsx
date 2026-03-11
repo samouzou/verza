@@ -42,8 +42,14 @@ export default function MarketplacePage() {
           followers: data.followers || 0,
           engagementRate: data.engagementRate || 0,
           instagramConnected: data.instagramConnected,
+          instagramFollowers: data.instagramFollowers,
+          instagramEngagement: data.instagramEngagement,
           tiktokConnected: data.tiktokConnected,
+          tiktokFollowers: data.tiktokFollowers,
+          tiktokEngagement: data.tiktokEngagement,
           youtubeConnected: data.youtubeConnected,
+          youtubeFollowers: data.youtubeFollowers,
+          youtubeEngagement: data.youtubeEngagement,
         } as CreatorMarketplaceProfile;
       });
       setCreators(creatorsData);
