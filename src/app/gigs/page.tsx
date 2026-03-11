@@ -44,7 +44,11 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{gig.description.replace(/<[^>]*>?/gm, '')}</p>
+        {/* Support HTML rendering while maintaining 3-line clamp */}
+        <div 
+          className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words prose-sm prose-slate dark:prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: gig.description }}
+        />
         <div className="flex flex-wrap gap-2">
           {/* Defensive check for platforms array */}
           {gig.platforms?.map(platform => (
