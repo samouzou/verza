@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -24,7 +24,8 @@ import { marketplaceTour } from '@/lib/tours';
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
-  const isAccepted = currentUserId ? gig.acceptedCreatorIds.includes(currentUserId) : false;
+  // Defensive check for acceptedCreatorIds array
+  const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
   const isCompleted = gig.status === 'completed';
 
   return (
@@ -39,14 +40,15 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           </div>
           <Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'secondary' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500/10 text-blue-600 border-blue-200' : '')}>
             {isCompleted && <CheckCircle2 className="mr-1 h-3 w-3 inline" />}
-            {gig.status.replace('_', ' ')}
+            {gig.status?.replace('_', ' ') || 'unknown'}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4">
         <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{gig.description}</p>
         <div className="flex flex-wrap gap-2">
-          {gig.platforms.map(platform => (
+          {/* Defensive check for platforms array */}
+          {gig.platforms?.map(platform => (
             <Badge key={platform} variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
               {platform}
             </Badge>
@@ -68,7 +70,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         )}
       </CardContent>
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
-        <div className="text-xl font-bold text-primary">${gig.ratePerCreator.toLocaleString()}</div>
+        <div className="text-xl font-bold text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</div>
         <Button asChild size="sm" variant={isCompleted ? 'outline' : 'default'}>
           <Link href={`/gigs/${gig.id}`}>
             {isCompleted ? 'View Results' : 'View Details'}
@@ -161,14 +163,14 @@ export default function GigsPage() {
   const applyFilters = (gigs: Gig[]) => {
     return gigs.filter(gig => {
       const matchesSearch = searchTerm === "" || 
-        gig.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        gig.brandName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        gig.description.toLowerCase().includes(searchTerm.toLowerCase());
+        gig.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        gig.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        gig.description?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesPlatform = platformFilter === "all" || gig.platforms.includes(platformFilter as any);
+      const matchesPlatform = platformFilter === "all" || gig.platforms?.includes(platformFilter as any);
       
       const rateLimit = parseFloat(minRate);
-      const matchesRate = isNaN(rateLimit) || gig.ratePerCreator >= rateLimit;
+      const matchesRate = isNaN(rateLimit) || (gig.ratePerCreator || 0) >= rateLimit;
 
       return matchesSearch && matchesPlatform && matchesRate;
     });

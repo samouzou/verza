@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -106,7 +107,7 @@ export default function GigDetailPage() {
     if (!gig || !user) return;
 
     const isBrandTeam = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
-    const hasAccepted = gig.acceptedCreatorIds.includes(user.uid);
+    const hasAccepted = gig.acceptedCreatorIds?.includes(user.uid);
 
     if (!isBrandTeam && !hasAccepted) return;
 
@@ -132,7 +133,7 @@ export default function GigDetailPage() {
   }, [gig, user, gigId]);
 
   useEffect(() => {
-    if (gig && gig.acceptedCreatorIds.length > 0) {
+    if (gig && gig.acceptedCreatorIds && gig.acceptedCreatorIds.length > 0) {
       const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.acceptedCreatorIds));
       const unsubscribe = onSnapshot(creatorsQuery, 
         (snapshot) => {
@@ -196,12 +197,14 @@ export default function GigDetailPage() {
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Gig no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
-      if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) throw new Error("Gig is full.");
-      if (currentGigData.acceptedCreatorIds.includes(user.uid)) throw new Error("Already accepted.");
+      const acceptedIds = currentGigData.acceptedCreatorIds || [];
       
-      const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
+      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Gig is full.");
+      if (acceptedIds.includes(user.uid)) throw new Error("Already accepted.");
+      
+      const newAcceptedIds = [...acceptedIds, user.uid];
       const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
-      if (newAcceptedIds.length === currentGigData.creatorsNeeded) gigUpdates.status = 'in-progress';
+      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
       
       await updateDoc(gigDocRef, gigUpdates);
 
@@ -399,11 +402,12 @@ export default function GigDetailPage() {
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Gig Not Found</h3></div>;
 
-  const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
-  const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
+  const acceptedIds = gig.acceptedCreatorIds || [];
+  const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
+  const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
-  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
+  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && acceptedIds.length === 0));
   const isCompleted = gig.status === 'completed';
 
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
@@ -446,7 +450,7 @@ export default function GigDetailPage() {
                       <div className="prose dark:prose-invert max-w-none text-muted-foreground prose-slate prose-sm sm:prose-base">
                         <div dangerouslySetInnerHTML={{ __html: gig.description }} />
                       </div>
-                      <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
+                      <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
                   </CardContent>
               </Card>
 
@@ -503,7 +507,7 @@ export default function GigDetailPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
-                    {Array.from({ length: gig.videosPerCreator }).map((_, i) => {
+                    {Array.from({ length: gig.videosPerCreator || 1 }).map((_, i) => {
                       const submission = mySubmissions[i];
                       const slotLoading = isUploading === i;
                       const scoreRunning = submission && isRunningVerzaScore === submission.id;
@@ -612,7 +616,7 @@ export default function GigDetailPage() {
                                   {acceptedCreators.map(creator => {
                                     const isPaid = gig.paidCreatorIds?.includes(creator.uid);
                                     const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
-                                    const allVideosSubmitted = creatorSubmissions.length === gig.videosPerCreator && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
+                                    const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
 
                                     return (
                                       <Card key={creator.uid} className="border bg-muted/30">
@@ -644,7 +648,7 @@ export default function GigDetailPage() {
                                                     <AlertDialogHeader>
                                                       <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                                       <AlertDialogDescription>
-                                                        You are about to release <span className="font-bold text-foreground">${gig.ratePerCreator.toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>. 
+                                                        You are about to release <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>. 
                                                         This action confirms the work is complete and releases the funds from escrow. This cannot be undone.
                                                       </AlertDialogDescription>
                                                     </AlertDialogHeader>
@@ -661,7 +665,7 @@ export default function GigDetailPage() {
                                           </div>
 
                                           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {Array.from({ length: gig.videosPerCreator }).map((_, idx) => {
+                                            {Array.from({ length: gig.videosPerCreator || 1 }).map((_, idx) => {
                                               const sub = creatorSubmissions[idx];
                                               return (
                                                 <div key={idx} className="p-3 bg-background rounded-md border space-y-3">
@@ -715,20 +719,20 @@ export default function GigDetailPage() {
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Rate per Creator</span>
-                          <span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span>
+                          <span className="font-bold text-2xl text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</span>
                         </div>
                         {!canManageGig && (
                           <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
                             <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
-                            <span className="text-xs font-semibold">${(gig.ratePerCreator * 0.85).toLocaleString()}</span>
+                            <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
                           </div>
                         )}
                       </div>
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                       {!isCompleted && (
-                        <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
                       )}
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{gig.status.replace(/_/g, ' ')}</Badge></div>
+                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{gig.status?.replace(/_/g, ' ') || 'unknown'}</Badge></div>
                       
                       {user && !canManageGig && !isCompleted && (
                         hasAccepted ? (
