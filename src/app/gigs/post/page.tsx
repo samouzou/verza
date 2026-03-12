@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -13,7 +14,7 @@ import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions, db, doc, getDoc } from '@/lib/firebase';
+import { functions, db, doc, getDoc, onSnapshot } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
@@ -58,7 +59,7 @@ export default function PostGigPage() {
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
 
   useEffect(() => {
-    if (!user || !user.primaryAgencyId) {
+    if (!user || authLoading) {
       if (!authLoading) setIsLoadingSubscriptionCheck(false);
       return;
     }
@@ -69,23 +70,41 @@ export default function PostGigPage() {
       return;
     }
 
-    const checkSubscription = async () => {
-      setIsLoadingSubscriptionCheck(true);
-      try {
-        const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId!));
-        if (agencySnap.exists()) {
-          const ownerSnap = await getDoc(doc(db, 'users', agencySnap.data().ownerId));
-          if (ownerSnap.exists()) {
-            setAgencyOwner(ownerSnap.data() as UserProfile);
-          }
-        }
-      } catch (e) {
-        console.error("Error checking agency subscription:", e);
-      } finally {
+    const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
+    if (!isTeamMember) {
         setIsLoadingSubscriptionCheck(false);
-      }
+        return;
+    }
+
+    // Inherit subscription from agency owner
+    setIsLoadingSubscriptionCheck(true);
+    let unsubAgency: (() => void) | undefined;
+    let unsubOwner: (() => void) | undefined;
+
+    const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
+    unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
+        if (agencySnap.exists()) {
+            const agencyData = agencySnap.data();
+            const ownerDocRef = doc(db, 'users', agencyData.ownerId);
+            
+            if (unsubOwner) unsubOwner();
+            unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
+                if (ownerDocSnap.exists()) {
+                    setAgencyOwner(ownerDocSnap.data() as UserProfile);
+                } else {
+                    setAgencyOwner(null);
+                }
+                setIsLoadingSubscriptionCheck(false);
+            });
+        } else {
+            setIsLoadingSubscriptionCheck(false);
+        }
+    });
+
+    return () => {
+        if (unsubAgency) unsubAgency();
+        if (unsubOwner) unsubOwner();
     };
-    checkSubscription();
   }, [user, authLoading]);
 
   // Adjust defaults based on campaign type
@@ -177,11 +196,11 @@ export default function PostGigPage() {
     );
   }
 
-  const now = Date.now();
+  const nowTime = Date.now();
   const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
                       (agencyOwner?.subscriptionStatus === 'trialing' && 
                        agencyOwner?.trialEndsAt && 
-                       agencyOwner.trialEndsAt.toMillis() > now);
+                       agencyOwner.trialEndsAt.toMillis() > nowTime);
   const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
   const canPost = isSubscribed && hasAgencyPlan;
 

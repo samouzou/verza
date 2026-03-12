@@ -92,23 +92,28 @@ export default function DashboardPage() {
     const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
     
     // Determine which user's subscription to use
+    let unsubAgency: (() => void) | undefined;
+    let unsubOwner: (() => void) | undefined;
+
     if (isTeamMember) {
         const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
-        const unsubscribeAgency = onSnapshot(agencyRef, async (agencySnap) => {
+        unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
             if (agencySnap.exists()) {
                 const agencyData = agencySnap.data() as Agency;
                 const ownerDocRef = doc(db, 'users', agencyData.ownerId);
-                const ownerDocSnap = await getDoc(ownerDocRef);
-                if (ownerDocSnap.exists()) {
-                    setSubscriptionUser(ownerDocSnap.data() as UserProfile);
-                } else {
-                    setSubscriptionUser(user); // Fallback to self
-                }
+                
+                if (unsubOwner) unsubOwner();
+                unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
+                    if (ownerDocSnap.exists()) {
+                        setSubscriptionUser(ownerDocSnap.data() as UserProfile);
+                    } else {
+                        setSubscriptionUser(user); // Fallback to self
+                    }
+                });
             } else {
                  setSubscriptionUser(user); // Fallback if agency not found
             }
         });
-        // No need to return unsubscribe since the main contracts listener will handle it
     } else {
        setSubscriptionUser(user);
     }
@@ -116,7 +121,7 @@ export default function DashboardPage() {
     const contractsCol = collection(db, 'contracts');
     const q = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
     
-    const unsubscribe = onSnapshot(q, (contractSnapshot) => {
+    const unsubscribeContracts = onSnapshot(q, (contractSnapshot) => {
       const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
         const data = docSnap.data();
         let createdAt = data.createdAt;
@@ -163,7 +168,11 @@ export default function DashboardPage() {
       setIsLoadingData(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeContracts();
+      if (unsubAgency) unsubAgency();
+      if (unsubOwner) unsubOwner();
+    };
     
   }, [user, authLoading]);
 
