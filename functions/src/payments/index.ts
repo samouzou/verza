@@ -492,13 +492,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const agencyRef = db.collection("agencies").doc(agencyId);
 
           await db.runTransaction(async (transaction) => {
+            // 1. ALL READS FIRST
+            const agencyDoc = await transaction.get(agencyRef);
+            if (!agencyDoc.exists) throw new Error("Agency not found for gig funding.");
+            
+            // 2. LOGIC
+            const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
+            const fundingAmount = amount / 100;
+
+            // 3. ALL WRITES AFTER
             transaction.update(gigRef, {
               status: "open",
               fundingPaymentIntentId: paymentIntent.id,
             });
-            const agencyDoc = await transaction.get(agencyRef);
-            const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
-            transaction.update(agencyRef, {escrowBalance: currentEscrow + (amount / 100)});
+            transaction.update(agencyRef, {escrowBalance: currentEscrow + fundingAmount});
           });
 
           logger.info(`Successfully activated gig "${gigId}" and updated agency escrow.`);
