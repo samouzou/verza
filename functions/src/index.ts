@@ -20,7 +20,6 @@ import {
   handleStripeAccountWebhook,
   getStripeAccountBalance,
   createCreditCheckoutSession,
-  stripeCreditWebhookHandler,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
 } from "./payments";
@@ -83,7 +82,6 @@ export {
   handleStripeAccountWebhook,
   getStripeAccountBalance,
   createCreditCheckoutSession,
-  stripeCreditWebhookHandler,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
   sendContractNotification,

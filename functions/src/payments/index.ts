@@ -429,11 +429,10 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
+      const {metadata, amount, currency, latest_charge: latestCharge} = paymentIntent;
       const {
         contractId,
         userId,
-        clientEmail,
         paymentType,
         internalPayoutId,
         agencyId,
