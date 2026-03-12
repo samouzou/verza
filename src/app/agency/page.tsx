@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -158,24 +159,27 @@ export default function AgencyPage() {
     const agency = agencies.find(a => a.id === selectedAgencyId);
     if (agency) {
       const membership = user.agencyMemberships?.find(m => m.agencyId === agency.id);
-      const isManager = agency.ownerId === user.uid || (membership && (membership.role === 'admin' || membership.role === 'member'));
+      const isPending = membership?.status === 'pending';
+      const isManager = agency.ownerId === user.uid || (membership && membership.status === 'active' && (membership.role === 'admin' || membership.role === 'member'));
       
       return (
         <>
           <PageHeader
             title={agency.name}
-            description={isManager ? "Agency Management Dashboard" : "Your relationship with this agency."}
+            description={isPending ? "You have been invited to join this agency." : isManager ? "Agency Management Dashboard" : "Your relationship with this agency."}
             actions={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setSelectedAgencyId(null)}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Switch Agency
                 </Button>
-                {isManager && <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
+                {isManager && !isPending && <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
               </div>
             }
           />
           <div className="space-y-6">
-            {isManager ? (
+            {isPending ? (
+              <TalentAgencyView agencies={[agency]} memberships={user.agencyMemberships || []} />
+            ) : isManager ? (
               <AgencyDashboard agency={agency} agencyOwner={selectedAgencyOwner} />
             ) : (
               <TalentAgencyView agencies={[agency]} memberships={user.agencyMemberships || []} />
@@ -212,7 +216,7 @@ export default function AgencyPage() {
                     {isOwner && <Badge className="bg-purple-500">Owner</Badge>}
                     {isPending && <Badge variant="secondary" className="animate-pulse">Pending Invite</Badge>}
                     {isTalent && <Badge variant="outline">Talent</Badge>}
-                    {membership && !isTalent && !isOwner && <Badge variant="secondary">{membership.role}</Badge>}
+                    {membership && !isTalent && !isOwner && !isPending && <Badge variant="secondary">{membership.role}</Badge>}
                   </div>
                   <div className="flex items-center text-sm text-muted-foreground gap-4">
                     <span className="flex items-center gap-1"><Users className="h-4 w-4" /> {agency.talent?.length || 0} Talent</span>
@@ -221,7 +225,7 @@ export default function AgencyPage() {
                 </CardContent>
                 <CardFooter className="pt-0 border-t bg-muted/5 group-hover:bg-muted/20 transition-colors">
                   <Button variant="ghost" className="w-full justify-between mt-2" onClick={(e) => { e.stopPropagation(); setSelectedAgencyId(agency.id); }}>
-                    {isOwner || (membership && membership.role !== 'talent') ? 'Manage Agency' : 'View Representation'}
+                    {isPending ? 'View Invitation' : (isOwner || (membership && membership.role !== 'talent') ? 'Manage Agency' : 'View Representation')}
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </CardFooter>
