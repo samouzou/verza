@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -100,7 +99,7 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
                 <Button variant="outline" onClick={() => setIsTopUpOpen(false)} disabled={isProcessing}>Cancel</Button>
                 <Button onClick={handleTopUp} disabled={isProcessing}>
                   {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="mr-2 h-4 w-4"/>}
-                  Pay via Card
+                  Continue to Secure Payment
                 </Button>
               </DialogFooter>
             </DialogContent>
