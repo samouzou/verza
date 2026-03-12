@@ -239,7 +239,9 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       if (milestoneId) {
         // Check if the invoice was for a specific milestone
         const targetMilestone = contractData.milestones?.find((m) => m.id === milestoneId);
-        if (targetMilestone && lineItems.some((item) => item.isMilestone && item.description === targetMilestone?.description)) {
+        const match = targetMilestone && lineItems.some((item) =>
+          item.isMilestone && item.description === targetMilestone?.description);
+        if (match) {
           // If this specific milestone invoice has line items, sum them up.
           amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
         }
@@ -429,21 +431,13 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency} = paymentIntent;
+      const {metadata, amount} = paymentIntent;
+      // eslint-disable-next-line camelcase
       const latestCharge = paymentIntent.latest_charge;
 
       const {
-        contractId,
-        userId,
-        paymentType,
-        internalPayoutId,
-        agencyId,
-        milestoneId,
-        purchaseType,
-        gigId,
-        firebaseUID,
-        creditAmount,
-        priceId,
+        contractId, userId, paymentType, internalPayoutId, agencyId,
+        milestoneId, purchaseType, gigId, firebaseUID, creditAmount, priceId,
       } = metadata;
 
       if (internalPayoutId) {
@@ -480,7 +474,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 priceId: priceId || "unknown",
                 paymentIntentId: paymentIntent.id,
                 status: "completed",
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
               } as Omit<CreditTransaction, "id">);
             });
             logger.info(`Successfully added ${creditsToAdd} credits to user ${targetUserId} via handlePaymentSuccess.`);
@@ -525,8 +519,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               const receiptHtml = `
                 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-                <body style="background-color: #f4f4f7; padding: 40px 20px; font-family: 'Helvetica Neue', Helvetica, Arial, 
-                sans-serif; -webkit-font-smoothing: antialiased;">
+                <body style="background-color: #f4f4f7; padding: 40px 20px; font-family: 'Helvetica Neue', Helvetica, 
+                Arial, sans-serif; -webkit-font-smoothing: antialiased;">
                 <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; 
                 background-color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
                   <div style="text-align: center; margin-bottom: 32px;">
@@ -650,13 +644,15 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
               const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
               if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-                const netForDistribution = amount - (Math.round(amount * 0.029) + 30) - Math.round(amount * 0.15);
-                const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-                const talentShareAmount = netForDistribution - agencyCommissionAmount;
+                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
+                const platformFeeRaw = Math.round(amount * 0.15);
+                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
+                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                const talentShareAmount = netForDistribution - agencyCommRaw;
 
-                if (agencyCommissionAmount > 0) {
+                if (agencyCommRaw > 0) {
                   await stripe.transfers.create({
-                    amount: agencyCommissionAmount,
+                    amount: agencyCommRaw,
                     currency: "usd",
                     destination: agencyOwnerData.stripeAccountId,
                     source_transaction: chargeId,
@@ -680,7 +676,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           contractId,
           userId: userId || "",
           amount,
-          currency,
+          currency: "usd",
           status: "succeeded",
           timestamp: admin.firestore.Timestamp.now(),
         });
@@ -809,7 +805,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
                       (agencyOwnerData.subscriptionStatus === "trialing" &&
                        agencyOwnerData.trialEndsAt &&
-                       (agencyOwnerData.trialEndsAt as unknown as admin.firestore.Timestamp).toMillis() > now);
+                       (agencyOwnerData.trialEndsAt as any).toMillis() > now);
 
   const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith("agency_");
 
@@ -846,7 +842,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
-    createdAt: admin.firestore.FieldValue.serverTimestamp() as unknown as admin.firestore.Timestamp,
+    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
   };
 
   if (existingGigId) {
