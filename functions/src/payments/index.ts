@@ -429,7 +429,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, latest_charge: latestCharge} = paymentIntent;
+      const {metadata, amount, currency} = paymentIntent;
+      const latestCharge = paymentIntent.latest_charge;
+
       const {
         contractId,
         userId,
@@ -608,7 +610,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractDoc = await contractDocRef.get();
         const contractData = contractDoc.data() as Contract;
 
-        const updates: {[key: string]: any} = {
+        const updates: {[key: string]: unknown} = {
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.Timestamp.now(),
@@ -726,9 +728,9 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
 
     if (event.type === "account.updated") {
       const account = event.data.object as Stripe.Account;
-      const db = admin.firestore();
+      const dbInstance = admin.firestore();
 
-      const usersRef = db.collection("users");
+      const usersRef = dbInstance.collection("users");
       const snapshot = await usersRef
         .where("stripeAccountId", "==", account.id)
         .get();
@@ -807,7 +809,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
                       (agencyOwnerData.subscriptionStatus === "trialing" &&
                        agencyOwnerData.trialEndsAt &&
-                       (agencyOwnerData.trialEndsAt as any).toMillis() > now);
+                       (agencyOwnerData.trialEndsAt as unknown as admin.firestore.Timestamp).toMillis() > now);
 
   const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith("agency_");
 
@@ -844,7 +846,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
-    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    createdAt: admin.firestore.FieldValue.serverTimestamp() as unknown as admin.firestore.Timestamp,
   };
 
   if (existingGigId) {
@@ -1037,7 +1039,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
             name: "Verza Agency Budget Top-Up",
             description: "General funds for gig payments and bonuses.",
           },
-          uint_amount: Math.round(amount * 100),
+          unit_amount: Math.round(amount * 100),
         },
         quantity: 1,
       }],
