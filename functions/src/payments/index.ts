@@ -429,7 +429,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, latest_charge} = paymentIntent;
+      const {metadata, amount, currency, latest_charge: latestCharge} = paymentIntent;
       const {
         contractId,
         userId,
@@ -635,7 +635,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = typeof latest_charge === "string" ? latest_charge : (latest_charge as any)?.id;
+          const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
           if (chargeId) {
             const agencyDoc = await db.collection("agencies").doc(agencyId).get();
             const agencyData = agencyDoc.data() as Agency;
@@ -1037,7 +1037,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
             name: "Verza Agency Budget Top-Up",
             description: "General funds for gig payments and bonuses.",
           },
-          unit_amount: Math.round(amount * 100),
+          uint_amount: Math.round(amount * 100),
         },
         quantity: 1,
       }],
