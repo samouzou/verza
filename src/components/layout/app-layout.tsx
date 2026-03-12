@@ -24,44 +24,46 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const showVerificationBanner = user && !user.emailVerified && !authIsLoading;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen w-full">
       <SidebarNav />
-      <main className="flex-1 overflow-y-auto bg-background/50">
+      <main className="flex-1 overflow-y-auto bg-background/50 flex flex-col">
         {/* Mobile Header */}
-        <div className="md:hidden flex h-14 items-center justify-between border-b bg-background px-4 sticky top-0 z-10">
+        <div className="md:hidden flex h-14 items-center justify-between border-b bg-background px-4 sticky top-0 z-10 w-full">
           <div className="flex items-center">
              <SidebarTrigger className="mr-2" />
              <div className="flex items-center gap-2">
-                <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={24} />
+                <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} />
                 <span className="font-semibold text-lg">Verza</span>
               </div>
           </div>
         </div>
 
         {/* Centered Content Container */}
-        <div className="max-w-[1400px] mx-auto w-full p-4 md:p-6 lg:p-8 min-h-full flex flex-col">
-          {showVerificationBanner && (
-              <Alert variant="default" className="mb-6 border-yellow-500/50 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700/50 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
-              <MailWarning className="h-5 w-5" />
-              <AlertTitle className="font-semibold">Verify Your Email Address</AlertTitle>
-              <AlertDescription>
-                  A verification link has been sent to your email ({user.email}). Please check your inbox (and spam folder) to complete your account setup.
-              </AlertDescription>
-              <div className="mt-3">
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResendEmail}
-                  disabled={isResendingEmail}
-                  className="border-yellow-600/50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-500/50 dark:text-yellow-300 dark:hover:bg-yellow-800/30"
-                  >
-                  {isResendingEmail ? "Sending..." : <><Send className="mr-2 h-4 w-4" /> Resend Email</>}
-                  </Button>
-              </div>
-              </Alert>
-          )}
-          <div className="flex-grow">
-            {children}
+        <div className="flex-1 w-full flex flex-col">
+          <div className="w-full max-w-[1400px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col min-h-full">
+            {showVerificationBanner && (
+                <Alert variant="default" className="mb-6 border-yellow-500/50 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700/50 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
+                <MailWarning className="h-5 w-5" />
+                <AlertTitle className="font-semibold">Verify Your Email Address</AlertTitle>
+                <AlertDescription>
+                    A verification link has been sent to your email ({user.email}). Please check your inbox (and spam folder) to complete your account setup.
+                </AlertDescription>
+                <div className="mt-3">
+                    <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResendEmail}
+                    disabled={isResendingEmail}
+                    className="border-yellow-600/50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-500/50 dark:text-yellow-300 dark:hover:bg-yellow-800/30"
+                    >
+                    {isResendingEmail ? "Sending..." : <><Send className="mr-2 h-4 w-4" /> Resend Email</>}
+                    </Button>
+                </div>
+                </Alert>
+            )}
+            <div className="flex-1">
+              {children}
+            </div>
           </div>
         </div>
       </main>

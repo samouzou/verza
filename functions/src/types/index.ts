@@ -177,16 +177,38 @@ export interface AtRiskPayment extends Pick<Contract, "id" | "brand" | "amount" 
   riskReason: string;
 }
 
+export type SubscriptionPlanId =
+  | "individual_free"
+  | "individual_monthly" | "individual_yearly"
+  | "agency_pilot_monthly" | "agency_pilot_yearly"
+  | "agency_pro_monthly" | "agency_pro_yearly"
+  | "agency_network_monthly" | "agency_network_yearly"
+  | "agency_enterprise_monthly" | "agency_enterprise_yearly";
+
+export type SubscriptionStatus =
+  | "trialing" | "active" | "past_due" | "canceled" | "incomplete"
+  | "unpaid" | "paused" | "none" | "incomplete_expired";
+
+export type TaxClassification =
+  | "individual"
+  | "c_corp"
+  | "s_corp"
+  | "partnership"
+  | "trust_estate"
+  | "llc";
+
 // For Firestore user document
 export interface UserProfileFirestoreData {
   uid: string;
   email: string | null;
   displayName: string | null;
+  legalName?: string | null;
   avatarUrl: string | null;
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null;
   tin?: string | null;
+  taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;
   role: "individual_creator" | "agency_owner" | "agency_admin" | "agency_member";
   isAgencyOwner?: boolean;
@@ -200,18 +222,27 @@ export interface UserProfileFirestoreData {
   followers?: number;
   engagementRate?: number;
   instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
   tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
   youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
+  socialContent?: {
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
 
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "incomplete" |
-    "unpaid" | "paused" | "none" | "incomplete_expired";
-  subscriptionPlanId?: "individual_free" | "individual_monthly" | "individual_yearly" |
-    "agency_start_monthly" | "agency_start_yearly" | "agency_pro_monthly" | "agency_pro_yearly" | null;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlanId?: SubscriptionPlanId | null;
   talentLimit?: number;
-  subscriptionInterval?: "day" | "week" | "month" | "year" | null;
+  subscriptionInterval?: "month" | "year" | null;
   trialEndsAt?: ClientTimestamp | null;
   subscriptionEndsAt?: ClientTimestamp | null;
   trialExtensionUsed?: boolean;
@@ -337,6 +368,8 @@ export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
+  availableBalance?: number;
+  escrowBalance?: number;
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   talent: Talent[];
@@ -444,6 +477,9 @@ export interface Gig {
   fundingPaymentIntentId?: string;
   status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
+  campaignType: "standard_sponsorship" | "production_grant";
+  usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
+  allowWhitelisting?: boolean;
 }
 
 export interface CreatorMarketplaceProfile {

@@ -10,11 +10,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, DollarSign, Send } from 'lucide-react';
+import { Loader2, DollarSign, Send, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
 import type { Agency, UserProfileFirestoreData } from '@/types';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface CreatePayoutCardProps {
   agency: Agency;
@@ -90,8 +91,24 @@ export function CreatePayoutCard({ agency, liveProfiles, disabled }: CreatePayou
   return (
     <Card id="create-payout-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
-        <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary" /> Create Internal Payout</CardTitle>
+            <CardDescription>Send one-off or recurring payments to your talent.</CardDescription>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[200px]">
+                <p>Internal payouts incur a 4% + $0.30 processing fee charged to the agency.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -126,7 +143,13 @@ export function CreatePayoutCard({ agency, liveProfiles, disabled }: CreatePayou
         {payoutAmount && (
           <div className="p-3 border rounded-md bg-muted text-sm space-y-2">
             <div className="flex justify-between"><span>Payout to {selectedTalentName}</span><span>${parseFloat(payoutAmount).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>Platform & Processing Fee</span><span>${platformFee.toFixed(2)}</span></div>
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-1.5">
+                Processing Fee 
+                <span className="text-[10px] text-muted-foreground">(4% + $0.30)</span>
+              </span>
+              <span>${platformFee.toFixed(2)}</span>
+            </div>
             <Separator />
             <div className="flex justify-between font-bold"><span>Total Charge</span><span>${totalCharge.toFixed(2)}</span></div>
           </div>

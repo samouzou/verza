@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, UploadCloud, Briefcase } from "lucide-react";
+import { Loader2, Save, UploadCloud, Briefcase, Landmark } from "lucide-react";
 import { auth, db, doc, updateDoc, storage } from "@/lib/firebase";
 import { updateProfile as updateFirebaseUserProfile } from "firebase/auth";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -17,7 +17,7 @@ import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { CreatorMarketplaceProfile } from "@/types";
+import type { CreatorMarketplaceProfile, TaxClassification } from "@/types";
 
 interface UpdateProfileFormProps {
   currentUser: UserProfile;
@@ -25,11 +25,21 @@ interface UpdateProfileFormProps {
 
 const contentTypes: CreatorMarketplaceProfile['contentType'][] = ['Tech', 'Fashion', 'Comedy', 'Gaming', 'Lifestyle', 'Food'];
 
+const taxClassifications: { value: TaxClassification; label: string }[] = [
+  { value: 'individual', label: 'Individual/Sole Proprietor' },
+  { value: 'c_corp', label: 'C Corporation' },
+  { value: 's_corp', label: 'S Corporation' },
+  { value: 'partnership', label: 'Partnership' },
+  { value: 'trust_estate', label: 'Trust/Estate' },
+  { value: 'llc', label: 'Limited Liability Company' },
+];
 
 export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
+  const [legalName, setLegalName] = useState(currentUser.legalName || "");
   const [address, setAddress] = useState(currentUser.address || ""); 
   const [tin, setTin] = useState(currentUser.tin || "");
+  const [taxClassification, setTaxClassification] = useState<TaxClassification | null>(currentUser.taxClassification || null);
   
   // Marketplace fields
   const [showInMarketplace, setShowInMarketplace] = useState(currentUser.showInMarketplace || false);
@@ -49,8 +59,10 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
 
   useEffect(() => {
     setDisplayName(currentUser.displayName || "");
+    setLegalName(currentUser.legalName || "");
     setAddress(currentUser.address || "");
     setTin(currentUser.tin || "");
+    setTaxClassification(currentUser.taxClassification || null);
     setAvatarPreview(currentUser.avatarUrl);
     setLogoPreview(currentUser.companyLogoUrl || null);
     setShowInMarketplace(currentUser.showInMarketplace || false);
@@ -83,8 +95,10 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     }
     
     const hasProfileChanged = displayName.trim() !== (currentUser.displayName || "") ||
+                             legalName.trim() !== (currentUser.legalName || "") ||
                              address.trim() !== (currentUser.address || "") ||
                              tin.trim() !== (currentUser.tin || "") ||
+                             taxClassification !== (currentUser.taxClassification || null) ||
                              showInMarketplace !== (currentUser.showInMarketplace || false) ||
                              niche.trim() !== (currentUser.niche || "") ||
                              contentType !== currentUser.contentType ||
@@ -119,6 +133,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
         authUpdates.displayName = displayName.trim();
         firestoreUpdates.displayName = displayName.trim();
       }
+      if (legalName.trim() !== (currentUser.legalName || "")) {
+        firestoreUpdates.legalName = legalName.trim();
+      }
       if (newAvatarUrl && newAvatarUrl !== currentUser.avatarUrl) {
         authUpdates.photoURL = newAvatarUrl;
         firestoreUpdates.avatarUrl = newAvatarUrl;
@@ -131,6 +148,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       }
       if (tin.trim() !== (currentUser.tin || "")) {
         firestoreUpdates.tin = tin.trim();
+      }
+      if (taxClassification !== (currentUser.taxClassification || null)) {
+        firestoreUpdates.taxClassification = taxClassification;
       }
       if (showInMarketplace !== (currentUser.showInMarketplace || false)) {
         firestoreUpdates.showInMarketplace = showInMarketplace;
@@ -215,7 +235,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <Label htmlFor="displayName">Display Name</Label>
+            <Label htmlFor="displayName">Public Display Name</Label>
             <Input
               id="displayName"
               type="text"
@@ -225,32 +245,65 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
               className="mt-1"
             />
           </div>
-          <div>
-            <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
-            <Input
-              id="tin"
-              type="text"
-              value={tin}
-              onChange={(e) => setTin(e.target.value)}
-              placeholder="XXX-XX-XXXX"
-              className="mt-1"
-            />
-          </div>
-        </div>
-        
-        <div>
-          <Label htmlFor="address">Address (for Invoices & Tax Forms)</Label>
-          <Textarea
-            id="address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="123 Main St, City, State, Zip Code, Country"
-            className="mt-1"
-            rows={3}
-          />
-          <p className="text-xs text-muted-foreground mt-1">This address will be used on your invoices and tax forms.</p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Tax & W-9 Information</CardTitle>
+          <CardDescription>Capture legal information for tax reporting and end-of-year summaries.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="legalName">Legal Name (for W-9)</Label>
+              <Input
+                id="legalName"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+                placeholder="Individual or Business Legal Name"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tin">Taxpayer ID (SSN/EIN)</Label>
+              <Input
+                id="tin"
+                type="password"
+                value={tin}
+                onChange={(e) => setTin(e.target.value)}
+                placeholder="XXX-XX-XXXX"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="taxClassification">Tax Classification</Label>
+              <Select value={taxClassification || ""} onValueChange={(val) => setTaxClassification(val as TaxClassification)}>
+                <SelectTrigger id="taxClassification" className="mt-1">
+                  <SelectValue placeholder="Select classification..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {taxClassifications.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="address">Legal Address (for Invoices & Tax Forms)</Label>
+            <Textarea
+              id="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Main St, City, State, Zip Code, Country"
+              className="mt-1"
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground mt-1">This address will be used on your generated invoices and tax summaries.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

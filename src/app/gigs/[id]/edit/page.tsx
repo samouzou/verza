@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
@@ -19,8 +17,24 @@ import { db } from '@/lib/firebase';
 import type { Gig } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+
+const quillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
 
 export default function EditGigPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -32,6 +46,7 @@ export default function EditGigPage() {
   const [gig, setGig] = useState<Gig | null>(null);
   const [isLoadingGig, setIsLoadingGig] = useState(true);
 
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -39,6 +54,10 @@ export default function EditGigPage() {
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Legal Fields
+  const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
+  const [allowWhitelisting, setAllowWhitelisting] = useState(false);
   
   useEffect(() => {
     if (!gigId) return;
@@ -52,12 +71,15 @@ export default function EditGigPage() {
             const gigData = { id: docSnap.id, ...docSnap.data() } as Gig;
             setGig(gigData);
             // Pre-fill form state
+            setCampaignType(gigData.campaignType || 'standard_sponsorship');
             setTitle(gigData.title);
             setDescription(gigData.description);
             setSelectedPlatforms(gigData.platforms);
             setRatePerCreator(String(gigData.ratePerCreator));
             setCreatorsNeeded(String(gigData.creatorsNeeded));
             setVideosPerCreator(String(gigData.videosPerCreator || '1'));
+            setUsageRights(gigData.usageRights || '1_year');
+            setAllowWhitelisting(!!gigData.allowWhitelisting);
         } else {
             toast({ title: 'Gig not found', variant: 'destructive' });
             router.push('/gigs');
@@ -66,6 +88,14 @@ export default function EditGigPage() {
     }
     fetchGig();
   }, [gigId, router, toast]);
+
+  // Adjust defaults based on campaign type
+  useEffect(() => {
+    if (campaignType === 'production_grant') {
+      setUsageRights('none');
+      setAllowWhitelisting(false);
+    }
+  }, [campaignType]);
 
   const handlePlatformChange = (platform: string) => {
     setSelectedPlatforms(prev => 
@@ -92,12 +122,15 @@ export default function EditGigPage() {
     try {
         const gigDocRef = doc(db, 'gigs', gigId);
         const updates: Partial<Gig> = {
+            campaignType,
             title: title.trim(),
             description: description.trim(),
             platforms: selectedPlatforms,
             ratePerCreator: rateNum,
             creatorsNeeded: creatorsNum,
             videosPerCreator: videosNum,
+            usageRights,
+            allowWhitelisting,
         };
       
         await updateDoc(gigDocRef, updates);
@@ -168,20 +201,60 @@ export default function EditGigPage() {
           </Alert>
         )}
         
-        <Card>
-          <CardHeader>
-              <CardTitle>Gig Details</CardTitle>
-              <CardDescription>Update the details for your user-generated content (UGC) campaign.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>1. Campaign Selection</CardTitle>
+              <CardDescription>Update the type of engagement for this campaign.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RadioGroup value={campaignType} onValueChange={(val) => setCampaignType(val as any)} className="space-y-4" disabled={isFunded || isSubmitting}>
+                <div className={cn(
+                  "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                  campaignType === 'standard_sponsorship' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                )}>
+                  <RadioGroupItem value="standard_sponsorship" id="standard" className="mt-1" />
+                  <Label htmlFor="standard" className="flex-1 cursor-pointer">
+                    <p className="font-bold text-base">Standard Sponsorship</p>
+                    <p className="text-sm text-muted-foreground mt-1">Includes ad-reads, usage rights, and whitelisting options.</p>
+                  </Label>
+                </div>
+                <div className={cn(
+                  "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                  campaignType === 'production_grant' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                )}>
+                  <RadioGroupItem value="production_grant" id="grant" className="mt-1" />
+                  <Label htmlFor="grant" className="flex-1 cursor-pointer">
+                    <p className="font-bold text-base">Production Grant / Editorial Funding</p>
+                    <p className="text-sm text-muted-foreground mt-1">No ad-read required. Funds used to support independent creator content.</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+                <CardTitle>2. Gig Details</CardTitle>
+                <CardDescription>Update the details for your user-generated content (UGC) campaign.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="space-y-2">
                   <Label htmlFor="title">Gig Title</Label>
                   <Input id="title" value={title} onChange={e => setTitle(e.target.value)} required disabled={isSubmitting} />
               </div>
               <div className="space-y-2">
                   <Label htmlFor="description">Project Description</Label>
-                  <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} rows={5} required disabled={isSubmitting} />
+                  <div className="min-h-[200px] rounded-md border border-input bg-background">
+                    <ReactQuill
+                      theme="snow"
+                      value={description}
+                      onChange={setDescription}
+                      placeholder="Update your project description..."
+                      readOnly={isSubmitting}
+                      modules={quillModules}
+                    />
+                  </div>
               </div>
               <div className="space-y-2">
                 <Label>Platforms</Label>
@@ -213,13 +286,71 @@ export default function EditGigPage() {
                       <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
                   </div>
               </div>
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Save Changes
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+              <CardDescription>Update how you plan to use the content.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label>Usage Rights Duration</Label>
+                <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4" disabled={isFunded || isSubmitting}>
+                  {campaignType === 'production_grant' && (
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="none" id="none" />
+                      <Label htmlFor="none" className="font-normal flex items-center gap-1.5 cursor-pointer">
+                        None (Editorial Support Only)
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Label>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="30_days" id="30days" />
+                    <Label htmlFor="30days" className="font-normal">30 Days</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="1_year" id="1year" />
+                    <Label htmlFor="1year" className="font-normal">1 Year</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="perpetuity" id="perpetuity" />
+                    <Label htmlFor="perpetuity" className="font-normal">In Perpetuity</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="space-y-0.5">
+                  <Label htmlFor="whitelisting">Paid Whitelisting Allowed?</Label>
+                  <p className="text-xs text-muted-foreground">Allows your brand to run ads directly from the creator's profile.</p>
+                </div>
+                <Checkbox 
+                  id="whitelisting" 
+                  checked={allowWhitelisting} 
+                  onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
+                  disabled={isFunded || isSubmitting || campaignType === 'production_grant'}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
+            Save All Changes
+          </Button>
+        </form>
       </div>
     </>
   );

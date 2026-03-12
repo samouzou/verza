@@ -19,13 +19,13 @@ service cloud.firestore {
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       // Check if user's primary agency matches and their role is one of the team roles
       return request.auth != null && 
-             userDoc.primaryAgencyId == agencyId &&
-             (userDoc.role == "agency_owner" || userDoc.role == "agency_admin" || userDoc.role == "agency_member");
+             userDoc.get('primaryAgencyId', null) == agencyId &&
+             (userDoc.get('role', 'none') == "agency_owner" || userDoc.get('role', 'none') == "agency_admin" || userDoc.get('role', 'none') == "agency_member");
     }
 
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
-      let requesterAgencyId = request.auth.token.primaryAgencyId;
+      let requesterAgencyId = request.auth.token.get('primaryAgencyId', null);
       // If the requester doesn't belong to an agency, they can't have talent.
       return requesterAgencyId != null &&
              'talent' in get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data &&
@@ -34,11 +34,11 @@ service cloud.firestore {
     
     // Helper to check if a creator has accepted a gig for the requesting agency
     function isGigAffiliated(userId) {
-      let requesterAgencyId = request.auth.token.primaryAgencyId;
+      let requesterAgencyId = request.auth.token.get('primaryAgencyId', null);
        // Returns true only if requester has an agency AND the target user's profile has that agency in giggingForAgencies.
       return requesterAgencyId != null &&
              'giggingForAgencies' in get(/databases/$(database)/documents/users/$(userId)).data &&
-             requesterAgencyId in get(/databases/$(database)/documents/users/$(userId)).data.giggingForAgencies;
+             requesterAgencyId in get(/databases/$(database)/documents/users/$(userId)).data.get('giggingForAgencies', []);
     }
 
     // Helper to check if a user can access a receipt, either by being the owner
@@ -47,21 +47,23 @@ service cloud.firestore {
       // The user is the direct owner/creator of the receipt.
       let isDirectOwner = isOwner(receipt.userId);
       // The user has access to the contract this receipt is linked to.
-      let hasAccessViaContract = receipt.linkedContractId != null ? (request.auth.uid in get(/databases/$(database)/documents/contracts/$(receipt.linkedContractId)).data.access) : false;
+      let hasAccessViaContract = receipt.get('linkedContractId', null) != null ? (request.auth.uid in get(/databases/$(database)/documents/contracts/$(receipt.linkedContractId)).data.get('access', {})) : false;
       
       return isDirectOwner || hasAccessViaContract;
     }
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || resource.data.showInMarketplace == true;
+      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || resource.data.get('showInMarketplace', false) == true;
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) &&
-                       (request.resource.data.hasCompletedOnboarding == true && resource.data.get('hasCompletedOnboarding', false) == false ||
                        (
-                         !(request.resource.data.role != resource.data.role && request.resource.data.role == "agency_owner") &&
-                         !(request.resource.data.isAgencyOwner == true && resource.data.get('isAgencyOwner', false) == false)
-                       ));
+                         (request.resource.data.get('hasCompletedOnboarding', false) == true && resource.data.get('hasCompletedOnboarding', false) == false) ||
+                         (
+                           !(request.resource.data.get('role', 'none') != resource.data.get('role', 'none') && request.resource.data.get('role', 'none') == "agency_owner") &&
+                           !(request.resource.data.get('isAgencyOwner', false) == true && resource.data.get('isAgencyOwner', false) == false)
+                         )
+                       );
       
       match /private_credentials/{credId} {
           allow read, write: if false; // Only backend functions
@@ -141,7 +143,7 @@ service cloud.firestore {
     }
     
     match /emailLogs/{logId} {
-      allow read: if resource.data.contractId != null && 
+      allow read: if resource.data.get('contractId', null) != null && 
                      get(/databases/$(database)/documents/contracts/$(resource.data.contractId)).data.access[request.auth.uid] != null;
       allow write: if false;
     }
@@ -170,7 +172,7 @@ service cloud.firestore {
     
     match /internalPayouts/{payoutId} {
       allow read: if isMemberOfAgency(resource.data.agencyId) || isOwner(resource.data.talentId);
-      allow create: if get(/databases/$(database)/documents/agencies/$(request.resource.data.agencyId)).data.ownerId == request.auth.uid || (request.auth.token.isAgencyAdmin == true && request.auth.token.primaryAgencyId == request.resource.data.agencyId);
+      allow create: if get(/databases/$(database)/documents/agencies/$(request.resource.data.agencyId)).data.ownerId == request.auth.uid || (request.auth.token.get('isAgencyAdmin', false) == true && request.auth.token.get('primaryAgencyId', '') == request.resource.data.agencyId);
       allow update, delete: if false;
     }
     

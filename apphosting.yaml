@@ -40,12 +40,12 @@ env:
       - BUILD
       - RUNTIME
 
-  # Stripe key
+  # Stripe keys
   - variable: STRIPE_SECRET_KEY
     secret: VERZA_STRIPE_SECRET_KEY
   
   - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
-    secret: VERZA_SUBSCRIPTION_WEBHOOK_SECRET
+    secret: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
 
   - variable: STRIPE_INDIVIDUAL_PRO_PRICE_ID
     secret: VERZA_STRIPE_INDIVIDUAL_PRO_PRICE_ID
@@ -57,23 +57,43 @@ env:
     availability:
       - RUNTIME
       
-  - variable: STRIPE_AGENCY_START_PRICE_ID
-    secret: VERZA_STRIPE_AGENCY_START_PRICE_ID
+  - variable: STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID
     availability:
       - RUNTIME
       
-  - variable: STRIPE_AGENCY_START_YEARLY_PRICE_ID
-    secret: VERZA_STRIPE_AGENCY_START_YEARLY_PRICE_ID
+  - variable: STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID
     availability:
       - RUNTIME
 
-  - variable: STRIPE_AGENCY_PRO_PRICE_ID
-    secret: VERZA_STRIPE_AGENCY_PRO_PRICE_ID
+  - variable: STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID
     availability:
       - RUNTIME
   
   - variable: STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_NETWORK_MONTHLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_NETWORK_YEARLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_ENTERPRISE_MONTHLY_PRICE_ID
+    availability:
+      - RUNTIME
+
+  - variable: STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID
+    secret: VERZA_STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID
     availability:
       - RUNTIME
 
@@ -123,7 +143,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-
-
-
-

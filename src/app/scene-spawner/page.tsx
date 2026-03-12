@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, ChangeEvent } from 'react';
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2 } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2, LifeBuoy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -41,6 +40,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
+import { useTour } from '@/hooks/use-tour';
+import { sceneSpawnerTour } from '@/lib/tours';
+import { trackEvent } from '@/lib/analytics';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -50,6 +52,7 @@ const IMAGE_COST = 1;
 export default function SceneSpawnerPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
+  const { startTour } = useTour();
 
   const [activeTab, setActiveTab] = useState("text-to-video");
   const [prompt, setPrompt] = useState("");
@@ -187,6 +190,8 @@ export default function SceneSpawnerPage() {
         });
       }
       
+      trackEvent({ action: 'spawn_scene_start', category: 'ai_tool', label: mode });
+
       if (mode === 'image-to-image') {
         const generateImageCallable = httpsCallable(functions, 'generateImage');
         result = await generateImageCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
@@ -198,6 +203,8 @@ export default function SceneSpawnerPage() {
         data = result.data as { videoUrl: string, remainingCredits: number };
         setGeneratedMedia({ url: data.videoUrl, type: 'video' });
       }
+
+      trackEvent({ action: 'spawn_scene_success', category: 'ai_tool', label: mode });
 
       toast({ title: "Generation Complete!", description: `Your media is ready. You have ${data.remainingCredits} credits left.` });
       await refreshAuthUser();
@@ -224,6 +231,7 @@ export default function SceneSpawnerPage() {
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
+        trackEvent({ action: 'create_character', category: 'engagement', label: 'scene_spawner' });
         toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
         setNewCharacterName("");
         setNewCharacterDescription("");
@@ -270,6 +278,11 @@ export default function SceneSpawnerPage() {
       <PageHeader
         title="Scene Spawner"
         description="Generate video clips and images for your content using AI."
+        actions={
+          <Button variant="outline" onClick={() => startTour(sceneSpawnerTour)}>
+            <LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour
+          </Button>
+        }
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

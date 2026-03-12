@@ -21,12 +21,22 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
     const now = new Date();
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    const activeStatuses = ["pending", "invoiced", "partially_paid", "overdue", "sent", "viewed"];
     const contractsSnapshot = await db
       .collection("contracts")
-      .where("status", "in", ["pending", "invoiced", "partially_paid", "overdue", "sent", "viewed"])
+      .where("status", "in", activeStatuses)
       .get();
 
     logger.info(`Found ${contractsSnapshot.docs.length} active contracts to check for overdue milestones.`);
+
+    const emailLogoHeader = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
+          style="vertical-align: middle; margin-right: 8px;">
+        <span style="font-weight: bold; font-size: 24px; color: #000000; 
+          vertical-align: middle; font-family: sans-serif;">Verza</span>
+      </div>
+    `;
 
     for (const doc of contractsSnapshot.docs) {
       const contract = doc.data() as Contract;
@@ -37,7 +47,10 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
         const lastReminder = milestone.lastReminderSentAt?.toDate();
         const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-        if (milestone.status !== "paid" && milestoneDueDate < todayMidnight && (!lastReminder || lastReminder < threeDaysAgo)) {
+        const isOverdue = milestoneDueDate < todayMidnight;
+        const needsReminder = !lastReminder || lastReminder < threeDaysAgo;
+
+        if (milestone.status !== "paid" && isOverdue && needsReminder) {
           // This milestone is overdue and needs a reminder
           logger.info(`Found overdue milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
 
@@ -53,48 +66,29 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
 
           const htmlContent = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Payment Reminder</title>
-              <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
-                'Helvetica Neue', 'Arial', sans-serif; background-color: #f4f4f7; color: #333; margin: 0; padding: 20px; }
-                .container { max-width: 600px; margin: auto; background-color: #ffffff;
-                border: 1px solid #e2e2e2; border-radius: 8px; overflow: hidden; }
-                .header { background-color: #f8f8f8; padding: 40px; text-align: center; }
-                .header h1 { margin: 0; color: #EF4444; font-size: 24px; }
-                .content { padding: 30px; }
-                .content p { line-height: 1.6; margin: 0 0 15px; }
-                .bold { font-weight: 600; }
-                .button-container { text-align: center; margin: 30px 0; }
-                .button { background-color: #EF4444; color: #ffffff !important; text-decoration: none; padding: 14px 28px;
-                border-radius: 5px; font-size: 16px; font-weight: 500; }
-                .footer { padding: 20px; text-align: center; font-size: 12px; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <h1>Payment Overdue</h1>
+            <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+            <body style="background-color: #f4f4f7; padding: 20px; font-family: sans-serif;">
+              <div style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e2e2; 
+                border-radius: 12px; overflow: hidden; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                ${emailLogoHeader}
+                <div style="text-align: center; margin-bottom: 30px;">
+                  <h1 style="margin: 0; color: #EF4444; font-size: 24px;">Payment Overdue</h1>
                 </div>
-                <div class="content">
+                <div style="color: #555; line-height: 1.6;">
                   <p>Hello,</p>
-                  <p>This is a reminder that the payment of <span class="bold">$${milestone.amount.toLocaleString()}</span>
-                  for the milestone <span class="bold">'${milestone.description}'</span> on project
-                  <span class="bold">'${contract.projectName || contract.brand}'</span> is now overdue.</p>
+                  <p>This is a reminder that the payment of <strong>$${milestone.amount.toLocaleString()}</strong>
+                  for the milestone <strong>'${milestone.description}'</strong> on project
+                  <strong>'${contract.projectName || contract.brand}'</strong> is now overdue.</p>
                   <p>To keep things on track, please process your payment at your earliest convenience.
                   You can pay securely via the link below:</p>
-                  <div class="button-container">
-                    <a href="${paymentLink}" class="button" target="_blank" rel="noopener noreferrer">Pay Now</a>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${paymentLink}" style="background-color: #EF4444; color: #ffffff; text-decoration: none; 
+                    padding: 14px 28px; border-radius: 6px; font-size: 16px; font-weight: bold;">Pay Now</a>
                   </div>
-                  <p>Thank you,<br/><span class="bold">The Verza Team on behalf of ${creatorName}</span></p>
+                  <p>Thank you,<br/><strong>The Verza Team on behalf of ${creatorName}</strong></p>
                 </div>
               </div>
-            </body>
-            </html>
+            </body></html>
           `;
 
           const msg = {
@@ -146,12 +140,22 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysFromNow = new Date(todayMidnight.getTime() + 7 * 24 * 60 * 60 * 1000);
 
+    const activeStatuses = ["pending", "invoiced", "partially_paid", "sent", "viewed"];
     const contractsSnapshot = await db
       .collection("contracts")
-      .where("status", "in", ["pending", "invoiced", "partially_paid", "sent", "viewed"])
+      .where("status", "in", activeStatuses)
       .get();
 
     logger.info(`Found ${contractsSnapshot.docs.length} active contracts to check for upcoming milestones.`);
+
+    const emailLogoHeader = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
+          style="vertical-align: middle; margin-right: 8px;">
+        <span style="font-weight: bold; font-size: 24px; color: #000000; 
+          vertical-align: middle; font-family: sans-serif;">Verza</span>
+      </div>
+    `;
 
     for (const doc of contractsSnapshot.docs) {
       const contract = doc.data() as Contract;
@@ -162,8 +166,10 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
         const lastReminder = milestone.lastReminderSentAt?.toDate();
         const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-        if (milestone.status === "pending" && milestoneDueDate >= todayMidnight &&
-          milestoneDueDate <= sevenDaysFromNow && (!lastReminder || lastReminder < threeDaysAgo)) {
+        const isSoon = milestoneDueDate >= todayMidnight && milestoneDueDate <= sevenDaysFromNow;
+        const needsReminder = !lastReminder || lastReminder < threeDaysAgo;
+
+        if (milestone.status === "pending" && isSoon && needsReminder) {
           logger.info(`Found upcoming milestone for contract ${doc.id}. Milestone: "${milestone.description}"`);
 
           if (!contract.clientEmail) {
@@ -180,18 +186,27 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
           const paymentLink = `${appUrl}/pay/contract/${doc.id}?milestoneId=${milestone.id}`;
 
           const htmlContent = `
-                <!DOCTYPE html>
-                <html lang="en">
-                <head><title>Payment Reminder</title></head>
-                <body>
-                    <p>Hello,</p>
-                    <p>This is a friendly reminder that a payment of <strong>$${milestone.amount.toLocaleString()}</strong>
-                    for milestone "<strong>${milestone.description}</strong>" is due on <strong>${dueDateFormatted}</strong>.</p>
-                    <a href="${paymentLink}">Pay Now</a>
-                    <p>Thank you,<br/>${creatorName}</p>
-                </body>
-                </html>
-              `;
+            <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+            <body style="background-color: #f4f4f7; padding: 20px; font-family: sans-serif;">
+              <div style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e2e2; 
+                border-radius: 12px; overflow: hidden; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                ${emailLogoHeader}
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <h2 style="color: #333; font-size: 20px;">Upcoming Payment Reminder</h2>
+                </div>
+                <div style="color: #555; line-height: 1.6;">
+                  <p>Hello,</p>
+                  <p>This is a friendly reminder that a payment of <strong>$${milestone.amount.toLocaleString()}</strong>
+                  for milestone "<strong>${milestone.description}</strong>" is due on <strong>${dueDateFormatted}</strong>.</p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${paymentLink}" style="background-color: #6B37FF; color: #ffffff; text-decoration: none; 
+                    padding: 14px 28px; border-radius: 6px; font-size: 16px; font-weight: bold;">Pay Now</a>
+                  </div>
+                  <p>Thank you,<br/><strong>${creatorName}</strong></p>
+                </div>
+              </div>
+            </body></html>
+          `;
 
           const msg = {
             to: contract.clientEmail,
@@ -211,6 +226,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
 
           await doc.ref.update({
             milestones: updatedMilestones,
+            invoiceStatus: "overdue",
             invoiceHistory: admin.firestore.FieldValue.arrayUnion({
               timestamp: admin.firestore.Timestamp.now(),
               action: `Upcoming Reminder Sent for Milestone: ${milestone.description}`,
