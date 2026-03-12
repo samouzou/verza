@@ -523,15 +523,55 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               const receiptHtml = `
                 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-                <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif;">
-                <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
-                  border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #6B37FF; margin: 0; font-size: 22px;">Gig Funding Receipt</h2>
+                <body style="background-color: #f4f4f7; padding: 40px 20px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+                <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="display: inline-block; padding: 8px 16px; background-color: #6B37FF; border-radius: 8px; color: #ffffff; font-weight: bold; font-size: 14px; margin-bottom: 16px;">VERZA SECURE</div>
+                    <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">Payment Confirmed</h1>
+                    <p style="color: #718096; margin-top: 8px; font-size: 16px;">Project: ${gigData.title}</p>
                   </div>
-                  <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px;">
-                    <p><strong>Gig:</strong> ${gigData.title}</p>
-                    <p><strong>Amount Funded:</strong> $${(amount / 100).toLocaleString()}</p>
+
+                  <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #edf2f7; margin-bottom: 32px;">
+                    <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; color: #a0aec0; margin: 0 0 16px 0;">Funding Breakdown</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">$${gigData.ratePerCreator.toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Creator Capacity</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">${gigData.creatorsNeeded} Creators</td>
+                      </tr>
+                      <tr style="border-top: 2px solid #edf2f7;">
+                        <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Funded</td>
+                        <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800; text-align: right; font-size: 24px;">$${(amount / 100).toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="margin-bottom: 32px;">
+                    <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; color: #a0aec0; margin: 0 0 12px 0;">Legal & Usage</h2>
+                    <div style="grid-template-columns: 1fr 1fr; display: grid; gap: 16px;">
+                      <div style="padding: 16px; border: 1px solid #edf2f7; border-radius: 8px;">
+                        <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; font-weight: bold;">Campaign Type</p>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #2d3748; font-weight: 600;">${gigData.campaignType?.replace(/_/g, ' ') || 'Sponsorship'}</p>
+                      </div>
+                      <div style="padding: 16px; border: 1px solid #edf2f7; border-radius: 8px;">
+                        <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; font-weight: bold;">Usage Rights</p>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #2d3748; font-weight: 600;">${gigData.usageRights?.replace(/_/g, ' ') || '1 Year'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0; border: 1px solid #feebc8; margin-bottom: 32px;">
+                    <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
+                      <strong>Escrow Lock:</strong> These funds are now held in the Verza Campaign Vault. They will be released to creators only upon your approval of verified submissions.
+                    </p>
+                  </div>
+
+                  <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
+                    <p style="color: #a0aec0; font-size: 12px;">Transaction ID: ${paymentIntent.id}</p>
+                    <p style="color: #a0aec0; font-size: 12px; margin-top: 4px;">Powered by Verza &bull; Secure Financial Operations</p>
                   </div>
                 </div>
                 </body></html>`;
@@ -808,6 +848,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: { enabled: true },
       line_items: [{
         price_data: {
           currency: "usd",
@@ -906,6 +947,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: { enabled: true },
       line_items: [{price: priceId, quantity: 1}],
       success_url: `${params.APP_URL.value()}/scene-spawner?purchase_success=true`,
       cancel_url: `${params.APP_URL.value()}/scene-spawner`,
@@ -970,6 +1012,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: { enabled: true },
       line_items: [{
         price_data: {
           currency: "usd",
