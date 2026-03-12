@@ -15,7 +15,6 @@ import { TalentRosterCard } from './talent-roster-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
 import { AgencyGigsCard } from './agency-gigs-card';
-import { BudgetSummary } from './budget-summary';
 import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -74,8 +73,6 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <BudgetSummary agency={agency} />
-
       {(isNotOnAgencyPlan || atTalentLimit) && (
         <Alert className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
           <Sparkles className="h-5 w-5" />

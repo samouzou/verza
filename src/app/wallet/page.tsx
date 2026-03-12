@@ -5,11 +5,12 @@ import { PageHeader } from "@/components/page-header";
 import { WalletOverview } from "@/components/wallet/wallet-overview";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { PayoutHistoryCard } from "@/components/agency/payout-history-card";
+import { BudgetSummary } from "@/components/agency/budget-summary";
 import { useAuth } from "@/hooks/use-auth";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import type { InternalPayout } from "@/types";
-import { db, collection, query, where, onSnapshot, orderBy } from '@/lib/firebase';
+import type { InternalPayout, Agency } from "@/types";
+import { db, collection, query, where, onSnapshot, orderBy, doc } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
@@ -25,9 +26,12 @@ export default function WalletPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [receivedPayouts, setReceivedPayouts] = useState<InternalPayout[]>([]);
+  const [agency, setAgency] = useState<Agency | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [stripeBalance, setStripeBalance] = useState<StripeBalance | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+
+  const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -43,11 +47,25 @@ export default function WalletPage() {
 
     const unsubscribeReceived = onSnapshot(receivedQuery, (snapshot) => {
       setReceivedPayouts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as InternalPayout)));
-      setIsLoadingData(false);
+      if (!isAgencyManager) setIsLoadingData(false);
     }, (error) => {
       console.error("Error fetching received payouts:", error);
-      setIsLoadingData(false);
+      if (!isAgencyManager) setIsLoadingData(false);
     });
+
+    // Fetch agency data if manager
+    let unsubscribeAgency: (() => void) | undefined;
+    if (isAgencyManager && user.primaryAgencyId) {
+      unsubscribeAgency = onSnapshot(doc(db, "agencies", user.primaryAgencyId), (snapshot) => {
+        if (snapshot.exists()) {
+          setAgency({ id: snapshot.id, ...snapshot.data() } as Agency);
+        }
+        setIsLoadingData(false);
+      }, (error) => {
+        console.error("Error fetching agency for wallet:", error);
+        setIsLoadingData(false);
+      });
+    }
 
     const getBalance = async () => {
       try {
@@ -72,8 +90,9 @@ export default function WalletPage() {
 
     return () => {
       unsubscribeReceived();
+      if (unsubscribeAgency) unsubscribeAgency();
     };
-  }, [user, authLoading, toast]);
+  }, [user, authLoading, toast, isAgencyManager]);
 
   const sortedEarnings = useMemo(() => {
     return [...receivedPayouts].sort((a, b) => b.initiatedAt.toMillis() - a.initiatedAt.toMillis());
@@ -97,29 +116,39 @@ export default function WalletPage() {
     );
   }
 
-  const isAgencyManager = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
-
   return (
     <>
       <PageHeader
         title="Wallet"
-        description="View your earnings, manage payouts, and see your transaction history."
+        description="View your earnings, manage agency budgets, and track transaction history."
       />
       <div className="space-y-8">
-        <WalletOverview balance={stripeBalance} isLoading={isLoadingBalance} />
+        {isAgencyManager && agency && (
+          <div id="agency-budget-section" className="space-y-4">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" /> Agency Budget
+            </h3>
+            <BudgetSummary agency={agency} />
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold">Personal Payouts</h3>
+          <WalletOverview balance={stripeBalance} isLoading={isLoadingBalance} />
+        </div>
         
         <div className="space-y-6">
           <div id="personal-earnings-section">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              Personal Earnings
+            <h3 className="text-lg font-semibold mb-4">
+              Earnings History
             </h3>
             <TransactionHistory transactions={sortedEarnings} currentUserId={user.uid} />
           </div>
 
           {isAgencyManager && user.primaryAgencyId && (
             <div id="agency-disbursements-section">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                Agency Payout History
+              <h3 className="text-lg font-semibold mb-4">
+                Agency Disbursement History
               </h3>
               <PayoutHistoryCard agencyId={user.primaryAgencyId} />
             </div>
