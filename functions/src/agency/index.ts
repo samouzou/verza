@@ -474,7 +474,7 @@ export const createInternalPayout = onCall(async (request) => {
     const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
-    const agencyOwnerData = agencyOwnerUserDocData = agencyOwnerSnap.data() as UserProfileFirestoreData;
+    const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
@@ -576,7 +576,7 @@ export const fundGigFromWallet = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const gigRef = db.collection('gigs').doc(gigId);
+  const gigRef = db.collection("gigs").doc(gigId);
 
   try {
     return await db.runTransaction(async (transaction) => {
@@ -584,18 +584,18 @@ export const fundGigFromWallet = onCall(async (request) => {
       if (!gigSnap.exists) throw new HttpsError("not-found", "Gig not found.");
       const gigData = gigSnap.data() as Gig;
 
-      if (gigData.status !== 'pending_payment') {
+      if (gigData.status !== "pending_payment") {
         throw new HttpsError("failed-precondition", "This gig is already funded or open.");
       }
 
       const agencyId = gigData.brandId;
-      const agencyRef = db.collection('agencies').doc(agencyId);
+      const agencyRef = db.collection("agencies").doc(agencyId);
       const agencySnap = await transaction.get(agencyRef);
       if (!agencySnap.exists) throw new HttpsError("not-found", "Agency not found.");
       const agencyData = agencySnap.data() as Agency;
 
       // Check permissions
-      const isTeam = agencyData.ownerId === userId || agencyData.team?.some(m => m.userId === userId && m.role === 'admin');
+      const isTeam = agencyData.ownerId === userId || agencyData.team?.some((m) => m.userId === userId && m.role === "admin");
       if (!isTeam) {
         throw new HttpsError("permission-denied", "Only agency owners or admins can fund gigs.");
       }
@@ -604,7 +604,8 @@ export const fundGigFromWallet = onCall(async (request) => {
       const available = agencyData.availableBalance || 0;
 
       if (available < totalCost) {
-        throw new HttpsError("failed-precondition", `Insufficient wallet balance. Needed: $${totalCost}, Available: $${available}`);
+        throw new HttpsError("failed-precondition",
+          `Insufficient wallet balance. Needed: $${totalCost}, Available: $${available}`);
       }
 
       // Move funds and activate
@@ -614,11 +615,11 @@ export const fundGigFromWallet = onCall(async (request) => {
       });
 
       transaction.update(gigRef, {
-        status: 'open',
+        status: "open",
         fundedAmount: totalCost,
       });
 
-      return { success: true };
+      return {success: true};
     });
   } catch (error: any) {
     logger.error("Error funding gig from wallet:", error);

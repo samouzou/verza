@@ -368,6 +368,8 @@ export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
+  availableBalance?: number;
+  escrowBalance?: number;
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   talent: Talent[];

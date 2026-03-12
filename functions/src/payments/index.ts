@@ -452,14 +452,14 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           paidAt: admin.firestore.Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
-      } else if (purchaseType === 'agencyTopUp' && agencyId) {
-        const agencyRef = db.collection('agencies').doc(agencyId);
+      } else if (purchaseType === "agencyTopUp" && agencyId) {
+        const agencyRef = db.collection("agencies").doc(agencyId);
         await db.runTransaction(async (transaction) => {
           const agencyDoc = await transaction.get(agencyRef);
           if (!agencyDoc.exists) throw new Error("Agency not found for top-up.");
           const currentBalance = agencyDoc.data()?.availableBalance || 0;
           const topUpAmount = amount / 100;
-          transaction.update(agencyRef, { availableBalance: currentBalance + topUpAmount });
+          transaction.update(agencyRef, {availableBalance: currentBalance + topUpAmount});
         });
         logger.info(`Agency ${agencyId} wallet topped up with $${amount / 100}.`);
       } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
@@ -490,7 +490,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       } else if (purchaseType === "gigFunding" && gigId && agencyId) {
         try {
           const gigRef = db.collection("gigs").doc(gigId);
-          const agencyRef = db.collection('agencies').doc(agencyId);
+          const agencyRef = db.collection("agencies").doc(agencyId);
 
           await db.runTransaction(async (transaction) => {
             transaction.update(gigRef, {
@@ -499,7 +499,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             });
             const agencyDoc = await transaction.get(agencyRef);
             const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
-            transaction.update(agencyRef, { escrowBalance: currentEscrow + (amount / 100) });
+            transaction.update(agencyRef, {escrowBalance: currentEscrow + (amount / 100)});
           });
 
           logger.info(`Successfully activated gig "${gigId}" and updated agency escrow.`);
@@ -561,8 +561,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           );
           updates.milestones = updatedMilestones;
           allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
-          updates.invoiceStatus = allMilestonesPaid ? 'paid' : 'partially_paid';
-          updates.status = allMilestonesPaid ? 'paid' : 'partially_paid';
+          updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
+          updates.status = allMilestonesPaid ? "paid" : "partially_paid";
         } else {
           updates.invoiceStatus = "paid";
           updates.status = "paid";

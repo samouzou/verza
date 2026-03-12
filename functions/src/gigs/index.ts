@@ -29,7 +29,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     const gigData = gigSnap.data() as Gig;
 
     const agencyId = gigData.brandId;
-    const agencyDocRef = db.collection('agencies').doc(agencyId);
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
 
     // Security Check: Only the brand that created the gig can trigger a payout.
     if (gigData.brandId !== requesterId) {
@@ -66,8 +66,8 @@ export const payoutCreatorForGig = onCall(async (request) => {
     // Determine payout source (Card charge vs Wallet top-up)
     let sourceTransactionId: string | undefined;
     if (gigData.fundingPaymentIntentId) {
-        const paymentIntent = await stripe.paymentIntents.retrieve(gigData.fundingPaymentIntentId);
-        sourceTransactionId = paymentIntent.latest_charge as string;
+      const paymentIntent = await stripe.paymentIntents.retrieve(gigData.fundingPaymentIntentId);
+      sourceTransactionId = paymentIntent.latest_charge as string;
     }
 
     // Deduct 15% platform fee from the creator's payout
@@ -89,7 +89,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     };
 
     if (sourceTransactionId) {
-        transferParams.source_transaction = sourceTransactionId;
+      transferParams.source_transaction = sourceTransactionId;
     }
 
     // Release funds to creator
@@ -97,23 +97,23 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
     // Update the gig document and agency escrow in a transaction
     await db.runTransaction(async (transaction) => {
-        const currentGigSnap = await transaction.get(gigDocRef);
-        const currentGigData = currentGigSnap.data() as Gig;
-        const currentAgencySnap = await transaction.get(agencyDocRef);
-        const currentAgencyData = currentAgencySnap.data() as Agency;
+      const currentGigSnap = await transaction.get(gigDocRef);
+      const currentGigData = currentGigSnap.data() as Gig;
+      const currentAgencySnap = await transaction.get(agencyDocRef);
+      const currentAgencyData = currentAgencySnap.data() as Agency;
 
-        const newPaidCreatorIds = [...(currentGigData.paidCreatorIds || []), creatorId];
-        const isGigFullyPaid = newPaidCreatorIds.length === currentGigData.creatorsNeeded;
+      const newPaidCreatorIds = [...(currentGigData.paidCreatorIds || []), creatorId];
+      const isGigFullyPaid = newPaidCreatorIds.length === currentGigData.creatorsNeeded;
 
-        const gigUpdates: Partial<Gig> = {
-            paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId) as any,
-        };
-        if (isGigFullyPaid) gigUpdates.status = "completed";
-        transaction.update(gigDocRef, gigUpdates);
+      const gigUpdates: Partial<Gig> = {
+        paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId) as any,
+      };
+      if (isGigFullyPaid) gigUpdates.status = "completed";
+      transaction.update(gigDocRef, gigUpdates);
 
-        // Burn down the escrow balance
-        const currentEscrow = currentAgencyData.escrowBalance || 0;
-        transaction.update(agencyDocRef, { escrowBalance: Math.max(0, currentEscrow - gigData.ratePerCreator) });
+      // Burn down the escrow balance
+      const currentEscrow = currentAgencyData.escrowBalance || 0;
+      transaction.update(agencyDocRef, {escrowBalance: Math.max(0, currentEscrow - gigData.ratePerCreator)});
     });
 
     // Notify Creator
@@ -130,19 +130,19 @@ export const payoutCreatorForGig = onCall(async (request) => {
     // Notify Brand if the project is now complete
     const agencySnap = await agencyDocRef.get();
     if (agencySnap.exists) {
-        const agencyData = agencySnap.data();
-        const gigSnapCheck = await gigDocRef.get();
-        if (gigSnapCheck.data()?.status === 'completed') {
-            await db.collection("notifications").add({
-                userId: agencyData?.ownerId,
-                title: "Project Completed!",
-                message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
-                type: "system",
-                read: false,
-                link: `/gigs/${gigId}`,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            } as Omit<Notification, "id">);
-        }
+      const agencyData = agencySnap.data();
+      const gigSnapCheck = await gigDocRef.get();
+      if (gigSnapCheck.data()?.status === "completed") {
+        await db.collection("notifications").add({
+          userId: agencyData?.ownerId,
+          title: "Project Completed!",
+          message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
+          type: "system",
+          read: false,
+          link: `/gigs/${gigId}`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        } as Omit<Notification, "id">);
+      }
     }
 
     logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
