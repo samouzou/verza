@@ -476,7 +476,7 @@ export default function GigDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
-                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words overflow-hidden">
+                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words overflow-hidden text-foreground">
                         <div dangerouslySetInnerHTML={{ __html: gig.description }} />
                       </div>
                       
@@ -871,8 +871,8 @@ export default function GigDetailPage() {
                             <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
                                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Project Funding: ${totalCost.toLocaleString()}</p>
                                 <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>
-                                  {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CreditCard className="mr-2 h-4 w-4"/>}
-                                  Fund via Card
+                                  {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="mr-2 h-4 w-4"/>}
+                                  Fund via Secure Payment
                                 </Button>
                                 <div className="flex items-center my-1">
                                     <div className="flex-grow border-t"></div>
