@@ -18,6 +18,7 @@ import { TourProvider } from '@/hooks/use-tour';
 import { TourGuide } from '@/components/tour/tour-guide';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 import { FacebookSDK } from '@/components/facebook-sdk';
+import { GoogleAnalytics } from '@/components/google-analytics';
 
 export const metadata: Metadata = {
   title: 'Verza',
@@ -35,6 +36,7 @@ export default function RootLayout({
         className={`${GeistSans.className} antialiased`}
         suppressHydrationWarning
       >
+        <GoogleAnalytics />
         <FacebookSDK />
         <ThemeProvider
           attribute="class"

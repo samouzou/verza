@@ -11,8 +11,19 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star } from 'lucide-react';
+import { Loader2, Mail, Users, BarChart, ArrowLeft, BadgeCheck, Sparkles, Star, Instagram, Youtube, CheckCircle2, Flame, Trophy } from 'lucide-react';
 import Link from 'next/link';
+
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    fill="currentColor" 
+    className={className}
+  >
+    <path d="M19.589 6.686a4.793 4.83 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-5.201 1.743 2.897 2.897 0 0 1 3.103-4.532V9.424a7.274 7.274 0 0 0-7.274 7.243 7.274 7.274 0 0 0 14.548 0V8.308a8.294 8.294 0 0 0 5.33 3.442V8.308a4.83 4.83 0 0 1-3.291-1.622z" />
+  </svg>
+);
 
 const formatFollowers = (num: number) => {
     if (!num) return '0';
@@ -68,6 +79,36 @@ export default function CreatorProfilePage() {
 
   const isVerified = creator.instagramConnected || creator.tiktokConnected || creator.youtubeConnected;
 
+  const platforms = [
+    { 
+      id: 'Instagram', 
+      connected: creator.instagramConnected, 
+      followers: creator.instagramFollowers, 
+      engagement: creator.instagramEngagement, 
+      icon: Instagram, 
+      color: 'text-pink-500',
+      metricLabel: 'Followers'
+    },
+    { 
+      id: 'TikTok', 
+      connected: creator.tiktokConnected, 
+      followers: creator.tiktokFollowers, 
+      engagement: creator.tiktokEngagement, 
+      icon: TikTokIcon, 
+      color: 'text-foreground',
+      metricLabel: 'Followers'
+    },
+    { 
+      id: 'YouTube', 
+      connected: creator.youtubeConnected, 
+      followers: creator.youtubeFollowers, 
+      engagement: creator.youtubeEngagement, 
+      icon: Youtube, 
+      color: 'text-red-500',
+      metricLabel: 'Subscribers'
+    }
+  ].filter(p => p.connected);
+
   return (
     <>
       <PageHeader 
@@ -93,22 +134,44 @@ export default function CreatorProfilePage() {
                     </div>
                 )}
               </Avatar>
-              <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold">{creator.displayName}</h2>
-                {isVerified && <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20 gap-1"><BadgeCheck className="h-3 w-3" /> Verified</Badge>}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold">{creator.displayName}</h2>
+                    {isVerified && <BadgeCheck className="h-5 w-5 text-primary" />}
+                </div>
               </div>
               <Badge variant="outline" className="mt-2 text-muted-foreground font-normal">{creator.contentType || 'General'}</Badge>
               
-              <div className="flex justify-around w-full mt-6 pt-6 border-t">
-                <div className="text-center">
-                  <p className="font-bold text-xl flex items-center justify-center gap-1"><Users className="h-5 w-5 text-muted-foreground" /> {formatFollowers(creator.followers || 0)}</p>
-                  <p className="text-xs text-muted-foreground">Followers</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl flex items-center justify-center gap-1"><BarChart className="h-5 w-5 text-muted-foreground" /> {creator.engagementRate || 0}%</p>
-                  <p className="text-xs text-muted-foreground">Engagement</p>
-                </div>
+              <div className="w-full mt-6 pt-6 border-t space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" /> Verified Platforms
+                </h3>
+                {platforms.length > 0 ? (
+                  <div className="space-y-3">
+                    {platforms.map(p => (
+                      <div key={p.id} className="flex items-center justify-between bg-muted/50 p-3 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <p.icon className={`h-5 w-5 ${p.color}`} />
+                          <span className="font-bold text-sm">{p.id}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-bold text-sm">{formatFollowers(p.followers || 0)}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">{p.metricLabel}</p>
+                          </div>
+                          <div className="text-right border-l pl-4">
+                            <p className="font-bold text-sm">{p.engagement?.toFixed(1) || '0'}%</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">Eng.</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No verified accounts connected.</p>
+                )}
               </div>
+
               <Button asChild className="w-full mt-6">
                 <a href={`mailto:${creator.email}`}>
                   <Mail className="mr-2 h-4 w-4" /> Reach Out
@@ -136,13 +199,66 @@ export default function CreatorProfilePage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-            {creator.missionStatement && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <Card className="bg-gradient-to-br from-orange-500/10 to-transparent border-orange-500/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Flame className="h-4 w-4 text-orange-500 fill-orange-500" /> Avg. Verza Score
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-4xl font-black text-orange-600">
+                                {creator.averageVerzaScore !== undefined && creator.averageVerzaScore > 0 
+                                    ? `${creator.averageVerzaScore}%` 
+                                    : '---'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Attention Retention</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Simulated across 10,000 Gen Z scrollers. Benchmarks for high-performing UGC.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Trophy className="h-4 w-4 text-primary" /> Verified Reach
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-baseline gap-2">
+                            <p className="text-4xl font-black text-primary">
+                                {formatFollowers(
+                                    (creator.instagramFollowers || 0) + 
+                                    (creator.tiktokFollowers || 0) + 
+                                    (creator.youtubeFollowers || 0)
+                                )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Total Audience</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2 leading-tight">
+                            Combined following across all connected and verified social platforms.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {(creator.missionStatement || creator.niche) && (
                 <Card className="bg-primary/5 border-primary/10">
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary"/> Creator Mission</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-xl italic font-medium text-primary/80">"{creator.missionStatement}"</p>
+                    <CardContent className="space-y-4">
+                        {creator.missionStatement && (
+                          <p className="text-xl italic font-medium text-primary/80">"{creator.missionStatement}"</p>
+                        )}
+                        {creator.niche && (
+                          <div className="pt-2 border-t border-primary/10">
+                            <p className="text-sm text-muted-foreground">{creator.niche}</p>
+                          </div>
+                        )}
                     </CardContent>
                 </Card>
             )}

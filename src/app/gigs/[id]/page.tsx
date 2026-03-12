@@ -6,25 +6,24 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification } from '@/types';
+import type { Gig, GigSubmission, Notification, Agency } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { generateUgcContract } from '@/ai/flows/generate-ugc-contract-flow';
-import { UploadContractDialog } from '@/components/contracts/upload-contract-dialog';
 import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { Progress } from '@/components/ui/progress';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +35,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
+import { trackEvent } from '@/lib/analytics';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function GigDetailPage() {
   const params = useParams();
@@ -45,23 +58,25 @@ export default function GigDetailPage() {
   const { toast } = useToast();
 
   const [gig, setGig] = useState<Gig | null>(null);
+  const [agency, setAgency] = useState<Agency | null>(null);
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
   const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResumingFunding, setIsResumingFunding] = useState(false);
+  const [isWalletFunding, setIsWalletFunding] = useState(false);
   
-  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
-  const [contractGenData, setContractGenData] = useState<{ sfdt: string; talent: UserProfile } | null>(null);
-
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
 
+  // Acceptance State
+  const [hasAgreedToLegal, setHasAgreedToLegal] = useState(false);
+
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
+  const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
 
   useEffect(() => {
     if (!gigId) {
@@ -73,7 +88,16 @@ export default function GigDetailPage() {
     const unsubscribeGig = onSnapshot(gigDocRef, 
       (docSnap) => {
         if (docSnap.exists()) {
-          setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
+          const data = { id: docSnap.id, ...docSnap.data() } as Gig;
+          setGig(data);
+          
+          // Fetch agency data if viewer can manage
+          const canManage = user && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId));
+          if (canManage) {
+            onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
+              if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
+            });
+          }
         } else {
           setGig(null);
         }
@@ -90,13 +114,13 @@ export default function GigDetailPage() {
     );
 
     return () => unsubscribeGig();
-  }, [gigId]);
+  }, [gigId, user]);
 
   useEffect(() => {
     if (!gig || !user) return;
 
     const isBrandTeam = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
-    const hasAccepted = gig.acceptedCreatorIds.includes(user.uid);
+    const hasAccepted = gig.acceptedCreatorIds?.includes(user.uid);
 
     if (!isBrandTeam && !hasAccepted) return;
 
@@ -122,7 +146,7 @@ export default function GigDetailPage() {
   }, [gig, user, gigId]);
 
   useEffect(() => {
-    if (gig && gig.acceptedCreatorIds.length > 0) {
+    if (gig && gig.acceptedCreatorIds && gig.acceptedCreatorIds.length > 0) {
       const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.acceptedCreatorIds));
       const unsubscribe = onSnapshot(creatorsQuery, 
         (snapshot) => {
@@ -145,6 +169,11 @@ export default function GigDetailPage() {
 
   const handleAcceptGig = async () => {
     if (!user || !gig) return;
+
+    if (!hasAgreedToLegal) {
+      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before accepting the gig.", variant: "destructive" });
+      return;
+    }
 
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
@@ -181,14 +210,18 @@ export default function GigDetailPage() {
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Gig no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
-      if (currentGigData.acceptedCreatorIds.length >= currentGigData.creatorsNeeded) throw new Error("Gig is full.");
-      if (currentGigData.acceptedCreatorIds.includes(user.uid)) throw new Error("Already accepted.");
+      const acceptedIds = currentGigData.acceptedCreatorIds || [];
       
-      const newAcceptedIds = [...currentGigData.acceptedCreatorIds, user.uid];
+      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Gig is full.");
+      if (acceptedIds.includes(user.uid)) throw new Error("Already accepted.");
+      
+      const newAcceptedIds = [...acceptedIds, user.uid];
       const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
-      if (newAcceptedIds.length === currentGigData.creatorsNeeded) gigUpdates.status = 'in-progress';
+      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
       
       await updateDoc(gigDocRef, gigUpdates);
+
+      trackEvent({ action: 'accept_gig', category: 'marketplace', label: gig.title });
 
       const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (agencySnap.exists()) {
@@ -248,6 +281,7 @@ export default function GigDetailPage() {
       } else {
         await addDoc(collection(db, 'submissions'), subData);
       }
+      trackEvent({ action: 'video_upload', category: 'marketplace', label: `slot_${slotIndex}` });
       toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Calculate your Verza Score to verify your work." });
     } catch (error: any) {
       console.error(error);
@@ -262,6 +296,7 @@ export default function GigDetailPage() {
     setIsRunningVerzaScore(submission.id);
     toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
+      trackEvent({ action: 'verza_score_start', category: 'ai_tool', label: gig.title });
       const result = await runVerzaScore({ videoUrl: submission.videoUrl });
       const subRef = doc(db, 'submissions', submission.id);
       
@@ -274,6 +309,7 @@ export default function GigDetailPage() {
       await updateDoc(subRef, updates);
 
       if (result.score >= 65) {
+        trackEvent({ action: 'verza_score_pass', category: 'ai_tool', label: gig.title, value: result.score });
         const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
         if (agencySnap.exists()) {
           const agencyData = agencySnap.data();
@@ -289,30 +325,13 @@ export default function GigDetailPage() {
         }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
+        trackEvent({ action: 'verza_score_fail', category: 'ai_tool', label: gig.title, value: result.score });
         toast({ title: "VERZA SCORE LOW", description: `Score: ${result.score}%. Check the feedback and try again.`, variant: "destructive" });
       }
     } catch (error: any) {
       toast({ title: "Analysis Error", description: error.message, variant: "destructive" });
     } finally {
       setIsRunningVerzaScore(null);
-    }
-  };
-
-  const handleGenerateAgreement = async (creator: UserProfile) => {
-    if (!gig) return;
-    setIsGenerating(creator.uid);
-    try {
-      const { contractSfdt } = await generateUgcContract({
-        brandName: gig.brandName, creatorName: creator.displayName || 'The Creator', gigDescription: gig.description, rate: gig.ratePerCreator,
-      });
-      if (contractSfdt) {
-        setContractGenData({ sfdt: contractSfdt, talent: creator });
-        setIsContractDialogOpen(true);
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsGenerating(null);
     }
   };
 
@@ -337,6 +356,7 @@ export default function GigDetailPage() {
         createdAt: serverTimestamp(),
       } as Omit<Notification, 'id'>);
 
+      trackEvent({ action: 'gig_payout', category: 'marketplace', label: gig.title, value: gig.ratePerCreator });
       toast({ title: "Payout Processing!", description: "The creator has been paid successfully." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
@@ -372,6 +392,9 @@ export default function GigDetailPage() {
         ratePerCreator: gig.ratePerCreator,
         creatorsNeeded: gig.creatorsNeeded,
         videosPerCreator: gig.videosPerCreator,
+        campaignType: gig.campaignType || 'standard_sponsorship',
+        usageRights: gig.usageRights || '1_year',
+        allowWhitelisting: !!gig.allowWhitelisting,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -387,16 +410,37 @@ export default function GigDetailPage() {
     }
   };
 
+  const handleWalletFunding = async () => {
+    if (!gig || !agency) return;
+    setIsWalletFunding(true);
+    try {
+      await fundGigFromWalletCallable({ gigId: gig.id });
+      toast({ title: "Gig Funded!", description: "Funds have been moved from your wallet to this campaign." });
+    } catch (error: any) {
+      toast({ title: "Funding Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsWalletFunding(false);
+    }
+  };
+
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Gig Not Found</h3></div>;
 
-  const spotsLeft = gig.creatorsNeeded - gig.acceptedCreatorIds.length;
-  const hasAccepted = user ? gig.acceptedCreatorIds.includes(user.uid) : false;
+  const acceptedIds = gig.acceptedCreatorIds || [];
+  const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
+  const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
-  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && gig.acceptedCreatorIds.length === 0));
+  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && acceptedIds.length === 0));
+  const isCompleted = gig.status === 'completed';
+
+  const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
+  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
+
+  const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
+  const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   return (
     <>
@@ -406,25 +450,101 @@ export default function GigDetailPage() {
           description={`Posted by ${gig.brandName}`}
           actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
         />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-              <Card>
-                  <CardHeader><CardTitle>Project Details</CardTitle></CardHeader>
-                  <CardContent className="space-y-4">
+
+        {isCompleted && (
+          <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300">
+            <PartyPopper className="h-5 w-5" />
+            <AlertTitle className="font-bold">Campaign Completed!</AlertTitle>
+            <AlertDescription>
+              {canManageGig 
+                ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="lg:col-span-3 space-y-8 min-w-0">
+              <Card className="overflow-hidden">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle>Project Details</CardTitle>
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {campaignTypeLabel}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
                       {gig.brandLogoUrl && <Image src={gig.brandLogoUrl} alt="Logo" width={80} height={80} className="rounded-md" />}
-                      <p className="text-muted-foreground whitespace-pre-wrap">{gig.description}</p>
-                      <div><h4 className="font-semibold mb-2">Platforms</h4><div className="flex flex-wrap gap-2">{gig.platforms.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}</div></div>
+                      <div className="prose dark:prose-invert max-w-none prose-slate prose-sm sm:prose-base break-words overflow-hidden text-foreground">
+                        <div dangerouslySetInnerHTML={{ __html: gig.description }} />
+                      </div>
+                      
+                      <Separator />
+
+                      <div>
+                        <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-3">Target Platforms</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {gig.platforms?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}
+                        </div>
+                      </div>
                   </CardContent>
+              </Card>
+
+              <Card className="border-primary/10 bg-muted/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> Legal Summary</CardTitle>
+                  <CardDescription>Standard terms for this UGC agreement.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Campaign Type</p>
+                    <p className="text-sm font-medium">{campaignTypeLabel}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      Usage Rights
+                      {gig.usageRights === 'none' && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[250px]">
+                              <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </p>
+                    <p className="text-sm font-medium">{usageRightsLabel}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Paid Whitelisting</p>
+                    <p className="text-sm font-medium">{gig.allowWhitelisting ? 'Allowed' : 'Not Allowed'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deliverables</p>
+                    <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
+                    By clicking "Accept Gig", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                  </div>
+                </CardContent>
               </Card>
 
               {hasAccepted && !canManageGig && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> Submit Your Work</CardTitle>
-                    <CardDescription>Upload {gig.videosPerCreator} video{gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> {isCompleted ? 'Your Submissions' : 'Submit Your Work'}</CardTitle>
+                    <CardDescription>
+                      {isCompleted 
+                        ? 'Review the work you submitted for this completed gig.'
+                        : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
-                    {Array.from({ length: gig.videosPerCreator }).map((_, i) => {
+                    {Array.from({ length: gig.videosPerCreator || 1 }).map((_, i) => {
                       const submission = mySubmissions[i];
                       const slotLoading = isUploading === i;
                       const scoreRunning = submission && isRunningVerzaScore === submission.id;
@@ -437,7 +557,7 @@ export default function GigDetailPage() {
                               Video Slot {i + 1}
                             </h4>
                             {submission && (
-                              <Badge variant={submission.status === 'submitted' ? 'default' : 'secondary'} className={submission.status === 'submitted' ? 'bg-green-500' : ''}>
+                              <Badge variant={submission.status === 'submitted' || submission.status === 'approved' ? 'default' : 'secondary'} className={submission.status === 'submitted' || submission.status === 'approved' ? 'bg-green-500' : ''}>
                                 {submission.status.replace(/_/g, ' ')}
                               </Badge>
                             )}
@@ -467,19 +587,21 @@ export default function GigDetailPage() {
                                       <p className="text-sm italic text-muted-foreground">"{submission.verzaFeedback}"</p>
                                     </div>
                                   )}
-                                  <Button className="w-full" onClick={() => handleRunVerzaScore(submission)} disabled={!!isRunningVerzaScore}>
-                                    {scoreRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
-                                    {submission.status === 'rejected' ? 'Retry Verza Score' : 'Calculate Verza Score'}
-                                  </Button>
+                                  {!isCompleted && (
+                                    <Button className="w-full" onClick={() => handleRunVerzaScore(submission)} disabled={!!isRunningVerzaScore}>
+                                      {scoreRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Flame className="mr-2 h-4 w-4 text-orange-500"/>}
+                                      {submission.status === 'rejected' ? 'Retry Verza Score' : 'Calculate Verza Score'}
+                                    </Button>
+                                  )}
                                 </div>
                               ) : (
-                                <div className="p-4 border rounded-lg bg-green-500/10 text-green-700 flex items-center gap-3">
+                                <div className="p-4 border rounded-lg bg-green-50/10 text-green-700 flex items-center gap-3">
                                   <CheckCircle className="h-5 w-5"/>
-                                  <p className="text-sm font-medium">Verified & Submitted! Verza Score: {submission.verzaScore}%</p>
+                                  <p className="text-sm font-medium">Verified & {submission.status === 'approved' ? 'Approved' : 'Submitted'}! Verza Score: {submission.verzaScore}%</p>
                                 </div>
                               )}
                               
-                              {submission.status !== 'approved' && (
+                              {!isCompleted && submission.status !== 'approved' && (
                                 <div className="pt-2 flex justify-center">
                                   <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
                                     <Edit className="h-3 w-3"/> Replace Video
@@ -489,18 +611,24 @@ export default function GigDetailPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
-                              <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading}/>
-                              <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
-                                <div className="p-4 bg-muted rounded-full">
-                                  {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary"/> : <UploadCloud className="h-8 w-8 text-primary"/>}
-                                </div>
-                                <div className="text-center">
-                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
-                                  <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
-                                </div>
-                              </label>
-                            </div>
+                            !isCompleted ? (
+                              <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
+                                <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading}/>
+                                <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
+                                  <div className="p-4 bg-muted rounded-full">
+                                    {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary"/> : <UploadCloud className="h-8 w-8 text-primary"/>}
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
+                                    <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
+                                  </div>
+                                </label>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background">
+                                <p className="text-muted-foreground text-sm italic">Slot empty. This campaign is completed.</p>
+                              </div>
+                            )
                           )}
                         </div>
                       );
@@ -512,8 +640,12 @@ export default function GigDetailPage() {
               {canManageGig && (
                    <Card>
                       <CardHeader>
-                          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Creator Roster & Submissions</CardTitle>
-                          <CardDescription>Manage accepted creators and review their {gig.videosPerCreator} requested video{gig.videosPerCreator > 1 ? 's' : ''}.</CardDescription>
+                          <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
+                          <CardDescription>
+                            {isCompleted 
+                              ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                              : `Manage accepted creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
+                          </CardDescription>
                       </CardHeader>
                       <CardContent>
                           {acceptedCreators.length > 0 ? (
@@ -521,7 +653,7 @@ export default function GigDetailPage() {
                                   {acceptedCreators.map(creator => {
                                     const isPaid = gig.paidCreatorIds?.includes(creator.uid);
                                     const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
-                                    const allVideosSubmitted = creatorSubmissions.length === gig.videosPerCreator && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
+                                    const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
 
                                     return (
                                       <Card key={creator.uid} className="border bg-muted/30">
@@ -540,21 +672,37 @@ export default function GigDetailPage() {
                                               </Link>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
-                                              <Button size="sm" variant="outline" onClick={() => handleGenerateAgreement(creator)} disabled={!!isGenerating}>
-                                                {isGenerating === creator.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4 mr-1"/>} Agreement
-                                              </Button>
                                               {isPaid ? (
                                                 <Badge variant="default" className="bg-green-500">Paid</Badge>
                                               ) : (
-                                                <Button size="sm" onClick={() => handlePayout(creator)} disabled={isPaying === creator.uid || !allVideosSubmitted}>
-                                                  {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
-                                                </Button>
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button size="sm" disabled={isPaying === creator.uid || !allVideosSubmitted}>
+                                                      {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="h-4 w-4 mr-1"/>} Approve & Pay
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        You are about to release <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>. 
+                                                        This action confirms the work is complete and releases the funds from escrow. This cannot be undone.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handlePayout(creator)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                                        Confirm & Pay
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
                                               )}
                                             </div>
                                           </div>
 
                                           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {Array.from({ length: gig.videosPerCreator }).map((_, idx) => {
+                                            {Array.from({ length: gig.videosPerCreator || 1 }).map((_, idx) => {
                                               const sub = creatorSubmissions[idx];
                                               return (
                                                 <div key={idx} className="p-3 bg-background rounded-md border space-y-3">
@@ -601,44 +749,116 @@ export default function GigDetailPage() {
                    </Card>
               )}
           </div>
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-6 min-w-0">
               <Card>
                   <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Rate per Creator</span><span className="font-bold text-2xl text-primary">${gig.ratePerCreator.toLocaleString()}</span></div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Rate per Creator</span>
+                          <span className="font-bold text-2xl text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</span>
+                        </div>
+                        {!canManageGig && (
+                          <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
+                            <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
+                            <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={gig.status === 'open' ? 'bg-green-500' : ''}>{gig.status.replace(/_/g, ' ')}</Badge></div>
+                      {!isCompleted && (
+                        <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
+                      )}
+                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{gig.status?.replace(/_/g, ' ') || 'unknown'}</Badge></div>
                       
-                      {user && !canManageGig && (
+                      {user && !canManageGig && !isCompleted && (
                         hasAccepted ? (
                           <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
                         ) : spotsLeft > 0 && gig.status === 'open' ? (
-                          <div className="space-y-3">
-                            {!isStripeSetup && (
-                              <Alert variant="destructive" className="py-2 px-3 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                                <AlertDescription>
-                                  Bank account connection required to receive payouts.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            {!user.showInMarketplace && (
-                              <Alert variant="destructive" className="py-2 px-3 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                                <AlertDescription>
-                                  Public profile required to accept gigs.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            <Button 
-                              className="w-full" 
-                              onClick={handleAcceptGig} 
-                              disabled={isAccepting}
-                            >
-                              {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                              Accept Gig
-                            </Button>
+                          <div className="space-y-4 border-t pt-4">
+                            <div className="flex items-start space-x-2">
+                              <Checkbox 
+                                id="legal-agreement" 
+                                checked={hasAgreedToLegal} 
+                                onCheckedChange={(val) => setHasAgreedToLegal(val as boolean)}
+                                className="mt-1"
+                              />
+                              <div className="text-xs leading-relaxed text-muted-foreground">
+                                <Label htmlFor="legal-agreement" className="cursor-pointer">
+                                  I agree to the
+                                </Label>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <button className="text-primary hover:underline font-medium ml-1 inline-flex items-center">
+                                      Verza Standard Creator Agreement
+                                    </button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                                    <DialogHeader>
+                                      <DialogTitle className="flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        Standard Creator Agreement
+                                      </DialogTitle>
+                                      <DialogDescription>
+                                        The base terms for all Verza Marketplace collaborations.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                                      <div className="space-y-4 text-sm leading-relaxed">
+                                        <p className="font-bold">1. PARTIES & SCOPE</p>
+                                        <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific project ('Gig') defined in this brief.</p>
+                                        
+                                        <p className="font-bold">2. SERVICES & DELIVERABLES</p>
+                                        <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the Gig brief. Deliverables must pass the Verza Quality Score (simulation) to be eligible for payout.</p>
+                                        
+                                        <p className="font-bold">3. PAYMENT & ESCROW</p>
+                                        <p>The Client has pre-funded this Gig. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
+                                        
+                                        <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
+                                        <p>Unless the Gig is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the Gig brief. Creator retains original ownership of the underlying content.</p>
+                                        
+                                        <p className="font-bold">5. INDEPENDENT CONTRACTOR</p>
+                                        <p>Creator is an independent contractor. Nothing in this Agreement creates an employer-employee relationship or partnership.</p>
+                                        
+                                        <p className="font-bold">6. CONFIDENTIALITY</p>
+                                        <p>Both parties agree to keep the terms of this Gig and any proprietary brand information confidential.</p>
+                                      </div>
+                                    </ScrollArea>
+                                    <DialogFooter className="mt-4">
+                                      <Button onClick={() => {}} variant="outline">Close</Button>
+                                    </DialogFooter>
+                                  </DialogContent>
+                                </Dialog>
+                                <span className="ml-1">and the usage terms defined in this brief.</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              {!isStripeSetup && (
+                                <Alert variant="destructive" className="py-2 px-3 text-xs">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <AlertDescription>
+                                    Bank account connection required to receive payouts.
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                              {!user.showInMarketplace && (
+                                <Alert variant="destructive" className="py-2 px-3 text-xs">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <AlertDescription>
+                                    Public profile required to accept gigs.
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                              <Button 
+                                className="w-full" 
+                                onClick={handleAcceptGig} 
+                                disabled={isAccepting || !hasAgreedToLegal}
+                              >
+                                {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+                                Accept Gig
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Gig Full'}</Button>
@@ -648,16 +868,48 @@ export default function GigDetailPage() {
                       {canManageGig && (
                         <div className="space-y-2">
                           {gig.status === 'pending_payment' && (
-                            <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding}>
-                              {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CreditCard className="mr-2 h-4 w-4"/>}
-                              Complete Funding
+                            <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Project Funding: ${totalCost.toLocaleString()}</p>
+                                <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>
+                                  {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="mr-2 h-4 w-4"/>}
+                                  Fund via Secure Payment
+                                </Button>
+                                <div className="flex items-center my-1">
+                                    <div className="flex-grow border-t"></div>
+                                    <span className="px-2 text-[10px] text-muted-foreground font-bold">OR</span>
+                                    <div className="flex-grow border-t"></div>
+                                </div>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div className="w-full">
+                                                <Button 
+                                                    className="w-full" 
+                                                    variant="secondary" 
+                                                    onClick={handleWalletFunding} 
+                                                    disabled={isResumingFunding || isWalletFunding || !canAffordWithWallet}
+                                                >
+                                                    {isWalletFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wallet className="mr-2 h-4 w-4"/>}
+                                                    Fund from Wallet
+                                                </Button>
+                                            </div>
+                                        </TooltipTrigger>
+                                        {!canAffordWithWallet && (
+                                            <TooltipContent className="bg-destructive text-destructive-foreground">
+                                                <p>Insufficient wallet balance (${agency?.availableBalance?.toLocaleString()}).</p>
+                                            </TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                          )}
+                          {!isCompleted && (
+                            <Button asChild className="w-full" variant="outline">
+                              <Link href={`/gigs/${gig.id}/edit`}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                              </Link>
                             </Button>
                           )}
-                          <Button asChild className="w-full" variant="outline">
-                            <Link href={`/gigs/${gig.id}/edit`}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Gig
-                            </Link>
-                          </Button>
                           {canDeleteGig && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -686,12 +938,16 @@ export default function GigDetailPage() {
                       )}
                   </CardContent>
               </Card>
+
+              {!isCompleted && (
+                <MarketplaceCoPilot 
+                  context={canManageGig ? 'details_brand' : (hasAccepted ? 'details_creator' : 'browse')} 
+                  className="hidden lg:block"
+                />
+              )}
           </div>
         </div>
       </div>
-      {contractGenData && (
-        <UploadContractDialog isOpen={isContractDialogOpen} onOpenChange={setIsContractDialogOpen} initialSFDT={contractGenData.sfdt} initialSelectedOwner={contractGenData.talent.uid} initialFileName={`UGC Agreement - ${gig.title} - ${contractGenData.talent.displayName}.docx`} affiliatedCreator={contractGenData.talent} />
-      )}
     </>
   );
 }

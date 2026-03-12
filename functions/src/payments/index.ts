@@ -429,11 +429,10 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, customer, latest_charge: latestCharge} = paymentIntent;
+      const {metadata, amount, currency, latest_charge: latestCharge} = paymentIntent;
       const {
         contractId,
         userId,
-        clientEmail,
         paymentType,
         internalPayoutId,
         agencyId,
@@ -452,6 +451,101 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           paidAt: admin.firestore.Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
+      } else if (purchaseType === "agencyTopUp" && agencyId) {
+        const agencyRef = db.collection("agencies").doc(agencyId);
+        await db.runTransaction(async (transaction) => {
+          const agencyDoc = await transaction.get(agencyRef);
+          if (!agencyDoc.exists) throw new Error("Agency not found for top-up.");
+          const currentBalance = agencyDoc.data()?.availableBalance || 0;
+          const topUpAmount = amount / 100;
+          transaction.update(agencyRef, {availableBalance: currentBalance + topUpAmount});
+        });
+        logger.info(`Agency ${agencyId} wallet topped up with $${amount / 100}.`);
+      } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
+        const targetUserId = firebaseUID;
+        const creditsToAdd = parseInt(creditAmount, 10);
+        if (!isNaN(creditsToAdd)) {
+          try {
+            const userRef = db.collection("users").doc(targetUserId);
+            const transactionRef = db.collection("credit_transactions").doc();
+            await db.runTransaction(async (transaction) => {
+              const userDoc = await transaction.get(userRef);
+              if (!userDoc.exists) throw new Error(`User with ID ${targetUserId} not found.`);
+              transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
+              transaction.set(transactionRef, {
+                userId: targetUserId,
+                creditAmount: creditsToAdd,
+                priceId: priceId || "unknown",
+                paymentIntentId: paymentIntent.id,
+                status: "completed",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              } as Omit<CreditTransaction, "id">);
+            });
+            logger.info(`Successfully added ${creditsToAdd} credits to user ${targetUserId} via handlePaymentSuccess.`);
+          } catch (error) {
+            logger.error(`Error updating user credits in handlePaymentSuccess for user ${targetUserId}:`, error);
+          }
+        }
+      } else if (purchaseType === "gigFunding" && gigId && agencyId) {
+        try {
+          const gigRef = db.collection("gigs").doc(gigId);
+          const agencyRef = db.collection("agencies").doc(agencyId);
+
+          await db.runTransaction(async (transaction) => {
+            // 1. ALL READS FIRST
+            const agencyDoc = await transaction.get(agencyRef);
+            if (!agencyDoc.exists) throw new Error("Agency not found for gig funding.");
+
+            // 2. LOGIC
+            const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
+            const fundingAmount = amount / 100;
+
+            // 3. ALL WRITES AFTER
+            transaction.update(gigRef, {
+              status: "open",
+              fundingPaymentIntentId: paymentIntent.id,
+            });
+            transaction.update(agencyRef, {escrowBalance: currentEscrow + fundingAmount});
+          });
+
+          logger.info(`Successfully activated gig "${gigId}" and updated agency escrow.`);
+
+          const ownerId = firebaseUID;
+          const ownerDoc = await db.collection("users").doc(ownerId).get();
+          const ownerData = ownerDoc.data() as UserProfileFirestoreData;
+
+          if (ownerData?.email) {
+            const sendgridKey = params.SENDGRID_API_KEY.value();
+            if (sendgridKey) {
+              sgMail.setApiKey(sendgridKey);
+              const gigSnap = await gigRef.get();
+              const gigData = gigSnap.data() as Gig;
+
+              const receiptHtml = `
+                <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+                <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif;">
+                <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
+                  border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #6B37FF; margin: 0; font-size: 22px;">Gig Funding Receipt</h2>
+                  </div>
+                  <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px;">
+                    <p><strong>Gig:</strong> ${gigData.title}</p>
+                    <p><strong>Amount Funded:</strong> $${(amount / 100).toLocaleString()}</p>
+                  </div>
+                </div>
+                </body></html>`;
+              await sgMail.send({
+                to: ownerData.email,
+                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
+                subject: `Receipt: Funding for "${gigData.title}"`,
+                html: receiptHtml,
+              });
+            }
+          }
+        } catch (error) {
+          logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
+        }
       } else if (contractId) {
         const contractDocRef = db.collection("contracts").doc(contractId);
         const contractDoc = await contractDocRef.get();
@@ -466,182 +560,58 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           }),
         };
 
-        let htmlContentForEmail = contractData.invoiceHtmlContent;
         let allMilestonesPaid = false;
-
         if (milestoneId && contractData.milestones) {
           const updatedMilestones = contractData.milestones.map((m) =>
             m.id === milestoneId ? {...m, status: "paid"} : m
           );
           updates.milestones = updatedMilestones;
-
           allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
-          if (allMilestonesPaid) {
-            updates.invoiceStatus = "paid";
-            updates.status = "paid";
-          } else {
-            updates.invoiceStatus = "partially_paid";
-            updates.status = "partially_paid";
-          }
+          updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
+          updates.status = allMilestonesPaid ? "paid" : "partially_paid";
         } else {
           updates.invoiceStatus = "paid";
           updates.status = "paid";
-          allMilestonesPaid = true; // Mark as all paid if it's a non-milestone contract
-        }
-
-        // If the contract is now fully paid, generate and save a "PAID" version of the invoice
-        if (allMilestonesPaid && contractData.invoiceHtmlContent) {
-          const paidStampStyle = `
-            <style>
-              .paid-watermark {
-                position: absolute;
-                top: 40%;
-                left: 50%;
-                transform: translate(-50%, -50%) rotate(-45deg);
-                font-size: 120px;
-                color: rgba(0, 128, 0, 0.15);
-                font-weight: bold;
-                pointer-events: none;
-                z-index: 1000;
-                text-transform: uppercase;
-                letter-spacing: 10px;
-                opacity: 0.8;
-              }
-            </style>`;
-          const paidStampDiv = "<div class=\"paid-watermark\">Paid</div>";
-
-          let watermarkedHtml = contractData.invoiceHtmlContent;
-          if (!watermarkedHtml.includes("</head>")) {
-            watermarkedHtml = watermarkedHtml.replace("<body>", `<head>${paidStampStyle}</head><body>`);
-          } else {
-            watermarkedHtml = watermarkedHtml.replace("</head>", `${paidStampStyle}</head>`);
-          }
-          if (watermarkedHtml.includes("<div class=\"invoice-box\">")) {
-            watermarkedHtml = watermarkedHtml.replace("<div class=\"invoice-box\">",
-              "<div class=\"invoice-box\" style=\"position: relative;\">" + paidStampDiv);
-          } else {
-            watermarkedHtml = watermarkedHtml.replace("<body>", `<body>${paidStampDiv}`);
-          }
-
-          htmlContentForEmail = watermarkedHtml;
-          updates.invoiceHtmlContent = htmlContentForEmail;
+          allMilestonesPaid = true;
         }
 
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
           const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
-          if (!chargeId) {
-            throw new Error("Missing charge ID for agency payment split.");
-          }
+          if (chargeId) {
+            const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+            const agencyData = agencyDoc.data() as Agency;
+            const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
 
-          const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-          const agencyData = agencyDoc.data() as Agency;
+            if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
+              const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+              const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+              const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+              const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
-          const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
+              if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
+                const netForDistribution = amount - (Math.round(amount * 0.029) + 30) - Math.round(amount * 0.15);
+                const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                const talentShareAmount = netForDistribution - agencyCommissionAmount;
 
-          if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
-            const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-            const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
-            if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-              const stripeFeeInCents = Math.round(amount * 0.029) + 30;
-              const platformFeeInCents = Math.round(amount * 0.15);
-              const totalPlatformCut = stripeFeeInCents + platformFeeInCents;
-              const netForDistribution = amount - totalPlatformCut;
-
-              const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-              const talentShareAmount = netForDistribution - agencyCommissionAmount;
-
-              if (agencyCommissionAmount > 0) {
-                await stripe.transfers.create({
-                  amount: agencyCommissionAmount,
-                  currency: "usd",
-                  destination: agencyOwnerData.stripeAccountId,
-                  source_transaction: chargeId,
-                  description: `Commission for contract ${contractId}`,
-                });
+                if (agencyCommissionAmount > 0) {
+                  await stripe.transfers.create({
+                    amount: agencyCommissionAmount,
+                    currency: "usd",
+                    destination: agencyOwnerData.stripeAccountId,
+                    source_transaction: chargeId,
+                  });
+                }
+                if (talentShareAmount > 0) {
+                  await stripe.transfers.create({
+                    amount: talentShareAmount,
+                    currency: "usd",
+                    destination: talentUserData.stripeAccountId,
+                    source_transaction: chargeId,
+                  });
+                }
               }
-
-              if (talentShareAmount > 0) {
-                await stripe.transfers.create({
-                  amount: talentShareAmount,
-                  currency: "usd",
-                  destination: talentUserData.stripeAccountId,
-                  source_transaction: chargeId,
-                  description: `Payout for contract ${contractId}`,
-                });
-              }
-
-              logger.info(`Agency payment split processed for contract ${contractId}.
-                Agency: ${agencyCommissionAmount/100}, Talent: ${talentShareAmount/100}`);
-            } else {
-              logger.error("Stripe account ID missing for agency owner or talent, cannot split funds.",
-                {agencyId, talentId: contractData.userId});
-            }
-          }
-        }
-
-        let emailForUserConfirmation = "";
-        if (clientEmail) {
-          emailForUserConfirmation = clientEmail;
-        } else if (paymentType === "creator_payment" && userId) {
-          try {
-            const userRecord = await admin.auth().getUser(userId);
-            emailForUserConfirmation = userRecord.email || "";
-          } catch {
-            logger.error("Could not fetch creator email for confirmation");
-          }
-        } else if (customer) {
-          const customerData = await stripe.customers.retrieve(customer as string);
-          if (!customerData.deleted) {
-            emailForUserConfirmation = (customerData as Stripe.Customer).email || "";
-          }
-        }
-
-        if (emailForUserConfirmation) {
-          const sendgridKey = params.SENDGRID_API_KEY.value();
-          if (sendgridKey) {
-            sgMail.setApiKey(sendgridKey);
-            const msg: any = {
-              to: emailForUserConfirmation,
-              from: {
-                name: "Verza",
-                email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
-              },
-              subject: `Payment Receipt for: ${contractData.projectName || contractId}`,
-              text: `Your payment of $${(amount / 100).toLocaleString()} for contract ${contractId} has 
-              been received. A copy of your paid invoice is attached.`,
-              html: `
-                <h2>Payment Confirmation</h2>
-                <p>Thank you for your payment. We've received <strong>$${(amount / 100).toLocaleString("en-US",
-    {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency.toUpperCase()}</strong> for 
-                  the invoice related to contract "${contractData.projectName || contractId}".</p>
-                <p>A copy of the paid invoice is attached for your records.</p>
-                <p>Thank you!</p>
-                <p>The Verza Team</p>
-              `,
-            };
-
-            if (htmlContentForEmail) {
-              msg.attachments = [
-                {
-                  content: Buffer.from(htmlContentForEmail).toString("base64"),
-                  filename: `invoice-${contractData.invoiceNumber || contractId}.html`,
-                  type: "text/html",
-                  disposition: "attachment",
-                  content_id: "invoice_html",
-                },
-              ];
-            }
-
-            try {
-              await sgMail.send(msg);
-              logger.info("Payment confirmation email sent successfully with invoice attachment.");
-            } catch (emailError) {
-              logger.error("Failed to send payment confirmation email:", emailError);
             }
           }
         }
@@ -652,113 +622,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           userId: userId || "",
           amount,
           currency,
-          customerId: customer,
-          emailForUserConfirmation,
           status: "succeeded",
           timestamp: admin.firestore.Timestamp.now(),
         });
-      } else if (purchaseType === "gigFunding" && gigId) {
-        try {
-          const gigRef = db.collection("gigs").doc(gigId);
-          const gigSnap = await gigRef.get();
-          const gigData = gigSnap.data() as Gig;
-
-          await gigRef.update({
-            status: "open",
-            fundingPaymentIntentId: paymentIntent.id,
-          });
-          logger.info(`Successfully activated gig "${gigId}" via handlePaymentSuccess.`);
-
-          // Send Receipt Email to Agency Owner/Team Member who funded it
-          const ownerId = firebaseUID;
-          const ownerDoc = await db.collection("users").doc(ownerId).get();
-          const ownerData = ownerDoc.data() as UserProfileFirestoreData;
-
-          if (ownerData?.email) {
-            const sendgridKey = params.SENDGRID_API_KEY.value();
-            if (sendgridKey) {
-              sgMail.setApiKey(sendgridKey);
-              const receiptHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto;
-                padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #6B37FF; margin: 0;">Gig Funding Receipt</h2>
-                    <p style="color: #666; font-size: 14px;">Thank you for launching your campaign on Verza.</p>
-                  </div>
-                  <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                      <tr>
-                        <td style="padding: 8px 0; color: #666;">Gig Title:</td>
-                        <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${gigData.title}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #666;">Brand:</td>
-                        <td style="padding: 8px 0; text-align: right; color: #333;">${gigData.brandName}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 8px 0; color: #666;">Transaction ID:</td>
-                        <td style="padding: 8px 0; text-align: right; font-size: 11px; color: #999;">${paymentIntent.id}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 20px 0 8px; color: #666; font-size: 16px;">Total Funded:</td>
-                        <td style="padding: 20px 0 8px; text-align: right; font-size: 22px; font-weight: bold;
-                          color: #6B37FF;">$${(amount / 100).toLocaleString("en-US", {minimumFractionDigits: 2})}
-                        </td>
-                      </tr>
-                    </table>
-                  </div>
-                  <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-                    <p style="font-size: 13px; color: #666; margin: 0;">
-                      This gig is funded for <strong>${gigData.creatorsNeeded}</strong> creators at
-                      <strong>$${gigData.ratePerCreator}</strong> per creator.
-                    </p>
-                    <p style="font-size: 12px; color: #999; margin-top: 15px;">
-                      Your gig is now live in the Verza Marketplace and ready for creators to accept.
-                    </p>
-                  </div>
-                </div>
-              `;
-
-              await sgMail.send({
-                to: ownerData.email,
-                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
-                subject: `Receipt: Funding for "${gigData.title}"`,
-                html: receiptHtml,
-              });
-              logger.info(`Funding receipt sent to ${ownerData.email}`);
-            }
-          }
-        } catch (error) {
-          logger.error(`Error updating gig or sending receipt in handlePaymentSuccess for gig ${gigId}:`, error);
-        }
-      } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
-        const userId = firebaseUID;
-        const creditsToAdd = parseInt(creditAmount, 10);
-        if (!isNaN(creditsToAdd)) {
-          try {
-            const userRef = db.collection("users").doc(userId);
-            const transactionRef = db.collection("credit_transactions").doc();
-            await db.runTransaction(async (transaction) => {
-              const userDoc = await transaction.get(userRef);
-              if (!userDoc.exists) throw new Error(`User with ID ${userId} not found.`);
-              transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
-              transaction.set(transactionRef, {
-                userId: userId,
-                creditAmount: creditsToAdd,
-                priceId: priceId || "unknown",
-                paymentIntentId: paymentIntent.id,
-                status: "completed",
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              } as Omit<CreditTransaction, "id">);
-            });
-            logger.info(`Successfully added ${creditsToAdd} credits to user ${userId} via handlePaymentSuccess.`);
-          } catch (error) {
-            logger.error(`Error updating user credits in handlePaymentSuccess for user ${userId}:`, error);
-          }
-        }
-      } else {
-        logger.warn("Webhook received for payment_intent.succeeded without recognizable ID in metadata.",
-          metadata);
       }
     }
     response.json({received: true});
@@ -849,9 +715,20 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const {id: existingGigId, title, description, platforms, ratePerCreator, creatorsNeeded, videosPerCreator} = request.data;
+  const {
+    id: existingGigId,
+    title,
+    description,
+    platforms,
+    ratePerCreator,
+    creatorsNeeded,
+    videosPerCreator,
+    campaignType,
+    usageRights,
+    allowWhitelisting,
+  } = request.data;
 
-  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator) {
+  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
     throw new HttpsError("invalid-argument", "Missing required gig details.");
   }
 
@@ -869,7 +746,6 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   const agencyOwnerDoc = await db.collection("users").doc(agencyData.ownerId).get();
   const agencyOwnerData = agencyOwnerDoc.data() as UserProfileFirestoreData;
 
-  // Enforce Agency Subscription Requirement
   const now = Date.now();
   const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
                       (agencyOwnerData.subscriptionStatus === "trialing" &&
@@ -894,7 +770,6 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     await agencyOwnerDoc.ref.update({stripeCustomerId});
   }
 
-  // Use existing gig or create a new one
   const gigRef = existingGigId ? db.collection("gigs").doc(existingGigId) : db.collection("gigs").doc();
   const gigDataToSet: Omit<Gig, "id"> = {
     brandId: userData.primaryAgencyId,
@@ -906,6 +781,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     ratePerCreator: Number(ratePerCreator),
     creatorsNeeded: Number(creatorsNeeded),
     videosPerCreator: Number(videosPerCreator),
+    campaignType,
+    usageRights: usageRights || null,
+    allowWhitelisting: !!allowWhitelisting,
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
@@ -913,7 +791,6 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   };
 
   if (existingGigId) {
-    // If updating, preserve existing creators
     const existingGigSnap = await gigRef.get();
     if (existingGigSnap.exists) {
       const existingData = existingGigSnap.data() as Gig;
@@ -942,7 +819,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         },
         quantity: 1,
       }],
-      success_url: `${params.APP_URL.value()}/gigs?funding_success=true`,
+      success_url: `${params.APP_URL.value()}/gigs/${gigRef.id}?funding_success=true`,
       cancel_url: `${params.APP_URL.value()}/gigs/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
@@ -962,7 +839,6 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
-    // Cleanup if new gig failed
     if (!existingGigId) {
       await gigRef.delete();
     }
@@ -1057,99 +933,72 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   }
 });
 
-export const stripeCreditWebhookHandler = onRequest(async (request, response) => {
+export const createAgencyTopUpSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
     stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
   } catch (e) {
     logger.error("Stripe not configured", e);
-    response.status(500).send("Webhook Error: Stripe service not configured.");
-    return;
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
   }
-  const sig = request.headers["stripe-signature"];
-  const webhookSecret = params.STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET.value();
-
-  if (!sig || !webhookSecret) {
-    logger.error("Missing stripe signature or webhook secret");
-    response.status(400).send("Missing stripe signature or webhook secret");
-    return;
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
   }
 
-  let event: Stripe.Event;
+  const {amount, agencyId} = request.data;
+  if (!amount || amount < 10 || !agencyId) {
+    throw new HttpsError("invalid-argument", "Minimum top-up is $10.");
+  }
+
+  const userId = request.auth.uid;
+  const userDoc = await db.collection("users").doc(userId).get();
+  const userData = userDoc.data() as UserProfileFirestoreData;
+
+  let stripeCustomerId = userData.stripeCustomerId;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: userData.email || undefined,
+      name: userData.displayName || undefined,
+      metadata: {firebaseUID: userId},
+    });
+    stripeCustomerId = customer.id;
+    await userDoc.ref.update({stripeCustomerId});
+  }
+
   try {
-    event = stripe.webhooks.constructEvent(request.rawBody, sig, webhookSecret);
-  } catch (err: any) {
-    logger.error("Webhook signature verification failed:", err);
-    response.status(400).send(`Webhook Error: ${err.message}`);
-    return;
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: stripeCustomerId,
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Verza Agency Budget Top-Up",
+            description: "General funds for gig payments and bonuses.",
+          },
+          unit_amount: Math.round(amount * 100),
+        },
+        quantity: 1,
+      }],
+      success_url: `${params.APP_URL.value()}/agency?topup_success=true`,
+      cancel_url: `${params.APP_URL.value()}/agency`,
+      payment_intent_data: {
+        metadata: {
+          purchaseType: "agencyTopUp",
+          firebaseUID: userId,
+          agencyId: agencyId,
+        },
+      },
+      metadata: {
+        purchaseType: "agencyTopUp",
+        firebaseUID: userId,
+        agencyId: agencyId,
+      },
+    });
+    return {url: session.url};
+  } catch (error: any) {
+    logger.error("Error creating top-up session:", error);
+    throw new HttpsError("internal", "Could not create checkout session.");
   }
-
-  // Use payment_intent.succeeded for all activations to handle delayed payments (like Bank Transfer) safely
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object as Stripe.PaymentIntent;
-    const {purchaseType} = paymentIntent.metadata || {};
-
-    if (purchaseType === "creditPurchase") {
-      const {firebaseUID, creditAmount, priceId} = paymentIntent.metadata || {};
-      if (!firebaseUID || !creditAmount) {
-        logger.warn("payment_intent.succeeded received without required metadata.", paymentIntent.id);
-        response.status(200).send("Received but missing credit metadata.");
-        return;
-      }
-
-      const userId = firebaseUID;
-      const creditsToAdd = parseInt(creditAmount, 10);
-      if (isNaN(creditsToAdd)) {
-        logger.error("Invalid creditAmount in metadata:", creditAmount);
-        response.status(400).send("Invalid credit amount in metadata.");
-        return;
-      }
-
-      try {
-        const userRef = db.collection("users").doc(userId);
-        const transactionRef = db.collection("credit_transactions").doc();
-        await db.runTransaction(async (transaction) => {
-          const userDoc = await transaction.get(userRef);
-          if (!userDoc.exists) throw new Error(`User with ID ${userId} not found.`);
-          transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
-          transaction.set(transactionRef, {
-            userId: userId,
-            creditAmount: creditsToAdd,
-            priceId: priceId || "unknown",
-            paymentIntentId: paymentIntent.id,
-            status: "completed",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          } as Omit<CreditTransaction, "id">);
-        });
-        logger.info(`Successfully added ${creditsToAdd} credits to user ${userId}.`);
-      } catch (error: any) {
-        logger.error(`Error updating user credits for user ${userId}:`, error);
-        response.status(500).send("Internal server error while updating credits.");
-        return;
-      }
-    } else if (purchaseType === "gigFunding") {
-      const {gigId} = paymentIntent.metadata || {};
-      if (!gigId) {
-        logger.warn("payment_intent.succeeded received gigFunding without gigId metadata.", paymentIntent.id);
-        response.status(200).send("Received but missing gig metadata.");
-        return;
-      }
-
-      try {
-        const gigRef = db.collection("gigs").doc(gigId);
-        await gigRef.update({
-          status: "open",
-          fundingPaymentIntentId: paymentIntent.id,
-        });
-        logger.info(`Successfully activated gig "${gigId}" after payment confirmed.`);
-      } catch (error: any) {
-        logger.error(`Error updating gig from webhook for gig ${gigId}:`, error);
-        response.status(500).send("Internal server error while updating gig status.");
-        return;
-      }
-    }
-  }
-
-  response.status(200).send("Received");
 });

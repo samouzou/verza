@@ -62,7 +62,10 @@ export const sendContractNotification = onRequest(async (request, response) => {
     // Validate request body
     const {to, subject, text, html, contractId} = request.body;
     if (!to || !subject || !text || !html) {
-      response.status(400).json({error: "Bad Request", message: "Missing required fields: to, subject, text, html."});
+      response.status(400).json({
+        error: "Bad Request",
+        message: "Missing required fields: to, subject, text, html.",
+      });
       return;
     }
 
@@ -203,32 +206,59 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
   const actionUrl = isExistingUser ? `${appUrl}/agency` : `${appUrl}/login`;
   const actionText = isExistingUser ? "View Invitation" : "Sign Up & Accept";
 
-  let html: string;
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000; 
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  let bodyContent: string;
 
   if (type === "talent") {
-    html = `
-      <h2>You've been invited to join ${agencyName}'s Roster!</h2>
-      <p>Hello,</p>
-      <p><strong>${agencyName}</strong> is using Verza to manage their contracts and has invited you to join their talent roster.
+    bodyContent = `
+      <h2 style="color: #333; font-size: 20px;">You've been invited to join ${agencyName}'s Roster!</h2>
+      <p style="color: #555; line-height: 1.6;">Hello,</p>
+      <p style="color: #555; line-height: 1.6;"><strong>${agencyName}</strong> is using Verza to manage their contracts 
+      and has invited you to join their talent roster.
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
-      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
-      <p>Thanks,<br/>The Verza Team</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
+      </div>
     `;
   } else { // Team member
-    html = `
-      <h2>You've been invited to join the ${agencyName} Team!</h2>
-      <p>Hello,</p>
-      <p>You have been invited to join the management team for <strong>${agencyName}</strong>
-      on Verza as an <strong>${role}</strong>.
+    bodyContent = `
+      <h2 style="color: #333; font-size: 20px;">You've been invited to join the ${agencyName} Team!</h2>
+      <p style="color: #555; line-height: 1.6;">Hello,</p>
+      <p style="color: #555; line-height: 1.6;">You have been invited to join the management team for 
+      <strong>${agencyName}</strong> on Verza as an <strong>${role}</strong>.
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
-      <p><a href="${actionUrl}" style="padding: 10px 15px; background-color: #6B37FF; color: white;
-      text-decoration: none; border-radius: 5px;">${actionText}</a></p>
-      <p>Thanks,<br/>The Verza Team</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
+      </div>
     `;
   }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        ${bodyContent}
+        <p style="color: #555; line-height: 1.6;">Thanks,<br/>The Verza Team</p>
+      </div>
+    </body>
+    </html>
+  `;
 
   const msg = {
     to: inviteeEmail,
@@ -262,58 +292,110 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
   const appUrl = params.APP_URL.value();
 
   let subject = "";
-  let html = "";
-  const signature = "<p>Cheers,<br/>Serge Amouzou<br/>Founder & CEO of Verza</p>";
+  let content = "";
+  const signature = `
+    <p style="margin-top: 30px; font-size: 14px; color: #666;">
+      Cheers,<br/>
+      <strong>Serge Amouzou</strong><br/>
+      Founder & CEO of Verza
+    </p>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
   case 0: // Welcome Email
     subject = "Welcome to Verza! Your First Step to Smarter Contracts.";
-    html = `
-        <h1>Welcome, ${name}!</h1>
-        <p>I'm Serge, the founder of Verza, and I'm thrilled to have you on board.
+    content = `
+        <h1 style="color: #333; font-size: 22px;">Welcome, ${name}!</h1>
+        <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza, and I'm thrilled to have you on board. 
         Our goal is to help you manage your contracts, get paid on time, and understand your business like never before.</p>
-        <p>The best way to get started is to <strong>add your first contract</strong>.
+        <p style="color: #555; line-height: 1.6;">The best way to get started is to <strong>add your first contract</strong>. 
         Our AI will automatically extract key details and give you negotiation insights.</p>
-        <p><a href="${appUrl}/contracts">Click here to add a contract now</a></p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/contracts" style="${btnStyle}">Add a Contract Now</a>
+        </div>
         ${signature}
       `;
     break;
   case 1: // Educational Email #1: Contract Analysis
     subject = "Don't Just Sign Contracts, Understand Them";
-    html = `
-        <h1>Unlock Your Contract's Secrets</h1>
-        <p>Hi ${name},</p>
-        <p>Confusing contract clauses? Verza's AI can help. When you upload a contract,
-        we automatically summarize the key terms and provide negotiation suggestions to help you get a better deal.</p>
-        <p>Stop guessing and start understanding. Analyze your first contract today.</p>
-        <p><a href="${appUrl}/contracts">Analyze a Contract</a></p>
+    content = `
+        <h1 style="color: #333; font-size: 22px;">Unlock Your Contract's Secrets</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;">Confusing contract clauses? Verza's AI can help. 
+        When you upload a contract, we automatically summarize the key terms and provide negotiation suggestions 
+        to help you get a better deal.</p>
+        <p style="color: #555; line-height: 1.6;">Stop guessing and start understanding. Analyze your first contract today.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/contracts" style="${btnStyle}">Analyze a Contract</a>
+        </div>
         ${signature}
       `;
     break;
   case 2: // Educational Email #2: Getting Paid
     subject = "From Signed to Paid: The Verza Workflow";
-    html = `
-        <h1>Get Paid Faster</h1>
-        <p>Hi ${name},</p>
-        <p>Once your contract is in Verza, getting paid is simple. Generate a professional invoice, send it to your client,
-        and accept secure payments with Stripe.</p>
-        <p>Stop chasing payments and let Verza handle the reminders.</p>
-        <p><a href="${appUrl}/settings">Connect Stripe to Get Paid</a></p>
+    content = `
+        <h1 style="color: #333; font-size: 22px;">Get Paid Faster</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;">Once your contract is in Verza, getting paid is simple. 
+        Generate a professional invoice, send it to your client, and accept secure payments with Stripe.</p>
+        <p style="color: #555; line-height: 1.6;">Stop chasing payments and let Verza handle the reminders.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/settings" style="${btnStyle}">Connect Stripe to Get Paid</a>
+        </div>
         ${signature}
       `;
     break;
-    // Add more cases for future emails
   default:
     logger.info(`No email template configured for step ${step}.`);
     return;
   }
 
-  const fromName = "Serge from Verza";
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18" 
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000; 
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        
+        <div style="padding: 10px 0;">
+          ${content}
+        </div>
+
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 
   const msg = {
     to: toEmail,
     from: {
-      name: fromName,
+      name: "Serge from Verza",
       email: params.SENDGRID_FROM_EMAIL.value(),
     },
     subject: subject,

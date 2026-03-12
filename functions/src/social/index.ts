@@ -1,3 +1,4 @@
+
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import axios from "axios";
@@ -95,6 +96,9 @@ export const syncInstagramStats = onCall(async (request) => {
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       instagramConnected: true,
+      instagramFollowers: followersCountValue,
+      instagramEngagement: finalEngagementRate,
+      // For legacy/general view
       followers: followersCountValue,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
@@ -178,6 +182,8 @@ export const syncYouTubeStats = onCall(async (request) => {
       const userDocRef = db.collection("users").doc(request.auth.uid);
       await userDocRef.update({
         youtubeConnected: true,
+        youtubeFollowers: subscribers,
+        youtubeEngagement: 0,
         followers: subscribers,
         engagementRate: 0,
         lastSocialSync: new Date().toISOString(),
@@ -218,6 +224,8 @@ export const syncYouTubeStats = onCall(async (request) => {
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       youtubeConnected: true,
+      youtubeFollowers: subscribers,
+      youtubeEngagement: finalEngagementRate,
       followers: subscribers,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
@@ -344,6 +352,8 @@ export const syncTikTokStats = onCall({
     const userDocRef = db.collection("users").doc(request.auth.uid);
     const statsUpdate = {
       tiktokConnected: true,
+      tiktokFollowers: followers,
+      tiktokEngagement: finalEngagementRate,
       followers: followers,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),

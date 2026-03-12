@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,24 +6,42 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale, Info } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
 import { functions, db, doc, getDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
+import { trackEvent } from '@/lib/analytics';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+
+const quillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ],
+};
 
 export default function PostGigPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -32,6 +49,10 @@ export default function PostGigPage() {
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Legal Fields
+  const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
+  const [allowWhitelisting, setAllowWhitelisting] = useState(false);
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
@@ -66,6 +87,16 @@ export default function PostGigPage() {
     };
     checkSubscription();
   }, [user, authLoading]);
+
+  // Adjust defaults based on campaign type
+  useEffect(() => {
+    if (campaignType === 'production_grant') {
+      setUsageRights('none');
+      setAllowWhitelisting(false);
+    } else {
+      setUsageRights('1_year');
+    }
+  }, [campaignType]);
 
   const totalAmount = useMemo(() => {
     const rate = parseFloat(ratePerCreator);
@@ -104,6 +135,7 @@ export default function PostGigPage() {
     toast({ title: "Redirecting to Payment", description: "Please complete the payment to post your gig." });
     
     try {
+      trackEvent({ action: 'fund_gig_start', category: 'marketplace', label: title });
       const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
       const result = await createCheckout({
         title: title.trim(),
@@ -112,6 +144,9 @@ export default function PostGigPage() {
         ratePerCreator: rateNum,
         creatorsNeeded: creatorsNum,
         videosPerCreator: videosNum,
+        campaignType,
+        usageRights,
+        allowWhitelisting,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -202,67 +237,180 @@ export default function PostGigPage() {
             </Button>
         }
       />
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-            <CardTitle>Gig Details</CardTitle>
-            <CardDescription>Fill out the details for your user-generated content (UGC) campaign.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="title">Gig Title</Label>
-                <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Project Description</Label>
-                <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the content you need, key talking points, and any do's or don'ts." rows={5} required disabled={isSubmitting} />
-            </div>
-            <div className="space-y-2">
-              <Label>Platforms</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-                {platforms.map(platform => (
-                  <div key={platform} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`platform-${platform}`}
-                      checked={selectedPlatforms.includes(platform)}
-                      onCheckedChange={() => handlePlatformChange(platform)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>1. Campaign Selection</CardTitle>
+                <CardDescription>Choose the type of engagement for this campaign.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={campaignType} onValueChange={(val) => setCampaignType(val as any)} className="space-y-4">
+                  <div className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    campaignType === 'standard_sponsorship' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                  )}>
+                    <RadioGroupItem value="standard_sponsorship" id="standard" className="mt-1" />
+                    <Label htmlFor="standard" className="flex-1 cursor-pointer">
+                      <p className="font-bold text-base">Standard Sponsorship</p>
+                      <p className="text-sm text-muted-foreground mt-1">Includes ad-reads, usage rights, and whitelisting options. Standard commercial requirements apply.</p>
+                    </Label>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                    <Label htmlFor="rate">Rate per Creator ($)</Label>
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="150" required min="1" disabled={isSubmitting}/>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="creators">Creators Needed</Label>
-                    <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="10" required min="1" disabled={isSubmitting}/>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="videos">Videos per Creator</Label>
-                    <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
-                </div>
-            </div>
+                  <div className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    campaignType === 'production_grant' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                  )}>
+                    <RadioGroupItem value="production_grant" id="grant" className="mt-1" />
+                    <Label htmlFor="grant" className="flex-1 cursor-pointer">
+                      <p className="font-bold text-base">Production Grant / Editorial Funding</p>
+                      <p className="text-sm text-muted-foreground mt-1">No ad-read required. Funds are used to support independent creator content. Brand receives editorial credit.</p>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
 
-            {totalAmount > 0 && (
-              <div className="p-4 border rounded-lg bg-muted text-center">
-                <p className="text-sm text-muted-foreground">Total Project Funding</p>
-                <p className="text-3xl font-bold">${totalAmount.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">({creatorsNeeded} creators x ${ratePerCreator})</p>
-              </div>
-            )}
+            <Card className="shadow-lg">
+              <CardHeader>
+                  <CardTitle>2. Project Details</CardTitle>
+                  <CardDescription>Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="title">Gig Title</Label>
+                    <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="description">Project Description</Label>
+                    <div className="min-h-[200px] rounded-md border border-input bg-background">
+                      <ReactQuill
+                        theme="snow"
+                        value={description}
+                        onChange={setDescription}
+                        placeholder="Describe the content you need, key talking points, and any do's or don'ts."
+                        readOnly={isSubmitting}
+                        modules={quillModules}
+                      />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Platforms</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                    {platforms.map(platform => (
+                      <div key={platform} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`platform-${platform}`}
+                          checked={selectedPlatforms.includes(platform)}
+                          onCheckedChange={() => handlePlatformChange(platform)}
+                          disabled={isSubmitting}
+                        />
+                        <Label htmlFor={`platform-${platform}`} className="font-normal">{platform}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="rate">Rate per Creator ($)</Label>
+                        <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" required min="1" disabled={isSubmitting}/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="creators">Creators Needed</Label>
+                        <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting}/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="videos">Videos per Creator</Label>
+                        <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
+                    </div>
+                </div>
+              </CardContent>
+            </Card>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || totalAmount <= 0}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-              Fund & Post Gig
-            </Button>
+            <Card className="shadow-lg border-primary/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+                <CardDescription>Define how you plan to use the content created for this gig.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-3">
+                  <Label>Usage Rights Duration</Label>
+                  <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4">
+                    {campaignType === 'production_grant' && (
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="none" id="none" />
+                        <Label htmlFor="none" className="font-normal flex items-center gap-1.5 cursor-pointer">
+                          None (Editorial Support Only)
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[250px]">
+                                <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="30_days" id="30days" />
+                      <Label htmlFor="30days" className="font-normal">30 Days</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="1_year" id="1year" />
+                      <Label htmlFor="1year" className="font-normal">1 Year</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="perpetuity" id="perpetuity" />
+                      <Label htmlFor="perpetuity" className="font-normal">In Perpetuity</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="whitelisting">Paid Whitelisting Allowed?</Label>
+                    <p className="text-xs text-muted-foreground">Allows your brand to run ads directly from the creator's profile.</p>
+                  </div>
+                  <Checkbox 
+                    id="whitelisting" 
+                    checked={allowWhitelisting} 
+                    onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
+                    disabled={campaignType === 'production_grant'}
+                  />
+                </div>
+
+                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
+                  <p className="text-sm text-muted-foreground">By posting this gig, you agree that Verza will generate a standard clickwrap agreement for creators based on these terms. All payments will be held in the campaign vault until verified submission approval.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              {totalAmount > 0 && (
+                <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
+                  <p className="text-sm text-muted-foreground font-medium">Total Project Funding Required</p>
+                  <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting || totalAmount <= 0}>
+                {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
+                Fund & Post Campaign
+              </Button>
+            </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="lg:col-span-1">
+          <MarketplaceCoPilot context="post" className="sticky top-8" />
+        </div>
+      </div>
     </>
   );
 }

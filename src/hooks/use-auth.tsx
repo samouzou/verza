@@ -23,18 +23,20 @@ import {
   onSnapshot, // Import onSnapshot for real-time listening
 } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
-import type { CreatorMarketplaceProfile } from '@/types';
+import type { CreatorMarketplaceProfile, SubscriptionPlanId, SubscriptionStatus, TaxClassification } from '@/types';
 
 
 export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
+  legalName?: string | null;
   avatarUrl: string | null;
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null; 
   tin?: string | null;
+  taxClassification?: TaxClassification | null;
   createdAt?: Timestamp;
   role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member' | 'talent';
   isAgencyOwner?: boolean;
@@ -44,8 +46,8 @@ export interface UserProfile {
   // Subscription Fields
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
-  subscriptionStatus?: 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete' | 'none';
-  subscriptionPlanId?: 'individual_free' | 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlanId?: SubscriptionPlanId | null;
   talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
   trialEndsAt?: Timestamp | null;
@@ -73,13 +75,20 @@ export interface UserProfile {
   followers?: number;
   engagementRate?: number;
   instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
   tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
   youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
   socialContent?: {
     instagram?: string;
     youtube?: string;
     tiktok?: string;
   };
+  averageVerzaScore?: number;
 
   // Marketplace fields
   showInMarketplace?: boolean;
@@ -121,11 +130,13 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.uid = uid;
     updates.email = email;
     updates.displayName = displayName || email?.split('@')[0] || 'User';
+    updates.legalName = null;
     updates.avatarUrl = photoURL || null;
     updates.companyLogoUrl = null;
     updates.emailVerified = emailVerified;
     updates.address = null; 
     updates.tin = null;
+    updates.taxClassification = null;
     updates.createdAt = createdAt;
     updates.role = 'individual_creator'; // Default role
     updates.isAgencyOwner = false;
@@ -161,8 +172,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 
     // Insights fields
     updates.instagramConnected = false;
+    updates.instagramFollowers = 0;
+    updates.instagramEngagement = 0;
     updates.youtubeConnected = false;
+    updates.youtubeFollowers = 0;
+    updates.youtubeEngagement = 0;
     updates.tiktokConnected = false;
+    updates.tiktokFollowers = 0;
+    updates.tiktokEngagement = 0;
+    updates.averageVerzaScore = 0;
     updates.socialContent = {
       instagram: '',
       youtube: '',
@@ -205,6 +223,14 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.tin === undefined) { 
       updates.tin = null;
+      needsUpdate = true;
+    }
+    if (existingData.legalName === undefined) {
+      updates.legalName = null;
+      needsUpdate = true;
+    }
+    if (existingData.taxClassification === undefined) {
+      updates.taxClassification = null;
       needsUpdate = true;
     }
     if (existingData.companyLogoUrl === undefined) {
@@ -261,6 +287,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.hasCompletedOnboarding = false;
       needsUpdate = true;
     }
+    if (existingData.isAgencyOwner === undefined) {
+      updates.isAgencyOwner = false;
+      needsUpdate = true;
+    }
     if (existingData.credits === undefined) {
       updates.credits = NEW_USER_BONUS;
       needsUpdate = true;
@@ -273,8 +303,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 
     // Initialize insights fields if missing
     if (existingData.instagramConnected === undefined) { updates.instagramConnected = false; needsUpdate = true; }
+    if (existingData.instagramFollowers === undefined) { updates.instagramFollowers = 0; needsUpdate = true; }
+    if (existingData.instagramEngagement === undefined) { updates.instagramEngagement = 0; needsUpdate = true; }
     if (existingData.youtubeConnected === undefined) { updates.youtubeConnected = false; needsUpdate = true; }
+    if (existingData.youtubeFollowers === undefined) { updates.youtubeFollowers = 0; needsUpdate = true; }
+    if (existingData.youtubeEngagement === undefined) { updates.youtubeEngagement = 0; needsUpdate = true; }
     if (existingData.tiktokConnected === undefined) { updates.tiktokConnected = false; needsUpdate = true; }
+    if (existingData.tiktokFollowers === undefined) { updates.tiktokFollowers = 0; needsUpdate = true; }
+    if (existingData.tiktokEngagement === undefined) { updates.tiktokEngagement = 0; needsUpdate = true; }
+    if (existingData.averageVerzaScore === undefined) { updates.averageVerzaScore = 0; needsUpdate = true; }
     if (existingData.socialContent === undefined) {
       updates.socialContent = {
         instagram: '',
@@ -327,11 +364,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: currentFirebaseUser.uid,
               email: currentFirebaseUser.email,
               displayName: firestoreUserData.displayName || currentFirebaseUser.displayName,
+              legalName: firestoreUserData.legalName || null,
               avatarUrl: firestoreUserData.avatarUrl || currentFirebaseUser.photoURL,
               companyLogoUrl: firestoreUserData.companyLogoUrl || null,
               emailVerified: currentFirebaseUser.emailVerified,
               address: firestoreUserData.address || null, 
               tin: firestoreUserData.tin || null,
+              taxClassification: firestoreUserData.taxClassification || null,
               createdAt: firestoreUserData.createdAt,
               role: firestoreUserData.role || 'individual_creator',
               isAgencyOwner: firestoreUserData.isAgencyOwner || false,
@@ -357,13 +396,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               niche: firestoreUserData.niche,
               contentType: firestoreUserData.contentType || null,
               instagramConnected: firestoreUserData.instagramConnected,
+              instagramFollowers: firestoreUserData.instagramFollowers,
+              instagramEngagement: firestoreUserData.instagramEngagement,
               youtubeConnected: firestoreUserData.youtubeConnected,
+              youtubeFollowers: firestoreUserData.youtubeFollowers,
+              youtubeEngagement: firestoreUserData.youtubeEngagement,
               tiktokConnected: firestoreUserData.tiktokConnected,
+              tiktokFollowers: firestoreUserData.tiktokFollowers,
+              tiktokEngagement: firestoreUserData.tiktokEngagement,
               socialContent: firestoreUserData.socialContent,
               missionStatement: firestoreUserData.missionStatement,
               brandWishlist: firestoreUserData.brandWishlist,
               followers: firestoreUserData.followers,
               engagementRate: firestoreUserData.engagementRate,
+              averageVerzaScore: firestoreUserData.averageVerzaScore,
             });
           } else {
              setUser(null);

@@ -5,9 +5,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket, Users } from "lucide-react";
+import { Loader2, Settings2, CheckCircle, XCircle, CalendarClock, AlertCircle, Zap, Crown, Rocket, Users, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -15,9 +15,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-const CREATE_STRIPE_SUBSCRIPTION_CHECKOUT_SESSION_URL = "https://createshareablecontractversion-cpmccwbluq-uc.a.run.app";
-
-type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_start_monthly' | 'agency_start_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly';
+type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_pilot_monthly' | 'agency_pilot_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_network_monthly' | 'agency_network_yearly' | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
 type BillingFrequency = 'monthly' | 'yearly';
 
 export function SubscriptionCard() {
@@ -103,14 +101,18 @@ export function SubscriptionCard() {
   const planDetails: Record<PlanId, { name: string; price: string; talentLimit?: number; icon: React.ElementType; yearlyPrice?: string; yearlySavings?: string }> = {
     'individual_monthly': { name: 'Individual Pro', price: '$25/month', icon: Zap },
     'individual_yearly': { name: 'Individual Pro', price: '$249/year', icon: Zap, yearlySavings: 'Save 17%' },
-    'agency_start_monthly': { name: 'Agency Start', price: '$199/month', talentLimit: 10, icon: Crown },
-    'agency_start_yearly': { name: 'Agency Start', price: '$1982/year', talentLimit: 10, icon: Crown, yearlySavings: 'Save ~17%' },
-    'agency_pro_monthly': { name: 'Agency Pro', price: '$349/month', talentLimit: 25, icon: Rocket },
-    'agency_pro_yearly': { name: 'Agency Pro', price: '$3476/year', talentLimit: 25, icon: Rocket, yearlySavings: 'Save ~17%' },
+    'agency_pilot_monthly': { name: 'Pilot (1-9)', price: '$167/month', talentLimit: 9, icon: Crown },
+    'agency_pilot_yearly': { name: 'Pilot (1-9)', price: '$1,663/year', talentLimit: 9, icon: Crown, yearlySavings: 'Save $341' },
+    'agency_pro_monthly': { name: 'Pro (10-24)', price: '$333/month', talentLimit: 24, icon: Rocket },
+    'agency_pro_yearly': { name: 'Pro (10-24)', price: '$3,317/year', talentLimit: 24, icon: Rocket, yearlySavings: 'Save $679' },
+    'agency_network_monthly': { name: 'Network (25-124)', price: '$833/month', talentLimit: 124, icon: Users },
+    'agency_network_yearly': { name: 'Network (25-124)', price: '$8,297/year', talentLimit: 124, icon: Users, yearlySavings: 'Save $1,699' },
+    'agency_enterprise_monthly': { name: 'Enterprise (125-500)', price: '$3,333/month', talentLimit: 500, icon: Sparkles },
+    'agency_enterprise_yearly': { name: 'Enterprise (125-500)', price: '$33,197/year', talentLimit: 500, icon: Sparkles, yearlySavings: 'Save $6,799' },
   };
 
   const getPlanNameFromId = (planId?: string) => {
-      if (!planId) return 'Pro Trial'; // Default to Pro Trial name if no plan ID during trial
+      if (!planId) return 'Pro Trial';
       if (planId === 'individual_free') return 'Free Forever';
       return planDetails[planId as PlanId]?.name || 'Unknown Plan';
   };
@@ -163,116 +165,14 @@ export function SubscriptionCard() {
     );
   }
 
-  // Render view for agency owners
-  if (user.isAgencyOwner) {
-    return (
-        <Card className="shadow-lg">
-        <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-            <Crown className="h-6 w-6 text-primary" />
-            Agency Subscription
-            </CardTitle>
-            <CardDescription>Manage your agency's subscription plan.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-            <div className="p-4 border rounded-lg bg-muted/50">
-            <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold text-lg">Current Plan</p>
-                {renderStatusBadge()}
-            </div>
-            {(user.subscriptionStatus === 'active' || user.subscriptionStatus === 'canceled') && user.subscriptionEndsAt && (
-                <div className={`flex items-center gap-2 text-sm text-muted-foreground p-3 border-l-4 rounded-md my-2 ${user.subscriptionStatus === 'active' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-destructive bg-red-50 dark:bg-red-900/20'}`}>
-                {user.subscriptionStatus === 'active' ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400"/> : <XCircle className="h-5 w-5 text-destructive"/>}
-                <span>
-                    {user.subscriptionStatus === 'active' ? 'Subscription renews on' : 'Access ends on'} {formatDateSafe(user.subscriptionEndsAt)}.
-                </span>
-                </div>
-            )}
-            {user.subscriptionStatus === 'past_due' && (
-                <div className="flex items-center gap-2 text-sm text-destructive p-3 border-l-4 border-destructive bg-red-50 dark:bg-red-900/20 rounded-md my-2">
-                <AlertCircle className="h-5 w-5"/>
-                <span>
-                    Your payment is past due. Please update your payment method via "Manage Subscription".
-                </span>
-                </div>
-            )}
-            </div>
-            
-            <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between">
-                <p className="font-medium text-lg">Available Agency Plans</p>
-                <RadioGroup
-                value={billingFrequency}
-                onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
-                className="flex items-center rounded-md bg-muted p-1"
-                >
-                <RadioGroupItem value="monthly" id="monthly" className="sr-only" />
-                <Label htmlFor="monthly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'monthly' && 'bg-background shadow-sm')}>Monthly</Label>
-                <RadioGroupItem value="yearly" id="yearly" className="sr-only" />
-                <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
-                </RadioGroup>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {plansToShow.map(([id, details]) => {
-                    const planIdKey = id as PlanId;
-                    const isCurrentPlan = user.subscriptionPlanId === planIdKey;
-
-                    return (
-                    <div key={id} className={cn("relative rounded-lg border-2 p-4 flex flex-col items-center justify-between transition-all", isCurrentPlan ? 'border-primary' : 'border-muted hover:border-primary/50')}>
-                        {isCurrentPlan && <Badge className="absolute -top-2 -left-2 px-2 py-0.5 text-xs bg-primary text-white">Current Plan</Badge>}
-                        {details.yearlySavings && billingFrequency === 'yearly' && <Badge variant="default" className="absolute -top-2 -right-2 px-2 py-0.5 text-xs bg-green-500 text-white">{details.yearlySavings}</Badge>}
-                        
-                        <details.icon className="mb-3 h-8 w-8 text-primary" />
-                        <p className="font-semibold text-lg">{details.name}</p>
-                        <p className="text-2xl font-bold mt-1">{details.price}</p>
-                        {details.talentLimit && <p className="text-sm text-muted-foreground">Up to {details.talentLimit} talents</p>}
-                        <Button 
-                            onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
-                            className="w-full mt-4" 
-                            disabled={isProcessingCheckout || isCurrentPlan}
-                            variant={isCurrentPlan ? 'secondary' : 'default'}
-                        >
-                            {isProcessingCheckout ? <Loader2 className="h-4 w-4 animate-spin"/> : (isCurrentPlan ? 'Current Plan' : 'Choose Plan')}
-                        </Button>
-                    </div>
-                    );
-                })}
-            </div>
-            </div>
-            
-            {canManage && (
-            <Button
-                onClick={handleManageSubscription}
-                disabled={isProcessingCheckout || isProcessingPortal || !user.stripeCustomerId}
-                variant="outline"
-                className="w-full"
-            >
-                {isProcessingPortal ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                <Settings2 className="mr-2 h-4 w-4" />
-                )}
-                Manage Subscription & Billing
-            </Button>
-            )}
-
-            <p className="text-xs text-muted-foreground text-center pt-2">
-                Subscription management and payments are securely handled by Stripe.
-            </p>
-        </CardContent>
-        </Card>
-    );
-  }
-
-  // Render view for individual creators
   return (
       <Card className="shadow-lg">
       <CardHeader>
           <CardTitle className="flex items-center gap-2">
-          <Zap className="h-6 w-6 text-primary" />
-          Creator Subscription
+          {user.isAgencyOwner ? <Crown className="h-6 w-6 text-primary" /> : <Zap className="h-6 w-6 text-primary" />}
+          {user.isAgencyOwner ? 'Agency Subscription' : 'Creator Subscription'}
           </CardTitle>
-          <CardDescription>Manage your subscription plan.</CardDescription>
+          <CardDescription>Manage your subscription plan and billing preferences.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
           <div className="p-4 border rounded-lg bg-muted/50">
@@ -281,7 +181,7 @@ export function SubscriptionCard() {
                 {renderStatusBadge()}
             </div>
              {(user.subscriptionStatus === 'trialing') && user.trialEndsAt && (
-                <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-300 p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md my-2">
+                <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-300 p-3 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-md my-2">
                     <CalendarClock className="h-5 w-5"/>
                     <span>Your free trial ends on {formatDateSafe(user.trialEndsAt)}.</span>
                 </div>
@@ -306,7 +206,7 @@ export function SubscriptionCard() {
           
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
-                <p className="font-medium text-lg">Individual Pro Plan</p>
+                <p className="font-medium text-lg">Select a Plan</p>
                 <RadioGroup
                 value={billingFrequency}
                 onValueChange={(value: string) => setBillingFrequency(value as BillingFrequency)}
@@ -318,7 +218,7 @@ export function SubscriptionCard() {
                 <Label htmlFor="yearly" className={cn("px-3 py-1 text-sm rounded-md cursor-pointer", billingFrequency === 'yearly' && 'bg-background shadow-sm')}>Yearly</Label>
                 </RadioGroup>
             </div>
-             <div className="grid grid-cols-1">
+             <div className={cn("grid gap-4", user.isAgencyOwner ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
                 {plansToShow.map(([id, details]) => {
                     const planIdKey = id as PlanId;
                     const isCurrentPlan = user.subscriptionPlanId === planIdKey;
@@ -332,11 +232,7 @@ export function SubscriptionCard() {
                             <details.icon className="mb-3 h-8 w-8 text-primary" />
                             <p className="font-semibold text-lg">{details.name}</p>
                             <p className="text-2xl font-bold mt-1">{details.price}</p>
-                            <ul className="text-sm text-muted-foreground list-disc list-inside mt-2 text-center">
-                                <li>All Core Features</li>
-                                <li>AI Contract Analysis</li>
-                                <li>Secure Payments</li>
-                            </ul>
+                            {details.talentLimit && <p className="text-sm text-muted-foreground mt-1">Up to {details.talentLimit} talents</p>}
                             <Button 
                                 onClick={(e) => { e.preventDefault(); handleSubscribe(planIdKey); }} 
                                 className="w-full mt-4" 
