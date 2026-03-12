@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
-  InternalPayout, TeamMember} from "./../types";
+  InternalPayout, TeamMember, Gig} from "./../types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 import * as params from "../config/params";
@@ -34,6 +34,8 @@ export const createAgency = onCall(async (request) => {
       id: newAgencyRef.id,
       name: name.trim(),
       ownerId: userId,
+      availableBalance: 0,
+      escrowBalance: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
       talent: [],
       team: [], // Initialize team array
@@ -472,7 +474,7 @@ export const createInternalPayout = onCall(async (request) => {
     const agencyOwnerId = agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
-    const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
+    const agencyOwnerData = agencyOwnerUserDocData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
     if (!agencyOwnerData.stripeCustomerId) {
       throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
@@ -560,5 +562,67 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("invalid-argument", `Stripe Error: ${error.message}. Please check your saved payment methods.`);
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred while creating the payout.");
+  }
+});
+
+export const fundGigFromWallet = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {gigId} = request.data;
+  if (!gigId) {
+    throw new HttpsError("invalid-argument", "Gig ID is required.");
+  }
+
+  const userId = request.auth.uid;
+  const gigRef = db.collection('gigs').doc(gigId);
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const gigSnap = await transaction.get(gigRef);
+      if (!gigSnap.exists) throw new HttpsError("not-found", "Gig not found.");
+      const gigData = gigSnap.data() as Gig;
+
+      if (gigData.status !== 'pending_payment') {
+        throw new HttpsError("failed-precondition", "This gig is already funded or open.");
+      }
+
+      const agencyId = gigData.brandId;
+      const agencyRef = db.collection('agencies').doc(agencyId);
+      const agencySnap = await transaction.get(agencyRef);
+      if (!agencySnap.exists) throw new HttpsError("not-found", "Agency not found.");
+      const agencyData = agencySnap.data() as Agency;
+
+      // Check permissions
+      const isTeam = agencyData.ownerId === userId || agencyData.team?.some(m => m.userId === userId && m.role === 'admin');
+      if (!isTeam) {
+        throw new HttpsError("permission-denied", "Only agency owners or admins can fund gigs.");
+      }
+
+      const totalCost = gigData.ratePerCreator * gigData.creatorsNeeded;
+      const available = agencyData.availableBalance || 0;
+
+      if (available < totalCost) {
+        throw new HttpsError("failed-precondition", `Insufficient wallet balance. Needed: $${totalCost}, Available: $${available}`);
+      }
+
+      // Move funds and activate
+      transaction.update(agencyRef, {
+        availableBalance: available - totalCost,
+        escrowBalance: (agencyData.escrowBalance || 0) + totalCost,
+      });
+
+      transaction.update(gigRef, {
+        status: 'open',
+        fundedAmount: totalCost,
+      });
+
+      return { success: true };
+    });
+  } catch (error: any) {
+    logger.error("Error funding gig from wallet:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Failed to fund gig.");
   }
 });

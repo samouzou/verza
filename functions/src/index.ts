@@ -22,6 +22,7 @@ import {
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
   createGigFundingCheckoutSession,
+  createAgencyTopUpSession,
 } from "./payments";
 
 import {
@@ -64,6 +65,7 @@ import {
   declineAgencyInvitation,
   createInternalPayout,
   inviteTeamMemberToAgency,
+  fundGigFromWallet,
 } from "./agency";
 
 import {payoutCreatorForGig} from "./gigs";
@@ -83,6 +85,7 @@ export {
   createCreditCheckoutSession,
   stripeCreditWebhookHandler,
   createGigFundingCheckoutSession,
+  createAgencyTopUpSession,
   sendContractNotification,
   handleSendGridEmailWebhook,
   sendOverdueInvoiceReminders,
@@ -104,6 +107,7 @@ export {
   declineAgencyInvitation,
   createInternalPayout,
   inviteTeamMemberToAgency,
+  fundGigFromWallet,
   payoutCreatorForGig,
   generateScene,
   generateImage,

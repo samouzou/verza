@@ -6,13 +6,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification } from '@/types';
+import type { Gig, GigSubmission, Notification, Agency } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -58,6 +58,7 @@ export default function GigDetailPage() {
   const { toast } = useToast();
 
   const [gig, setGig] = useState<Gig | null>(null);
+  const [agency, setAgency] = useState<Agency | null>(null);
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
   const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +66,7 @@ export default function GigDetailPage() {
   const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResumingFunding, setIsResumingFunding] = useState(false);
+  const [isWalletFunding, setIsWalletFunding] = useState(false);
   
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export default function GigDetailPage() {
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
+  const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
 
   useEffect(() => {
     if (!gigId) {
@@ -85,7 +88,16 @@ export default function GigDetailPage() {
     const unsubscribeGig = onSnapshot(gigDocRef, 
       (docSnap) => {
         if (docSnap.exists()) {
-          setGig({ id: docSnap.id, ...docSnap.data() } as Gig);
+          const data = { id: docSnap.id, ...docSnap.data() } as Gig;
+          setGig(data);
+          
+          // Fetch agency data if viewer can manage
+          const canManage = user && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId));
+          if (canManage) {
+            onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
+              if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
+            });
+          }
         } else {
           setGig(null);
         }
@@ -102,7 +114,7 @@ export default function GigDetailPage() {
     );
 
     return () => unsubscribeGig();
-  }, [gigId]);
+  }, [gigId, user]);
 
   useEffect(() => {
     if (!gig || !user) return;
@@ -398,6 +410,19 @@ export default function GigDetailPage() {
     }
   };
 
+  const handleWalletFunding = async () => {
+    if (!gig || !agency) return;
+    setIsWalletFunding(true);
+    try {
+      await fundGigFromWalletCallable({ gigId: gig.id });
+      toast({ title: "Gig Funded!", description: "Funds have been moved from your wallet to this campaign." });
+    } catch (error: any) {
+      toast({ title: "Funding Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsWalletFunding(false);
+    }
+  };
+
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -413,6 +438,9 @@ export default function GigDetailPage() {
 
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
   const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
+
+  const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
+  const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   return (
     <>
@@ -840,10 +868,40 @@ export default function GigDetailPage() {
                       {canManageGig && (
                         <div className="space-y-2">
                           {gig.status === 'pending_payment' && (
-                            <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding}>
-                              {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CreditCard className="mr-2 h-4 w-4"/>}
-                              Complete Funding
-                            </Button>
+                            <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Project Funding: ${totalCost.toLocaleString()}</p>
+                                <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>
+                                  {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CreditCard className="mr-2 h-4 w-4"/>}
+                                  Fund via Card
+                                </Button>
+                                <div className="flex items-center my-1">
+                                    <div className="flex-grow border-t"></div>
+                                    <span className="px-2 text-[10px] text-muted-foreground font-bold">OR</span>
+                                    <div className="flex-grow border-t"></div>
+                                </div>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div className="w-full">
+                                                <Button 
+                                                    className="w-full" 
+                                                    variant="secondary" 
+                                                    onClick={handleWalletFunding} 
+                                                    disabled={isResumingFunding || isWalletFunding || !canAffordWithWallet}
+                                                >
+                                                    {isWalletFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Wallet className="mr-2 h-4 w-4"/>}
+                                                    Fund from Wallet
+                                                </Button>
+                                            </div>
+                                        </TooltipTrigger>
+                                        {!canAffordWithWallet && (
+                                            <TooltipContent className="bg-destructive text-destructive-foreground">
+                                                <p>Insufficient wallet balance (${agency?.availableBalance?.toLocaleString()}).</p>
+                                            </TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
                           )}
                           {!isCompleted && (
                             <Button asChild className="w-full" variant="outline">

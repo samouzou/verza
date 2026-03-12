@@ -70,6 +70,18 @@
       },
       "required": ["uid", "email"]
     },
+    "agency": {
+      "title": "Agency",
+      "description": "Represents an agency or brand entity.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "availableBalance": { "type": "number", "description": "Funds available in the general wallet." },
+        "escrowBalance": { "type": "number", "description": "Funds locked in active gigs." }
+      }
+    },
     "contract": {
       "title": "Contract",
       "description": "Represents a contract between a creator and a brand.",
@@ -228,6 +240,12 @@
         "$ref": "#/backend/entities/notification"
       },
       "description": "Stores in-app notifications for users."
+    },
+    "/agencies/{agencyId}": {
+      "schema": {
+        "$ref": "#/backend/entities/agency"
+      },
+      "description": "Stores agency and brand organizational data."
     }
   }
 }
