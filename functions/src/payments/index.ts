@@ -432,8 +432,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const {metadata, amount} = paymentIntent;
-      // eslint-disable-next-line camelcase
-      const latestCharge = paymentIntent.latest_charge;
+      // Use destructuring to satisfy camelCase and obtain latest charge ID
+      const {latest_charge: latestCharge} = paymentIntent;
 
       const {
         contractId, userId, paymentType, internalPayoutId, agencyId,
@@ -588,101 +588,102 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                   </div>
                 </div>
                 </body></html>`;
-              await sgMail.send({
-                to: ownerData.email,
-                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
-                subject: `Receipt: Funding for "${gigData.title}"`,
-                html: receiptHtml,
-              });
-            }
-          }
-        } catch (error) {
-          logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
-        }
-      } else if (contractId) {
-        const contractDocRef = db.collection("contracts").doc(contractId);
-        const contractDoc = await contractDocRef.get();
-        const contractData = contractDoc.data() as Contract;
-
-        const updates: {[key: string]: unknown} = {
-          updatedAt: admin.firestore.Timestamp.now(),
-          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.Timestamp.now(),
-            action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
-            details: `PaymentIntent ID: ${paymentIntent.id}`,
-          }),
-        };
-
-        let allMilestonesPaid = false;
-        if (milestoneId && contractData.milestones) {
-          const updatedMilestones = contractData.milestones.map((m) =>
-            m.id === milestoneId ? {...m, status: "paid"} : m
-          );
-          updates.milestones = updatedMilestones;
-          allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
-          updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
-          updates.status = allMilestonesPaid ? "paid" : "partially_paid";
-        } else {
-          updates.invoiceStatus = "paid";
-          updates.status = "paid";
-          allMilestonesPaid = true;
-        }
-
-        await contractDocRef.update(updates);
-
-        if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
-          if (chargeId) {
-            const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-            const agencyData = agencyDoc.data() as Agency;
-            const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
-
-            if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
-              const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-              const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-              const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-              const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
-              if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
-                const platformFeeRaw = Math.round(amount * 0.15);
-                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
-                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-                const talentShareAmount = netForDistribution - agencyCommRaw;
-
-                if (agencyCommRaw > 0) {
-                  await stripe.transfers.create({
-                    amount: agencyCommRaw,
-                    currency: "usd",
-                    destination: agencyOwnerData.stripeAccountId,
-                    source_transaction: chargeId,
-                  });
+                            await sgMail.send({
+                                to: ownerData.email,
+                                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
+                                subject: `Receipt: Funding for "${gigData.title}"`,
+                                html: receiptHtml,
+                            });
+                        }
+                    }
+                } catch (error) {
+                    logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
                 }
-                if (talentShareAmount > 0) {
-                  await stripe.transfers.create({
-                    amount: talentShareAmount,
-                    currency: "usd",
-                    destination: talentUserData.stripeAccountId,
-                    source_transaction: chargeId,
-                  });
-                }
-              }
-            }
-          }
-        }
+            } else if (contractId) {
+                const contractDocRef = db.collection("contracts").doc(contractId);
+                const contractDoc = await contractDocRef.get();
+                const contractData = contractDoc.data() as Contract;
 
-        await db.collection("payments").add({
-          paymentIntentId: paymentIntent.id,
-          contractId,
-          userId: userId || "",
-          amount,
-          currency: "usd",
-          status: "succeeded",
-          timestamp: admin.firestore.Timestamp.now(),
-        });
-      }
-    }
-    response.json({received: true});
+                const updates: {[key: string]: unknown} = {
+                    updatedAt: admin.firestore.Timestamp.now(),
+                    invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+                        timestamp: admin.firestore.Timestamp.now(),
+                        action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
+                        details: `PaymentIntent ID: ${paymentIntent.id}`,
+                    }),
+                };
+
+                let allMilestonesPaid = false;
+                if (milestoneId && contractData.milestones) {
+                    const updatedMilestones = contractData.milestones.map((m) =>
+                        m.id === milestoneId ? {...m, status: "paid"} : m
+                    );
+                    updates.milestones = updatedMilestones;
+                    allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
+                    updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
+                    updates.status = allMilestonesPaid ? "paid" : "partially_paid";
+                } else {
+                    updates.invoiceStatus = "paid";
+                    updates.status = "paid";
+                    allMilestonesPaid = true;
+                }
+
+                await contractDocRef.update(updates);
+
+                if (paymentType === "agency_payment" && agencyId) {
+                    // Correctly cast latestCharge to obtain id for transfer
+                    const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
+                    if (chargeId) {
+                        const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+                        const agencyData = agencyDoc.data() as Agency;
+                        const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
+
+                        if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
+                            const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+                            const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+                            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+                            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+
+                            if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
+                                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
+                                const platformFeeRaw = Math.round(amount * 0.15);
+                                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
+                                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                                const talentShareAmount = netForDistribution - agencyCommRaw;
+
+                                if (agencyCommRaw > 0) {
+                                    await stripe.transfers.create({
+                                        amount: agencyCommRaw,
+                                        currency: "usd",
+                                        destination: agencyOwnerData.stripeAccountId,
+                                        source_transaction: chargeId,
+                                    });
+                                }
+                                if (talentShareAmount > 0) {
+                                    await stripe.transfers.create({
+                                        amount: talentShareAmount,
+                                        currency: "usd",
+                                        destination: talentUserData.stripeAccountId,
+                                        source_transaction: chargeId,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                await db.collection("payments").add({
+                    paymentIntentId: paymentIntent.id,
+                    contractId,
+                    userId: userId || "",
+                    amount,
+                    currency: "usd",
+                    status: "succeeded",
+                    timestamp: admin.firestore.Timestamp.now(),
+                });
+            }
+        }
+        response.json({received: true});
   } catch (error) {
     logger.error("Webhook error:", error);
     response.status(400).send("Webhook error");
@@ -864,6 +865,15 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
+      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_options: {
+        customer_balance: {
+          funding_type: "bank_transfer",
+          bank_transfer: {
+            type: "us_bank_account",
+          },
+        },
+      },
       line_items: [{
         price_data: {
           currency: "usd",
@@ -926,7 +936,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data() as UserProfileFirestoreData;
   if (!userData) {
-    throw new HttpsError("not-found", "User not found.");
+    throw new HttpsError("not-found", "User found.");
   }
 
   try {
@@ -1028,6 +1038,15 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
+      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_options: {
+        customer_balance: {
+          funding_type: "bank_transfer",
+          bank_transfer: {
+            type: "us_bank_account",
+          },
+        },
+      },
       line_items: [{
         price_data: {
           currency: "usd",
