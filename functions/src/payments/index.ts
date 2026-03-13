@@ -865,7 +865,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
@@ -1038,7 +1038,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
