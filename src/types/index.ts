@@ -475,6 +475,7 @@ export interface Gig {
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
+  fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
   createdAt: ClientTimestamp;
   campaignType: 'standard_sponsorship' | 'production_grant';

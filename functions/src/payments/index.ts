@@ -588,102 +588,102 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                   </div>
                 </div>
                 </body></html>`;
-                            await sgMail.send({
-                                to: ownerData.email,
-                                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
-                                subject: `Receipt: Funding for "${gigData.title}"`,
-                                html: receiptHtml,
-                            });
-                        }
-                    }
-                } catch (error) {
-                    logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
-                }
-            } else if (contractId) {
-                const contractDocRef = db.collection("contracts").doc(contractId);
-                const contractDoc = await contractDocRef.get();
-                const contractData = contractDoc.data() as Contract;
-
-                const updates: {[key: string]: unknown} = {
-                    updatedAt: admin.firestore.Timestamp.now(),
-                    invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-                        timestamp: admin.firestore.Timestamp.now(),
-                        action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
-                        details: `PaymentIntent ID: ${paymentIntent.id}`,
-                    }),
-                };
-
-                let allMilestonesPaid = false;
-                if (milestoneId && contractData.milestones) {
-                    const updatedMilestones = contractData.milestones.map((m) =>
-                        m.id === milestoneId ? {...m, status: "paid"} : m
-                    );
-                    updates.milestones = updatedMilestones;
-                    allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
-                    updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
-                    updates.status = allMilestonesPaid ? "paid" : "partially_paid";
-                } else {
-                    updates.invoiceStatus = "paid";
-                    updates.status = "paid";
-                    allMilestonesPaid = true;
-                }
-
-                await contractDocRef.update(updates);
-
-                if (paymentType === "agency_payment" && agencyId) {
-                    // Correctly cast latestCharge to obtain id for transfer
-                    const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
-                    if (chargeId) {
-                        const agencyDoc = await db.collection("agencies").doc(agencyId).get();
-                        const agencyData = agencyDoc.data() as Agency;
-                        const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
-
-                        if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
-                            const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
-                            const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
-                            const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
-                            const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
-
-                            if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-                                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
-                                const platformFeeRaw = Math.round(amount * 0.15);
-                                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
-                                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-                                const talentShareAmount = netForDistribution - agencyCommRaw;
-
-                                if (agencyCommRaw > 0) {
-                                    await stripe.transfers.create({
-                                        amount: agencyCommRaw,
-                                        currency: "usd",
-                                        destination: agencyOwnerData.stripeAccountId,
-                                        source_transaction: chargeId,
-                                    });
-                                }
-                                if (talentShareAmount > 0) {
-                                    await stripe.transfers.create({
-                                        amount: talentShareAmount,
-                                        currency: "usd",
-                                        destination: talentUserData.stripeAccountId,
-                                        source_transaction: chargeId,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                await db.collection("payments").add({
-                    paymentIntentId: paymentIntent.id,
-                    contractId,
-                    userId: userId || "",
-                    amount,
-                    currency: "usd",
-                    status: "succeeded",
-                    timestamp: admin.firestore.Timestamp.now(),
-                });
+              await sgMail.send({
+                to: ownerData.email,
+                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
+                subject: `Receipt: Funding for "${gigData.title}"`,
+                html: receiptHtml,
+              });
             }
+          }
+        } catch (error) {
+          logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
         }
-        response.json({received: true});
+      } else if (contractId) {
+        const contractDocRef = db.collection("contracts").doc(contractId);
+        const contractDoc = await contractDocRef.get();
+        const contractData = contractDoc.data() as Contract;
+
+        const updates: {[key: string]: unknown} = {
+          updatedAt: admin.firestore.Timestamp.now(),
+          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+            timestamp: admin.firestore.Timestamp.now(),
+            action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
+            details: `PaymentIntent ID: ${paymentIntent.id}`,
+          }),
+        };
+
+        let allMilestonesPaid = false;
+        if (milestoneId && contractData.milestones) {
+          const updatedMilestones = contractData.milestones.map((m) =>
+            m.id === milestoneId ? {...m, status: "paid"} : m
+          );
+          updates.milestones = updatedMilestones;
+          allMilestonesPaid = updatedMilestones.every((m) => m.status === "paid");
+          updates.invoiceStatus = allMilestonesPaid ? "paid" : "partially_paid";
+          updates.status = allMilestonesPaid ? "paid" : "partially_paid";
+        } else {
+          updates.invoiceStatus = "paid";
+          updates.status = "paid";
+          allMilestonesPaid = true;
+        }
+
+        await contractDocRef.update(updates);
+
+        if (paymentType === "agency_payment" && agencyId) {
+          // Correctly cast latestCharge to obtain id for transfer
+          const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
+          if (chargeId) {
+            const agencyDoc = await db.collection("agencies").doc(agencyId).get();
+            const agencyData = agencyDoc.data() as Agency;
+            const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
+
+            if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
+              const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+              const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
+              const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
+              const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
+
+              if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
+                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
+                const platformFeeRaw = Math.round(amount * 0.15);
+                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
+                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                const talentShareAmount = netForDistribution - agencyCommRaw;
+
+                if (agencyCommRaw > 0) {
+                  await stripe.transfers.create({
+                    amount: agencyCommRaw,
+                    currency: "usd",
+                    destination: agencyOwnerData.stripeAccountId,
+                    source_transaction: chargeId,
+                  });
+                }
+                if (talentShareAmount > 0) {
+                  await stripe.transfers.create({
+                    amount: talentShareAmount,
+                    currency: "usd",
+                    destination: talentUserData.stripeAccountId,
+                    source_transaction: chargeId,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        await db.collection("payments").add({
+          paymentIntentId: paymentIntent.id,
+          contractId,
+          userId: userId || "",
+          amount,
+          currency: "usd",
+          status: "succeeded",
+          timestamp: admin.firestore.Timestamp.now(),
+        });
+      }
+    }
+    response.json({received: true});
   } catch (error) {
     logger.error("Webhook error:", error);
     response.status(400).send("Webhook error");
