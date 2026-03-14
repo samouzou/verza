@@ -6,7 +6,17 @@ import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send, Rocket } from "lucide-react";
+import { 
+  CheckCircle, 
+  Circle, 
+  FileText, 
+  Banknote, 
+  DollarSign, 
+  Loader2, 
+  Send, 
+  UserCircle, 
+  Sparkles 
+} from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
@@ -36,10 +46,24 @@ export function useSetupSteps() {
       try {
         const contractsCol = collection(db, 'contracts');
         
-        // Corrected Query: Check against the 'access' map, which aligns with security rules for all user types.
-        const createdQuery = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']), limit(1));
-        const sentQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), limit(1));
-        const paidQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', '==', 'paid'), limit(1));
+        // Corrected Query: Check against the 'access' map, which aligns with security rules
+        const createdQuery = query(
+          contractsCol, 
+          where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']), 
+          limit(1)
+        );
+        const sentQuery = query(
+          contractsCol, 
+          where('userId', '==', user.uid), 
+          where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), 
+          limit(1)
+        );
+        const paidQuery = query(
+          contractsCol, 
+          where('userId', '==', user.uid), 
+          where('invoiceStatus', '==', 'paid'), 
+          limit(1)
+        );
 
         const [createdSnapshot, sentSnapshot, paidSnapshot] = await Promise.all([
           getDocs(createdQuery),
@@ -47,11 +71,60 @@ export function useSetupSteps() {
           getDocs(paidQuery),
         ]);
 
+        // Logic for profile completion
+        const isProfileComplete = !!user.displayName && 
+                                 user.displayName !== 'New User' && 
+                                 !!user.avatarUrl && 
+                                 !!user.address;
+
+        // Logic for social connection
+        const isSocialConnected = !!(user.instagramConnected || 
+                                     user.tiktokConnected || 
+                                     user.youtubeConnected);
+
         const definedSteps: Step[] = [
-          { id: 'stripe', label: 'Connect your bank account for payouts', isCompleted: user.stripePayoutsEnabled || false, href: '/settings', icon: Banknote },
-          { id: 'contract', label: 'Create your first contract', isCompleted: !createdSnapshot.empty, href: '/contracts', icon: FileText },
-          { id: 'invoice', label: 'Send your first invoice', isCompleted: !sentSnapshot.empty, href: '/contracts', icon: Send },
-          { id: 'payment', label: 'Receive your first payment', isCompleted: !paidSnapshot.empty, href: '/dashboard', icon: DollarSign },
+          { 
+            id: 'profile', 
+            label: 'Complete your creator profile', 
+            isCompleted: isProfileComplete, 
+            href: '/profile', 
+            icon: UserCircle 
+          },
+          { 
+            id: 'insights', 
+            label: 'Verify your social reach', 
+            isCompleted: isSocialConnected, 
+            href: '/insights', 
+            icon: Sparkles 
+          },
+          { 
+            id: 'stripe', 
+            label: 'Connect bank account for payouts', 
+            isCompleted: user.stripePayoutsEnabled || false, 
+            href: '/settings', 
+            icon: Banknote 
+          },
+          { 
+            id: 'contract', 
+            label: 'Create your first contract', 
+            isCompleted: !createdSnapshot.empty, 
+            href: '/contracts', 
+            icon: FileText 
+          },
+          { 
+            id: 'invoice', 
+            label: 'Send your first invoice', 
+            isCompleted: !sentSnapshot.empty, 
+            href: '/contracts', 
+            icon: Send 
+          },
+          { 
+            id: 'payment', 
+            label: 'Receive your first payment', 
+            isCompleted: !paidSnapshot.empty, 
+            href: '/dashboard', 
+            icon: DollarSign 
+          },
         ];
         
         setSteps(definedSteps);
@@ -69,7 +142,7 @@ export function useSetupSteps() {
     checkStatuses();
   }, [user]);
 
-  return { steps, isLoading, completedStepsCount, totalSteps: 4 };
+  return { steps, isLoading, completedStepsCount, totalSteps: steps.length };
 }
 
 
@@ -90,7 +163,9 @@ export function SetupGuide() {
           <CardTitle className="text-sm font-semibold">Setup Guide</CardTitle>
           <div className="flex items-center gap-2 pt-1">
             <Progress value={progressPercentage} className="h-2 w-full" />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{completedStepsCount} / {totalSteps}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {completedStepsCount} / {totalSteps}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="p-3 pt-0 text-sm">
@@ -102,13 +177,19 @@ export function SetupGuide() {
             <ul className="space-y-2">
               {steps.map(step => (
                 <li key={step.id}>
-                  <Link href={step.href} className="flex items-center gap-2 p-1 rounded-md hover:bg-sidebar-accent transition-colors">
+                  <Link 
+                    href={step.href} 
+                    className="flex items-center gap-2 p-1 rounded-md hover:bg-sidebar-accent transition-colors"
+                  >
                     {step.isCompleted ? (
                       <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    <span className={cn('transition-colors', step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground')}>
+                    <span className={cn(
+                      'transition-colors', 
+                      step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                    )}>
                       {step.label}
                     </span>
                   </Link>
@@ -125,7 +206,9 @@ export function SetupGuide() {
   return (
     <div className="mx-auto my-2 p-2">
        <Progress value={progressPercentage} className="h-1.5 w-8 mx-auto" />
-       <p className="text-xs text-muted-foreground text-center mt-1">{completedStepsCount}/{totalSteps}</p>
+       <p className="text-xs text-muted-foreground text-center mt-1">
+         {completedStepsCount}/{totalSteps}
+       </p>
     </div>
   );
 }
