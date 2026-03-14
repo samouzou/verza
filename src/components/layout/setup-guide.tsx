@@ -3,13 +3,12 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, limit, doc, onSnapshot } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { 
   CheckCircle, 
   Circle, 
-  FileText, 
   Banknote, 
   DollarSign, 
   Loader2, 
@@ -17,8 +16,7 @@ import {
   UserCircle, 
   Sparkles,
   Building,
-  Users,
-  Video
+  Users
 } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
@@ -33,7 +31,7 @@ export interface Step {
 }
 
 export function useSetupSteps() {
-  const { user } = useAuth();
+  const { user, isAgency } = useAuth();
   const [steps, setSteps] = useState<Step[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completedStepsCount, setCompletedStepsCount] = useState(0);
@@ -44,20 +42,18 @@ export function useSetupSteps() {
       return;
     }
 
-    const isAgencyFlow = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
-
     const checkStatuses = async () => {
       setIsLoading(true);
       try {
-        if (isAgencyFlow) {
+        if (isAgency) {
           // --- AGENCY FLOW CHECKS ---
           const isProfileComplete = !!user.displayName && !!user.companyLogoUrl && !!user.address;
           
           let hasTalent = false;
           if (user.primaryAgencyId) {
-            const agencyDoc = await getDocs(query(collection(db, 'agencies'), where('id', '==', user.primaryAgencyId), limit(1)));
-            if (!agencyDoc.empty) {
-              const data = agencyDoc.docs[0].data();
+            const agencyDocSnap = await getDocs(query(collection(db, 'agencies'), where('id', '==', user.primaryAgencyId), limit(1)));
+            if (!agencyDocSnap.empty) {
+              const data = agencyDocSnap.docs[0].data();
               hasTalent = data.talent && data.talent.length > 0;
             }
           }
@@ -107,7 +103,7 @@ export function useSetupSteps() {
     };
 
     checkStatuses();
-  }, [user]);
+  }, [user, isAgency]);
 
   return { steps, isLoading, completedStepsCount, totalSteps: steps.length };
 }
