@@ -3,7 +3,6 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { DateRange } from "react-day-picker";
 import confetti from 'canvas-confetti';
 import Link from 'next/link';
 
@@ -15,22 +14,29 @@ import { DashboardFilters, type DashboardFilterState } from "@/components/dashbo
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DollarSign, FileText, AlertCircle, CalendarCheck, Loader2, AlertTriangle, FileSpreadsheet, CheckCircle as CheckCircleIcon, Sparkles, ExternalLink, TrendingUp, CalendarClock, LifeBuoy } from "lucide-react"; 
+import { 
+  DollarSign, 
+  FileText, 
+  AlertCircle, 
+  Loader2, 
+  AlertTriangle, 
+  FileSpreadsheet, 
+  CheckCircle as CheckCircleIcon, 
+  Sparkles, 
+  ExternalLink, 
+  CalendarClock, 
+  LifeBuoy,
+  Video,
+  Zap
+} from "lucide-react"; 
 import { useAuth, type UserProfile } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, Timestamp, updateDoc, doc, onSnapshot, getDoc } from '@/lib/firebase';
-import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency } from "@/types";
+import { db, collection, query, where, doc, onSnapshot, Timestamp } from '@/lib/firebase';
+import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency, Gig, GigSubmission } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
-import { dashboardTour, getStartedTour } from "@/lib/tours";
+import { dashboardTour } from "@/lib/tours";
 import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
-
-
-const addDays = (date: Date, days: number): Date => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
 
 interface DashboardStats {
   totalPendingIncome: number;
@@ -39,7 +45,9 @@ interface DashboardStats {
   atRiskPaymentsCount: number;
   totalOverdueCount: number;
   paidThisMonthAmount: number;
-  invoicedThisMonthAmount: number; // For summary card
+  invoicedThisMonthAmount: number;
+  activeGigsCount: number;
+  marketplaceEarnings: number;
   upcomingIncomeList: UpcomingIncome[];
   atRiskPaymentsList: AtRiskPayment[];
   earningsChartData: EarningsDataPoint[];
@@ -57,10 +65,11 @@ export default function DashboardPage() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { startTour, stopTour, isTourActive } = useTour();
+  const { startTour } = useTour();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
+  const [allGigs, setAllGigs] = useState<Gig[]>([]);
   const [filters, setFilters] = useState<DashboardFilterState>(initialFilterState);
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
@@ -69,14 +78,9 @@ export default function DashboardPage() {
   
   const [subscriptionUser, setSubscriptionUser] = useState<UserProfile | null>(null);
 
-
   useEffect(() => {
     if (searchParams.get('subscription_success') === 'true') {
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       router.replace('/dashboard', { scroll: false });
     }
   }, [searchParams, router]);
@@ -88,92 +92,53 @@ export default function DashboardPage() {
     }
 
     setIsLoadingData(true);
-
     const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
     
-    // Determine which user's subscription to use
-    let unsubAgency: (() => void) | undefined;
     let unsubOwner: (() => void) | undefined;
+    let unsubAgency: (() => void) | undefined;
 
     if (isTeamMember) {
-        const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
-        unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
-            if (agencySnap.exists()) {
-                const agencyData = agencySnap.data() as Agency;
-                const ownerDocRef = doc(db, 'users', agencyData.ownerId);
-                
-                if (unsubOwner) unsubOwner();
-                unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
-                    if (ownerDocSnap.exists()) {
-                        setSubscriptionUser(ownerDocSnap.data() as UserProfile);
-                    } else {
-                        setSubscriptionUser(user); // Fallback to self
-                    }
-                });
-            } else {
-                 setSubscriptionUser(user); // Fallback if agency not found
-            }
-        });
-    } else {
-       setSubscriptionUser(user);
-    }
-    
-    const contractsCol = collection(db, 'contracts');
-    const q = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
-    
-    const unsubscribeContracts = onSnapshot(q, (contractSnapshot) => {
-      const fetchedContracts: Contract[] = contractSnapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        let createdAt = data.createdAt;
-        if (createdAt && !(createdAt instanceof Timestamp)) {
-          if (createdAt.seconds && typeof createdAt.seconds === 'number') {
-            createdAt = new Timestamp(createdAt.seconds, createdAt.nanoseconds || 0);
-          } else { createdAt = Timestamp.now(); }
-        } else if (!createdAt) {
-          createdAt = Timestamp.now();
-        }
-
-        let updatedAt = data.updatedAt;
-        if (updatedAt && !(updatedAt instanceof Timestamp)) {
-          if (updatedAt.seconds && typeof updatedAt.seconds === 'number') {
-             updatedAt = new Timestamp(updatedAt.seconds, updatedAt.nanoseconds || 0);
-          } else if (typeof updatedAt === 'string') { 
-            updatedAt = Timestamp.fromDate(new Date(updatedAt));
-          }
-        }
-        
-        return { 
-          id: docSnap.id, 
-          ...data,
-          createdAt: createdAt,
-          updatedAt: updatedAt,
-          invoiceStatus: data.invoiceStatus || 'none',
-        } as Contract;
+      const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
+      unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
+        if (agencySnap.exists()) {
+          const ownerDocRef = doc(db, 'users', (agencySnap.data() as Agency).ownerId);
+          if (unsubOwner) unsubOwner();
+          unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
+            setSubscriptionUser(ownerDocSnap.exists() ? ownerDocSnap.data() as UserProfile : user);
+          });
+        } else { setSubscriptionUser(user); }
       });
-
-      setAllContracts(fetchedContracts);
-
+    } else { setSubscriptionUser(user); }
+    
+    const contractsQ = query(collection(db, 'contracts'), where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']));
+    const unsubscribeContracts = onSnapshot(contractsQ, (snapshot) => {
+      const fetched = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Contract));
+      setAllContracts(fetched);
+      
       const brands = new Set<string>();
       const projects = new Set<string>();
-      fetchedContracts.forEach(c => {
+      fetched.forEach(c => {
         if (c.brand) brands.add(c.brand);
         if (c.projectName) projects.add(c.projectName);
       });
       setAvailableBrands(Array.from(brands).sort());
       setAvailableProjects(Array.from(projects).sort());
-      setIsLoadingData(false);
-    }, (error) => {
-      console.error("Error fetching all contracts:", error);
-      setAllContracts([]);
+    });
+
+    const gigsQ = query(collection(db, 'gigs'));
+    const unsubscribeGigs = onSnapshot(gigsQ, (snapshot) => {
+      const fetched = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Gig))
+        .filter(g => g.brandId === user.primaryAgencyId || g.acceptedCreatorIds?.includes(user.uid));
+      setAllGigs(fetched);
       setIsLoadingData(false);
     });
 
     return () => {
       unsubscribeContracts();
+      unsubscribeGigs();
       if (unsubAgency) unsubAgency();
       if (unsubOwner) unsubOwner();
     };
-    
   }, [user, authLoading]);
 
   useEffect(() => {
@@ -182,110 +147,72 @@ export default function DashboardPage() {
     const filteredContracts = allContracts.filter(c => {
       const brandMatch = filters.brand === "all" || c.brand === filters.brand;
       const projectMatch = filters.project === "all" || c.projectName === filters.project;
-      
       let dateMatch = true;
-      if (c.dueDate && filters.dateRange?.from) { 
-        const contractDueDate = new Date(c.dueDate + 'T00:00:00'); 
-        const fromDate = new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate());
-        
-        if (filters.dateRange.to) {
-          const toDate = new Date(filters.dateRange.to.getFullYear(), filters.dateRange.to.getMonth(), filters.dateRange.to.getDate(), 23, 59, 59);
-          dateMatch = contractDueDate >= fromDate && contractDueDate <= toDate;
-        } else { 
-          const fromDateEnd = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate(), 23, 59, 59);
-          dateMatch = contractDueDate >= fromDate && contractDueDate <= fromDateEnd;
-        }
+      if (c.dueDate && filters.dateRange?.from) {
+        const contractDueDate = new Date(c.dueDate + 'T00:00:00');
+        const from = filters.dateRange.from;
+        const to = filters.dateRange.to || from;
+        dateMatch = contractDueDate >= from && contractDueDate <= to;
       }
       return brandMatch && projectMatch && dateMatch;
     });
     
-    const today = new Date();
-    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const sevenDaysFromTodayMidnight = addDays(todayMidnight, 7);
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const currentYear = todayMidnight.getFullYear();
 
     const upcomingIncomeSource: UpcomingIncome[] = [];
     const atRiskPaymentsListSource: AtRiskPayment[] = [];
     let totalPendingIncomeCalc = 0;
     let currentPaidThisMonthAmount = 0;
-    let currentInvoicedThisMonthAmountForSummary = 0; // For summary card
-    let currentTotalOverdueCountCalc = 0;
+    let currentInvoicedThisMonthAmount = 0;
+    let currentTotalOverdueCount = 0;
+    let marketplaceEarningsCalc = 0;
 
-    const newEarningsChartData: EarningsDataPoint[] = monthNames.map(monthName => ({
-      month: monthName,
-      year: currentYear,
-      collected: 0,
-      invoiced: 0,
-    }));
+    const newEarningsChartData: EarningsDataPoint[] = monthNames.map(name => ({
+      month: monthName, year: currentYear, collected: 0, invoiced: 0,
+    } as any));
 
     filteredContracts.forEach(c => {
       const contractDueDate = c.dueDate ? new Date(c.dueDate + 'T00:00:00') : null;
-      const invoiceStatus = c.invoiceStatus || 'none';
-      const updatedAtDate = c.updatedAt instanceof Timestamp ? c.updatedAt.toDate() : (c.updatedAt ? new Date(c.updatedAt as any) : null);
-      
-      let isEffectivelyOverdue = false;
-      if (invoiceStatus === 'overdue') {
-        isEffectivelyOverdue = true;
-      } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed') && contractDueDate && contractDueDate < todayMidnight) {
-        isEffectivelyOverdue = true;
-      } else if (c.status === 'overdue' && invoiceStatus !== 'paid') {
-         isEffectivelyOverdue = true;
+      const isOverdue = (c.invoiceStatus === 'overdue') || (['sent', 'viewed'].includes(c.invoiceStatus || '') && 
+        contractDueDate && contractDueDate < todayMidnight);
+
+      if (isOverdue) {
+        currentTotalOverdueCount++;
+        atRiskPaymentsListSource.push({ ...c, riskReason: 'Payment overdue' } as any);
       }
 
-
-      if (isEffectivelyOverdue) {
-        currentTotalOverdueCountCalc++;
-        atRiskPaymentsListSource.push({
-          id: c.id, brand: c.brand, amount: c.amount, dueDate: c.dueDate,
-          status: 'overdue', riskReason: 'Payment overdue', projectName: c.projectName,
-        });
-      } else if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed' || c.status === 'pending') && invoiceStatus !== 'paid' && contractDueDate && contractDueDate >= todayMidnight && contractDueDate < sevenDaysFromTodayMidnight) {
-         atRiskPaymentsListSource.push({
-          id: c.id, brand: c.brand, amount: c.amount, dueDate: c.dueDate,
-          status: c.status, 
-          riskReason: 'Due soon', 
-          projectName: c.projectName,
-        });
-      }
-
-      if ((invoiceStatus === 'sent' || invoiceStatus === 'viewed' || c.status === 'pending') && invoiceStatus !== 'paid' && contractDueDate && contractDueDate >= todayMidnight) {
-        upcomingIncomeSource.push({ id: c.id, brand: c.brand, amount: c.amount, dueDate: c.dueDate, projectName: c.projectName });
+      if (['sent', 'viewed', 'pending'].includes(c.invoiceStatus || 'pending') && 
+        c.invoiceStatus !== 'paid' && contractDueDate && contractDueDate >= todayMidnight) {
+        upcomingIncomeSource.push(c as any);
         totalPendingIncomeCalc += c.amount;
       }
       
-      if (invoiceStatus === 'paid' && updatedAtDate && updatedAtDate.getFullYear() === currentYear) {
-        const paidMonth = updatedAtDate.getMonth();
-        newEarningsChartData[paidMonth].collected += c.amount;
-        if (paidMonth === currentMonth) {
-          currentPaidThisMonthAmount += c.amount;
+      if (c.invoiceStatus === 'paid') {
+        const date = (c.updatedAt as Timestamp).toDate();
+        if (date.getFullYear() === currentYear) {
+          newEarningsChartData[date.getMonth()].collected += c.amount;
+          if (date.getMonth() === todayMidnight.getMonth()) currentPaidThisMonthAmount += c.amount;
         }
       }
 
-      if (c.invoiceHistory && Array.isArray(c.invoiceHistory)) {
-        for (const event of c.invoiceHistory) {
-          if (event.action === 'Invoice Sent to Client') {
-            const eventDate = event.timestamp.toDate();
-            if (eventDate.getFullYear() === currentYear) {
-              const eventMonth = eventDate.getMonth();
-              newEarningsChartData[eventMonth].invoiced += c.amount;
-              if (eventMonth === currentMonth) {
-                  currentInvoicedThisMonthAmountForSummary += c.amount;
-              }
-              break; 
-            }
+      c.invoiceHistory?.forEach(event => {
+        if (event.action === 'Invoice Sent to Client') {
+          const date = event.timestamp.toDate();
+          if (date.getFullYear() === currentYear) {
+            newEarningsChartData[date.getMonth()].invoiced += c.amount;
+            if (date.getMonth() === todayMidnight.getMonth()) currentInvoicedThisMonthAmount += c.amount;
           }
         }
-      }
+      });
     });
-    
-    upcomingIncomeSource.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-    atRiskPaymentsListSource.sort((a, b) => {
-      const aIsOverdue = a.status === 'overdue';
-      const bIsOverdue = b.status === 'overdue';
-      if (aIsOverdue && !bIsOverdue) return -1;
-      if (!aIsOverdue && bIsOverdue) return 1;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+
+    const activeGigs = allGigs.filter(g => g.status === 'open' || g.status === 'in-progress');
+    allGigs.forEach(g => {
+      if (g.status === 'completed' && g.acceptedCreatorIds?.includes(user.uid)) {
+        marketplaceEarningsCalc += g.ratePerCreator;
+      }
     });
 
     setStats({
@@ -293,182 +220,100 @@ export default function DashboardPage() {
       upcomingIncomeCount: upcomingIncomeSource.length,
       totalContractsCount: allContracts.length, 
       atRiskPaymentsCount: atRiskPaymentsListSource.length,
-      totalOverdueCount: currentTotalOverdueCountCalc,
+      totalOverdueCount: currentTotalOverdueCount,
       paidThisMonthAmount: currentPaidThisMonthAmount,
-      invoicedThisMonthAmount: currentInvoicedThisMonthAmountForSummary,
-      upcomingIncomeList: upcomingIncomeSource,
+      invoicedThisMonthAmount: currentInvoicedThisMonthAmount,
+      activeGigsCount: activeGigs.length,
+      marketplaceEarnings: marketplaceEarningsCalc,
+      upcomingIncomeList: upcomingIncomeSource.sort((a,b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()),
       atRiskPaymentsList: atRiskPaymentsListSource,
       earningsChartData: newEarningsChartData, 
-    });
+    } as any);
 
-  }, [allContracts, filters, user, isLoadingData]);
+  }, [allContracts, allGigs, filters, user, isLoadingData]);
 
-  const handleFiltersChange = useCallback((newFilters: DashboardFilterState) => {
-    setFilters(newFilters);
-  }, []);
+  const handleFiltersChange = useCallback((newFilters: DashboardFilterState) => setFilters(newFilters), []);
 
   if (authLoading || (isLoadingData && user) || !subscriptionUser) {
     return (
-      <>
-        <PageHeader
-          title="Dashboard"
-          description="Overview of your earnings, contracts, and payment timelines."
-        />
-        <DashboardFilters 
-          availableBrands={availableBrands} 
-          availableProjects={availableProjects} 
-          onFiltersChange={handleFiltersChange}
-          initialFilters={initialFilterState} 
-        />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
-          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
+      <div className="flex-1 p-8 space-y-8">
+        <Skeleton className="h-12 w-1/3" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
         </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <Skeleton className="h-[350px] w-full" />
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <Skeleton className="h-[200px] w-full" />
-          </div>
-        </div>
-        <div className="mt-6">
-          <Skeleton className="h-[200px] w-full" />
-        </div>
-      </>
-    );
-  }
-
-  if (!user) {
-     return (
-        <div className="flex flex-col items-center justify-center h-full pt-10">
-            <AlertCircle className="w-12 h-12 text-primary mb-4" />
-            <p className="text-xl text-muted-foreground">Please log in to view your dashboard.</p>
-        </div>
-     )
-  }
-  
-  if (!stats && !isLoadingData) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full pt-10">
-         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Could not load dashboard data.</h2>
-        <p className="text-muted-foreground">Please try refreshing the page or check your connection.</p>
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }
-  
-  if (!stats) return null; 
 
-  const showSubscriptionCTA = subscriptionUser && subscriptionUser.subscriptionStatus !== 'active' && subscriptionUser.subscriptionStatus !== 'trialing';
-  const showTrialBanner = subscriptionUser && subscriptionUser.subscriptionStatus === 'trialing' && subscriptionUser.trialEndsAt;
-  const trialTimeLeft = showTrialBanner ? formatDistanceToNow(subscriptionUser.trialEndsAt!.toDate(), { addSuffix: true }) : '';
+  if (!user) return <div className="text-center py-20 text-muted-foreground">Please log in to view your dashboard.</div>;
+  if (!stats) return null;
+
+  const showSubscriptionCTA = subscriptionUser.subscriptionStatus !== 'active' && 
+    subscriptionUser.subscriptionStatus !== 'trialing';
 
   return (
     <>
       <PageHeader
         title="Dashboard"
-        description="Overview of your earnings, contracts, and payment timelines."
+        description="Your unified command center for contracts and marketplace activity."
         actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
 
       <SetupGuideCard />
 
-      {showTrialBanner && (
-        <Alert className="mb-6 border-blue-500/50 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400">
-          <CalendarClock className="h-5 w-5" />
-          <AlertTitle className="font-semibold">Free Trial Active</AlertTitle>
-          <AlertDescription>
-            Your free trial ends {trialTimeLeft}. Upgrade to Verza Pro to keep access to all features.
-          </AlertDescription>
-          <div className="mt-3">
-            <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/settings">
-                Upgrade to Pro <ExternalLink className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </Alert>
-      )}
-
       {showSubscriptionCTA && (
-        <Alert className="mb-6 border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
-          <Sparkles className="h-5 w-5" />
+        <Alert className="mb-6 border-primary/50 bg-primary/5">
+          <Sparkles className="h-5 w-5 text-primary" />
           <AlertTitle className="font-semibold text-primary">Unlock Full Potential!</AlertTitle>
-          <AlertDescription className="text-primary/90">
-            {subscriptionUser.subscriptionStatus === 'canceled' ? 'Your Verza Pro subscription is canceled.' : 
-             subscriptionUser.subscriptionStatus === 'past_due' ? 'Your Verza Pro subscription payment is past due.' :
-             'Your free trial has ended.'}
-            {' '}Upgrade to Verza Pro to access all features and manage your creator business seamlessly.
+          <AlertDescription>
+            Upgrade to Verza Pro to access Marketplace Gigs and advanced financial tracking.
           </AlertDescription>
-          <div className="mt-3">
-            <Button variant="default" size="sm" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/settings">
-                {subscriptionUser.subscriptionStatus === 'canceled' || subscriptionUser.subscriptionStatus === 'past_due' ? 'Manage Subscription' : 'Upgrade to Pro'}
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
+          <Button variant="default" size="sm" asChild className="mt-3">
+            <Link href="/settings">Manage Subscription <ExternalLink className="ml-2 h-4 w-4" /></Link>
+          </Button>
         </Alert>
       )}
       
       <DashboardFilters 
-        availableBrands={availableBrands} 
-        availableProjects={availableProjects} 
-        onFiltersChange={handleFiltersChange}
-        initialFilters={filters}
+        availableBrands={availableBrands} availableProjects={availableProjects} 
+        onFiltersChange={handleFiltersChange} initialFilters={filters}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
         <SummaryCard 
-          id="summary-card-pending-income"
-          title="Pending Income (Filtered)" 
-          value={`$${stats.totalPendingIncome.toLocaleString()}`}
-          icon={DollarSign}
-          description={`${stats.upcomingIncomeCount} upcoming payments`}
+          title="Marketplace Gigs" value={stats.activeGigsCount.toString()} 
+          icon={Video} description="Active campaigns" 
         />
         <SummaryCard 
-          id="summary-card-total-contracts"
-          title="Total Active Contracts" 
-          value={stats.totalContractsCount.toString()}
-          icon={FileText}
-          description="All contracts managed"
-        />
-         <SummaryCard 
-          id="summary-card-invoiced"
-          title="Invoiced This Month" 
-          value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
-          icon={FileSpreadsheet}
-          description="Based on invoices sent this month"
+          title="Gig Earnings" value={`$${stats.marketplaceEarnings.toLocaleString()}`}
+          icon={Zap} description="Total from marketplace"
         />
         <SummaryCard 
-          id="summary-card-collected"
-          title="Collected This Month" 
-          value={`$${stats.paidThisMonthAmount.toLocaleString()}`}
-          icon={CheckCircleIcon} 
-          description="Based on invoices paid this month"
+          title="Contract Income" value={`$${stats.totalPendingIncome.toLocaleString()}`}
+          icon={DollarSign} description={`${stats.upcomingIncomeCount} pending payments`}
         />
         <SummaryCard 
-          id="summary-card-at-risk"
-          title="Payments At Risk (Filtered)" 
-          value={stats.atRiskPaymentsCount.toString()}
-          icon={AlertCircle}
-          description={`${stats.totalOverdueCount} overdue`}
-          className={stats.atRiskPaymentsCount > 0 ? "border-destructive text-destructive dark:border-destructive/70" : ""}
+          title="Invoiced (Mo)" value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
+          icon={FileSpreadsheet} description="Current month invoices"
+        />
+        <SummaryCard 
+          title="Collected (Mo)" value={`$${stats.paidThisMonthAmount.toLocaleString()}`}
+          icon={CheckCircleIcon} description="Net cash in this month"
+        />
+        <SummaryCard 
+          title="At Risk" value={stats.atRiskPaymentsCount.toString()} 
+          icon={AlertCircle} description={`${stats.totalOverdueCount} overdue`}
+          className={stats.atRiskPaymentsCount > 0 ? "border-destructive text-destructive" : ""}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div id="earnings-chart-container" className="lg:col-span-2">
-          <EarningsChart data={stats.earningsChartData} />
-        </div>
-        <div id="upcoming-income-container" className="lg:col-span-1 space-y-6">
-           <UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} />
-        </div>
+        <div className="lg:col-span-2"><EarningsChart data={stats.earningsChartData} /></div>
+        <div className="lg:col-span-1"><UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} /></div>
       </div>
 
-      <div id="at-risk-payments-container" className="mt-6">
-        <AtRiskPayments payments={stats.atRiskPaymentsList} />
-      </div>
+      <div className="mt-6"><AtRiskPayments payments={stats.atRiskPaymentsList} /></div>
     </>
   );
 }
