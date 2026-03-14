@@ -633,8 +633,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = latestCharge;
-          if (chargeId) {
+          const latestChargeId = latestCharge;
+          if (latestChargeId) {
             const agencyDoc = await db.collection("agencies").doc(agencyId).get();
             const agencyData = agencyDoc.data() as Agency;
             const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
@@ -657,7 +657,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     amount: agencyCommRaw,
                     currency: "usd",
                     destination: agencyOwnerData.stripeAccountId,
-                    source_transaction: chargeId,
+                    source_transaction: latestChargeId,
                   });
                 }
                 if (talentShareAmount > 0) {
@@ -665,7 +665,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     amount: talentShareAmount,
                     currency: "usd",
                     destination: talentUserData.stripeAccountId,
-                    source_transaction: chargeId,
+                    source_transaction: latestChargeId,
                   });
                 }
               }
@@ -872,7 +872,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         customer_balance: {
           funding_type: "bank_transfer",
           bank_transfer: {
-            type: "us_bank_account",
+            type: "us_bank_transfer",
           },
         },
       },
@@ -1045,7 +1045,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
         customer_balance: {
           funding_type: "bank_transfer",
           bank_transfer: {
-            type: "us_bank_account",
+            type: "us_bank_transfer",
           },
         },
       },

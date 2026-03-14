@@ -1,5 +1,5 @@
 
-import type { Timestamp as ClientTimestamp } from "firebase/firestore";
+import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 export interface PaymentMilestone {
   id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
