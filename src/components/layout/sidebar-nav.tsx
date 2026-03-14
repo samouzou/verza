@@ -57,6 +57,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide";
 import { NotificationBell } from "./notification-bell";
+import { SupportDialog } from "./support-dialog";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -328,6 +329,13 @@ export function SidebarNav() {
               </div>
             </div>
           )}
+         <div className="px-2 group-data-[collapsible=icon]:px-0">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SupportDialog />
+              </SidebarMenuItem>
+            </SidebarMenu>
+         </div>
          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <ThemeToggle />
          </div>
