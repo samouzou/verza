@@ -41,6 +41,17 @@ service cloud.firestore {
              requesterAgencyId in get(/databases/$(database)/documents/users/$(userId)).data.get('giggingForAgencies', []);
     }
 
+    // Helper to check if the requester is in the same agency as the target user (allows inheriting subscription checks)
+    function isSameAgencyTeam(targetUserId) {
+      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
+      let requesterAgencyId = requesterUser.get('primaryAgencyId', null);
+      return request.auth != null && 
+             requesterAgencyId != null && 
+             requesterAgencyId == targetUser.get('primaryAgencyId', null) &&
+             (requesterUser.get('role', 'none') == "agency_admin" || requesterUser.get('role', 'none') == "agency_member" || requesterUser.get('role', 'none') == "agency_owner");
+    }
+
     // Helper to check if a user can access a receipt, either by being the owner
     // or by having access to the linked contract.
     function isAllowedToAccessReceipt(receipt) {
@@ -54,7 +65,7 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || resource.data.get('showInMarketplace', false) == true;
+      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || isSameAgencyTeam(userId) || resource.data.get('showInMarketplace', false) == true;
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) &&
                        (

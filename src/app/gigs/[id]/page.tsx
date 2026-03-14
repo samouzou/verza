@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -251,8 +250,8 @@ export default function GigDetailPage() {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>, slotIndex: number) => {
     const file = e.target.files?.[0];
     if (!file || !user || !gig) return;
-    if (file.size > 50 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Videos must be under 50MB.", variant: "destructive" });
+    if (file.size > 100 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Videos must be under 100MB.", variant: "destructive" });
       return;
     }
     setIsUploading(slotIndex);
@@ -620,7 +619,7 @@ export default function GigDetailPage() {
                                   </div>
                                   <div className="text-center">
                                     <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
-                                    <p className="text-sm text-muted-foreground">MP4 or MOV, max 50MB</p>
+                                    <p className="text-sm text-muted-foreground">MP4 or MOV, max 100MB</p>
                                   </div>
                                 </label>
                               </div>

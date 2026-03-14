@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,18 +9,41 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, DollarSign, Building, Sparkles, ExternalLink, ShieldCheck, Scale, Info } from 'lucide-react';
+import { 
+  Loader2, 
+  AlertTriangle, 
+  ArrowLeft, 
+  DollarSign, 
+  Building, 
+  Sparkles, 
+  ExternalLink, 
+  ShieldCheck, 
+  Scale, 
+  Info,
+  FileText 
+} from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions, db, doc, getDoc } from '@/lib/firebase';
+import { functions, db, doc, onSnapshot } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -58,7 +82,7 @@ export default function PostGigPage() {
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
 
   useEffect(() => {
-    if (!user || !user.primaryAgencyId) {
+    if (!user || authLoading) {
       if (!authLoading) setIsLoadingSubscriptionCheck(false);
       return;
     }
@@ -69,23 +93,41 @@ export default function PostGigPage() {
       return;
     }
 
-    const checkSubscription = async () => {
-      setIsLoadingSubscriptionCheck(true);
-      try {
-        const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId!));
-        if (agencySnap.exists()) {
-          const ownerSnap = await getDoc(doc(db, 'users', agencySnap.data().ownerId));
-          if (ownerSnap.exists()) {
-            setAgencyOwner(ownerSnap.data() as UserProfile);
-          }
-        }
-      } catch (e) {
-        console.error("Error checking agency subscription:", e);
-      } finally {
+    const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
+    if (!isTeamMember) {
         setIsLoadingSubscriptionCheck(false);
-      }
+        return;
+    }
+
+    // Inherit subscription from agency owner
+    setIsLoadingSubscriptionCheck(true);
+    let unsubAgency: (() => void) | undefined;
+    let unsubOwner: (() => void) | undefined;
+
+    const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
+    unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
+        if (agencySnap.exists()) {
+            const agencyData = agencySnap.data();
+            const ownerDocRef = doc(db, 'users', agencyData.ownerId);
+            
+            if (unsubOwner) unsubOwner();
+            unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
+                if (ownerDocSnap.exists()) {
+                    setAgencyOwner(ownerDocSnap.data() as UserProfile);
+                } else {
+                    setAgencyOwner(null);
+                }
+                setIsLoadingSubscriptionCheck(false);
+            });
+        } else {
+            setIsLoadingSubscriptionCheck(false);
+        }
+    });
+
+    return () => {
+        if (unsubAgency) unsubAgency();
+        if (unsubOwner) unsubOwner();
     };
-    checkSubscription();
   }, [user, authLoading]);
 
   // Adjust defaults based on campaign type
@@ -118,7 +160,11 @@ export default function PostGigPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.primaryAgencyId) {
-        toast({ title: 'Authentication or Agency Error', description: "You must be associated with an agency to post a gig.", variant: 'destructive' });
+        toast({ 
+          title: 'Authentication or Agency Error', 
+          description: "You must be associated with an agency to post a gig.", 
+          variant: 'destructive' 
+        });
         return;
     }
     
@@ -126,7 +172,14 @@ export default function PostGigPage() {
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
     
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(rateNum) || rateNum <= 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
+    if (
+      !title.trim() || 
+      !description.trim() || 
+      selectedPlatforms.length === 0 || 
+      isNaN(rateNum) || rateNum <= 0 || 
+      isNaN(creatorsNum) || creatorsNum <= 0 || 
+      isNaN(videosNum) || videosNum <= 0
+    ) {
       toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
       return;
     }
@@ -156,13 +209,21 @@ export default function PostGigPage() {
       }
     } catch (error: any) {
         console.error("Error initiating gig funding:", error);
-        toast({ title: 'Funding Failed', description: error.message || 'Could not initiate the funding process.', variant: 'destructive' });
+        toast({ 
+          title: 'Funding Failed', 
+          description: error.message || 'Could not initiate the funding process.', 
+          variant: 'destructive' 
+        });
         setIsSubmitting(false);
     }
   };
 
   if (authLoading || isLoadingSubscriptionCheck) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
   
   const canPostGigRole = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
@@ -177,11 +238,11 @@ export default function PostGigPage() {
     );
   }
 
-  const now = Date.now();
+  const nowTime = Date.now();
   const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
                       (agencyOwner?.subscriptionStatus === 'trialing' && 
                        agencyOwner?.trialEndsAt && 
-                       agencyOwner.trialEndsAt.toMillis() > now);
+                       agencyOwner.trialEndsAt.toMillis() > nowTime);
   const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
   const canPost = isSubscribed && hasAgencyPlan;
 
@@ -255,7 +316,9 @@ export default function PostGigPage() {
                     <RadioGroupItem value="standard_sponsorship" id="standard" className="mt-1" />
                     <Label htmlFor="standard" className="flex-1 cursor-pointer">
                       <p className="font-bold text-base">Standard Sponsorship</p>
-                      <p className="text-sm text-muted-foreground mt-1">Includes ad-reads, usage rights, and whitelisting options. Standard commercial requirements apply.</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Includes ad-reads, usage rights, and whitelisting options. Standard commercial requirements apply.
+                      </p>
                     </Label>
                   </div>
                   <div className={cn(
@@ -265,7 +328,9 @@ export default function PostGigPage() {
                     <RadioGroupItem value="production_grant" id="grant" className="mt-1" />
                     <Label htmlFor="grant" className="flex-1 cursor-pointer">
                       <p className="font-bold text-base">Production Grant / Editorial Funding</p>
-                      <p className="text-sm text-muted-foreground mt-1">No ad-read required. Funds are used to support independent creator content. Brand receives editorial credit.</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        No ad-read required. Funds are used to support independent creator content. Brand receives editorial credit.
+                      </p>
                     </Label>
                   </div>
                 </RadioGroup>
@@ -275,7 +340,9 @@ export default function PostGigPage() {
             <Card className="shadow-lg">
               <CardHeader>
                   <CardTitle>2. Project Details</CardTitle>
-                  <CardDescription>Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.</CardDescription>
+                  <CardDescription>
+                    Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.
+                  </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
@@ -348,7 +415,10 @@ export default function PostGigPage() {
                                 <Info className="h-3.5 w-3.5 text-muted-foreground" />
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[250px]">
-                                <p>The brand claims no commercial usage rights over the final video. The creator retains full ownership and 100% of their standard sponsor inventory.</p>
+                                <p>
+                                  The brand claims no commercial usage rights over the final video. 
+                                  The creator retains full ownership and 100% of their standard sponsor inventory.
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -383,9 +453,102 @@ export default function PostGigPage() {
                   />
                 </div>
 
-                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-2">
+                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
-                  <p className="text-sm text-muted-foreground">By posting this gig, you agree that Verza will generate a standard clickwrap agreement for creators based on these terms. All payments will be held in the campaign vault until verified submission approval.</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    By funding this campaign, you agree to Verza's 
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="text-primary hover:underline font-medium mx-1">
+                          Terms of Service
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" />
+                            Terms of Service
+                          </DialogTitle>
+                          <DialogDescription>
+                            General terms and conditions for using the Verza platform.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                          <div className="space-y-4 text-sm leading-relaxed">
+                            <p className="font-bold">1. ACCEPTANCE</p>
+                            <p>
+                              By accessing or using the Verza platform, you agree to be bound by these Terms of Service. 
+                              If you are using the platform on behalf of an agency or brand, you represent that you 
+                              have the authority to bind that entity to these terms.
+                            </p>
+                            <p className="font-bold">2. MARKETPLACE ROLE</p>
+                            <p>
+                              Verza provides a marketplace for brands and creators to collaborate. Verza is not a 
+                              party to the specific creative agreements except as specified in the Escrow and 
+                              Payment sections.
+                            </p>
+                            <p className="font-bold">3. ACCOUNT SECURITY</p>
+                            <p>
+                              You are responsible for maintaining the confidentiality of your account credentials 
+                              and for all activities that occur under your account.
+                            </p>
+                          </div>
+                        </ScrollArea>
+                        <DialogFooter className="mt-4">
+                          <DialogClose asChild>
+                            <Button variant="outline">Close</Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    and 
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="text-primary hover:underline font-medium mx-1">
+                          Escrow Agreement
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <ShieldCheck className="h-5 w-5 text-primary" />
+                            Escrow & Payment Agreement
+                          </DialogTitle>
+                          <DialogDescription>
+                            Rules governing campaign funding and secure creator payouts.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                          <div className="space-y-4 text-sm leading-relaxed">
+                            <p className="font-bold">1. CAMPAIGN VAULT</p>
+                            <p>
+                              When you post a gig, you are required to pre-fund the total campaign cost. 
+                              These funds are held by Verza in a secure Campaign Vault (Escrow).
+                            </p>
+                            <p className="font-bold">2. VERIFICATION & RELEASE</p>
+                            <p>
+                              Funds are only released to a creator once they have submitted their work and 
+                              you have manually approved the verified submission in your dashboard. 
+                              Once approved, the release is final and non-refundable.
+                            </p>
+                            <p className="font-bold">3. DISPUTE RESOLUTION</p>
+                            <p>
+                              In the event of a non-responsive creator or failed quality score, funds remain 
+                              in the vault. Brands may request a refund for unspent escrow funds after 30 
+                              days of campaign inactivity.
+                            </p>
+                          </div>
+                        </ScrollArea>
+                        <DialogFooter className="mt-4">
+                          <DialogClose asChild>
+                            <Button variant="outline">Close</Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    . Verza will hold all payments securely until verified submission approval and will generate a 
+                    binding clickwrap agreement with the selected creators based on these campaign terms.
+                  </p>
                 </div>
               </CardContent>
             </Card>

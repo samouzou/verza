@@ -124,7 +124,8 @@ export interface SharedContractVersion {
     "signedDocumentUrl" | "lastSignatureEventAt" | "access">;
   notesForBrand: string | null;
   status: "active" | "revoked"; // Status of this share link
-  brandHasViewed: false;
+  brandHasViewed?: boolean;
+  lastViewedByBrandAt?: ClientTimestamp;
 }
 
 export interface CommentReply {
@@ -235,6 +236,7 @@ export interface UserProfileFirestoreData {
     youtube?: string;
     tiktok?: string;
   };
+  averageVerzaScore?: number;
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -475,6 +477,7 @@ export interface Gig {
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
+  fundedAmount?: number; // Total amount paid to fund this gig
   status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
   campaignType: "standard_sponsorship" | "production_grant";
@@ -490,6 +493,16 @@ export interface CreatorMarketplaceProfile {
   contentType: "Tech" | "Fashion" | "Comedy" | "Gaming" | "Lifestyle" | "Food";
   followers: number;
   engagementRate: number;
+  instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
+  tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
+  youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
+  averageVerzaScore?: number;
 }
 
 export interface GigSubmission {

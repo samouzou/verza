@@ -6,7 +6,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, FileText, Banknote, DollarSign, Loader2, Send, Rocket } from "lucide-react";
+import { 
+  CheckCircle, 
+  Circle, 
+  Banknote, 
+  DollarSign, 
+  Loader2, 
+  PlusCircle, 
+  UserCircle, 
+  Sparkles,
+  Building,
+  Users
+} from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
@@ -20,7 +31,7 @@ export interface Step {
 }
 
 export function useSetupSteps() {
-  const { user } = useAuth();
+  const { user, isAgency } = useAuth();
   const [steps, setSteps] = useState<Step[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completedStepsCount, setCompletedStepsCount] = useState(0);
@@ -34,44 +45,68 @@ export function useSetupSteps() {
     const checkStatuses = async () => {
       setIsLoading(true);
       try {
-        const contractsCol = collection(db, 'contracts');
-        
-        // Corrected Query: Check against the 'access' map, which aligns with security rules for all user types.
-        const createdQuery = query(contractsCol, where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']), limit(1));
-        const sentQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), limit(1));
-        const paidQuery = query(contractsCol, where('userId', '==', user.uid), where('invoiceStatus', '==', 'paid'), limit(1));
+        if (isAgency) {
+          // --- AGENCY FLOW CHECKS ---
+          const isProfileComplete = !!user.displayName && !!user.companyLogoUrl && !!user.address;
+          
+          let hasTalent = false;
+          if (user.primaryAgencyId) {
+            const agencyDocSnap = await getDocs(query(collection(db, 'agencies'), where('id', '==', user.primaryAgencyId), limit(1)));
+            if (!agencyDocSnap.empty) {
+              const data = agencyDocSnap.docs[0].data();
+              hasTalent = data.talent && data.talent.length > 0;
+            }
+          }
 
-        const [createdSnapshot, sentSnapshot, paidSnapshot] = await Promise.all([
-          getDocs(createdQuery),
-          getDocs(sentQuery),
-          getDocs(paidQuery),
-        ]);
+          const gigQuery = user.primaryAgencyId ? query(
+            collection(db, 'gigs'),
+            where('brandId', '==', user.primaryAgencyId),
+            limit(1)
+          ) : null;
+          const gigSnapshot = gigQuery ? await getDocs(gigQuery) : null;
 
-        const definedSteps: Step[] = [
-          { id: 'stripe', label: 'Connect your bank account for payouts', isCompleted: user.stripePayoutsEnabled || false, href: '/settings', icon: Banknote },
-          { id: 'contract', label: 'Create your first contract', isCompleted: !createdSnapshot.empty, href: '/contracts', icon: FileText },
-          { id: 'invoice', label: 'Send your first invoice', isCompleted: !sentSnapshot.empty, href: '/contracts', icon: Send },
-          { id: 'payment', label: 'Receive your first payment', isCompleted: !paidSnapshot.empty, href: '/dashboard', icon: DollarSign },
-        ];
-        
-        setSteps(definedSteps);
-        setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+          const definedSteps: Step[] = [
+            { id: 'profile', label: 'Complete agency profile', isCompleted: isProfileComplete, href: '/profile', icon: Building },
+            { id: 'talent', label: 'Invite your first talent', isCompleted: hasTalent, href: '/agency', icon: Users },
+            { id: 'bank', label: 'Connect agency bank account', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
+            { id: 'post', label: 'Post your first gig', isCompleted: !!(gigSnapshot && !gigSnapshot.empty), href: '/gigs/post', icon: PlusCircle },
+          ];
+          setSteps(definedSteps);
+          setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+        } else {
+          // --- CREATOR FLOW CHECKS ---
+          const isProfileComplete = !!user.displayName && user.displayName !== 'New User' && !!user.avatarUrl && !!user.address;
+          const isSocialConnected = !!(user.instagramConnected || user.tiktokConnected || user.youtubeConnected);
+          
+          const payoutQuery = query(
+            collection(db, 'submissions'),
+            where('creatorId', '==', user.uid),
+            where('status', '==', 'approved'),
+            limit(1)
+          );
+          const payoutSnapshot = await getDocs(payoutQuery);
 
+          const definedSteps: Step[] = [
+            { id: 'profile', label: 'Complete creator profile', isCompleted: isProfileComplete, href: '/profile', icon: UserCircle },
+            { id: 'social', label: 'Verify your social reach', isCompleted: isSocialConnected, href: '/insights', icon: Sparkles },
+            { id: 'bank', label: 'Connect bank for payouts', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
+            { id: 'payout', label: 'Receive your first gig payout', isCompleted: !payoutSnapshot.empty, href: '/wallet', icon: DollarSign },
+          ];
+          setSteps(definedSteps);
+          setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+        }
       } catch (error) {
-        console.error("Error checking contract statuses:", error);
-        setSteps([]);
-        setCompletedStepsCount(0);
+        console.error("Error checking setup statuses:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
     checkStatuses();
-  }, [user]);
+  }, [user, isAgency]);
 
-  return { steps, isLoading, completedStepsCount, totalSteps: 4 };
+  return { steps, isLoading, completedStepsCount, totalSteps: steps.length };
 }
-
 
 export function SetupGuide() {
   const { open } = useSidebar();
@@ -79,36 +114,44 @@ export function SetupGuide() {
 
   const progressPercentage = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
 
-  if (progressPercentage === 100 && !isLoading) {
-    return null; // Hide the component if all steps are completed
+  if (!isLoading && progressPercentage === 100) {
+    return null;
   }
   
-  if (open) { // Expanded view in sidebar
+  if (open) {
     return (
       <Card className="mx-2 my-2 bg-sidebar-accent/50 border-sidebar-border shadow-inner">
         <CardHeader className="p-3">
           <CardTitle className="text-sm font-semibold">Setup Guide</CardTitle>
           <div className="flex items-center gap-2 pt-1">
             <Progress value={progressPercentage} className="h-2 w-full" />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{completedStepsCount} / {totalSteps}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {completedStepsCount} / {totalSteps}
+            </span>
           </div>
         </CardHeader>
         <CardContent className="p-3 pt-0 text-sm">
           {isLoading ? (
             <div className="flex justify-center items-center h-16">
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
           ) : (
             <ul className="space-y-2">
               {steps.map(step => (
                 <li key={step.id}>
-                  <Link href={step.href} className="flex items-center gap-2 p-1 rounded-md hover:bg-sidebar-accent transition-colors">
+                  <Link 
+                    href={step.href} 
+                    className="flex items-center gap-2 p-1 rounded-md hover:bg-sidebar-accent transition-colors"
+                  >
                     {step.isCompleted ? (
                       <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    <span className={cn('transition-colors', step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground')}>
+                    <span className={cn(
+                      'transition-colors', 
+                      step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                    )}>
                       {step.label}
                     </span>
                   </Link>
@@ -121,11 +164,12 @@ export function SetupGuide() {
     );
   }
 
-  // Collapsed view in sidebar
   return (
     <div className="mx-auto my-2 p-2">
        <Progress value={progressPercentage} className="h-1.5 w-8 mx-auto" />
-       <p className="text-xs text-muted-foreground text-center mt-1">{completedStepsCount}/{totalSteps}</p>
+       <p className="text-xs text-muted-foreground text-center mt-1">
+         {completedStepsCount}/{totalSteps}
+       </p>
     </div>
   );
 }

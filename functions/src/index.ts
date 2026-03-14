@@ -27,6 +27,7 @@ import {
 import {
   sendContractNotification,
   handleSendGridEmailWebhook,
+  submitFeedback,
 } from "./notifications";
 
 import {
@@ -86,6 +87,7 @@ export {
   createAgencyTopUpSession,
   sendContractNotification,
   handleSendGridEmailWebhook,
+  submitFeedback,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,

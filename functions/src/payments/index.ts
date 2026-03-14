@@ -239,7 +239,9 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       if (milestoneId) {
         // Check if the invoice was for a specific milestone
         const targetMilestone = contractData.milestones?.find((m) => m.id === milestoneId);
-        if (targetMilestone && lineItems.some((item) => item.isMilestone && item.description === targetMilestone?.description)) {
+        const match = targetMilestone && lineItems.some((item) =>
+          item.isMilestone && item.description === targetMilestone?.description);
+        if (match) {
           // If this specific milestone invoice has line items, sum them up.
           amountToCharge = lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
         }
@@ -428,20 +430,21 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     const event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
 
     if (event.type === "payment_intent.succeeded") {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount, currency, latest_charge: latestCharge} = paymentIntent;
+      const paymentIntent = event.data.object as any;
+      let metadata = paymentIntent.metadata || {};
+      const amount = paymentIntent.amount;
+      const latestCharge = paymentIntent["latest_charge"];
+
+      // Support manual invoices: if payment metadata is empty, check linked invoice
+      if (paymentIntent.invoice && Object.keys(metadata).length === 0) {
+        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
+        metadata = invoice.metadata || {};
+        logger.info(`Extracted metadata from manual invoice ${invoice.id} for payment ${paymentIntent.id}.`);
+      }
+
       const {
-        contractId,
-        userId,
-        paymentType,
-        internalPayoutId,
-        agencyId,
-        milestoneId,
-        purchaseType,
-        gigId,
-        firebaseUID,
-        creditAmount,
-        priceId,
+        contractId, userId, paymentType, internalPayoutId, agencyId,
+        milestoneId, purchaseType, gigId, firebaseUID, creditAmount, priceId,
       } = metadata;
 
       if (internalPayoutId) {
@@ -478,7 +481,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 priceId: priceId || "unknown",
                 paymentIntentId: paymentIntent.id,
                 status: "completed",
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
               } as Omit<CreditTransaction, "id">);
             });
             logger.info(`Successfully added ${creditsToAdd} credits to user ${targetUserId} via handlePaymentSuccess.`);
@@ -492,15 +495,10 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const agencyRef = db.collection("agencies").doc(agencyId);
 
           await db.runTransaction(async (transaction) => {
-            // 1. ALL READS FIRST
             const agencyDoc = await transaction.get(agencyRef);
             if (!agencyDoc.exists) throw new Error("Agency not found for gig funding.");
-
-            // 2. LOGIC
             const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
             const fundingAmount = amount / 100;
-
-            // 3. ALL WRITES AFTER
             transaction.update(gigRef, {
               status: "open",
               fundingPaymentIntentId: paymentIntent.id,
@@ -523,15 +521,72 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               const receiptHtml = `
                 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-                <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif;">
-                <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee; 
-                  border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #6B37FF; margin: 0; font-size: 22px;">Gig Funding Receipt</h2>
+                <body style="background-color: #f4f4f7; padding: 40px 20px; font-family: 'Helvetica Neue', Helvetica, 
+                Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+                <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; 
+                background-color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="display: inline-block; padding: 8px 16px; background-color: #6B37FF; border-radius: 8px; 
+                    color: #ffffff; font-weight: bold; font-size: 14px; margin-bottom: 16px;">VERZA SECURE</div>
+                    <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">
+                    Payment Confirmed</h1>
+                    <p style="color: #718096; margin-top: 8px; font-size: 16px;">Project: ${gigData.title}</p>
                   </div>
-                  <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px;">
-                    <p><strong>Gig:</strong> ${gigData.title}</p>
-                    <p><strong>Amount Funded:</strong> $${(amount / 100).toLocaleString()}</p>
+
+                  <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #edf2f7; 
+                  margin-bottom: 32px;">
+                    <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; 
+                    color: #a0aec0; margin: 0 0 16px 0;">Funding Breakdown</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
+                        text-align: right;">$${gigData.ratePerCreator.toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Creator Capacity</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
+                        text-align: right;">${gigData.creatorsNeeded} Creators</td>
+                      </tr>
+                      <tr style="border-top: 2px solid #edf2f7;">
+                        <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Funded</td>
+                        <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800; text-align: right; 
+                        font-size: 24px;">$${(amount / 100).toLocaleString()}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="margin-bottom: 32px;">
+                    <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; 
+                    color: #a0aec0; margin: 0 0 12px 0;">Legal & Usage</h2>
+                    <div style="grid-template-columns: 1fr 1fr; display: grid; gap: 16px;">
+                      <div style="padding: 16px; border: 1px solid #edf2f7; border-radius: 8px;">
+                        <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; 
+                        font-weight: bold;">Campaign Type</p>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #2d3748; 
+                        font-weight: 600;">${gigData.campaignType?.replace(/_/g, " ") || "Sponsorship"}</p>
+                      </div>
+                      <div style="padding: 16px; border: 1px solid #edf2f7; border-radius: 8px;">
+                        <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; 
+                        font-weight: bold;">Usage Rights</p>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #2d3748; 
+                        font-weight: 600;">${gigData.usageRights?.replace(/_/g, " ") || "1 Year"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0; border: 1px solid #feebc8; 
+                  margin-bottom: 32px;">
+                    <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
+                      <strong>Escrow Lock:</strong> These funds are now held in the Verza Campaign Vault. 
+                      They will be released to creators only upon your approval of verified submissions.
+                    </p>
+                  </div>
+
+                  <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
+                    <p style="color: #a0aec0; font-size: 12px;">Transaction ID: ${paymentIntent.id}</p>
+                    <p style="color: #a0aec0; font-size: 12px; margin-top: 4px;">
+                    Powered by Verza &bull; Secure Financial Operations</p>
                   </div>
                 </div>
                 </body></html>`;
@@ -551,7 +606,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractDoc = await contractDocRef.get();
         const contractData = contractDoc.data() as Contract;
 
-        const updates: {[key: string]: any} = {
+        const updates: {[key: string]: unknown} = {
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.Timestamp.now(),
@@ -578,8 +633,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = typeof latestCharge === "string" ? latestCharge : latestCharge?.id;
-          if (chargeId) {
+          const latestChargeId = latestCharge;
+          if (latestChargeId) {
             const agencyDoc = await db.collection("agencies").doc(agencyId).get();
             const agencyData = agencyDoc.data() as Agency;
             const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
@@ -591,16 +646,18 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
               const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
 
               if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
-                const netForDistribution = amount - (Math.round(amount * 0.029) + 30) - Math.round(amount * 0.15);
-                const agencyCommissionAmount = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
-                const talentShareAmount = netForDistribution - agencyCommissionAmount;
+                const stripeFeeRaw = Math.round(amount * 0.029) + 30;
+                const platformFeeRaw = Math.round(amount * 0.15);
+                const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
+                const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
+                const talentShareAmount = netForDistribution - agencyCommRaw;
 
-                if (agencyCommissionAmount > 0) {
+                if (agencyCommRaw > 0) {
                   await stripe.transfers.create({
-                    amount: agencyCommissionAmount,
+                    amount: agencyCommRaw,
                     currency: "usd",
                     destination: agencyOwnerData.stripeAccountId,
-                    source_transaction: chargeId,
+                    source_transaction: latestChargeId,
                   });
                 }
                 if (talentShareAmount > 0) {
@@ -608,7 +665,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     amount: talentShareAmount,
                     currency: "usd",
                     destination: talentUserData.stripeAccountId,
-                    source_transaction: chargeId,
+                    source_transaction: latestChargeId,
                   });
                 }
               }
@@ -621,7 +678,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           contractId,
           userId: userId || "",
           amount,
-          currency,
+          currency: "usd",
           status: "succeeded",
           timestamp: admin.firestore.Timestamp.now(),
         });
@@ -669,9 +726,9 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
 
     if (event.type === "account.updated") {
       const account = event.data.object as Stripe.Account;
-      const db = admin.firestore();
+      const dbInstance = admin.firestore();
 
-      const usersRef = db.collection("users");
+      const usersRef = dbInstance.collection("users");
       const snapshot = await usersRef
         .where("stripeAccountId", "==", account.id)
         .get();
@@ -788,6 +845,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     paidCreatorIds: [],
     status: "pending_payment",
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    fundedAmount: 0,
   };
 
   if (existingGigId) {
@@ -808,6 +866,16 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: {enabled: true},
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
+      payment_method_options: {
+        customer_balance: {
+          funding_type: "bank_transfer",
+          bank_transfer: {
+            type: "us_bank_transfer",
+          },
+        },
+      },
       line_items: [{
         price_data: {
           currency: "usd",
@@ -835,7 +903,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         agencyId: userData.primaryAgencyId,
         gigId: gigRef.id,
       },
-    });
+    } as any);
     return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
@@ -870,7 +938,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data() as UserProfileFirestoreData;
   if (!userData) {
-    throw new HttpsError("not-found", "User not found.");
+    throw new HttpsError("not-found", "User found.");
   }
 
   try {
@@ -906,6 +974,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: {enabled: true},
       line_items: [{price: priceId, quantity: 1}],
       success_url: `${params.APP_URL.value()}/scene-spawner?purchase_success=true`,
       cancel_url: `${params.APP_URL.value()}/scene-spawner`,
@@ -923,7 +992,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
         priceId: priceId,
         purchaseType: "creditPurchase",
       },
-    });
+    } as any);
 
     return {url: session.url};
   } catch (error: any) {
@@ -970,6 +1039,16 @@ export const createAgencyTopUpSession = onCall(async (request) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: stripeCustomerId,
+      invoice_creation: {enabled: true},
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
+      payment_method_options: {
+        customer_balance: {
+          funding_type: "bank_transfer",
+          bank_transfer: {
+            type: "us_bank_transfer",
+          },
+        },
+      },
       line_items: [{
         price_data: {
           currency: "usd",
@@ -995,7 +1074,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
         firebaseUID: userId,
         agencyId: agencyId,
       },
-    });
+    } as any);
     return {url: session.url};
   } catch (error: any) {
     logger.error("Error creating top-up session:", error);
