@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, limit, doc, onSnapshot } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { 
@@ -13,9 +13,12 @@ import {
   Banknote, 
   DollarSign, 
   Loader2, 
-  Send, 
+  PlusCircle, 
   UserCircle, 
-  Sparkles 
+  Sparkles,
+  Building,
+  Users,
+  Video
 } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
@@ -41,99 +44,63 @@ export function useSetupSteps() {
       return;
     }
 
+    const isAgencyFlow = user.role === 'agency_owner' || user.role === 'agency_admin' || user.role === 'agency_member';
+
     const checkStatuses = async () => {
       setIsLoading(true);
       try {
-        const contractsCol = collection(db, 'contracts');
-        
-        // Corrected Query: Check against the 'access' map, which aligns with security rules
-        const createdQuery = query(
-          contractsCol, 
-          where(`access.${user.uid}`, 'in', ['owner', 'viewer', 'talent']), 
-          limit(1)
-        );
-        const sentQuery = query(
-          contractsCol, 
-          where('userId', '==', user.uid), 
-          where('invoiceStatus', 'in', ['sent', 'viewed', 'paid']), 
-          limit(1)
-        );
-        const paidQuery = query(
-          contractsCol, 
-          where('userId', '==', user.uid), 
-          where('invoiceStatus', '==', 'paid'), 
-          limit(1)
-        );
+        if (isAgencyFlow) {
+          // --- AGENCY FLOW CHECKS ---
+          const isProfileComplete = !!user.displayName && !!user.companyLogoUrl && !!user.address;
+          
+          let hasTalent = false;
+          if (user.primaryAgencyId) {
+            const agencyDoc = await getDocs(query(collection(db, 'agencies'), where('id', '==', user.primaryAgencyId), limit(1)));
+            if (!agencyDoc.empty) {
+              const data = agencyDoc.docs[0].data();
+              hasTalent = data.talent && data.talent.length > 0;
+            }
+          }
 
-        const [createdSnapshot, sentSnapshot, paidSnapshot] = await Promise.all([
-          getDocs(createdQuery),
-          getDocs(sentQuery),
-          getDocs(paidQuery),
-        ]);
+          const gigQuery = user.primaryAgencyId ? query(
+            collection(db, 'gigs'),
+            where('brandId', '==', user.primaryAgencyId),
+            limit(1)
+          ) : null;
+          const gigSnapshot = gigQuery ? await getDocs(gigQuery) : null;
 
-        // Logic for profile completion
-        const isProfileComplete = !!user.displayName && 
-                                 user.displayName !== 'New User' && 
-                                 !!user.avatarUrl && 
-                                 !!user.address;
+          const definedSteps: Step[] = [
+            { id: 'profile', label: 'Complete agency profile', isCompleted: isProfileComplete, href: '/profile', icon: Building },
+            { id: 'talent', label: 'Invite your first talent', isCompleted: hasTalent, href: '/agency', icon: Users },
+            { id: 'bank', label: 'Connect agency bank account', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
+            { id: 'post', label: 'Post your first gig', isCompleted: !!(gigSnapshot && !gigSnapshot.empty), href: '/gigs/post', icon: PlusCircle },
+          ];
+          setSteps(definedSteps);
+          setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+        } else {
+          // --- CREATOR FLOW CHECKS ---
+          const isProfileComplete = !!user.displayName && user.displayName !== 'New User' && !!user.avatarUrl && !!user.address;
+          const isSocialConnected = !!(user.instagramConnected || user.tiktokConnected || user.youtubeConnected);
+          
+          const payoutQuery = query(
+            collection(db, 'submissions'),
+            where('creatorId', '==', user.uid),
+            where('status', '==', 'approved'),
+            limit(1)
+          );
+          const payoutSnapshot = await getDocs(payoutQuery);
 
-        // Logic for social connection
-        const isSocialConnected = !!(user.instagramConnected || 
-                                     user.tiktokConnected || 
-                                     user.youtubeConnected);
-
-        const definedSteps: Step[] = [
-          { 
-            id: 'profile', 
-            label: 'Complete your creator profile', 
-            isCompleted: isProfileComplete, 
-            href: '/profile', 
-            icon: UserCircle 
-          },
-          { 
-            id: 'insights', 
-            label: 'Verify your social reach', 
-            isCompleted: isSocialConnected, 
-            href: '/insights', 
-            icon: Sparkles 
-          },
-          { 
-            id: 'stripe', 
-            label: 'Connect bank account for payouts', 
-            isCompleted: user.stripePayoutsEnabled || false, 
-            href: '/settings', 
-            icon: Banknote 
-          },
-          { 
-            id: 'contract', 
-            label: 'Create your first contract', 
-            isCompleted: !createdSnapshot.empty, 
-            href: '/contracts', 
-            icon: FileText 
-          },
-          { 
-            id: 'invoice', 
-            label: 'Send your first invoice', 
-            isCompleted: !sentSnapshot.empty, 
-            href: '/contracts', 
-            icon: Send 
-          },
-          { 
-            id: 'payment', 
-            label: 'Receive your first payment', 
-            isCompleted: !paidSnapshot.empty, 
-            href: '/dashboard', 
-            icon: DollarSign 
-          },
-        ];
-        
-        setSteps(definedSteps);
-        setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
-
+          const definedSteps: Step[] = [
+            { id: 'profile', label: 'Complete creator profile', isCompleted: isProfileComplete, href: '/profile', icon: UserCircle },
+            { id: 'social', label: 'Verify your social reach', isCompleted: isSocialConnected, href: '/insights', icon: Sparkles },
+            { id: 'bank', label: 'Connect bank for payouts', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
+            { id: 'payout', label: 'Receive your first gig payout', isCompleted: !payoutSnapshot.empty, href: '/wallet', icon: DollarSign },
+          ];
+          setSteps(definedSteps);
+          setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
+        }
       } catch (error) {
-        console.error("Error checking contract statuses:", error);
-        setSteps([]);
-        setCompletedStepsCount(0);
+        console.error("Error checking setup statuses:", error);
       } finally {
         setIsLoading(false);
       }
@@ -145,18 +112,17 @@ export function useSetupSteps() {
   return { steps, isLoading, completedStepsCount, totalSteps: steps.length };
 }
 
-
 export function SetupGuide() {
   const { open } = useSidebar();
   const { steps, isLoading, completedStepsCount, totalSteps } = useSetupSteps();
 
   const progressPercentage = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
 
-  if (progressPercentage === 100 && !isLoading) {
-    return null; // Hide the component if all steps are completed
+  if (!isLoading && progressPercentage === 100) {
+    return null;
   }
   
-  if (open) { // Expanded view in sidebar
+  if (open) {
     return (
       <Card className="mx-2 my-2 bg-sidebar-accent/50 border-sidebar-border shadow-inner">
         <CardHeader className="p-3">
@@ -171,7 +137,7 @@ export function SetupGuide() {
         <CardContent className="p-3 pt-0 text-sm">
           {isLoading ? (
             <div className="flex justify-center items-center h-16">
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
           ) : (
             <ul className="space-y-2">
@@ -202,7 +168,6 @@ export function SetupGuide() {
     );
   }
 
-  // Collapsed view in sidebar
   return (
     <div className="mx-auto my-2 p-2">
        <Progress value={progressPercentage} className="h-1.5 w-8 mx-auto" />
