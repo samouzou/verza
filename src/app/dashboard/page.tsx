@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -170,7 +169,7 @@ export default function DashboardPage() {
     let marketplaceEarningsCalc = 0;
 
     const newEarningsChartData: EarningsDataPoint[] = monthNames.map(name => ({
-      month: monthName, year: currentYear, collected: 0, invoiced: 0,
+      month: name, year: currentYear, collected: 0, invoiced: 0,
     } as any));
 
     filteredContracts.forEach(c => {
