@@ -430,18 +430,16 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
     const event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
 
     if (event.type === "payment_intent.succeeded") {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      let metadata = paymentIntent.metadata;
+      const paymentIntent = event.data.object as any;
+      let metadata = paymentIntent.metadata || {};
       const amount = paymentIntent.amount;
-      const {latest_charge: latestCharge} = paymentIntent;
+      const latestCharge = paymentIntent["latest_charge"];
 
-      // Logic for dashboard invoices: Check if payment is linked to an invoice and get ITS metadata.
-      if (paymentIntent.invoice && (!metadata || Object.keys(metadata).length === 0)) {
+      // Support manual invoices: if payment metadata is empty, check linked invoice
+      if (paymentIntent.invoice && Object.keys(metadata).length === 0) {
         const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
-        if (invoice.metadata && Object.keys(invoice.metadata).length > 0) {
-          metadata = invoice.metadata;
-          logger.info(`Retrieved metadata from Invoice ${invoice.id} for payment ${paymentIntent.id}.`);
-        }
+        metadata = invoice.metadata || {};
+        logger.info(`Extracted metadata from manual invoice ${invoice.id} for payment ${paymentIntent.id}.`);
       }
 
       const {
@@ -635,7 +633,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
-          const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
+          const chargeId = latestCharge;
           if (chargeId) {
             const agencyDoc = await db.collection("agencies").doc(agencyId).get();
             const agencyData = agencyDoc.data() as Agency;
@@ -869,7 +867,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
@@ -994,7 +992,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
         priceId: priceId,
         purchaseType: "creditPurchase",
       },
-    });
+    } as any);
 
     return {url: session.url};
   } catch (error: any) {
@@ -1042,7 +1040,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"],
+      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
