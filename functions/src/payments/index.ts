@@ -844,6 +844,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     paidCreatorIds: [],
     status: "pending_payment",
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    fundedAmount: 0,
   };
 
   if (existingGigId) {
