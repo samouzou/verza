@@ -1,5 +1,5 @@
 
-import type { Timestamp as ClientTimestamp } from "firebase/firestore";
+import type {Timestamp as ClientTimestamp} from "firebase/firestore";
 
 export interface PaymentMilestone {
   id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
@@ -172,7 +172,7 @@ export interface EarningsDataPoint {
   invoiced: number;
 }
 
-export interface UpcomingIncome extends Pick<Contract, "id" | "brand" | "amount" | "dueDate" | "projectName"> {}
+export type UpcomingIncome = Pick<Contract, "id" | "brand" | "amount" | "dueDate" | "projectName">
 
 export interface AtRiskPayment extends Pick<Contract, "id" | "brand" | "amount" | "dueDate" | "status" | "projectName"> {
   riskReason: string;

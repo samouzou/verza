@@ -431,9 +431,18 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const {metadata, amount} = paymentIntent;
-      // Use destructuring to satisfy camelCase and obtain latest charge ID
+      let metadata = paymentIntent.metadata;
+      const amount = paymentIntent.amount;
       const {latest_charge: latestCharge} = paymentIntent;
+
+      // Logic for dashboard invoices: Check if payment is linked to an invoice and get ITS metadata.
+      if (paymentIntent.invoice && (!metadata || Object.keys(metadata).length === 0)) {
+        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
+        if (invoice.metadata && Object.keys(invoice.metadata).length > 0) {
+          metadata = invoice.metadata;
+          logger.info(`Retrieved metadata from Invoice ${invoice.id} for payment ${paymentIntent.id}.`);
+        }
+      }
 
       const {
         contractId, userId, paymentType, internalPayoutId, agencyId,
@@ -488,15 +497,10 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const agencyRef = db.collection("agencies").doc(agencyId);
 
           await db.runTransaction(async (transaction) => {
-            // 1. ALL READS FIRST
             const agencyDoc = await transaction.get(agencyRef);
             if (!agencyDoc.exists) throw new Error("Agency not found for gig funding.");
-
-            // 2. LOGIC
             const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
             const fundingAmount = amount / 100;
-
-            // 3. ALL WRITES AFTER
             transaction.update(gigRef, {
               status: "open",
               fundingPaymentIntentId: paymentIntent.id,
@@ -631,7 +635,6 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         await contractDocRef.update(updates);
 
         if (paymentType === "agency_payment" && agencyId) {
-          // Correctly cast latestCharge to obtain id for transfer
           const chargeId = typeof latestCharge === "string" ? latestCharge : (latestCharge as Stripe.Charge | null)?.id;
           if (chargeId) {
             const agencyDoc = await db.collection("agencies").doc(agencyId).get();
@@ -866,7 +869,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
+      payment_method_types: ["us_bank_account", "customer_balance"],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
@@ -902,7 +905,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         agencyId: userData.primaryAgencyId,
         gigId: gigRef.id,
       },
-    });
+    } as any);
     return {url: session.url};
   } catch (error: any) {
     logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
@@ -1039,7 +1042,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       mode: "payment",
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
-      payment_method_types: ["us_bank_account", "customer_balance"] as any[],
+      payment_method_types: ["us_bank_account", "customer_balance"],
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
@@ -1073,7 +1076,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
         firebaseUID: userId,
         agencyId: agencyId,
       },
-    });
+    } as any);
     return {url: session.url};
   } catch (error: any) {
     logger.error("Error creating top-up session:", error);
