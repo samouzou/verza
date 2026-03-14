@@ -38,7 +38,7 @@ export interface UserProfile {
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: Timestamp;
-  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
+  role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
   agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'admin' | 'member' | 'talent', status: 'pending' | 'active' }>;
   primaryAgencyId?: string | null;
@@ -582,7 +582,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user;
   const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
-  const isCreator = user?.role === 'individual_creator';
+  const isCreator = user?.role === 'individual_creator' || user?.role === 'talent';
 
   return (
     <AuthContext.Provider value={{

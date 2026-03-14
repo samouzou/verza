@@ -31,7 +31,7 @@
         },
         "role": {
           "type": "string",
-          "enum": ["individual_creator", "agency_owner", "agency_admin", "agency_member"],
+          "enum": ["individual_creator", "talent", "agency_owner", "agency_admin", "agency_member"],
           "description": "The user's role in the application."
         },
         "isAgencyOwner": {
