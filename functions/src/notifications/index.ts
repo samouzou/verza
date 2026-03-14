@@ -441,7 +441,7 @@ export const submitFeedback = onCall(async (request) => {
   const userId = request.auth.uid;
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data();
-  
+
   const fromEmail = userData?.email || "unknown@user.com";
   const fromName = userData?.displayName || "Verza User";
 
