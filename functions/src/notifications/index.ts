@@ -1,5 +1,5 @@
 
-import {onRequest} from "firebase-functions/v2/https";
+import {onRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
@@ -417,3 +417,60 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     logger.error(`Failed to send email sequence step ${step} to ${toEmail}:`, error);
   }
 }
+
+/**
+ * Handles incoming feedback from users and routes it to support team.
+ */
+export const submitFeedback = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to submit feedback.");
+  }
+
+  const {subject, message} = request.data;
+  if (!subject || !message) {
+    throw new HttpsError("invalid-argument", "Subject and message are required.");
+  }
+
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set.");
+    throw new HttpsError("failed-precondition", "Email service not configured.");
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const userId = request.auth.uid;
+  const userDoc = await db.collection("users").doc(userId).get();
+  const userData = userDoc.data();
+
+  const fromEmail = userData?.email || "unknown@user.com";
+  const fromName = userData?.displayName || "Verza User";
+
+  const msg = {
+    to: "support@tryverza.com",
+    from: {
+      name: "Verza App Feedback",
+      email: params.SENDGRID_FROM_EMAIL.value(),
+    },
+    replyTo: fromEmail,
+    subject: `[Feedback] ${subject}`,
+    text: `Feedback from ${fromName} (${fromEmail}, UID: ${userId}):\n\nSubject: ${subject}\n\nMessage:\n${message}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px;">
+        <h3>New Feedback Received</h3>
+        <p><strong>From:</strong> ${fromName} (${fromEmail})</p>
+        <p><strong>User ID:</strong> ${userId}</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <hr />
+        <p style="white-space: pre-wrap; font-size: 16px; line-height: 1.5; color: #333;">${message}</p>
+      </div>
+    `,
+  };
+
+  try {
+    await sgMail.send(msg);
+    return {success: true};
+  } catch (error: any) {
+    logger.error("Error sending feedback email:", error);
+    throw new HttpsError("internal", error.message || "Failed to send feedback.");
+  }
+});

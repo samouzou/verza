@@ -38,7 +38,7 @@ export interface UserProfile {
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: Timestamp;
-  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member' | 'talent';
+  role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
   agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'admin' | 'member' | 'talent', status: 'pending' | 'active' }>;
   primaryAgencyId?: string | null;
@@ -49,7 +49,7 @@ export interface UserProfile {
   subscriptionStatus?: SubscriptionStatus;
   subscriptionPlanId?: SubscriptionPlanId | null;
   talentLimit?: number;
-  subscriptionInterval?: 'month' | 'year' | null; // Added subscription interval
+  subscriptionInterval?: 'month' | 'year' | null;
   trialEndsAt?: Timestamp | null;
   subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
@@ -99,6 +99,8 @@ export interface UserProfile {
 interface AuthContextType {
   isAuthenticated: boolean;
   user: UserProfile | null;
+  isAgency: boolean; // Helper to determine if user is in an agency flow
+  isCreator: boolean; // Helper to determine if user is in a creator flow
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   loginWithEmailAndPassword: (email: string, password: string) => Promise<string | null>;
@@ -138,7 +140,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.tin = null;
     updates.taxClassification = null;
     updates.createdAt = createdAt;
-    updates.role = 'individual_creator'; // Default role
+    updates.role = 'individual_creator';
     updates.isAgencyOwner = false;
     updates.agencyMemberships = [];
 
@@ -146,11 +148,11 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.stripeSubscriptionId = null;
     updates.subscriptionStatus = 'trialing';
     updates.subscriptionPlanId = 'individual_monthly';
-    updates.subscriptionInterval = null; // Initialize interval
+    updates.subscriptionInterval = null;
     updates.trialEndsAt = trialEndsAtTimestamp;
     updates.subscriptionEndsAt = null;
     updates.trialExtensionUsed = false;
-    updates.talentLimit = 0; // Initialize talent limit
+    updates.talentLimit = 0;
 
     updates.stripeAccountId = null;
     updates.stripeAccountStatus = 'none';
@@ -160,17 +162,15 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.hasCompletedOnboarding = false;
 
     updates.emailSequence = {
-      step: 1, // Start at step 1 (Welcome email already sent by trigger)
+      step: 1,
       nextEmailAt: twoDaysFromNow,
     };
     updates.credits = NEW_USER_BONUS;
 
-    // Marketplace fields
     updates.showInMarketplace = false;
     updates.niche = '';
     updates.contentType = null;
 
-    // Insights fields
     updates.instagramConnected = false;
     updates.instagramFollowers = 0;
     updates.instagramEngagement = 0;
@@ -212,7 +212,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
      if (existingData.emailSequence === undefined) {
       updates.emailSequence = {
-        step: 1, // Start existing users at step 1 (skip welcome)
+        step: 1,
         nextEmailAt: twoDaysFromNow,
       };
       needsUpdate = true;
@@ -246,7 +246,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       needsUpdate = true;
     }
     
-    // Initialize subscription fields if missing
     if (existingData.stripeCustomerId === undefined) { updates.stripeCustomerId = null; needsUpdate = true; }
     if (existingData.stripeSubscriptionId === undefined) { updates.stripeSubscriptionId = null; needsUpdate = true; }
     
@@ -257,8 +256,8 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
     updates.subscriptionStatus = currentSubscriptionStatus; 
 
-    if (existingData.subscriptionInterval === undefined) { updates.subscriptionInterval = null; needsUpdate = true; } // Initialize interval
-    if (existingData.talentLimit === undefined) { updates.talentLimit = 0; needsUpdate = true; } // Initialize talent limit
+    if (existingData.subscriptionInterval === undefined) { updates.subscriptionInterval = null; needsUpdate = true; }
+    if (existingData.talentLimit === undefined) { updates.talentLimit = 0; needsUpdate = true; }
 
 
     if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing')) {
@@ -277,7 +276,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.subscriptionEndsAt === undefined) { updates.subscriptionEndsAt = null; needsUpdate = true; }
     if (existingData.trialExtensionUsed === undefined) { updates.trialExtensionUsed = false; needsUpdate = true; }
 
-    // Initialize Stripe Connect fields if missing
     if (existingData.stripeAccountId === undefined) { updates.stripeAccountId = null; needsUpdate = true; }
     if (existingData.stripeAccountStatus === undefined) { updates.stripeAccountStatus = 'none'; needsUpdate = true; }
     if (existingData.stripeChargesEnabled === undefined) { updates.stripeChargesEnabled = false; needsUpdate = true; }
@@ -296,12 +294,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       needsUpdate = true;
     }
 
-    // Initialize marketplace fields if missing
     if (existingData.showInMarketplace === undefined) { updates.showInMarketplace = false; needsUpdate = true; }
     if (existingData.niche === undefined) { updates.niche = ''; needsUpdate = true; }
     if (existingData.contentType === undefined) { updates.contentType = null; needsUpdate = true; }
 
-    // Initialize insights fields if missing
     if (existingData.instagramConnected === undefined) { updates.instagramConnected = false; needsUpdate = true; }
     if (existingData.instagramFollowers === undefined) { updates.instagramFollowers = 0; needsUpdate = true; }
     if (existingData.instagramEngagement === undefined) { updates.instagramEngagement = 0; needsUpdate = true; }
@@ -356,9 +352,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (docSnap.exists()) {
             const firestoreUserData = docSnap.data() as UserProfile;
              let status = firestoreUserData.subscriptionStatus;
-             // Check if trial has expired
             if (status === 'trialing' && firestoreUserData.trialEndsAt && firestoreUserData.trialEndsAt.toMillis() < Date.now()) {
-                status = 'none'; // Treat expired trial as no active subscription
+                status = 'none';
             }
             setUser({
               uid: currentFirebaseUser.uid,
@@ -586,11 +581,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAuthenticated = !!user;
+  const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const isCreator = user?.role === 'individual_creator' || user?.role === 'talent';
 
   return (
     <AuthContext.Provider value={{
       isAuthenticated,
       user,
+      isAgency,
+      isCreator,
       loginWithGoogle,
       logout,
       loginWithEmailAndPassword,

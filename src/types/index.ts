@@ -209,7 +209,7 @@ export interface UserProfileFirestoreData {
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;
-  role: 'individual_creator' | 'agency_owner' | 'agency_admin' | 'agency_member';
+  role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
@@ -475,6 +475,7 @@ export interface Gig {
   acceptedCreatorIds: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
+  fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
   createdAt: ClientTimestamp;
   campaignType: 'standard_sponsorship' | 'production_grant';
