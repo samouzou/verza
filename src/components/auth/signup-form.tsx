@@ -17,7 +17,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpError }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [internalSignupError, setInternalSignupError] = useState<string | null>(null);
-  const { signupWithEmailAndPassword, isLoading } = useAuth();
+  const { signupWithEmailAndPassword, isProcessing } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -29,7 +29,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpError }) => {
       setInternalSignupError(error);
       if (onSignUpError) onSignUpError(error);
     }
-    // If no error, onAuthStateChanged will handle redirect/user state
+    // If no error, onAuthStateChanged in useAuth will handle redirect
   };
 
   return (
@@ -50,6 +50,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpError }) => {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
           required
+          disabled={isProcessing}
         />
       </div>
       <div className="grid gap-2">
@@ -62,15 +63,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpError }) => {
           placeholder="•••••••• (min. 6 characters)"
           required
           minLength={6}
+          disabled={isProcessing}
         />
       </div>
       <div>
         <Button
           type="submit"
-          disabled={isLoading}
+          disabled={isProcessing}
           className="w-full"
         >
-          {isLoading ? (
+          {isProcessing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             'Sign Up'

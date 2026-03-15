@@ -22,6 +22,7 @@ export default function LoginPage() {
     loginWithEmailAndPassword, 
     isAuthenticated, 
     isLoading, 
+    isProcessing,
     sendPasswordReset 
   } = useAuth();
   
@@ -64,33 +65,33 @@ export default function LoginPage() {
     await sendPasswordReset(resetEmail);
   };
 
-  if (isLoading && !isAuthenticated) { // Show skeleton for initial loading before auth state is known
+  if (isLoading && !isAuthenticated) { // Show skeleton only for initial loading before auth state is known
      return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="text-center">
             <div className="mb-4 flex justify-center">
-              <Skeleton className="h-12 w-12 rounded-full" /> {/* Logo skeleton */}
+              <Skeleton className="h-12 w-12 rounded-full" />
             </div>
-            <Skeleton className="h-8 w-3/4 mx-auto mb-2" /> {/* Title skeleton */}
-            <Skeleton className="h-4 w-full mx-auto" /> {/* Description skeleton */}
+            <Skeleton className="h-8 w-3/4 mx-auto mb-2" />
+            <Skeleton className="h-4 w-full mx-auto" />
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
-              <Skeleton className="h-10 w-full" /> {/* Button skeleton */}
-              <Skeleton className="h-px w-full my-2" /> {/* OR separator skeleton */}
-              <Skeleton className="h-10 w-full" /> {/* Email input skeleton */}
-              <Skeleton className="h-10 w-full" /> {/* Password input skeleton */}
-              <Skeleton className="h-10 w-full" /> {/* Button skeleton */}
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-px w-full my-2" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
             </div>
-            <Skeleton className="h-4 w-3/4 mx-auto mt-4" /> {/* Footer link skeleton */}
+            <Skeleton className="h-4 w-3/4 mx-auto mt-4" />
           </CardContent>
         </Card>
       </div>
     );
   }
   
-  if (isLoading && isAuthenticated) { // Show spinner for brief redirection phase
+  if (isLoading && isAuthenticated) { 
      return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -123,8 +124,8 @@ export default function LoginPage() {
           required 
         />
       </div>
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send Reset Link"}
+      <Button type="submit" className="w-full" disabled={isProcessing}>
+        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send Reset Link"}
       </Button>
       <Button variant="link" type="button" onClick={() => { setIsPasswordResetView(false); setIsSignUpView(false); setLoginError(null); setSignupError(null); }} className="p-0 h-auto w-full">
         Back to Login
@@ -144,8 +145,8 @@ export default function LoginPage() {
           <AlertDescription>{loginError}</AlertDescription>
         </Alert>
       )}
-      <Button onClick={handleGoogleLogin} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg" disabled={isLoading}>
-        {isLoading && email === "" ? ( 
+      <Button onClick={handleGoogleLogin} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg" disabled={isProcessing}>
+        {isProcessing && email === "" ? ( 
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (
           <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
@@ -173,8 +174,8 @@ export default function LoginPage() {
           </div>
           <Input id="password-login" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading && email !== "" ? ( 
+        <Button type="submit" className="w-full" disabled={isProcessing}>
+          {isProcessing && email !== "" ? ( 
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             "Sign In with Email"
@@ -231,13 +232,23 @@ export default function LoginPage() {
             {!isPasswordResetView && (
               <p className="mt-4 px-8 text-center text-sm text-muted-foreground">
                 By continuing, you agree to our{" "}
-                <Link href="#" className="underline underline-offset-4 hover:text-primary">
+                <a 
+                  href="https://www.tryverza.com/terms-of-service" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="underline underline-offset-4 hover:text-primary"
+                >
                   Terms of Service
-                </Link>{" "}
+                </a>{" "}
                 and{" "}
-                <Link href="#" className="underline underline-offset-4 hover:text-primary">
+                <a 
+                  href="https://www.tryverza.com/privacy-policy" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="underline underline-offset-4 hover:text-primary"
+                >
                   Privacy Policy
-                </Link>
+                </a>
                 .
               </p>
             )}
