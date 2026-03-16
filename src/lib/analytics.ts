@@ -9,18 +9,20 @@ type GTagEvent = {
   category: string;
   label: string;
   value?: number;
+  currency?: string;
 };
 
 /**
  * Log a custom event to Google Analytics.
  * @param event The event details to track.
  */
-export const trackEvent = ({ action, category, label, value }: GTagEvent) => {
+export const trackEvent = ({ action, category, label, value, currency = 'USD' }: GTagEvent) => {
   if (typeof window !== 'undefined' && (window as any).gtag) {
     (window as any).gtag('event', action, {
       event_category: category,
       event_label: label,
       value: value,
+      currency: currency,
     });
   }
 };

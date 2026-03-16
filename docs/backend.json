@@ -196,6 +196,23 @@
       },
       "required": ["id", "brandId", "brandName", "title", "description", "platforms", "ratePerCreator", "creatorsNeeded", "videosPerCreator", "status", "createdAt", "paidCreatorIds"]
     },
+    "gigSubmission": {
+      "title": "Gig Submission",
+      "description": "A video submission from a creator for a specific gig.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gigId": { "type": "string" },
+        "brandId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "videoUrl": { "type": "string", "format": "uri" },
+        "verzaScore": { "type": "number", "description": "The AI quality score (0-100)." },
+        "verzaFeedback": { "type": "string", "description": "AI-generated feedback for the video." },
+        "status": { "type": "string", "enum": ["pending_verza_score", "submitted", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "notification": {
       "title": "Notification",
       "description": "An in-app notification for a user.",
@@ -234,6 +251,12 @@
         "$ref": "#/backend/entities/gig"
       },
       "description": "Stores gig postings from brands for creators."
+    },
+    "/submissions/{submissionId}": {
+      "schema": {
+        "$ref": "#/backend/entities/gigSubmission"
+      },
+      "description": "Stores video submissions for gigs."
     },
     "/notifications/{notificationId}": {
       "schema": {

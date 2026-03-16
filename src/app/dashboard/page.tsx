@@ -30,12 +30,12 @@ import {
 } from "lucide-react"; 
 import { useAuth, type UserProfile } from "@/hooks/use-auth";
 import { db, collection, query, where, doc, onSnapshot, Timestamp } from '@/lib/firebase';
-import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency, Gig, GigSubmission } from "@/types";
+import type { Contract, EarningsDataPoint, UpcomingIncome, AtRiskPayment, Agency, Gig } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistanceToNow } from "date-fns";
 import { useTour } from "@/hooks/use-tour";
 import { dashboardTour } from "@/lib/tours";
 import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
+import { trackEvent } from "@/lib/analytics";
 
 interface DashboardStats {
   totalPendingIncome: number;
@@ -80,9 +80,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (searchParams.get('subscription_success') === 'true') {
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      
+      // Track conversion
+      trackEvent({
+        action: 'subscription_success',
+        category: 'revenue',
+        label: user?.subscriptionPlanId || 'pro_plan'
+      });
+
       router.replace('/dashboard', { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, user]);
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -308,7 +316,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2"><EarningsChart data={stats.earningsChartData} /></div>
+        <div className="lg:col-span-2" id="earnings-chart-container"><EarningsChart data={stats.earningsChartData} /></div>
         <div className="lg:col-span-1"><UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} /></div>
       </div>
 

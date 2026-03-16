@@ -108,6 +108,7 @@ interface AuthContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   resendVerificationEmail: () => Promise<string | null>;
   isLoading: boolean;
+  isProcessing: boolean;
   getUserIdToken: () => Promise<string | null>;
   refreshAuthUser: () => Promise<void>;
 }
@@ -331,6 +332,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [firebaseUserInstance, setFirebaseUserInstance] = useState<FirebaseUser | null>(null);
   const { toast } = useToast();
 
@@ -440,15 +442,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const loginWithGoogle = async () => {
+    setIsProcessing(true);
     try {
-      setIsLoading(true);
       const provider = new FirebaseAuthGoogleAuthProvider(); 
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       toast({ title: "Login Failed", description: error.message || "Could not sign in with Google.", variant: "destructive"});
       setUser(null);
-      setIsLoading(false);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -465,14 +468,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithEmailAndPassword = async (email: string, password: string): Promise<string | null> => {
-    setIsLoading(true);
+    setIsProcessing(true);
     try {
       await firebaseSignInWithEmailAndPassword(auth, email, password);
       return null; 
     } catch (error: any) {
       console.error("Error signing in with email and password:", error);
       setUser(null); 
-      setIsLoading(false); 
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
@@ -483,11 +485,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         default:
           return error.message || "An unexpected error occurred during login.";
       }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const signupWithEmailAndPassword = async (email: string, password: string): Promise<string | null> => {
-    setIsLoading(true);
+    setIsProcessing(true);
     try {
       const userCredential = await firebaseCreateUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
@@ -502,7 +506,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error("Error signing up with email and password:", error);
       setUser(null); 
-      setIsLoading(false); 
       switch (error.code) {
         case 'auth/email-already-in-use':
           return 'This email address is already in use.';
@@ -513,11 +516,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         default:
           return error.message || "An unexpected error occurred during sign up.";
       }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const sendPasswordReset = async (email: string) => {
-    setIsLoading(true);
+    setIsProcessing(true);
     try {
       await firebaseSendPasswordResetEmail(auth, email);
       toast({
@@ -532,13 +537,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
   
   const resendVerificationEmail = async (): Promise<string | null> => {
     if (firebaseUserInstance && !firebaseUserInstance.emailVerified) {
-      setIsLoading(true);
+      setIsProcessing(true);
       try {
         await sendEmailVerification(firebaseUserInstance);
         toast({
@@ -555,7 +560,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return error.message || "Could not resend verification email.";
       } finally {
-        setIsLoading(false);
+        setIsProcessing(false);
       }
     } else if (firebaseUserInstance && firebaseUserInstance.emailVerified) {
       toast({
@@ -597,6 +602,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendPasswordReset,
       resendVerificationEmail,
       isLoading,
+      isProcessing,
       getUserIdToken,
       refreshAuthUser
     }}>

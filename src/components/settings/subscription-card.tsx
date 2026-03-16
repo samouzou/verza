@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -14,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { trackEvent } from "@/lib/analytics";
 
 type PlanId = 'individual_monthly' | 'individual_yearly' | 'agency_pilot_monthly' | 'agency_pilot_yearly' | 'agency_pro_monthly' | 'agency_pro_yearly' | 'agency_network_monthly' | 'agency_network_yearly' | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
 type BillingFrequency = 'monthly' | 'yearly';
@@ -29,6 +29,12 @@ export function SubscriptionCard() {
 
   const handleSubscribe = async (planId: PlanId) => {
     setIsProcessingCheckout(true);
+    trackEvent({
+      action: 'subscription_checkout_start',
+      category: 'revenue',
+      label: planId
+    });
+
     try {
       const firebaseFunctions = getFunctions();
       const createCheckoutSessionCallable = httpsCallable(firebaseFunctions, 'createStripeSubscriptionCheckoutSession');
