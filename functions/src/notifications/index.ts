@@ -324,7 +324,8 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     content = `
         <h1 style="color: #333; font-size: 22px;">Stop Guessing. Start Spawning.</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">On Verza, every piece of content passes through <strong>"The Gauntlet"</strong>—an 
+        <p style="color: #555; line-height: 1.6;">On Verza,
+        every piece of content passes through <strong>"The Gauntlet"</strong>—an 
         AI simulation of 10,000 Gen Z scrollers. Brands only pay for what performs.</p>
         <p style="color: #555; line-height: 1.6;">Use our <strong>Scene Spawner</strong> AI to iterate on your hooks and 
         visuals before you submit. It's your secret weapon to hitting that 65% benchmark and securing your payout.</p>
@@ -442,7 +443,7 @@ export const submitFeedback = onCall(async (request) => {
   const userId = request.auth.uid;
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data();
-  
+
   const fromEmail = userData?.email || "unknown@user.com";
   const fromName = userData?.displayName || "Verza User";
 
