@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent, Suspense } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,16 +43,19 @@ import Image from 'next/image';
 import { useTour } from '@/hooks/use-tour';
 import { sceneSpawnerTour } from '@/lib/tours';
 import { trackEvent } from '@/lib/analytics';
+import { useRouter, useSearchParams } from 'next/navigation';
+import confetti from 'canvas-confetti';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const IMAGE_COST = 1;
 
-
-export default function SceneSpawnerPage() {
+function SceneSpawnerContent() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
   const { startTour } = useTour();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState("text-to-video");
   const [prompt, setPrompt] = useState("");
@@ -81,6 +84,19 @@ export default function SceneSpawnerPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imagePrompt, setImagePrompt] = useState("");
 
+  useEffect(() => {
+    if (searchParams.get('purchase_success') === 'true') {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      
+      trackEvent({
+        action: 'credit_purchase_success',
+        category: 'revenue',
+        label: 'scene_credits'
+      });
+
+      router.replace('/scene-spawner', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -136,6 +152,12 @@ export default function SceneSpawnerPage() {
 
   const handlePurchaseCredits = async (planKey: 'starter' | 'agency') => {
     setIsProcessingPayment(true);
+    trackEvent({
+      action: 'credit_checkout_start',
+      category: 'revenue',
+      label: planKey
+    });
+
     try {
       const createCheckoutSession = httpsCallable(functions, 'createCreditCheckoutSession');
       const result = await createCheckoutSession({ planKey });
@@ -466,7 +488,7 @@ export default function SceneSpawnerPage() {
                   {generatedMedia.type === 'video' ? (
                      <video src={generatedMedia.url} controls autoPlay loop className="w-full h-full object-contain" />
                   ) : (
-                     <Image src={generatedMedia.url} alt="Generated Image" layout="fill" className="object-contain" />
+                     <Image src={generatedMedia.url} alt="Generated Image" fill className="object-contain" />
                   )}
                   <Button asChild size="sm" className="absolute top-2 right-2">
                     <a href={generatedMedia.url} download target="_blank" rel="noopener noreferrer">
@@ -583,5 +605,13 @@ export default function SceneSpawnerPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function SceneSpawnerPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+      <SceneSpawnerContent />
+    </Suspense>
   );
 }

@@ -1,24 +1,23 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, arrayUnion, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
-import { useAuth, type UserProfile } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth';
 import type { Gig, GigSubmission, Notification, Agency } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, Wand2, DollarSign, UploadCloud, Play, Download, Trophy, Flame, Star, Video, CreditCard, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Wallet } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
-import { Progress } from '@/components/ui/progress';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -48,12 +47,14 @@ import { trackEvent } from '@/lib/analytics';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import confetti from 'canvas-confetti';
 
-export default function GigDetailPage() {
+function GigDetailContent() {
   const params = useParams();
   const gigId = params.id as string;
   const router = useRouter();
-  const { user, isLoading: authLoading, getUserIdToken } = useAuth();
+  const searchParams = useSearchParams();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [gig, setGig] = useState<Gig | null>(null);
@@ -76,6 +77,23 @@ export default function GigDetailPage() {
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+
+  useEffect(() => {
+    if (searchParams.get('funding_success') === 'true' && gig) {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      
+      const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
+      
+      trackEvent({
+        action: 'gig_funding_success',
+        category: 'revenue',
+        label: gig.title,
+        value: totalValue
+      });
+
+      router.replace(`/gigs/${gigId}`, { scroll: false });
+    }
+  }, [searchParams, gig, gigId, router]);
 
   useEffect(() => {
     if (!gigId) {
@@ -382,6 +400,12 @@ export default function GigDetailPage() {
   const handleResumeFunding = async () => {
     if (!gig) return;
     setIsResumingFunding(true);
+    trackEvent({
+      action: 'gig_funding_checkout_start',
+      category: 'revenue',
+      label: gig.title
+    });
+
     try {
       const result = await createGigFundingCheckoutSessionCallable({
         id: gig.id,
@@ -414,6 +438,15 @@ export default function GigDetailPage() {
     setIsWalletFunding(true);
     try {
       await fundGigFromWalletCallable({ gigId: gig.id });
+      
+      const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
+      trackEvent({
+        action: 'gig_funding_success',
+        category: 'revenue',
+        label: gig.title,
+        value: totalValue
+      });
+
       toast({ title: "Gig Funded!", description: "Funds have been moved from your wallet to this campaign." });
     } catch (error: any) {
       toast({ title: "Funding Failed", description: error.message, variant: "destructive" });
@@ -948,5 +981,13 @@ export default function GigDetailPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function GigDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+      <GigDetailContent />
+    </Suspense>
   );
 }
