@@ -209,6 +209,7 @@ export default function GigsPage() {
             {canPostGig && (
               <Button asChild>
                 <Link href="/deployments/post">
+                  <PlusCircle className="mr-2 h-4 w-4" />
                   Deploy Capital
                 </Link>
               </Button>
