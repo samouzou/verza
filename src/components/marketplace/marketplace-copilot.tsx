@@ -20,7 +20,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: ShieldCheck,
       title: "Verified Edge",
-      description: "Creators with connected social accounts get 3x more deployment acceptances from brands.",
+      description: "Creators with connected social accounts secure 3x more enterprise deployments.",
       badge: "PRO TIP"
     },
     {
@@ -112,7 +112,7 @@ export function MarketplaceCoPilot({ context, className }: { context: CoPilotCon
         <div className="p-1.5 bg-primary/10 rounded-full">
           <Sparkles className="h-4 w-4 text-primary" />
         </div>
-        <h3 className="font-bold text-sm tracking-tight uppercase text-muted-foreground">Marketplace Co-Pilot</h3>
+        <h3 className="font-bold text-sm tracking-tight uppercase text-muted-foreground">Network Co-Pilot</h3>
       </div>
       
       {currentTips.map((tip, i) => (
