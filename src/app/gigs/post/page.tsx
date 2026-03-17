@@ -162,7 +162,7 @@ export default function PostGigPage() {
     if (!user || !user.primaryAgencyId) {
         toast({ 
           title: 'Authentication or Agency Error', 
-          description: "You must be associated with an agency to post a gig.", 
+          description: "You must be associated with an agency to launch a deployment.", 
           variant: 'destructive' 
         });
         return;
@@ -185,7 +185,7 @@ export default function PostGigPage() {
     }
     
     setIsSubmitting(true);
-    toast({ title: "Redirecting to Payment", description: "Please complete the payment to post your gig." });
+    toast({ title: "Redirecting to Payment", description: "Please complete the payment to launch your deployment." });
     
     try {
       trackEvent({ action: 'fund_gig_start', category: 'marketplace', label: title });
@@ -233,7 +233,7 @@ export default function PostGigPage() {
       <div className="flex flex-col items-center justify-center h-full p-4">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground">Only agency team members can post new gigs.</p>
+        <p className="text-muted-foreground">Only agency team members can launch new deployments.</p>
       </div>
     );
   }
@@ -249,7 +249,7 @@ export default function PostGigPage() {
   if (!canPost) {
     return (
       <>
-        <PageHeader title="Post a New Gig" description="Find creators for your next campaign." />
+        <PageHeader title="Launch a New Deployment" description="Recruit creators for your next campaign." />
         <Card className="max-w-2xl mx-auto shadow-lg border-primary/20">
           <CardHeader>
             <div className="flex items-center gap-2 text-primary font-semibold">
@@ -263,8 +263,8 @@ export default function PostGigPage() {
               <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
               <AlertDescription className="text-primary/90">
                 {user.isAgencyOwner 
-                  ? "You need an active Agency subscription to post gigs to the marketplace. This plan covers talent management and payout fees."
-                  : "Your agency needs an active Agency subscription to post gigs. Please contact your agency owner to upgrade the account plan."}
+                  ? "You need an active Agency subscription to launch deployments to the marketplace. This plan covers talent management and payout fees."
+                  : "Your agency needs an active Agency subscription to launch deployments. Please contact your agency owner to upgrade the account plan."}
               </AlertDescription>
               {user.isAgencyOwner && (
                 <div className="mt-4">
@@ -278,7 +278,7 @@ export default function PostGigPage() {
             </Alert>
             <Button variant="outline" asChild className="w-full">
               <Link href="/gigs">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gigs
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Marketplace
               </Link>
             </Button>
           </CardContent>
@@ -290,8 +290,8 @@ export default function PostGigPage() {
   return (
     <>
       <PageHeader
-        title="Post a New Gig"
-        description="Describe your project, set your rate, and find creators."
+        title="Launch a New Deployment"
+        description="Describe your campaign, set the deployment rate, and recruit creators."
         actions={
             <Button variant="outline" asChild>
                 <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Cancel</Link>
@@ -339,18 +339,18 @@ export default function PostGigPage() {
 
             <Card className="shadow-lg">
               <CardHeader>
-                  <CardTitle>2. Project Details</CardTitle>
+                  <CardTitle>2. Deployment Details</CardTitle>
                   <CardDescription>
                     Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.
                   </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                    <Label htmlFor="title">Gig Title</Label>
+                    <Label htmlFor="title">Deployment Title</Label>
                     <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="description">Project Description</Label>
+                    <Label htmlFor="description">Campaign Brief</Label>
                     <div className="min-h-[200px] rounded-md border border-input bg-background">
                       <ReactQuill
                         theme="snow"
@@ -398,7 +398,7 @@ export default function PostGigPage() {
             <Card className="shadow-lg border-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
-                <CardDescription>Define how you plan to use the content created for this gig.</CardDescription>
+                <CardDescription>Define how you plan to use the content created for this deployment.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
@@ -522,7 +522,7 @@ export default function PostGigPage() {
                           <div className="space-y-4 text-sm leading-relaxed">
                             <p className="font-bold">1. CAMPAIGN VAULT</p>
                             <p>
-                              When you post a gig, you are required to pre-fund the total campaign cost. 
+                              When you launch a deployment, you are required to pre-fund the total campaign cost. 
                               These funds are held by Verza in a secure Campaign Vault (Escrow).
                             </p>
                             <p className="font-bold">2. VERIFICATION & RELEASE</p>
@@ -547,7 +547,7 @@ export default function PostGigPage() {
                       </DialogContent>
                     </Dialog>
                     . Verza will hold all payments securely until verified submission approval and will generate a 
-                    binding clickwrap agreement with the selected creators based on these campaign terms.
+                    binding clickwrap agreement with the selected creators based on these deployment terms.
                   </p>
                 </div>
               </CardContent>
@@ -556,7 +556,7 @@ export default function PostGigPage() {
             <div className="space-y-4">
               {totalAmount > 0 && (
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
-                  <p className="text-sm text-muted-foreground font-medium">Total Project Funding Required</p>
+                  <p className="text-sm text-muted-foreground font-medium">Total Deployment Funding Required</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
                 </div>
@@ -564,7 +564,7 @@ export default function PostGigPage() {
 
               <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting || totalAmount <= 0}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
-                Fund & Post Campaign
+                Fund & Launch Campaign
               </Button>
             </div>
           </form>

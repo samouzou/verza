@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -188,14 +189,14 @@ function GigDetailContent() {
     if (!user || !gig) return;
 
     if (!hasAgreedToLegal) {
-      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before accepting the gig.", variant: "destructive" });
+      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before accepting the deployment.", variant: "destructive" });
       return;
     }
 
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
         title: "Bank Account Required",
-        description: "You must connect your bank account before you can accept paid gigs. Head to Settings to get set up securely.",
+        description: "You must connect your bank account before you can accept paid deployments. Head to Settings to get set up securely.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -209,7 +210,7 @@ function GigDetailContent() {
     if (!user.showInMarketplace) {
       toast({
         title: "Public Profile Required",
-        description: "Your profile must be set to 'Public' in the marketplace before you can accept gigs. Head to your profile settings to enable this.",
+        description: "Your profile must be set to 'Public' in the marketplace before you can accept deployments. Head to your profile settings to enable this.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -225,11 +226,11 @@ function GigDetailContent() {
     const userDocRef = doc(db, 'users', user.uid);
     try {
       const currentGigSnap = await getDoc(gigDocRef);
-      if (!currentGigSnap.exists()) throw new Error("Gig no longer exists.");
+      if (!currentGigSnap.exists()) throw new Error("Deployment no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
       
-      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Gig is full.");
+      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
       if (acceptedIds.includes(user.uid)) throw new Error("Already accepted.");
       
       const newAcceptedIds = [...acceptedIds, user.uid];
@@ -246,7 +247,7 @@ function GigDetailContent() {
         await addDoc(collection(db, 'notifications'), {
           userId: agencyData.ownerId,
           title: "New creator joined!",
-          message: `${user.displayName || 'A creator'} has joined your gig "${gig.title}".`,
+          message: `${user.displayName || 'A creator'} has joined your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
           link: `/gigs/${gig.id}`,
@@ -257,7 +258,7 @@ function GigDetailContent() {
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
       await updateDoc(userDocRef, userUpdates);
 
-      toast({ title: "Gig Accepted!" });
+      toast({ title: "Deployment Accepted!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -387,7 +388,7 @@ function GigDetailContent() {
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'gigs', gig.id));
-      toast({ title: "Gig Deleted", description: "The project has been removed." });
+      toast({ title: "Deployment Deleted", description: "The deployment has been removed." });
       router.push('/gigs');
     } catch (error: any) {
       console.error(error);
@@ -447,7 +448,7 @@ function GigDetailContent() {
         value: totalValue
       });
 
-      toast({ title: "Gig Funded!", description: "Funds have been moved from your wallet to this campaign." });
+      toast({ title: "Deployment Funded!", description: "Funds have been moved from your wallet to this campaign." });
     } catch (error: any) {
       toast({ title: "Funding Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -457,8 +458,16 @@ function GigDetailContent() {
 
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
+  const getStatusLabel = (status: string) => {
+    if (status === 'open') return 'Capital Available';
+    if (status === 'pending_payment') return 'Funding Pending';
+    if (status === 'in-progress') return 'In Progress';
+    if (status === 'completed') return 'Deployment Complete';
+    return status?.replace(/_/g, ' ') || 'unknown';
+  };
+
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Gig Not Found</h3></div>;
+  if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Deployment Not Found</h3></div>;
 
   const acceptedIds = gig.acceptedCreatorIds || [];
   const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
@@ -479,14 +488,14 @@ function GigDetailContent() {
       <div className="flex flex-col gap-8 pb-20">
         <PageHeader
           title={gig.title}
-          description={`Posted by ${gig.brandName}`}
+          description={`Campaign by ${gig.brandName}`}
           actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
         />
 
         {isCompleted && (
           <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300">
             <PartyPopper className="h-5 w-5" />
-            <AlertTitle className="font-bold">Campaign Completed!</AlertTitle>
+            <AlertTitle className="font-bold">Deployment Complete!</AlertTitle>
             <AlertDescription>
               {canManageGig 
                 ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
@@ -500,7 +509,7 @@ function GigDetailContent() {
               <Card className="overflow-hidden">
                   <CardHeader>
                     <div className="flex justify-between items-start">
-                      <CardTitle>Project Details</CardTitle>
+                      <CardTitle>Campaign Objective</CardTitle>
                       <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
                         {campaignTypeLabel}
                       </Badge>
@@ -560,7 +569,7 @@ function GigDetailContent() {
                     <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
                   </div>
                   <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
-                    By clicking "Accept Gig", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                    By clicking "Accept Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                   </div>
                 </CardContent>
               </Card>
@@ -571,7 +580,7 @@ function GigDetailContent() {
                     <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary"/> {isCompleted ? 'Your Submissions' : 'Submit Your Work'}</CardTitle>
                     <CardDescription>
                       {isCompleted 
-                        ? 'Review the work you submitted for this completed gig.'
+                        ? 'Review the work you submitted for this complete deployment.'
                         : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`}
                     </CardDescription>
                   </CardHeader>
@@ -775,7 +784,7 @@ function GigDetailContent() {
                                   })}
                              </div>
                           ) : (
-                              <p className="text-sm text-muted-foreground text-center py-4">No creators have accepted this gig yet.</p>
+                              <p className="text-sm text-muted-foreground text-center py-4">No creators have accepted this deployment yet.</p>
                           )}
                       </CardContent>
                    </Card>
@@ -783,7 +792,7 @@ function GigDetailContent() {
           </div>
           <div className="lg:col-span-1 space-y-6 min-w-0">
               <Card>
-                  <CardHeader><CardTitle>Gig Overview</CardTitle></CardHeader>
+                  <CardHeader><CardTitle>Deployment Overview</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
@@ -801,11 +810,11 @@ function GigDetailContent() {
                       {!isCompleted && (
                         <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
                       )}
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{gig.status?.replace(/_/g, ' ') || 'unknown'}</Badge></div>
+                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{getStatusLabel(gig.status)}</Badge></div>
                       
                       {user && !canManageGig && !isCompleted && (
                         hasAccepted ? (
-                          <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Gig Accepted</Button>
+                          <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Deployment Accepted</Button>
                         ) : spotsLeft > 0 && gig.status === 'open' ? (
                           <div className="space-y-4 border-t pt-4">
                             <div className="flex items-start space-x-2">
@@ -838,22 +847,22 @@ function GigDetailContent() {
                                     <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
                                       <div className="space-y-4 text-sm leading-relaxed">
                                         <p className="font-bold">1. PARTIES & SCOPE</p>
-                                        <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific project ('Gig') defined in this brief.</p>
+                                        <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific campaign ('Deployment') defined in this brief.</p>
                                         
                                         <p className="font-bold">2. SERVICES & DELIVERABLES</p>
-                                        <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the Gig brief. Deliverables must pass the Verza Quality Score (simulation) to be eligible for payout.</p>
+                                        <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the deployment brief. Deliverables must pass the Verza Quality Score (simulation) to be eligible for payout.</p>
                                         
                                         <p className="font-bold">3. PAYMENT & ESCROW</p>
-                                        <p>The Client has pre-funded this Gig. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
+                                        <p>The Client has pre-funded this deployment. Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
                                         
                                         <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
-                                        <p>Unless the Gig is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the Gig brief. Creator retains original ownership of the underlying content.</p>
+                                        <p>Unless the deployment is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the brief. Creator retains original ownership of the underlying content.</p>
                                         
                                         <p className="font-bold">5. INDEPENDENT CONTRACTOR</p>
                                         <p>Creator is an independent contractor. Nothing in this Agreement creates an employer-employee relationship or partnership.</p>
                                         
                                         <p className="font-bold">6. CONFIDENTIALITY</p>
-                                        <p>Both parties agree to keep the terms of this Gig and any proprietary brand information confidential.</p>
+                                        <p>Both parties agree to keep the terms of this deployment and any proprietary brand information confidential.</p>
                                       </div>
                                     </ScrollArea>
                                     <DialogFooter className="mt-4">
@@ -878,7 +887,7 @@ function GigDetailContent() {
                                 <Alert variant="destructive" className="py-2 px-3 text-xs">
                                   <AlertTriangle className="h-3 w-3" />
                                   <AlertDescription>
-                                    Public profile required to accept gigs.
+                                    Public profile required to accept deployments.
                                   </AlertDescription>
                                 </Alert>
                               )}
@@ -888,12 +897,12 @@ function GigDetailContent() {
                                 disabled={isAccepting || !hasAgreedToLegal}
                               >
                                 {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                                Accept Gig
+                                Accept Deployment
                               </Button>
                             </div>
                           </div>
                         ) : (
-                          <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Gig Full'}</Button>
+                          <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Deployment Full'}</Button>
                         )
                       )}
                       
@@ -938,7 +947,7 @@ function GigDetailContent() {
                           {!isCompleted && (
                             <Button asChild className="w-full" variant="outline">
                               <Link href={`/gigs/${gig.id}/edit`}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit Gig
+                                <Edit className="mr-2 h-4 w-4" /> Edit Deployment
                               </Link>
                             </Button>
                           )}
@@ -946,14 +955,14 @@ function GigDetailContent() {
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button className="w-full" variant="destructive">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete Gig
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete Deployment
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this gig?</AlertDialogTitle>
+                                  <AlertDialogTitle>Delete this deployment?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently remove the gig listing. This action cannot be undone.
+                                    This will permanently remove the deployment listing. This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

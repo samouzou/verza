@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: ShieldCheck,
       title: "Verified Edge",
-      description: "Creators with connected social accounts get 3x more gig acceptances from brands.",
+      description: "Creators with connected social accounts get 3x more deployment acceptances from brands.",
       badge: "PRO TIP"
     },
     {
@@ -48,7 +49,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: Zap,
       title: "Automated Onboarding",
-      description: "Verza handles the legal heavy lifting. A standard agreement is accepted instantly when a creator joins your gig.",
+      description: "Verza handles the legal heavy lifting. A standard agreement is accepted instantly when a creator joins your deployment.",
     }
   ],
   post: [
@@ -73,7 +74,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: ShieldCheck,
       title: "Zero-Friction Legal",
-      description: "Legal protection is built-in. Every creator who joins your gig is automatically bound by your defined usage terms.",
+      description: "Legal protection is built-in. Every creator who joins your deployment is automatically bound by your defined usage terms.",
       badge: "PROTECTION"
     },
     {
@@ -85,8 +86,8 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
   details_creator: [
     {
       icon: Lock,
-      title: "Pre-Funded Gigs",
-      description: "The brand has already funded this gig. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
+      title: "Pre-Funded Deployments",
+      description: "The brand has already funded this deployment. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
       badge: "SECURE"
     },
     {

@@ -27,6 +27,14 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
   const isCompleted = gig.status === 'completed';
 
+  const getStatusLabel = (status: string) => {
+    if (status === 'open') return 'Capital Available';
+    if (status === 'pending_payment') return 'Funding Pending';
+    if (status === 'in-progress') return 'In Progress';
+    if (status === 'completed') return 'Deployment Complete';
+    return status?.replace(/_/g, ' ') || 'unknown';
+  };
+
   return (
     <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''} min-w-0`}>
       <CardHeader>
@@ -39,7 +47,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           </div>
           <Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'secondary' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500/10 text-blue-600 border-blue-200' : '')}>
             {isCompleted && <CheckCircle2 className="mr-1 h-3 w-3 inline" />}
-            {gig.status?.replace(/_/g, ' ') || 'unknown'}
+            {getStatusLabel(gig.status)}
           </Badge>
         </div>
       </CardHeader>
@@ -192,7 +200,7 @@ export default function GigsPage() {
     <>
       <PageHeader
         title="Marketplace"
-        description="Discover paid opportunities or manage your active campaigns."
+        description="Discover deployment opportunities or manage your active campaigns."
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => startTour(marketplaceTour)}>
@@ -202,7 +210,7 @@ export default function GigsPage() {
               <Button asChild>
                 <Link href="/gigs/post">
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Post a New Gig
+                  Launch New Deployment
                 </Link>
               </Button>
             )}
@@ -218,7 +226,7 @@ export default function GigsPage() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2"><Search className="h-3 w-3" /> Search</Label>
                 <Input 
-                  placeholder="Search gigs or brands..." 
+                  placeholder="Search campaigns or brands..." 
                   value={searchTerm} 
                   onChange={e => setSearchTerm(e.target.value)}
                 />
@@ -251,9 +259,9 @@ export default function GigsPage() {
           </Card>
 
           <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-            <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-              <TabsTrigger value="browse">Browse Gigs ({filteredOpenGigs.length})</TabsTrigger>
-              <TabsTrigger value="my-gigs">My Gigs ({filteredMyGigs.length})</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 max-w-[450px]">
+              <TabsTrigger value="browse">Browse Deployments ({filteredOpenGigs.length})</TabsTrigger>
+              <TabsTrigger value="my-gigs">Active Deployments ({filteredMyGigs.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="browse" className="space-y-6">
@@ -268,7 +276,7 @@ export default function GigsPage() {
               ) : (
                 <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
                   <Filter className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold">No Gigs Found</h3>
+                  <h3 className="text-xl font-semibold">No Deployments Found</h3>
                   <p className="text-muted-foreground mt-2">Try adjusting your filters or search terms.</p>
                   <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>
                 </div>
@@ -289,11 +297,11 @@ export default function GigsPage() {
                 </div>
               ) : (
                 <div className="text-center py-16 border-2 border-dashed rounded-lg bg-muted/5">
-                  <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Gigs" : "No Matching Gigs"}</h3>
+                  <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Deployments" : "No Matching Deployments"}</h3>
                   <p className="text-muted-foreground mt-2">
                     {myGigs.length === 0 
-                      ? "Gigs you've accepted or posted will appear here." 
-                      : "None of your active gigs match the current filters."}
+                      ? "Deployments you've accepted or launched will appear here." 
+                      : "None of your active deployments match the current filters."}
                   </p>
                   {myGigs.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>}
                   {myGigs.length === 0 && (
