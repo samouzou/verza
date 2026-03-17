@@ -53,7 +53,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
       </CardHeader>
       <CardContent className="flex-grow space-y-4 min-w-0">
         <div 
-          className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words prose-sm prose-slate dark:prose-invert max-w-none overflow-hidden"
+          className="text-sm text-muted-foreground line-clamp-3 leading-relaxed break-words prose-sm prose-slate dark:prose-invert max-none overflow-hidden"
           dangerouslySetInnerHTML={{ __html: gig.description }}
         />
         <div className="flex flex-wrap gap-2">
@@ -209,7 +209,6 @@ export default function GigsPage() {
             {canPostGig && (
               <Button asChild>
                 <Link href="/gigs/post">
-                  <PlusCircle className="mr-2 h-4 w-4" />
                   Launch New Deployment
                 </Link>
               </Button>
@@ -261,7 +260,7 @@ export default function GigsPage() {
           <Tabs defaultValue="browse" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
             <TabsList className="grid w-full grid-cols-2 max-w-[450px]">
               <TabsTrigger value="browse">Browse Deployments ({filteredOpenGigs.length})</TabsTrigger>
-              <TabsTrigger value="my-gigs">Active Deployments ({filteredMyGigs.length})</TabsTrigger>
+              <TabsTrigger value="my-gigs">My Deployments ({filteredMyGigs.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="browse" className="space-y-6">
