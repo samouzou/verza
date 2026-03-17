@@ -496,7 +496,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
           await db.runTransaction(async (transaction) => {
             const agencyDoc = await transaction.get(agencyRef);
-            if (!agencyDoc.exists) throw new Error("Agency not found for gig funding.");
+            if (!agencyDoc.exists) throw new Error("Agency not found for deployment funding.");
             const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
             const fundingAmount = amount / 100;
             transaction.update(gigRef, {
@@ -506,7 +506,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             transaction.update(agencyRef, {escrowBalance: currentEscrow + fundingAmount});
           });
 
-          logger.info(`Successfully activated gig "${gigId}" and updated agency escrow.`);
+          logger.info(`Successfully activated deployment "${gigId}" and updated agency escrow.`);
 
           const ownerId = firebaseUID;
           const ownerDoc = await db.collection("users").doc(ownerId).get();
@@ -529,14 +529,14 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     <div style="display: inline-block; padding: 8px 16px; background-color: #6B37FF; border-radius: 8px; 
                     color: #ffffff; font-weight: bold; font-size: 14px; margin-bottom: 16px;">VERZA SECURE</div>
                     <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">
-                    Payment Confirmed</h1>
-                    <p style="color: #718096; margin-top: 8px; font-size: 16px;">Project: ${gigData.title}</p>
+                    Capital Confirmed</h1>
+                    <p style="color: #718096; margin-top: 8px; font-size: 16px;">Campaign: ${gigData.title}</p>
                   </div>
 
                   <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px; border: 1px solid #edf2f7; 
                   margin-bottom: 32px;">
                     <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; 
-                    color: #a0aec0; margin: 0 0 16px 0;">Funding Breakdown</h2>
+                    color: #a0aec0; margin: 0 0 16px 0;">Deployment Breakdown</h2>
                     <table style="width: 100%; border-collapse: collapse;">
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>
@@ -549,7 +549,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                         text-align: right;">${gigData.creatorsNeeded} Creators</td>
                       </tr>
                       <tr style="border-top: 2px solid #edf2f7;">
-                        <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Funded</td>
+                        <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Deployed</td>
                         <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800; text-align: right; 
                         font-size: 24px;">$${(amount / 100).toLocaleString()}</td>
                       </tr>
@@ -558,7 +558,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
                   <div style="margin-bottom: 32px;">
                     <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; 
-                    color: #a0aec0; margin: 0 0 12px 0;">Legal & Usage</h2>
+                    color: #a0aec0; margin: 0 0 12px 0;">Usage & Rights</h2>
                     <div style="grid-template-columns: 1fr 1fr; display: grid; gap: 16px;">
                       <div style="padding: 16px; border: 1px solid #edf2f7; border-radius: 8px;">
                         <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; 
@@ -578,7 +578,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                   <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0; border: 1px solid #feebc8; 
                   margin-bottom: 32px;">
                     <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
-                      <strong>Escrow Lock:</strong> These funds are now held in the Verza Campaign Vault. 
+                      <strong>Campaign Vault Locked:</strong> These funds are now held in your secure Verza Campaign Vault. 
                       They will be released to creators only upon your approval of verified submissions.
                     </p>
                   </div>
@@ -586,20 +586,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                   <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
                     <p style="color: #a0aec0; font-size: 12px;">Transaction ID: ${paymentIntent.id}</p>
                     <p style="color: #a0aec0; font-size: 12px; margin-top: 4px;">
-                    Powered by Verza &bull; Secure Financial Operations</p>
+                    Powered by Verza &bull; High-Performance Financial Infrastructure</p>
                   </div>
                 </div>
                 </body></html>`;
               await sgMail.send({
                 to: ownerData.email,
                 from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
-                subject: `Receipt: Funding for "${gigData.title}"`,
+                subject: `Receipt: Deployment Capital for "${gigData.title}"`,
                 html: receiptHtml,
               });
             }
           }
         } catch (error) {
-          logger.error(`Error updating gig in handlePaymentSuccess for gig ${gigId}:`, error);
+          logger.error(`Error updating deployment in handlePaymentSuccess for id ${gigId}:`, error);
         }
       } else if (contractId) {
         const contractDocRef = db.collection("contracts").doc(contractId);
@@ -786,13 +786,13 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
-    throw new HttpsError("invalid-argument", "Missing required gig details.");
+    throw new HttpsError("invalid-argument", "Missing required campaign details.");
   }
 
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data() as UserProfileFirestoreData;
   if (!userData || !userData.primaryAgencyId) {
-    throw new HttpsError("failed-precondition", "You must be part of an agency to post a gig.");
+    throw new HttpsError("failed-precondition", "You must be part of an agency to launch a deployment.");
   }
 
   const agencyDoc = await db.collection("agencies").doc(userData.primaryAgencyId).get();
@@ -813,7 +813,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
 
   if (!isSubscribed || !hasAgencyPlan) {
     throw new HttpsError("failed-precondition",
-      "An active Agency subscription is required to post gigs. Please upgrade your plan.");
+      "An active Agency subscription is required to launch deployments. Please upgrade your plan.");
   }
 
   let stripeCustomerId = agencyOwnerData.stripeCustomerId;
@@ -880,15 +880,15 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Funding for Gig: ${title}`,
+            name: `Capital Deployment: ${title}`,
             description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
           },
           unit_amount: totalAmountInCents,
         },
         quantity: 1,
       }],
-      success_url: `${params.APP_URL.value()}/gigs/${gigRef.id}?funding_success=true`,
-      cancel_url: `${params.APP_URL.value()}/gigs/${gigRef.id}`,
+      success_url: `${params.APP_URL.value()}/deployments/${gigRef.id}?funding_success=true`,
+      cancel_url: `${params.APP_URL.value()}/deployments/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
           purchaseType: "gigFunding",
@@ -906,7 +906,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     } as any);
     return {url: session.url};
   } catch (error: any) {
-    logger.error(`Error creating gig funding checkout for user ${userId}:`, error);
+    logger.error(`Error creating deployment funding checkout for user ${userId}:`, error);
     if (!existingGigId) {
       await gigRef.delete();
     }
@@ -1054,7 +1054,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
           currency: "usd",
           product_data: {
             name: "Verza Agency Budget Top-Up",
-            description: "General funds for gig payments and bonuses.",
+            description: "General funds for campaign payments and bonuses.",
           },
           unit_amount: Math.round(amount * 100),
         },

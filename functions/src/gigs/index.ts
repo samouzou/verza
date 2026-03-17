@@ -14,7 +14,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
   const {gigId, creatorId} = request.data;
   if (!gigId || !creatorId) {
-    throw new HttpsError("invalid-argument", "Gig ID and Creator ID are required.");
+    throw new HttpsError("invalid-argument", "Deployment ID and Creator ID are required.");
   }
 
   const requesterId = request.auth.uid;
@@ -24,7 +24,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
   try {
     const gigSnap = await gigDocRef.get();
     if (!gigSnap.exists) {
-      throw new HttpsError("not-found", "Gig not found.");
+      throw new HttpsError("not-found", "Deployment not found.");
     }
     const gigData = gigSnap.data() as Gig;
 
@@ -38,16 +38,16 @@ export const payoutCreatorForGig = onCall(async (request) => {
       const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId &&
         (m.role === "admin" || m.role === "member"));
       if (agencyData?.ownerId !== requesterId && !isTeamMember) {
-        throw new HttpsError("permission-denied", "You do not have permission to trigger payouts for this gig.");
+        throw new HttpsError("permission-denied", "You do not have permission to trigger payouts for this deployment.");
       }
     }
 
     if (!gigData.acceptedCreatorIds.includes(creatorId)) {
-      throw new HttpsError("failed-precondition", "This creator has not accepted the gig.");
+      throw new HttpsError("failed-precondition", "This creator has not secured the deployment.");
     }
 
     if (gigData.paidCreatorIds?.includes(creatorId)) {
-      throw new HttpsError("already-exists", "This creator has already been paid for this gig.");
+      throw new HttpsError("already-exists", "This creator has already been paid for this deployment.");
     }
 
     const creatorSnap = await creatorDocRef.get();
@@ -79,7 +79,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       amount: finalPayoutAmountInCents,
       currency: "usd",
       destination: creatorData.stripeAccountId,
-      description: `Payout for gig: ${gigData.title}`,
+      description: `Payout for deployment: ${gigData.title}`,
       metadata: {
         gigId: gigId,
         creatorId: creatorId,
@@ -120,7 +120,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     await db.collection("notifications").add({
       userId: creatorId,
       title: "Payout Received!",
-      message: `Your submission for "${gigData.title}" has been approved and paid.`,
+      message: `Your work for "${gigData.title}" has been approved and paid from the Campaign Vault.`,
       type: "payout_received",
       read: false,
       link: "/wallet",
@@ -135,21 +135,21 @@ export const payoutCreatorForGig = onCall(async (request) => {
       if (gigSnapCheck.data()?.status === "completed") {
         await db.collection("notifications").add({
           userId: agencyData?.ownerId,
-          title: "Project Completed!",
+          title: "Deployment Complete!",
           message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
           type: "system",
           read: false,
-          link: `/gigs/${gigId}`,
+          link: `/deployments/${gigId}`,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         } as Omit<Notification, "id">);
       }
     }
 
     logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
-      ${creatorId} for gig ${gigId}.`);
+      ${creatorId} for deployment ${gigId}.`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
-    logger.error(`Error processing payout for gig ${gigId} to creator ${creatorId}:`, error);
+    logger.error(`Error processing payout for deployment ${gigId} to creator ${creatorId}:`, error);
     if (error instanceof HttpsError) {
       throw error;
     }
