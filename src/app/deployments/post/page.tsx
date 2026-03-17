@@ -564,7 +564,7 @@ export default function PostGigPage() {
 
               <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting || totalAmount <= 0}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
-                + Deploy Capital
+                Deploy Capital
               </Button>
             </div>
           </form>
