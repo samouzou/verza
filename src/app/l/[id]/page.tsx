@@ -78,7 +78,7 @@ export default function AffiliateRedirectPage() {
         )}
         
         <p className="text-[10px] text-muted-foreground pt-12 uppercase tracking-widest">
-          Powered by Verza Infrastructure &bull; Secure Performance Routing
+          Powered by Verza Infrastructure & bull; Secure Performance Routing
         </p>
       </div>
     </div>
