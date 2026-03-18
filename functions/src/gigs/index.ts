@@ -72,28 +72,32 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
     // Deduct 15% platform fee from the creator's payout
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
-    const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
-    const finalPayoutAmountInCents = rawPayoutAmountInCents - platformFeeInCents;
+    
+    // Only attempt Stripe transfer if there is a base rate > 0
+    if (rawPayoutAmountInCents > 0) {
+      const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
+      const finalPayoutAmountInCents = rawPayoutAmountInCents - platformFeeInCents;
 
-    const transferParams: Stripe.TransferCreateParams = {
-      amount: finalPayoutAmountInCents,
-      currency: "usd",
-      destination: creatorData.stripeAccountId,
-      description: `Payout for deployment: ${gigData.title}`,
-      metadata: {
-        gigId: gigId,
-        creatorId: creatorId,
-        brandId: gigData.brandId,
-        platformFee: platformFeeInCents.toString(),
-      },
-    };
+      const transferParams: Stripe.TransferCreateParams = {
+        amount: finalPayoutAmountInCents,
+        currency: "usd",
+        destination: creatorData.stripeAccountId,
+        description: `Payout for deployment: ${gigData.title}`,
+        metadata: {
+          gigId: gigId,
+          creatorId: creatorId,
+          brandId: gigData.brandId,
+          platformFee: platformFeeInCents.toString(),
+        },
+      };
 
-    if (sourceTransactionId) {
-      transferParams.source_transaction = sourceTransactionId;
+      if (sourceTransactionId) {
+        transferParams.source_transaction = sourceTransactionId;
+      }
+
+      // Release funds to creator
+      await stripe.transfers.create(transferParams);
     }
-
-    // Release funds to creator
-    await stripe.transfers.create(transferParams);
 
     // Update the gig document and agency escrow in a transaction
     await db.runTransaction(async (transaction) => {
@@ -145,8 +149,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       }
     }
 
-    logger.info(`Successfully processed payout of $${finalPayoutAmountInCents / 100} to creator
-      ${creatorId} for deployment ${gigId}.`);
+    logger.info(`Successfully processed payout for creator ${creatorId} for deployment ${gigId}.`);
     return {success: true, message: "Payout processed successfully."};
   } catch (error: any) {
     logger.error(`Error processing payout for deployment ${gigId} to creator ${creatorId}:`, error);

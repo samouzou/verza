@@ -73,7 +73,7 @@ function GigDetailContent() {
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
 
   // Affiliate State
-  const [affiliateLink, setAffiliateLink] = useState<AffiliateLink | null>(null);
+  const [affiliateLinks, setAffiliateLinks] = useState<Record<string, AffiliateLink>>({});
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -165,19 +165,24 @@ function GigDetailContent() {
       }
     );
 
-    // Fetch personal affiliate link if applicable
-    if (hasAccepted && gig.affiliateSettings?.isEnabled) {
-      const linksQuery = query(
-        collection(db, 'affiliateLinks'), 
-        where('gigId', '==', gigId), 
-        where('creatorId', '==', user.uid)
-      );
-      onSnapshot(linksQuery, (snap) => {
-        if (!snap.empty) setAffiliateLink({ id: snap.docs[0].id, ...snap.docs[0].data() } as AffiliateLink);
-      });
-    }
+    // Fetch affiliate links
+    const linksQuery = isBrandTeam 
+      ? query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId))
+      : query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
 
-    return () => unsubscribeSubmissions();
+    const unsubscribeLinks = onSnapshot(linksQuery, (snap) => {
+      const linksMap: Record<string, AffiliateLink> = {};
+      snap.docs.forEach(d => {
+        const link = { id: d.id, ...d.data() } as AffiliateLink;
+        linksMap[link.creatorId] = link;
+      });
+      setAffiliateLinks(linksMap);
+    });
+
+    return () => {
+      unsubscribeSubmissions();
+      unsubscribeLinks();
+    };
   }, [gig, user, gigId]);
 
   useEffect(() => {
@@ -296,9 +301,9 @@ function GigDetailContent() {
     }
   };
 
-  const handleCopyAffiliateLink = () => {
-    if (!affiliateLink) return;
-    const url = `${window.location.origin}/l/${affiliateLink.id}`;
+  const handleCopyAffiliateLink = (linkId?: string) => {
+    if (!linkId) return;
+    const url = `${window.location.origin}/l/${linkId}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     toast({ title: "Link Copied!", description: "Share this unique link to track performance." });
@@ -523,8 +528,7 @@ function GigDetailContent() {
   const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
-  const hasPerformancePay = !!gig.affiliateSettings?.isEnabled;
-  const hasBasePay = (gig.ratePerCreator || 0) > 0;
+  const myLink = user ? affiliateLinks[user.uid] : null;
 
   return (
     <>
@@ -550,33 +554,33 @@ function GigDetailContent() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8 min-w-0">
               {hasAccepted && gig.affiliateSettings?.isEnabled && (
-                <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg">
+                <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg animate-in zoom-in-95 duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
-                    <CardDescription>Share your unique link to track clicks and earn performance bonuses.</CardDescription>
+                    <CardDescription>Share your unique link to track performance and earn bonuses.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
-                        {affiliateLink ? `${window.location.origin}/l/${affiliateLink.id}` : 'Generating link...'}
+                        {myLink ? `${window.location.origin}/l/${myLink.id}` : 'Generating link...'}
                       </div>
-                      <Button size="icon" onClick={handleCopyAffiliateLink} disabled={!affiliateLink}>
+                      <Button size="icon" onClick={() => handleCopyAffiliateLink(myLink?.id)} disabled={!myLink}>
                         {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </Button>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="p-3 border rounded-lg bg-background text-center">
                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Clicks</p>
-                        <p className="text-xl font-bold">{affiliateLink?.clicks || 0}</p>
+                        <p className="text-xl font-bold">{myLink?.clicks || 0}</p>
                       </div>
                       <div className="p-3 border rounded-lg bg-background text-center">
                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Conversions</p>
-                        <p className="text-xl font-bold">{affiliateLink?.conversions || 0}</p>
+                        <p className="text-xl font-bold">{myLink?.conversions || 0}</p>
                       </div>
                       <div className="p-3 border rounded-lg bg-blue-500 text-white text-center">
                         <p className="text-[10px] uppercase font-bold opacity-80">Bonus Earned</p>
                         <p className="text-xl font-bold">
-                          ${((affiliateLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}
+                          ${((myLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -773,6 +777,7 @@ function GigDetailContent() {
                                     const isPaid = gig.paidCreatorIds?.includes(creator.uid);
                                     const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
                                     const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
+                                    const creatorLink = affiliateLinks[creator.uid];
 
                                     return (
                                       <Card key={creator.uid} className="border bg-muted/30">
@@ -819,6 +824,23 @@ function GigDetailContent() {
                                               )}
                                             </div>
                                           </div>
+
+                                          {gig.affiliateSettings?.isEnabled && creatorLink && (
+                                            <div className="py-3 flex flex-wrap gap-4 border-b">
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Affiliate Clicks</span>
+                                                <span className="text-sm font-bold flex items-center gap-1.5"><MousePointer2 className="h-3 w-3 text-blue-500"/> {creatorLink.clicks}</span>
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Conversions</span>
+                                                <span className="text-sm font-bold flex items-center gap-1.5"><Target className="h-3 w-3 text-green-500"/> {creatorLink.conversions}</span>
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Est. Bonus</span>
+                                                <span className="text-sm font-bold text-blue-600">${(creatorLink.conversions * gig.affiliateSettings.rewardAmount).toLocaleString()}</span>
+                                              </div>
+                                            </div>
+                                          )}
 
                                           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {Array.from({ length: gig.videosPerCreator || 1 }).map((_, idx) => {
@@ -876,10 +898,10 @@ function GigDetailContent() {
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Base Rate per Creator</span>
                           <span className="font-bold text-2xl text-primary">
-                            {hasBasePay ? `$${(gig.ratePerCreator || 0).toLocaleString()}` : 'Performance Only'}
+                            {(gig.ratePerCreator || 0) > 0 ? `$${(gig.ratePerCreator || 0).toLocaleString()}` : 'Performance Only'}
                           </span>
                         </div>
-                        {!canManageGig && hasBasePay && (
+                        {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
                           <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
                             <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
                             <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
