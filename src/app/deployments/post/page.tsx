@@ -519,6 +519,104 @@ export default function PostGigPage() {
                     disabled={campaignType === 'production_grant'}
                   />
                 </div>
+
+                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    By funding this deployment, you agree to Verza's 
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="text-primary hover:underline font-medium mx-1">
+                          Terms of Service
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" />
+                            Terms of Service
+                          </DialogTitle>
+                          <DialogDescription>
+                            General terms and conditions for using the Verza platform.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                          <div className="space-y-4 text-sm leading-relaxed">
+                            <p className="font-bold">1. ACCEPTANCE</p>
+                            <p>
+                              By accessing or using the Verza platform, you agree to be bound by these Terms of Service. 
+                              If you are using the platform on behalf of an agency or brand, you represent that you 
+                              have the authority to bind that entity to these terms.
+                            </p>
+                            <p className="font-bold">2. DEPLOYMENT NETWORK ROLE</p>
+                            <p>
+                              Verza provides a network for brands and creators to collaborate. Verza is not a 
+                              party to the specific creative agreements except as specified in the Escrow and 
+                              Payment sections.
+                            </p>
+                            <p className="font-bold">3. ACCOUNT SECURITY</p>
+                            <p>
+                              You are responsible for maintaining the confidentiality of your account credentials 
+                              and for all activities that occur under your account.
+                            </p>
+                          </div>
+                        </ScrollArea>
+                        <DialogFooter className="mt-4">
+                          <DialogClose asChild>
+                            <Button variant="outline">Close</Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    and 
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="text-primary hover:underline font-medium mx-1">
+                          Escrow Agreement
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <ShieldCheck className="h-5 w-5 text-primary" />
+                            Escrow & Payment Agreement
+                          </DialogTitle>
+                          <DialogDescription>
+                            Rules governing deployment funding and secure creator payouts.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
+                          <div className="space-y-4 text-sm leading-relaxed">
+                            <p className="font-bold">1. CAMPAIGN VAULT</p>
+                            <p>
+                              When you launch a deployment, you are required to pre-fund the total campaign cost. 
+                              These funds are held by Verza in a secure Campaign Vault (Escrow).
+                            </p>
+                            <p className="font-bold">2. VERIFICATION & RELEASE</p>
+                            <p>
+                              Funds are only released to a creator once they have submitted their work and 
+                              you have manually approved the verified submission in your dashboard. 
+                              Once approved, the release is final and non-refundable.
+                            </p>
+                            <p className="font-bold">3. DISPUTE RESOLUTION</p>
+                            <p>
+                              In the event of a non-responsive creator or failed quality score, funds remain 
+                              in the vault. Brands may request a refund for unspent escrow funds after 30 
+                              days of deployment inactivity.
+                            </p>
+                          </div>
+                        </ScrollArea>
+                        <DialogFooter className="mt-4">
+                          <DialogClose asChild>
+                            <Button variant="outline">Close</Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    . Verza will hold all payments securely until verified submission approval and will generate a 
+                    binding clickwrap agreement with the selected creators based on these deployment terms.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -527,7 +625,7 @@ export default function PostGigPage() {
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
                   <p className="text-sm text-muted-foreground font-medium">Total Deployment Funding Required</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} base rate)</p>
+                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
                 </div>
               )}
 
