@@ -9,11 +9,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale } from 'lucide-react';
+import { 
+  Loader2, 
+  AlertTriangle, 
+  ArrowLeft, 
+  Save, 
+  ShieldAlert, 
+  Info, 
+  Scale, 
+  DollarSign, 
+  Link2, 
+  MousePointer2, 
+  Target, 
+  Zap 
+} from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Gig } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,7 +65,11 @@ export default function EditGigPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  
+  // Base Rate
+  const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
   const [ratePerCreator, setRatePerCreator] = useState('');
+  
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,33 +77,56 @@ export default function EditGigPage() {
   // Legal Fields
   const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
+
+  // Performance Rewards
+  const [isAffiliateEnabled, setIsAffiliateEnabled] = useState(false);
+  const [rewardType, setRewardType] = useState<'cpc' | 'cpa'>('cpa');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [destinationUrl, setDestinationUrl] = useState('');
   
   useEffect(() => {
     if (!gigId) return;
 
     const fetchGig = async () => {
         setIsLoadingGig(true);
-        const gigDocRef = doc(db, 'gigs', gigId);
-        const docSnap = await getDoc(gigDocRef);
+        try {
+          const gigDocRef = doc(db, 'gigs', gigId);
+          const docSnap = await getDoc(gigDocRef);
 
-        if (docSnap.exists()) {
-            const gigData = { id: docSnap.id, ...docSnap.data() } as Gig;
-            setGig(gigData);
-            // Pre-fill form state
-            setCampaignType(gigData.campaignType || 'standard_sponsorship');
-            setTitle(gigData.title);
-            setDescription(gigData.description);
-            setSelectedPlatforms(gigData.platforms);
-            setRatePerCreator(String(gigData.ratePerCreator));
-            setCreatorsNeeded(String(gigData.creatorsNeeded));
-            setVideosPerCreator(String(gigData.videosPerCreator || '1'));
-            setUsageRights(gigData.usageRights || '1_year');
-            setAllowWhitelisting(!!gigData.allowWhitelisting);
-        } else {
-            toast({ title: 'Deployment not found', variant: 'destructive' });
-            router.push('/deployments');
+          if (docSnap.exists()) {
+              const gigData = { id: docSnap.id, ...docSnap.data() } as Gig;
+              setGig(gigData);
+              
+              // Pre-fill form state
+              setCampaignType(gigData.campaignType || 'standard_sponsorship');
+              setTitle(gigData.title);
+              setDescription(gigData.description);
+              setSelectedPlatforms(gigData.platforms);
+              
+              const baseRate = gigData.ratePerCreator || 0;
+              setIsBaseRateEnabled(baseRate > 0);
+              setRatePerCreator(String(baseRate));
+              
+              setCreatorsNeeded(String(gigData.creatorsNeeded));
+              setVideosPerCreator(String(gigData.videosPerCreator || '1'));
+              setUsageRights(gigData.usageRights || '1_year');
+              setAllowWhitelisting(!!gigData.allowWhitelisting);
+
+              // Affiliate / Performance
+              setIsAffiliateEnabled(!!gigData.affiliateSettings?.isEnabled);
+              setRewardType(gigData.affiliateSettings?.rewardType || 'cpa');
+              setRewardAmount(String(gigData.affiliateSettings?.rewardAmount || ''));
+              setDestinationUrl(gigData.affiliateSettings?.destinationUrl || '');
+          } else {
+              toast({ title: 'Deployment not found', variant: 'destructive' });
+              router.push('/deployments');
+          }
+        } catch (error) {
+          console.error("Error fetching gig:", error);
+          toast({ title: 'Error', description: 'Could not load deployment details.', variant: 'destructive' });
+        } finally {
+          setIsLoadingGig(false);
         }
-        setIsLoadingGig(false);
     }
     fetchGig();
   }, [gigId, router, toast]);
@@ -110,12 +151,17 @@ export default function EditGigPage() {
     e.preventDefault();
     if (!user || !gig) return;
 
-    const rateNum = parseFloat(ratePerCreator);
+    const rateNum = isBaseRateEnabled ? parseFloat(ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
     
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(rateNum) || rateNum <= 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
-      toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
+      toast({ title: 'Missing details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
+      return;
+    }
+
+    if (!isBaseRateEnabled && !isAffiliateEnabled) {
+      toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
       return;
     }
     
@@ -133,6 +179,22 @@ export default function EditGigPage() {
             usageRights,
             allowWhitelisting,
         };
+
+        if (isAffiliateEnabled) {
+          updates.affiliateSettings = {
+            isEnabled: true,
+            rewardType,
+            rewardAmount: parseFloat(rewardAmount) || 0,
+            destinationUrl: destinationUrl.trim(),
+          };
+        } else {
+          updates.affiliateSettings = {
+            isEnabled: false,
+            rewardType: 'cpa',
+            rewardAmount: 0,
+            destinationUrl: '',
+          };
+        }
       
         await updateDoc(gigDocRef, updates);
       
@@ -275,10 +337,6 @@ export default function EditGigPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                      <Label htmlFor="rate">Rate per Creator ($)</Label>
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
-                  </div>
-                  <div className="space-y-2">
                       <Label htmlFor="creators">Creators Needed</Label>
                       <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
                   </div>
@@ -292,7 +350,72 @@ export default function EditGigPage() {
 
           <Card className="border-primary/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
+                  <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
+                </div>
+                <Switch checked={isBaseRateEnabled} onCheckedChange={setIsBaseRateEnabled} disabled={isFunded || isSubmitting} />
+              </div>
+            </CardHeader>
+            {isBaseRateEnabled && (
+              <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="space-y-2">
+                  <Label htmlFor="rate">Base Rate per Creator ($)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="250" className="pl-9" required min="1" disabled={isSubmitting || isFunded}/>
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="border-blue-500/20 bg-blue-50/5">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 4. Performance Rewards</CardTitle>
+                  <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
+                </div>
+                <Switch checked={isAffiliateEnabled} onCheckedChange={setIsAffiliateEnabled} disabled={isSubmitting} />
+              </div>
+            </CardHeader>
+            {isAffiliateEnabled && (
+              <CardContent className="space-y-6 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="rewardType">Reward Logic</Label>
+                    <RadioGroup value={rewardType} onValueChange={(val) => setRewardType(val as any)} className="flex gap-4 mt-1" disabled={isSubmitting}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="cpc" id="cpc" />
+                        <Label htmlFor="cpc" className="font-normal flex items-center gap-1"><MousePointer2 className="h-3 w-3" /> Per Click</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="cpa" id="cpa" />
+                        <Label htmlFor="cpa" className="font-normal flex items-center gap-1"><Target className="h-3 w-3" /> Per Conversion</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rewardAmount">Reward Amount ($)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input id="rewardAmount" type="number" value={rewardAmount} onChange={e => setRewardAmount(e.target.value)} placeholder={rewardType === 'cpc' ? "0.10" : "25.00"} className="pl-9" disabled={isSubmitting} />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="destinationUrl">Destination Link</Label>
+                  <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" disabled={isSubmitting} />
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="border-primary/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 5. Usage Rights & Legal</CardTitle>
               <CardDescription>Update how you plan to use the content.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
