@@ -30,7 +30,7 @@ import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions, db, doc, onSnapshot } from '@/lib/firebase';
+import { functions, db, doc, onSnapshot, collection, getDoc, addDoc, serverTimestamp, updateDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
@@ -219,14 +219,9 @@ export default function PostGigPage() {
       if (totalAmount === 0) {
         toast({ title: "Launching Deployment", description: "This performance-only campaign is being prepared..." });
         
-        // Use setDoc for direct launch if no funding is required
-        const gigRef = doc(collection(db, 'gigs'));
+        // Direct launch for performance-only
         const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId));
         const agencyData = agencySnap.data();
-
-        await updateDoc(doc(db, 'users', agencyOwner?.uid || user.uid), {
-          stripeCustomerId: agencyOwner?.stripeCustomerId || null // ensure ID is passed
-        });
 
         const gigData = {
           brandId: user.primaryAgencyId,
@@ -303,6 +298,14 @@ export default function PostGigPage() {
     }
   };
 
+  const nowTime = Date.now();
+  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
+                      (agencyOwner?.subscriptionStatus === 'trialing' && 
+                       agencyOwner?.trialEndsAt && 
+                       agencyOwner.trialEndsAt.toMillis() > nowTime);
+  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
+  const canPost = isSubscribed && hasAgencyPlan;
+
   if (authLoading || isLoadingSubscriptionCheck) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -322,14 +325,6 @@ export default function PostGigPage() {
       </div>
     );
   }
-
-  const nowTime = Date.now();
-  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
-                      (agencyOwner?.subscriptionStatus === 'trialing' && 
-                       agencyOwner?.trialEndsAt && 
-                       agencyOwner.trialEndsAt.toMillis() > nowTime);
-  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
-  const canPost = isSubscribed && hasAgencyPlan;
 
   if (!canPost) {
     return (
