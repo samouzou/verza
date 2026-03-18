@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -523,6 +523,9 @@ function GigDetailContent() {
   const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
+  const hasPerformancePay = !!gig.affiliateSettings?.isEnabled;
+  const hasBasePay = (gig.ratePerCreator || 0) > 0;
+
   return (
     <>
       <div className="flex flex-col gap-8 pb-20">
@@ -872,9 +875,11 @@ function GigDetailContent() {
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Base Rate per Creator</span>
-                          <span className="font-bold text-2xl text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</span>
+                          <span className="font-bold text-2xl text-primary">
+                            {hasBasePay ? `$${(gig.ratePerCreator || 0).toLocaleString()}` : 'Performance Only'}
+                          </span>
                         </div>
-                        {!canManageGig && (
+                        {!canManageGig && hasBasePay && (
                           <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
                             <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
                             <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
@@ -886,7 +891,7 @@ function GigDetailContent() {
                         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1">
-                              <Link2 className="h-3 w-3" /> Performance Bonus
+                              <Zap className="h-3 w-3" /> Performance Pay
                             </span>
                             <Badge variant="secondary" className="bg-blue-500 text-white hover:bg-blue-600 text-[10px] h-5">
                               {gig.affiliateSettings.rewardType === 'cpc' ? 'Per Click' : 'Per Sale'}
