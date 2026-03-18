@@ -211,7 +211,7 @@ export interface UserProfileFirestoreData {
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;
-  role: "individual_creator" | "agency_owner" | "agency_admin" | "agency_member";
+  role: "individual_creator" | "talent" | "agency_owner" | "agency_admin" | "agency_member";
   isAgencyOwner?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
@@ -483,6 +483,12 @@ export interface Gig {
   campaignType: "standard_sponsorship" | "production_grant";
   usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting?: boolean;
+  affiliateSettings?: {
+    isEnabled: boolean;
+    rewardType: "cpc" | "cpa";
+    rewardAmount: number;
+    destinationUrl: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {

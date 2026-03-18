@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
+import { cn } from '@/lib/utils';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -78,13 +80,21 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         )}
       </CardContent>
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
-        <div className="text-xl font-bold text-primary">
-          {(gig.ratePerCreator || 0) > 0 ? (
-            `$${(gig.ratePerCreator || 0).toLocaleString()}`
-          ) : (
-            <div className="flex items-center gap-1.5 text-blue-600 text-sm">
-              <Zap className="h-4 w-4 fill-blue-600" />
-              <span>Performance Pay</span>
+        <div className="flex flex-col items-start gap-1">
+          <div className="text-xl font-bold text-primary">
+            {(gig.ratePerCreator || 0) > 0 ? (
+              `$${(gig.ratePerCreator || 0).toLocaleString()}`
+            ) : (
+              <div className="flex items-center gap-1.5 text-blue-600 text-sm">
+                <Zap className="h-4 w-4 fill-blue-600" />
+                <span>Performance Pay</span>
+              </div>
+            )}
+          </div>
+          {(gig.ratePerCreator || 0) > 0 && gig.affiliateSettings?.isEnabled && (
+            <div className="flex items-center gap-1 text-blue-600 text-[10px] font-bold uppercase tracking-tight">
+              <Zap className="h-3 w-3 fill-blue-600" />
+              <span>+ Performance</span>
             </div>
           )}
         </div>

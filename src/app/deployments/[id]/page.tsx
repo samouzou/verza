@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -48,6 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import confetti from 'canvas-confetti';
+import { cn } from '@/lib/utils';
 
 function GigDetailContent() {
   const params = useParams();
@@ -836,7 +838,7 @@ function GigDetailContent() {
                                               </div>
                                               <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Est. Bonus</span>
-                                                <span className="text-sm font-bold text-blue-600">${(creatorLink.conversions * gig.affiliateSettings.rewardAmount).toLocaleString()}</span>
+                                                <span className="text-sm font-bold text-blue-600">${(creatorLink.conversions * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}</span>
                                               </div>
                                             </div>
                                           )}

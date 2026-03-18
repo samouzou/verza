@@ -783,6 +783,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     campaignType,
     usageRights,
     allowWhitelisting,
+    affiliateSettings,
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
@@ -846,6 +847,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     status: "pending_payment",
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
+    affiliateSettings: affiliateSettings || null,
   };
 
   if (existingGigId) {
