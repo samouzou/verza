@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -897,9 +896,15 @@ function GigDetailContent() {
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Base Rate per Creator</span>
-                          <span className="font-bold text-2xl text-primary">
-                            {(gig.ratePerCreator || 0) > 0 ? `$${(gig.ratePerCreator || 0).toLocaleString()}` : 'Performance Only'}
-                          </span>
+                          {(gig.ratePerCreator || 0) > 0 ? (
+                            <span className="font-bold text-2xl text-primary">
+                              ${(gig.ratePerCreator || 0).toLocaleString()}
+                            </span>
+                          ) : (
+                            <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight animate-pulse">
+                              <Zap className="h-3.5 w-3.5 mr-1 fill-blue-600" /> Pure Performance
+                            </Badge>
+                          )}
                         </div>
                         {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
                           <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">

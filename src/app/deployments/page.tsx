@@ -1,11 +1,10 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,7 +78,16 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         )}
       </CardContent>
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
-        <div className="text-xl font-bold text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</div>
+        <div className="text-xl font-bold text-primary">
+          {(gig.ratePerCreator || 0) > 0 ? (
+            `$${(gig.ratePerCreator || 0).toLocaleString()}`
+          ) : (
+            <div className="flex items-center gap-1.5 text-blue-600 text-sm">
+              <Zap className="h-4 w-4 fill-blue-600" />
+              <span>Performance Pay</span>
+            </div>
+          )}
+        </div>
         <Button asChild size="sm" variant={isCompleted ? 'outline' : 'default'}>
           <Link href={`/deployments/${gig.id}`}>
             {isCompleted ? 'View Results' : 'View Details'}

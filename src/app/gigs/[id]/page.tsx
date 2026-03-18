@@ -1,18 +1,17 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig, GigSubmission, Notification, Agency } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -55,7 +54,7 @@ function GigDetailContent() {
   const gigId = params.id as string;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
 
   const [gig, setGig] = useState<Gig | null>(null);
@@ -359,7 +358,7 @@ function GigDetailContent() {
     try {
       await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
       
-      const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'rejected'));
+      const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'approved'));
       for (const sub of batch) {
         await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
       }
@@ -796,10 +795,18 @@ function GigDetailContent() {
                   <CardContent className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Rate per Creator</span>
-                          <span className="font-bold text-2xl text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</span>
+                          <span className="text-muted-foreground">Base Rate per Creator</span>
+                          {(gig.ratePerCreator || 0) > 0 ? (
+                            <span className="font-bold text-2xl text-primary">
+                              ${(gig.ratePerCreator || 0).toLocaleString()}
+                            </span>
+                          ) : (
+                            <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight animate-pulse">
+                              <Zap className="h-3.5 w-3.5 mr-1 fill-blue-600" /> Pure Performance
+                            </Badge>
+                          )}
                         </div>
-                        {!canManageGig && (
+                        {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
                           <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
                             <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
                             <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
