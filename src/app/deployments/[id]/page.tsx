@@ -6,13 +6,13 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification, Agency } from '@/types';
+import type { Gig, GigSubmission, Notification, Agency, AffiliateLink } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -71,6 +71,11 @@ function GigDetailContent() {
   
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
+
+  // Affiliate State
+  const [affiliateLink, setAffiliateLink] = useState<AffiliateLink | null>(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Acceptance State
   const [hasAgreedToLegal, setHasAgreedToLegal] = useState(false);
@@ -160,6 +165,18 @@ function GigDetailContent() {
       }
     );
 
+    // Fetch personal affiliate link if applicable
+    if (hasAccepted && gig.affiliateSettings?.isEnabled) {
+      const linksQuery = query(
+        collection(db, 'affiliateLinks'), 
+        where('gigId', '==', gigId), 
+        where('creatorId', '==', user.uid)
+      );
+      onSnapshot(linksQuery, (snap) => {
+        if (!snap.empty) setAffiliateLink({ id: snap.docs[0].id, ...snap.docs[0].data() } as AffiliateLink);
+      });
+    }
+
     return () => unsubscribeSubmissions();
   }, [gig, user, gigId]);
 
@@ -239,6 +256,19 @@ function GigDetailContent() {
       
       await updateDoc(gigDocRef, gigUpdates);
 
+      // Create affiliate link if enabled
+      if (currentGigData.affiliateSettings?.isEnabled) {
+        await addDoc(collection(db, 'affiliateLinks'), {
+          gigId: gig.id,
+          creatorId: user.uid,
+          brandId: gig.brandId,
+          destinationUrl: currentGigData.affiliateSettings.destinationUrl,
+          clicks: 0,
+          conversions: 0,
+          createdAt: serverTimestamp(),
+        });
+      }
+
       trackEvent({ action: 'accept_deployment', category: 'marketplace', label: gig.title });
 
       const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
@@ -264,6 +294,15 @@ function GigDetailContent() {
     } finally {
       setIsAccepting(false);
     }
+  };
+
+  const handleCopyAffiliateLink = () => {
+    if (!affiliateLink) return;
+    const url = `${window.location.origin}/l/${affiliateLink.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    toast({ title: "Link Copied!", description: "Share this unique link to track performance." });
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>, slotIndex: number) => {
@@ -419,6 +458,7 @@ function GigDetailContent() {
         campaignType: gig.campaignType || 'standard_sponsorship',
         usageRights: gig.usageRights || '1_year',
         allowWhitelisting: !!gig.allowWhitelisting,
+        affiliateSettings: gig.affiliateSettings,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -506,6 +546,41 @@ function GigDetailContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8 min-w-0">
+              {hasAccepted && gig.affiliateSettings?.isEnabled && (
+                <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
+                    <CardDescription>Share your unique link to track clicks and earn performance bonuses.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
+                        {affiliateLink ? `${window.location.origin}/l/${affiliateLink.id}` : 'Generating link...'}
+                      </div>
+                      <Button size="icon" onClick={handleCopyAffiliateLink} disabled={!affiliateLink}>
+                        {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-3 border rounded-lg bg-background text-center">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Clicks</p>
+                        <p className="text-xl font-bold">{affiliateLink?.clicks || 0}</p>
+                      </div>
+                      <div className="p-3 border rounded-lg bg-background text-center">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Conversions</p>
+                        <p className="text-xl font-bold">{affiliateLink?.conversions || 0}</p>
+                      </div>
+                      <div className="p-3 border rounded-lg bg-blue-500 text-white text-center">
+                        <p className="text-[10px] uppercase font-bold opacity-80">Bonus Earned</p>
+                        <p className="text-xl font-bold">
+                          ${((affiliateLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="overflow-hidden">
                   <CardHeader>
                     <div className="flex justify-between items-start">
@@ -796,7 +871,7 @@ function GigDetailContent() {
                   <CardContent className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Rate per Creator</span>
+                          <span className="text-muted-foreground">Base Rate per Creator</span>
                           <span className="font-bold text-2xl text-primary">${(gig.ratePerCreator || 0).toLocaleString()}</span>
                         </div>
                         {!canManageGig && (
@@ -806,6 +881,22 @@ function GigDetailContent() {
                           </div>
                         )}
                       </div>
+
+                      {gig.affiliateSettings?.isEnabled && (
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1">
+                              <Link2 className="h-3 w-3" /> Performance Bonus
+                            </span>
+                            <Badge variant="secondary" className="bg-blue-500 text-white hover:bg-blue-600 text-[10px] h-5">
+                              {gig.affiliateSettings.rewardType === 'cpc' ? 'Per Click' : 'Per Sale'}
+                            </Badge>
+                          </div>
+                          <p className="text-xl font-black text-blue-700">${gig.affiliateSettings.rewardAmount.toLocaleString()}</p>
+                          <p className="text-[10px] text-blue-600/80 leading-tight">Paid automatically for every verified {gig.affiliateSettings.rewardType === 'cpc' ? 'click' : 'conversion'}.</p>
+                        </div>
+                      )}
+
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                       {!isCompleted && (
                         <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>

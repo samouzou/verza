@@ -481,6 +481,12 @@ export interface Gig {
   campaignType: 'standard_sponsorship' | 'production_grant';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
+  affiliateSettings?: {
+    isEnabled: boolean;
+    rewardType: 'cpc' | 'cpa';
+    rewardAmount: number;
+    destinationUrl: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {
@@ -514,6 +520,22 @@ export interface GigSubmission {
   verzaScore: number;
   verzaFeedback: string;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  createdAt: ClientTimestamp;
+  affiliateMetrics?: {
+    clicks: number;
+    conversions: number;
+    earned: number;
+  };
+}
+
+export interface AffiliateLink {
+  id: string;
+  gigId: string;
+  creatorId: string;
+  brandId: string;
+  destinationUrl: string;
+  clicks: number;
+  conversions: number;
   createdAt: ClientTimestamp;
 }
 

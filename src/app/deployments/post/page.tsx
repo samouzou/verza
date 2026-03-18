@@ -20,7 +20,10 @@ import {
   ShieldCheck, 
   Scale, 
   Info,
-  FileText 
+  FileText,
+  Link2,
+  MousePointer2,
+  Target
 } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,6 +47,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Switch } from '@/components/ui/switch';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -77,6 +81,12 @@ export default function PostGigPage() {
   // Legal Fields
   const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
+
+  // Affiliate / Performance Fields
+  const [isAffiliateEnabled, setIsAffiliateEnabled] = useState(false);
+  const [rewardType, setRewardType] = useState<'cpc' | 'cpa'>('cpa');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [destinationUrl, setDestinationUrl] = useState('');
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
@@ -183,6 +193,11 @@ export default function PostGigPage() {
       toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
       return;
     }
+
+    if (isAffiliateEnabled && (!destinationUrl.trim() || !rewardAmount)) {
+      toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and reward amount.', variant: 'destructive' });
+      return;
+    }
     
     setIsSubmitting(true);
     toast({ title: "Redirecting to Payment", description: "Please complete the payment to launch your deployment." });
@@ -190,7 +205,8 @@ export default function PostGigPage() {
     try {
       trackEvent({ action: 'fund_deployment_start', category: 'marketplace', label: title });
       const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
-      const result = await createCheckout({
+      
+      const payload: any = {
         title: title.trim(),
         description: description.trim(),
         platforms: selectedPlatforms,
@@ -200,7 +216,18 @@ export default function PostGigPage() {
         campaignType,
         usageRights,
         allowWhitelisting,
-      });
+      };
+
+      if (isAffiliateEnabled) {
+        payload.affiliateSettings = {
+          isEnabled: true,
+          rewardType,
+          rewardAmount: parseFloat(rewardAmount),
+          destinationUrl: destinationUrl.trim(),
+        };
+      }
+
+      const result = await createCheckout(payload);
       const data = result.data as { url?: string };
       if (data.url) {
           window.location.href = data.url;
@@ -380,7 +407,7 @@ export default function PostGigPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                        <Label htmlFor="rate">Rate per Creator ($)</Label>
+                        <Label htmlFor="rate">Base Rate per Creator ($)</Label>
                         <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" required min="1" disabled={isSubmitting}/>
                     </div>
                     <div className="space-y-2">
@@ -395,9 +422,49 @@ export default function PostGigPage() {
               </CardContent>
             </Card>
 
+            <Card className="shadow-lg border-blue-500/20 bg-blue-50/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 3. Performance Rewards</CardTitle>
+                    <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
+                  </div>
+                  <Switch checked={isAffiliateEnabled} onCheckedChange={setIsAffiliateEnabled} />
+                </div>
+              </CardHeader>
+              {isAffiliateEnabled && (
+                <CardContent className="space-y-6 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="rewardType">Reward Logic</Label>
+                      <RadioGroup value={rewardType} onValueChange={(val) => setRewardType(val as any)} className="flex gap-4 mt-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="cpc" id="cpc" />
+                          <Label htmlFor="cpc" className="font-normal flex items-center gap-1"><MousePointer2 className="h-3 w-3" /> Per Click</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="cpa" id="cpa" />
+                          <Label htmlFor="cpa" className="font-normal flex items-center gap-1"><Target className="h-3 w-3" /> Per Conversion</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rewardAmount">Reward Amount ($)</Label>
+                      <Input id="rewardAmount" type="number" value={rewardAmount} onChange={e => setRewardAmount(e.target.value)} placeholder={rewardType === 'cpc' ? "0.10" : "25.00"} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="destinationUrl">Destination Link</Label>
+                    <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" />
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Creators will receive a unique tracking link pointing to this URL.</p>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
             <Card className="shadow-lg border-primary/10">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 4. Usage Rights & Legal</CardTitle>
                 <CardDescription>Define how you plan to use the content created for this deployment.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -452,104 +519,6 @@ export default function PostGigPage() {
                     disabled={campaignType === 'production_grant'}
                   />
                 </div>
-
-                <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    By funding this deployment, you agree to Verza's 
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button type="button" className="text-primary hover:underline font-medium mx-1">
-                          Terms of Service
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-primary" />
-                            Terms of Service
-                          </DialogTitle>
-                          <DialogDescription>
-                            General terms and conditions for using the Verza platform.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
-                          <div className="space-y-4 text-sm leading-relaxed">
-                            <p className="font-bold">1. ACCEPTANCE</p>
-                            <p>
-                              By accessing or using the Verza platform, you agree to be bound by these Terms of Service. 
-                              If you are using the platform on behalf of an agency or brand, you represent that you 
-                              have the authority to bind that entity to these terms.
-                            </p>
-                            <p className="font-bold">2. DEPLOYMENT NETWORK ROLE</p>
-                            <p>
-                              Verza provides a network for brands and creators to collaborate. Verza is not a 
-                              party to the specific creative agreements except as specified in the Escrow and 
-                              Payment sections.
-                            </p>
-                            <p className="font-bold">3. ACCOUNT SECURITY</p>
-                            <p>
-                              You are responsible for maintaining the confidentiality of your account credentials 
-                              and for all activities that occur under your account.
-                            </p>
-                          </div>
-                        </ScrollArea>
-                        <DialogFooter className="mt-4">
-                          <DialogClose asChild>
-                            <Button variant="outline">Close</Button>
-                          </DialogClose>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    and 
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button type="button" className="text-primary hover:underline font-medium mx-1">
-                          Escrow Agreement
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-primary" />
-                            Escrow & Payment Agreement
-                          </DialogTitle>
-                          <DialogDescription>
-                            Rules governing deployment funding and secure creator payouts.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
-                          <div className="space-y-4 text-sm leading-relaxed">
-                            <p className="font-bold">1. CAMPAIGN VAULT</p>
-                            <p>
-                              When you launch a deployment, you are required to pre-fund the total campaign cost. 
-                              These funds are held by Verza in a secure Campaign Vault (Escrow).
-                            </p>
-                            <p className="font-bold">2. VERIFICATION & RELEASE</p>
-                            <p>
-                              Funds are only released to a creator once they have submitted their work and 
-                              you have manually approved the verified submission in your dashboard. 
-                              Once approved, the release is final and non-refundable.
-                            </p>
-                            <p className="font-bold">3. DISPUTE RESOLUTION</p>
-                            <p>
-                              In the event of a non-responsive creator or failed quality score, funds remain 
-                              in the vault. Brands may request a refund for unspent escrow funds after 30 
-                              days of deployment inactivity.
-                            </p>
-                          </div>
-                        </ScrollArea>
-                        <DialogFooter className="mt-4">
-                          <DialogClose asChild>
-                            <Button variant="outline">Close</Button>
-                          </DialogClose>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    . Verza will hold all payments securely until verified submission approval and will generate a 
-                    binding clickwrap agreement with the selected creators based on these deployment terms.
-                  </p>
-                </div>
               </CardContent>
             </Card>
 
@@ -558,7 +527,7 @@ export default function PostGigPage() {
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
                   <p className="text-sm text-muted-foreground font-medium">Total Deployment Funding Required</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
+                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} base rate)</p>
                 </div>
               )}
 
