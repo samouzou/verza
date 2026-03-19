@@ -477,7 +477,7 @@ export interface Gig {
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
-  status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
+  status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
   createdAt: ClientTimestamp;
   campaignType: 'standard_sponsorship' | 'production_grant';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
@@ -541,6 +541,8 @@ export interface AffiliateLink {
   promoCode?: string;
   clicks: number;
   conversions: number;
+  earnedRewards?: number;
+  lifetimePaidOut?: number;
   createdAt: ClientTimestamp;
 }
 

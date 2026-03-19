@@ -282,6 +282,7 @@ function GigDetailContent() {
           ...(generatedPromoCode && { promoCode: generatedPromoCode }),
           clicks: 0,
           conversions: 0,
+          earnedRewards: 0,
           createdAt: serverTimestamp(),
         });
       }
@@ -620,7 +621,12 @@ function GigDetailContent() {
                       <div className="p-3 border rounded-lg bg-blue-500 text-white text-center">
                         <p className="text-[10px] uppercase font-bold opacity-80">Bonus Earned</p>
                         <p className="text-xl font-bold">
-                          ${((myLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}
+                          ${(Math.max(
+                            myLink?.earnedRewards || 0,
+                            gig.affiliateSettings?.rewardType === 'cpc'
+                              ? (myLink?.clicks || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                              : (myLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                          )).toLocaleString()}
                         </p>
                       </div>
                     </div>

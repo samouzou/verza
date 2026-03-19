@@ -80,25 +80,46 @@ export const conversionWebhook = onRequest(async (req, res) => {
     const gigData = gigSnap.data();
     const rewardAmount = gigData?.affiliateSettings?.rewardAmount || 0;
 
+    let budgetExhausted = false;
+
     await db.runTransaction(async (transaction) => {
       transaction.update(affiliateLinkRef, {
         conversions: admin.firestore.FieldValue.increment(1),
       });
 
       if (rewardAmount > 0) {
-        transaction.update(affiliateLinkRef, {
-          earnedRewards: admin.firestore.FieldValue.increment(rewardAmount),
-        });
+        const currentAgencySnap = await transaction.get(agencyRef);
+        const currentAgencyData = currentAgencySnap.data();
 
-        if (agencyData && (agencyData.availableBalance || 0) >= rewardAmount) {
+        if (currentAgencyData && (currentAgencyData.availableBalance || 0) >= rewardAmount) {
+          transaction.update(affiliateLinkRef, {
+            earnedRewards: admin.firestore.FieldValue.increment(rewardAmount),
+          });
+
           transaction.update(agencyRef, {
             availableBalance: admin.firestore.FieldValue.increment(-rewardAmount),
           });
+        } else {
+          budgetExhausted = true;
+          // Halt payments and mark the gig as budget exhausted
+          transaction.update(gigSnap.ref, {status: "budget_exhausted"});
         }
       }
     });
 
-    if (rewardAmount > 0) {
+    if (budgetExhausted) {
+      await db.collection("notifications").add({
+        userId: agencyData?.ownerId,
+        title: "Campaign Paused: Insufficient Funds",
+        message: `Your campaign "${gigData?.title}" tracking links have been paused due to insufficient wallet funds.`,
+        type: "system",
+        read: false,
+        link: "/wallet",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      logger.warn(`Agency ${agencyId} exhausted budget on gig ${gigId} during conversion.`);
+      // We still processed the conversion count, but no reward was paid out
+    } else if (rewardAmount > 0) {
       await db.collection("notifications").add({
         userId: creatorId,
         title: "Performance Bonus Earned!",

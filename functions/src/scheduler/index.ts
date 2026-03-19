@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
+import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract} from "./../types";
 import {sendEmailSequence} from "../notifications";
 import * as params from "../config/params";
@@ -356,5 +357,89 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
     logger.info(`Processed ${usersSnapshot.size} users for the drip campaign.`);
   } catch (error) {
     logger.error("Error in sendDripCampaignEmails:", error);
+  }
+});
+
+export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
+  logger.info("Starting processAffiliatePayouts function.");
+  const stripeKey = params.STRIPE_SECRET_KEY.value();
+  if (!stripeKey) {
+    logger.error("STRIPE_SECRET_KEY not set. Cannot process affiliate payouts.");
+    return;
+  }
+  const stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil" as any});
+
+  try {
+    const affiliateLinksSnap = await db.collection("affiliateLinks")
+      .where("earnedRewards", ">", 0)
+      .get();
+
+    if (affiliateLinksSnap.empty) {
+      logger.info("No creators have pending affiliate rewards.");
+      return;
+    }
+
+    // Group earned rewards by creator ID
+    const payoutsByCreator: Record<string, {
+      totalAmount: number,
+      linkDocs: admin.firestore.QueryDocumentSnapshot[]
+    }> = {};
+
+    for (const doc of affiliateLinksSnap.docs) {
+      const link = doc.data();
+      const creatorId = link.creatorId;
+      const earned = link.earnedRewards || 0;
+
+      if (!payoutsByCreator[creatorId]) {
+        payoutsByCreator[creatorId] = {totalAmount: 0, linkDocs: []};
+      }
+      payoutsByCreator[creatorId].totalAmount += earned;
+      payoutsByCreator[creatorId].linkDocs.push(doc);
+    }
+
+    for (const [creatorId, payoutData] of Object.entries(payoutsByCreator)) {
+      const totalAmount = payoutData.totalAmount;
+      if (totalAmount <= 0) continue;
+
+      const creatorDoc = await db.collection("users").doc(creatorId).get();
+      if (!creatorDoc.exists) continue;
+      const creator = creatorDoc.data() as UserProfileFirestoreData;
+
+      if (!creator.stripeAccountId || !creator.stripePayoutsEnabled) {
+        logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no ready Stripe account.`);
+        continue;
+      }
+
+      const amountInCents = Math.round(totalAmount * 100);
+
+      try {
+        await stripe.transfers.create({
+          amount: amountInCents,
+          currency: "usd",
+          destination: creator.stripeAccountId,
+          description: "Monthly Affiliate Earnings Payout",
+          metadata: {
+            creatorId: creatorId,
+            type: "affiliate_monthly_payout",
+          },
+        });
+
+        const batch = db.batch();
+        for (const linkDoc of payoutData.linkDocs) {
+          const currentEarned = linkDoc.data().earnedRewards || 0;
+          batch.update(linkDoc.ref, {
+            earnedRewards: 0,
+            lifetimePaidOut: admin.firestore.FieldValue.increment(currentEarned),
+          });
+        }
+        await batch.commit();
+
+        logger.info(`Paid $${totalAmount} to creator ${creatorId} for affiliate earnings.`);
+      } catch (stripeErr) {
+        logger.error(`Failed to process Stripe transfer for ${creatorId}:`, stripeErr);
+      }
+    }
+  } catch (error) {
+    logger.error("Error in processAffiliatePayouts:", error);
   }
 });
