@@ -374,6 +374,7 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
 }
 
 export interface AgencyMembership {
@@ -486,6 +487,9 @@ export interface Gig {
     rewardType: 'cpc' | 'cpa';
     rewardAmount: number;
     destinationUrl: string;
+    trackingMethod?: 'link_only' | 'promo_code_only' | 'both';
+    promoCodeDiscountValue?: string;
+    promoCodePrefix?: string;
   };
 }
 
@@ -534,6 +538,7 @@ export interface AffiliateLink {
   creatorId: string;
   brandId: string;
   destinationUrl: string;
+  promoCode?: string;
   clicks: number;
   conversions: number;
   createdAt: ClientTimestamp;

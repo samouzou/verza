@@ -77,7 +77,7 @@ export default function PostGigPage() {
   
   // Base Rate Logic
   const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
-  const [ratePerCreator, setRatePerCreator] = useState('250');
+  const [ratePerCreator, setRatePerCreator] = useState('2500');
   
   const [creatorsNeeded, setCreatorsNeeded] = useState('10');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
@@ -92,6 +92,10 @@ export default function PostGigPage() {
   const [rewardType, setRewardType] = useState<'cpc' | 'cpa'>('cpa');
   const [rewardAmount, setRewardAmount] = useState('');
   const [destinationUrl, setDestinationUrl] = useState('');
+
+  const [trackingMethod, setTrackingMethod] = useState<'link_only' | 'promo_code_only' | 'both'>('link_only');
+  const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
+  const [promoCodePrefix, setPromoCodePrefix] = useState('');
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
@@ -205,9 +209,15 @@ export default function PostGigPage() {
       return;
     }
 
-    if (isAffiliateEnabled && (!destinationUrl.trim() || !rewardAmount || parseFloat(rewardAmount) <= 0)) {
-      toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and valid reward amount.', variant: 'destructive' });
-      return;
+    if (isAffiliateEnabled) {
+      if (!destinationUrl.trim() || !rewardAmount || parseFloat(rewardAmount) <= 0) {
+        toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and valid reward amount.', variant: 'destructive' });
+        return;
+      }
+      if ((trackingMethod === 'promo_code_only' || trackingMethod === 'both') && !promoCodePrefix.trim()) {
+        toast({ title: 'Promo Code Prefix Missing', description: 'Please provide a prefix for the promo codes.', variant: 'destructive' });
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -246,6 +256,9 @@ export default function PostGigPage() {
             rewardType,
             rewardAmount: parseFloat(rewardAmount),
             destinationUrl: destinationUrl.trim(),
+            trackingMethod,
+            promoCodeDiscountValue: promoCodeDiscountValue.trim(),
+            promoCodePrefix: promoCodePrefix.trim().toUpperCase()
           }
         };
 
@@ -277,6 +290,9 @@ export default function PostGigPage() {
           rewardType,
           rewardAmount: parseFloat(rewardAmount),
           destinationUrl: destinationUrl.trim(),
+          trackingMethod,
+          promoCodeDiscountValue: promoCodeDiscountValue.trim(),
+          promoCodePrefix: promoCodePrefix.trim().toUpperCase()
         };
       }
 
@@ -487,7 +503,7 @@ export default function PostGigPage() {
                     <Label htmlFor="rate">Base Rate per Creator ($)</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="250" className="pl-9" required min="1" disabled={isSubmitting}/>
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting}/>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">This amount is pre-funded and held in escrow.</p>
                   </div>
@@ -534,6 +550,38 @@ export default function PostGigPage() {
                     <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" />
                     <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Creators will receive a unique tracking link pointing to this URL.</p>
                   </div>
+                  <div className="space-y-4 pt-4 border-t border-blue-500/10">
+                    <Label className="text-base font-semibold">Tracking Method</Label>
+                    <RadioGroup value={trackingMethod} onValueChange={(val) => setTrackingMethod(val as any)} className="flex flex-col gap-3">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="link_only" id="link_only" />
+                        <Label htmlFor="link_only" className="font-normal cursor-pointer">Affiliate Link Only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="promo_code_only" id="promo_code_only" />
+                        <Label htmlFor="promo_code_only" className="font-normal cursor-pointer">Promo Codes Only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="both" id="both" />
+                        <Label htmlFor="both" className="font-normal cursor-pointer">Both Links and Promo Codes</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {(trackingMethod === 'promo_code_only' || trackingMethod === 'both') && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-blue-500/10">
+                      <div className="space-y-2">
+                        <Label htmlFor="promoCodePrefix">Promo Code Prefix <span className="text-destructive">*</span></Label>
+                        <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isSubmitting} required={isAffiliateEnabled} />
+                        <p className="text-[10px] text-muted-foreground">Used to generate unique codes per creator (e.g. SUMMER-JULIA30).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="promoCodeDiscountValue">Discount Value presented to audience</Label>
+                        <Input id="promoCodeDiscountValue" value={promoCodeDiscountValue} onChange={e => setPromoCodeDiscountValue(e.target.value)} placeholder="e.g. 15% Off or $20 Off" disabled={isSubmitting} />
+                        <p className="text-[10px] text-muted-foreground">Let the creator know what discount they are pitching.</p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               )}
             </Card>

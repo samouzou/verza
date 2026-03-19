@@ -84,6 +84,10 @@ export default function EditGigPage() {
   const [rewardAmount, setRewardAmount] = useState('');
   const [destinationUrl, setDestinationUrl] = useState('');
   
+  const [trackingMethod, setTrackingMethod] = useState<'link_only' | 'promo_code_only' | 'both'>('link_only');
+  const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
+  const [promoCodePrefix, setPromoCodePrefix] = useState('');
+  
   useEffect(() => {
     if (!gigId) return;
 
@@ -117,6 +121,9 @@ export default function EditGigPage() {
               setRewardType(gigData.affiliateSettings?.rewardType || 'cpa');
               setRewardAmount(String(gigData.affiliateSettings?.rewardAmount || ''));
               setDestinationUrl(gigData.affiliateSettings?.destinationUrl || '');
+              setTrackingMethod(gigData.affiliateSettings?.trackingMethod || 'link_only');
+              setPromoCodeDiscountValue(gigData.affiliateSettings?.promoCodeDiscountValue || '');
+              setPromoCodePrefix(gigData.affiliateSettings?.promoCodePrefix || '');
           } else {
               toast({ title: 'Deployment not found', variant: 'destructive' });
               router.push('/deployments');
@@ -160,9 +167,15 @@ export default function EditGigPage() {
       return;
     }
 
-    if (!isBaseRateEnabled && !isAffiliateEnabled) {
-      toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
-      return;
+    if (isAffiliateEnabled) {
+      if (!destinationUrl.trim() || !rewardAmount || parseFloat(rewardAmount) <= 0) {
+        toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and valid reward amount.', variant: 'destructive' });
+        return;
+      }
+      if ((trackingMethod === 'promo_code_only' || trackingMethod === 'both') && !promoCodePrefix.trim()) {
+        toast({ title: 'Promo Code Prefix Missing', description: 'Please provide a prefix for the promo codes.', variant: 'destructive' });
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -172,12 +185,12 @@ export default function EditGigPage() {
             campaignType,
             title: title.trim(),
             description: description.trim(),
-            platforms: selectedPlatforms,
+            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook")[],
             ratePerCreator: rateNum,
             creatorsNeeded: creatorsNum,
             videosPerCreator: videosNum,
             usageRights,
-            allowWhitelisting,
+            allowWhitelisting: allowWhitelisting ?? false,
         };
 
         if (isAffiliateEnabled) {
@@ -186,6 +199,9 @@ export default function EditGigPage() {
             rewardType,
             rewardAmount: parseFloat(rewardAmount) || 0,
             destinationUrl: destinationUrl.trim(),
+            trackingMethod,
+            promoCodeDiscountValue: promoCodeDiscountValue.trim(),
+            promoCodePrefix: promoCodePrefix.trim().toUpperCase()
           };
         } else {
           updates.affiliateSettings = {
@@ -210,7 +226,7 @@ export default function EditGigPage() {
   };
 
   const canManageGig = user && gig && (user.primaryAgencyId === gig.brandId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
-  const isFunded = gig && gig.status !== 'pending_payment';
+  const isFunded = Boolean(gig && gig.status !== 'pending_payment');
 
   if (authLoading || isLoadingGig) {
     return (
@@ -355,7 +371,7 @@ export default function EditGigPage() {
                   <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
                   <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
                 </div>
-                <Switch checked={isBaseRateEnabled} onCheckedChange={setIsBaseRateEnabled} disabled={isFunded || isSubmitting} />
+                <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isFunded || isSubmitting} />
               </div>
             </CardHeader>
             {isBaseRateEnabled && (
@@ -364,7 +380,7 @@ export default function EditGigPage() {
                   <Label htmlFor="rate">Base Rate per Creator ($)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="250" className="pl-9" required min="1" disabled={isSubmitting || isFunded}/>
+                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isFunded}/>
                   </div>
                 </div>
               </CardContent>
@@ -378,7 +394,7 @@ export default function EditGigPage() {
                   <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 4. Performance Rewards</CardTitle>
                   <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
                 </div>
-                <Switch checked={isAffiliateEnabled} onCheckedChange={setIsAffiliateEnabled} disabled={isSubmitting} />
+                <Switch checked={isAffiliateEnabled ?? false} onCheckedChange={setIsAffiliateEnabled} disabled={isSubmitting} />
               </div>
             </CardHeader>
             {isAffiliateEnabled && (
@@ -409,6 +425,39 @@ export default function EditGigPage() {
                   <Label htmlFor="destinationUrl">Destination Link</Label>
                   <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" disabled={isSubmitting} />
                 </div>
+                
+                <div className="space-y-4 pt-4 border-t border-blue-500/10">
+                  <Label className="text-base font-semibold">Tracking Method</Label>
+                  <RadioGroup value={trackingMethod} onValueChange={(val) => setTrackingMethod(val as any)} className="flex flex-col gap-3" disabled={isSubmitting}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="link_only" id="link_only" />
+                      <Label htmlFor="link_only" className="font-normal cursor-pointer">Affiliate Link Only</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="promo_code_only" id="promo_code_only" />
+                      <Label htmlFor="promo_code_only" className="font-normal cursor-pointer">Promo Codes Only</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="both" id="both" />
+                      <Label htmlFor="both" className="font-normal cursor-pointer">Both Links and Promo Codes</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {(trackingMethod === 'promo_code_only' || trackingMethod === 'both') && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-blue-500/10">
+                    <div className="space-y-2">
+                      <Label htmlFor="promoCodePrefix">Promo Code Prefix <span className="text-destructive">*</span></Label>
+                      <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isSubmitting} required={isAffiliateEnabled} />
+                      <p className="text-[10px] text-muted-foreground">Used to generate unique codes per creator (e.g. SUMMER-JULIA30).</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="promoCodeDiscountValue">Discount Value presented to audience</Label>
+                      <Input id="promoCodeDiscountValue" value={promoCodeDiscountValue} onChange={e => setPromoCodeDiscountValue(e.target.value)} placeholder="e.g. 15% Off or $20 Off" disabled={isSubmitting} />
+                      <p className="text-[10px] text-muted-foreground">Let the creator know what discount they are pitching.</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             )}
           </Card>

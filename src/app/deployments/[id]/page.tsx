@@ -264,11 +264,22 @@ function GigDetailContent() {
 
       // Create affiliate link if enabled
       if (currentGigData.affiliateSettings?.isEnabled) {
+        let generatedPromoCode = undefined;
+        const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
+
+        if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
+            const prefix = currentGigData.affiliateSettings.promoCodePrefix || 'PROMO';
+            const namePart = (user.displayName || 'CREATOR').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+            generatedPromoCode = `${prefix}-${namePart}${randomCode}`;
+        }
+
         await addDoc(collection(db, 'affiliateLinks'), {
           gigId: gig.id,
           creatorId: user.uid,
           brandId: gig.brandId,
           destinationUrl: currentGigData.affiliateSettings.destinationUrl,
+          ...(generatedPromoCode && { promoCode: generatedPromoCode }),
           clicks: 0,
           conversions: 0,
           createdAt: serverTimestamp(),
@@ -558,18 +569,46 @@ function GigDetailContent() {
                 <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg animate-in zoom-in-95 duration-300">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
-                    <CardDescription>Share your unique link to track performance and earn bonuses.</CardDescription>
+                    <CardDescription>Share your unique tracking hook to track performance and earn bonuses.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
-                        {myLink ? `${window.location.origin}/l/${myLink.id}` : 'Generating link...'}
+                    {(!gig.affiliateSettings?.trackingMethod || gig.affiliateSettings.trackingMethod === 'link_only' || gig.affiliateSettings.trackingMethod === 'both') && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Tracking Link</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
+                            {myLink ? `${window.location.origin}/l/${myLink.id}` : 'Generating link...'}
+                          </div>
+                          <Button size="icon" onClick={() => handleCopyAffiliateLink(myLink?.id)} disabled={!myLink}>
+                            {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
                       </div>
-                      <Button size="icon" onClick={() => handleCopyAffiliateLink(myLink?.id)} disabled={!myLink}>
-                        {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    )}
+                    
+                    {myLink?.promoCode && (gig.affiliateSettings?.trackingMethod === 'promo_code_only' || gig.affiliateSettings?.trackingMethod === 'both') && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Promo Code</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm font-bold text-center tracking-wider text-xl">
+                            {myLink.promoCode}
+                          </div>
+                          <Button size="icon" onClick={() => {
+                            navigator.clipboard.writeText(myLink.promoCode || '');
+                            toast({ title: "Promo Code Copied!" });
+                          }}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {gig.affiliateSettings.promoCodeDiscountValue && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Pitch this code to your audience for <strong>{gig.affiliateSettings.promoCodeDiscountValue}</strong> down!
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-4 pt-2">
                       <div className="p-3 border rounded-lg bg-background text-center">
                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Clicks</p>
                         <p className="text-xl font-bold">{myLink?.clicks || 0}</p>

@@ -73,6 +73,7 @@ import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
 import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
+import {conversionWebhook} from "./webhooks";
 
 // Export v2 functions
 export {
@@ -115,6 +116,7 @@ export {
   syncInstagramStats,
   syncYouTubeStats,
   syncTikTokStats,
+  conversionWebhook,
 };
 
 // Import and export v1 auth trigger using require/exports

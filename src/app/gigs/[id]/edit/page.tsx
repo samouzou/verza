@@ -125,7 +125,7 @@ export default function EditGigPage() {
             campaignType,
             title: title.trim(),
             description: description.trim(),
-            platforms: selectedPlatforms,
+            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook")[],
             ratePerCreator: rateNum,
             creatorsNeeded: creatorsNum,
             videosPerCreator: videosNum,
@@ -147,7 +147,7 @@ export default function EditGigPage() {
   };
 
   const canManageGig = user && gig && (user.primaryAgencyId === gig.brandId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
-  const isFunded = gig && gig.status !== 'pending_payment';
+  const isFunded = Boolean(gig && gig.status !== 'pending_payment');
 
   if (authLoading || isLoadingGig) {
     return (
