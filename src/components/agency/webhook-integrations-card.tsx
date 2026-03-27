@@ -5,11 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Webhook, Copy, Check, RefreshCw, Loader2 } from 'lucide-react';
+import { Webhook, Copy, Check, RefreshCw, Loader2, Store } from 'lucide-react';
 import type { Agency } from '@/types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface WebhookIntegrationsCardProps {
   agency: Agency;
@@ -96,6 +102,40 @@ export function WebhookIntegrationsCard({ agency, disabled }: WebhookIntegration
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground">Used to sign webhook payloads. Keep this safe and do not expose it.</p>
+        </div>
+
+        <div className="pt-4 border-t border-border/50">
+          <Label className="text-sm font-semibold mb-2 block flex items-center gap-2">
+            <Store className="h-4 w-4" /> Integration Guides
+          </Label>
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="shopify">
+              <AccordionTrigger className="text-xs font-medium py-3">Shopify Integration</AccordionTrigger>
+              <AccordionContent className="text-xs text-muted-foreground space-y-2">
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li>In your Shopify Admin, go to <strong>Settings</strong> &gt; <strong>Notifications</strong>.</li>
+                  <li>Scroll down to Webhooks and click <strong>Create webhook</strong>.</li>
+                  <li>Set Event to <strong>Order creation</strong> and Format to <strong>JSON</strong>.</li>
+                  <li>Paste your Verza Endpoint URL in the URL field.</li>
+                  <li>Select the Latest Webhook API Version and <strong>Save</strong>.</li>
+                  <li>Note: Make sure your Verza Promo Codes match your active Shopify Discount Codes!</li>
+                </ol>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="woocommerce">
+              <AccordionTrigger className="text-xs font-medium py-3">WooCommerce Integration</AccordionTrigger>
+              <AccordionContent className="text-xs text-muted-foreground space-y-2">
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li>Go to <strong>WooCommerce</strong> &gt; <strong>Settings</strong> &gt; <strong>Advanced</strong> &gt; <strong>Webhooks</strong>.</li>
+                  <li>Click <strong>Add webhook</strong>.</li>
+                  <li>Set Status to <strong>Active</strong> and Topic to <strong>Order created</strong>.</li>
+                  <li>Paste your Verza Endpoint URL in the <strong>Delivery URL</strong> field.</li>
+                  <li>Paste your generated Verza Webhook Secret (above) into the <strong>Secret</strong> field.</li>
+                  <li>Select up to date API Version and click <strong>Save Webhook</strong>.</li>
+                </ol>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       </CardContent>
     </Card>

@@ -883,7 +883,14 @@ function GigDetailContent() {
                                               </div>
                                               <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Est. Bonus</span>
-                                                <span className="text-sm font-bold text-blue-600">${(creatorLink.conversions * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}</span>
+                                                <span className="text-sm font-bold text-blue-600">
+                                                  ${(Math.max(
+                                                    creatorLink.earnedRewards || 0,
+                                                    gig.affiliateSettings?.rewardType === 'cpc'
+                                                      ? (creatorLink.clicks || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                                                      : (creatorLink.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                                                  )).toLocaleString()}
+                                                </span>
                                               </div>
                                             </div>
                                           )}
