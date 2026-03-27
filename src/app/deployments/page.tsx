@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
+import { cn } from '@/lib/utils';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 
@@ -78,18 +80,26 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
         )}
       </CardContent>
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
-        <div className="text-xl font-bold text-primary">
-          {(gig.ratePerCreator || 0) > 0 ? (
-            `$${(gig.ratePerCreator || 0).toLocaleString()}`
-          ) : (
-            <div className="flex items-center gap-1.5 text-blue-600 text-sm">
-              <Zap className="h-4 w-4 fill-blue-600" />
-              <span>Performance Pay</span>
+        <div className="flex flex-col items-start gap-1">
+          <div className="text-xl font-bold text-primary">
+            {(gig.ratePerCreator || 0) > 0 ? (
+              `$${(gig.ratePerCreator || 0).toLocaleString()}`
+            ) : (
+              <div className="flex items-center gap-1.5 text-blue-600 text-sm">
+                <Zap className="h-4 w-4 fill-blue-600" />
+                <span>Performance Pay</span>
+              </div>
+            )}
+          </div>
+          {(gig.ratePerCreator || 0) > 0 && gig.affiliateSettings?.isEnabled && (
+            <div className="flex items-center gap-1 text-blue-600 text-[10px] font-bold uppercase tracking-tight">
+              <Zap className="h-3 w-3 fill-blue-600" />
+              <span>+ Performance</span>
             </div>
           )}
         </div>
         <Button asChild size="sm" variant={isCompleted ? 'outline' : 'default'}>
-          <Link href={`/gigs/${gig.id}`}>
+          <Link href={`/deployments/${gig.id}`}>
             {isCompleted ? 'View Results' : 'View Details'}
           </Link>
         </Button>
@@ -207,8 +217,8 @@ export default function GigsPage() {
   return (
     <>
       <PageHeader
-        title="Marketplace"
-        description="Discover deployment opportunities or manage your active campaigns."
+        title="Deployments"
+        description="Discover enterprise campaigns or manage your active deployments."
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => startTour(marketplaceTour)}>
@@ -216,8 +226,9 @@ export default function GigsPage() {
             </Button>
             {canPostGig && (
               <Button asChild>
-                <Link href="/gigs/post">
-                  Launch New Deployment
+                <Link href="/deployments/post">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Deploy Capital
                 </Link>
               </Button>
             )}
@@ -307,7 +318,7 @@ export default function GigsPage() {
                   <h3 className="text-xl font-semibold">{myGigs.length === 0 ? "No Active Deployments" : "No Matching Deployments"}</h3>
                   <p className="text-muted-foreground mt-2">
                     {myGigs.length === 0 
-                      ? "Deployments you've accepted or launched will appear here." 
+                      ? "Deployments you've secured or launched will appear here." 
                       : "None of your active deployments match the current filters."}
                   </p>
                   {myGigs.length > 0 && <Button variant="outline" className="mt-4" onClick={clearFilters}>Reset Filters</Button>}

@@ -122,6 +122,21 @@ service cloud.firestore {
       );
     }
 
+    // Rules for affiliate links
+    match /affiliateLinks/{linkId} {
+      // Public needs to read to get the destination URL for redirect
+      // Auth users need to read to see metrics in their dashboard
+      allow read: if true; 
+      
+      // Creators create their links when securing a deployment
+      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+      
+      // Publicly allowed to increment clicks, but nothing else
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']);
+      
+      allow delete: if false;
+    }
+
     // Rules for notifications
     match /notifications/{notificationId} {
       allow read: if isOwner(resource.data.userId);

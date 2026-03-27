@@ -35,6 +35,7 @@ import {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  processAffiliatePayouts,
 } from "./scheduler";
 
 import {
@@ -73,6 +74,8 @@ import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
 import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
+import {conversionWebhook} from "./webhooks";
+import {onAffiliateLinkClick} from "./tracking";
 
 // Export v2 functions
 export {
@@ -92,6 +95,7 @@ export {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  processAffiliatePayouts,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
@@ -115,6 +119,8 @@ export {
   syncInstagramStats,
   syncYouTubeStats,
   syncTikTokStats,
+  conversionWebhook,
+  onAffiliateLinkClick,
 };
 
 // Import and export v1 auth trigger using require/exports
