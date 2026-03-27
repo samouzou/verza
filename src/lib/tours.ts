@@ -1,13 +1,15 @@
 
+"use client";
+
 import type { Tour } from '@/types';
 
 export const getStartedTour: Tour = {
   id: 'get-started-tour',
   steps: [
     {
-      selector: '#nav-item-gigs',
+      selector: '#nav-item-deployments',
       title: 'Welcome to the Exchange',
-      content: "This is where you find paid opportunities. Brands post gigs here, and your verified stats help you stand out.",
+      content: "This is where you secure enterprise deployments. Brands launch campaigns here, and your verified stats help you stand out.",
       side: 'right',
       align: 'start',
     },
@@ -25,9 +27,9 @@ export const dashboardTour: Tour = {
   id: 'dashboard-tour',
   steps: [
     {
-      selector: '#summary-card-pending-income',
-      title: 'Secured Income',
-      content: 'Track your pending payments. These are funds held in Verza Campaign Vaults waiting for your verified submissions.',
+      selector: '#summary-card-active-deployments',
+      title: 'Active Deployments',
+      content: 'Track your ongoing campaigns. These are enterprise-grade projects funded and ready for execution.',
       side: 'bottom',
       align: 'start',
     },
@@ -54,12 +56,12 @@ export const marketplaceTour: Tour = {
     {
       selector: '#marketplace-filters',
       title: 'Filter Opportunities',
-      content: 'Filter by platform, niche, or minimum rate to find the gigs that match your style and value.',
+      content: 'Filter by platform, niche, or minimum rate to find the campaigns that match your style and value.',
       side: 'bottom',
     },
     {
       selector: '.lg\\:col-span-1 .sticky', // Target the Co-Pilot
-      title: 'Your Marketplace Co-Pilot',
+      title: 'Your Network Co-Pilot',
       content: 'Verza AI analyzes market signals in real-time to give you tips on how to win more deals and increase your rates.',
       side: 'left',
     },
@@ -78,7 +80,7 @@ export const gigDetailTour: Tour = {
     {
       selector: '.text-primary.font-bold.text-2xl', // Target the rate
       title: 'Pre-Funded Rates',
-      content: 'The payment for this gig is already secured in the vault. Once your verified work is approved, funds release instantly to your wallet.',
+      content: 'The payment for this deployment is already secured in the vault. Once your verified work is approved, funds release instantly to your wallet.',
       side: 'bottom',
     },
   ],

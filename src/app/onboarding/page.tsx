@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -25,7 +26,7 @@ export default function OnboardingPage() {
 
     if (selection === 'creator') {
       role = 'individual_creator';
-      redirectPath = '/scene-spawner';
+      redirectPath = '/deployments';
     } else {
       // For both 'agency' and 'brand', we direct to the agency page.
       // We can set the role to 'agency_owner' to prompt them to create one.

@@ -179,9 +179,14 @@
           },
           "description": "A list of UIDs of creators who have been paid for this gig."
         },
-        "fundingPaymentIntentId": {
-          "type": "string",
-          "description": "The Stripe PaymentIntent ID used to fund the gig."
+        "affiliateSettings": {
+          "type": "object",
+          "properties": {
+            "isEnabled": { "type": "boolean" },
+            "rewardType": { "type": "string", "enum": ["cpc", "cpa"] },
+            "rewardAmount": { "type": "number" },
+            "destinationUrl": { "type": "string", "format": "uri" }
+          }
         },
         "status": {
           "type": "string",
@@ -208,8 +213,30 @@
         "creatorName": { "type": "string" },
         "videoUrl": { "type": "string", "format": "uri" },
         "verzaScore": { "type": "number", "description": "The AI quality score (0-100)." },
-        "verzaFeedback": { "type": "string", "description": "AI-generated feedback for the video." },
+        "affiliateMetrics": {
+          "type": "object",
+          "properties": {
+            "clicks": { "type": "number" },
+            "conversions": { "type": "number" },
+            "earned": { "type": "number" }
+          }
+        },
         "status": { "type": "string", "enum": ["pending_verza_score", "submitted", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "affiliateLink": {
+      "title": "Affiliate Link",
+      "description": "A tracked redirect link for creators.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gigId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "brandId": { "type": "string" },
+        "destinationUrl": { "type": "string", "format": "uri" },
+        "clicks": { "type": "number" },
+        "conversions": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
     },
@@ -257,6 +284,12 @@
         "$ref": "#/backend/entities/gigSubmission"
       },
       "description": "Stores video submissions for gigs."
+    },
+    "/affiliateLinks/{linkId}": {
+      "schema": {
+        "$ref": "#/backend/entities/affiliateLink"
+      },
+      "description": "Stores tracked affiliate links."
     },
     "/notifications/{notificationId}": {
       "schema": {

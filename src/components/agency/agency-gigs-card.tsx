@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -35,7 +36,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
         setIsLoadingGigs(false);
     }, (error) => {
         console.error("Error fetching agency gigs:", error);
-        toast({ title: "Gigs Error", description: "Could not fetch your agency's gigs.", variant: "destructive" });
+        toast({ title: "Deployments Error", description: "Could not fetch your agency's deployments.", variant: "destructive" });
         setIsLoadingGigs(false);
     });
 
@@ -45,8 +46,8 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
   return (
     <Card id="agency-gigs-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Your Gigs</CardTitle>
-        <CardDescription>A history of all gigs posted by your agency.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Active Campaigns</CardTitle>
+        <CardDescription>A history of all deployments launched by your agency.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoadingGigs ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
@@ -67,14 +68,14 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
                   <TableCell className="font-medium">{gig.title}</TableCell>
                   <TableCell>
                     <Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={`capitalize ${gig.status === 'open' ? 'bg-green-500' : ''}`}>
-                      {gig.status}
+                      {gig.status === 'open' ? 'Capital Available' : gig.status.replace(/_/g, ' ')}
                     </Badge>
                   </TableCell>
                   <TableCell>{gig.acceptedCreatorIds.length} / {gig.creatorsNeeded}</TableCell>
                   <TableCell className="text-right font-mono">${gig.ratePerCreator.toLocaleString()}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild variant="ghost" size="sm">
-                        <Link href={`/gigs/${gig.id}`}>
+                        <Link href={`/deployments/${gig.id}`}>
                             View <ExternalLink className="ml-2 h-3 w-3" />
                         </Link>
                     </Button>
@@ -83,7 +84,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
               ))}
             </TableBody>
           </Table>
-         ) : <p className="text-center text-muted-foreground py-6">Your agency has not posted any gigs yet.</p>}
+         ) : <p className="text-center text-muted-foreground py-6">Your agency has not launched any campaigns yet.</p>}
       </CardContent>
     </Card>
   );

@@ -305,16 +305,16 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
                    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
-  case 0: // Welcome & Marketplace
+  case 0: // Welcome & Deployment Network
     subject = "Welcome to Verza | The Operating System for Creators";
     content = `
         <h1 style="color: #333; font-size: 22px;">Welcome to the family, ${name}!</h1>
         <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza. We built this platform because the creator 
         economy is broken. High fees, slow payments, and "guesswork" marketing are holding us back.</p>
         <p style="color: #555; line-height: 1.6;">Verza is your new command center. Your first mission? 
-        <strong>Browse the Marketplace</strong>. Brands are looking for performance content right now.</p>
+        <strong>Browse the Deployment Network</strong>. Brands are looking for performance content right now.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/gigs" style="${btnStyle}">Browse Active Gigs</a>
+          <a href="${appUrl}/deployments" style="${btnStyle}">Browse Active Deployments</a>
         </div>
         ${signature}
       `;

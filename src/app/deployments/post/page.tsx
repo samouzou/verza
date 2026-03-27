@@ -20,13 +20,17 @@ import {
   ShieldCheck, 
   Scale, 
   Info,
-  FileText 
+  FileText,
+  Link2,
+  MousePointer2,
+  Target,
+  Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions, db, doc, onSnapshot } from '@/lib/firebase';
+import { functions, db, doc, onSnapshot, collection, getDoc, addDoc, serverTimestamp, updateDoc } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
@@ -44,6 +48,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Switch } from '@/components/ui/switch';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -69,14 +74,28 @@ export default function PostGigPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [ratePerCreator, setRatePerCreator] = useState('');
-  const [creatorsNeeded, setCreatorsNeeded] = useState('');
+  
+  // Base Rate Logic
+  const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
+  const [ratePerCreator, setRatePerCreator] = useState('2500');
+  
+  const [creatorsNeeded, setCreatorsNeeded] = useState('10');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Legal Fields
   const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
+
+  // Affiliate / Performance Fields
+  const [isAffiliateEnabled, setIsAffiliateEnabled] = useState(false);
+  const [rewardType, setRewardType] = useState<'cpc' | 'cpa'>('cpa');
+  const [rewardAmount, setRewardAmount] = useState('');
+  const [destinationUrl, setDestinationUrl] = useState('');
+
+  const [trackingMethod, setTrackingMethod] = useState<'link_only' | 'promo_code_only' | 'both'>('link_only');
+  const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
+  const [promoCodePrefix, setPromoCodePrefix] = useState('');
 
   const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
   const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
@@ -141,13 +160,14 @@ export default function PostGigPage() {
   }, [campaignType]);
 
   const totalAmount = useMemo(() => {
+    if (!isBaseRateEnabled) return 0;
     const rate = parseFloat(ratePerCreator);
     const needed = parseInt(creatorsNeeded, 10);
     if (!isNaN(rate) && !isNaN(needed) && rate > 0 && needed > 0) {
         return rate * needed;
     }
     return 0;
-  }, [ratePerCreator, creatorsNeeded]);
+  }, [ratePerCreator, creatorsNeeded, isBaseRateEnabled]);
 
   const handlePlatformChange = (platform: string) => {
     setSelectedPlatforms(prev => 
@@ -168,29 +188,91 @@ export default function PostGigPage() {
         return;
     }
     
-    const rateNum = parseFloat(ratePerCreator);
+    const rateNum = isBaseRateEnabled ? parseFloat(ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
     
-    if (
-      !title.trim() || 
-      !description.trim() || 
-      selectedPlatforms.length === 0 || 
-      isNaN(rateNum) || rateNum <= 0 || 
-      isNaN(creatorsNum) || creatorsNum <= 0 || 
-      isNaN(videosNum) || videosNum <= 0
-    ) {
-      toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
+    // Core Validation
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
+      toast({ title: 'Missing Details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
       return;
+    }
+
+    // Compensation Validation
+    if (!isBaseRateEnabled && !isAffiliateEnabled) {
+      toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
+      return;
+    }
+
+    if (isBaseRateEnabled && (isNaN(rateNum) || rateNum <= 0)) {
+      toast({ title: 'Invalid Base Rate', description: 'Please enter a valid amount for the Fixed Base Rate.', variant: 'destructive' });
+      return;
+    }
+
+    if (isAffiliateEnabled) {
+      if (!destinationUrl.trim() || !rewardAmount || parseFloat(rewardAmount) <= 0) {
+        toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and valid reward amount.', variant: 'destructive' });
+        return;
+      }
+      if ((trackingMethod === 'promo_code_only' || trackingMethod === 'both') && !promoCodePrefix.trim()) {
+        toast({ title: 'Promo Code Prefix Missing', description: 'Please provide a prefix for the promo codes.', variant: 'destructive' });
+        return;
+      }
     }
     
     setIsSubmitting(true);
-    toast({ title: "Redirecting to Payment", description: "Please complete the payment to launch your deployment." });
     
     try {
-      trackEvent({ action: 'fund_gig_start', category: 'marketplace', label: title });
+      trackEvent({ action: 'fund_deployment_start', category: 'marketplace', label: title });
+      
+      // If pure performance ($0 total), we launch directly instead of Stripe Checkout
+      if (totalAmount === 0) {
+        toast({ title: "Launching Deployment", description: "This performance-only campaign is being prepared..." });
+        
+        // Direct launch for performance-only
+        const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId));
+        const agencyData = agencySnap.data();
+
+        const gigData = {
+          brandId: user.primaryAgencyId,
+          brandName: agencyData?.name || "Brand",
+          brandLogoUrl: agencyOwner?.companyLogoUrl || null,
+          title: title.trim(),
+          description: description.trim(),
+          platforms: selectedPlatforms,
+          ratePerCreator: 0,
+          creatorsNeeded: creatorsNum,
+          videosPerCreator: videosNum,
+          campaignType,
+          usageRights,
+          allowWhitelisting,
+          status: 'open',
+          acceptedCreatorIds: [],
+          paidCreatorIds: [],
+          createdAt: serverTimestamp(),
+          fundedAmount: 0,
+          affiliateSettings: {
+            isEnabled: true,
+            rewardType,
+            rewardAmount: parseFloat(rewardAmount),
+            destinationUrl: destinationUrl.trim(),
+            trackingMethod,
+            promoCodeDiscountValue: promoCodeDiscountValue.trim(),
+            promoCodePrefix: promoCodePrefix.trim().toUpperCase()
+          }
+        };
+
+        const { id: newGigId } = await addDoc(collection(db, 'gigs'), gigData);
+        toast({ title: "Deployment Live!", description: "Your performance-only campaign is now active." });
+        router.push(`/deployments/${newGigId}`);
+        return;
+      }
+
+      // Hybrid or Fixed model: Use Stripe Checkout
+      toast({ title: "Redirecting to Payment", description: "Please complete the funding to launch your deployment." });
       const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
-      const result = await createCheckout({
+      
+      const payload: any = {
         title: title.trim(),
         description: description.trim(),
         platforms: selectedPlatforms,
@@ -200,7 +282,21 @@ export default function PostGigPage() {
         campaignType,
         usageRights,
         allowWhitelisting,
-      });
+      };
+
+      if (isAffiliateEnabled) {
+        payload.affiliateSettings = {
+          isEnabled: true,
+          rewardType,
+          rewardAmount: parseFloat(rewardAmount),
+          destinationUrl: destinationUrl.trim(),
+          trackingMethod,
+          promoCodeDiscountValue: promoCodeDiscountValue.trim(),
+          promoCodePrefix: promoCodePrefix.trim().toUpperCase()
+        };
+      }
+
+      const result = await createCheckout(payload);
       const data = result.data as { url?: string };
       if (data.url) {
           window.location.href = data.url;
@@ -208,15 +304,23 @@ export default function PostGigPage() {
           throw new Error("Failed to get payment URL.");
       }
     } catch (error: any) {
-        console.error("Error initiating gig funding:", error);
+        console.error("Error initiating deployment:", error);
         toast({ 
-          title: 'Funding Failed', 
-          description: error.message || 'Could not initiate the funding process.', 
+          title: 'Deployment Failed', 
+          description: error.message || 'Could not launch the deployment.', 
           variant: 'destructive' 
         });
         setIsSubmitting(false);
     }
   };
+
+  const nowTime = Date.now();
+  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
+                      (agencyOwner?.subscriptionStatus === 'trialing' && 
+                       agencyOwner?.trialEndsAt && 
+                       agencyOwner.trialEndsAt.toMillis() > nowTime);
+  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
+  const canPost = isSubscribed && hasAgencyPlan;
 
   if (authLoading || isLoadingSubscriptionCheck) {
     return (
@@ -238,14 +342,6 @@ export default function PostGigPage() {
     );
   }
 
-  const nowTime = Date.now();
-  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
-                      (agencyOwner?.subscriptionStatus === 'trialing' && 
-                       agencyOwner?.trialEndsAt && 
-                       agencyOwner.trialEndsAt.toMillis() > nowTime);
-  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
-  const canPost = isSubscribed && hasAgencyPlan;
-
   if (!canPost) {
     return (
       <>
@@ -263,7 +359,7 @@ export default function PostGigPage() {
               <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
               <AlertDescription className="text-primary/90">
                 {user.isAgencyOwner 
-                  ? "You need an active Agency subscription to launch deployments to the marketplace. This plan covers talent management and payout fees."
+                  ? "You need an active Agency subscription to launch deployments to the network. This plan covers talent management and payout fees."
                   : "Your agency needs an active Agency subscription to launch deployments. Please contact your agency owner to upgrade the account plan."}
               </AlertDescription>
               {user.isAgencyOwner && (
@@ -277,8 +373,8 @@ export default function PostGigPage() {
               )}
             </Alert>
             <Button variant="outline" asChild className="w-full">
-              <Link href="/gigs">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Marketplace
+              <Link href="/deployments">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Deployments
               </Link>
             </Button>
           </CardContent>
@@ -294,7 +390,7 @@ export default function PostGigPage() {
         description="Describe your campaign, set the deployment rate, and recruit creators."
         actions={
             <Button variant="outline" asChild>
-                <Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Cancel</Link>
+                <Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4"/> Cancel</Link>
             </Button>
         }
       />
@@ -378,11 +474,7 @@ export default function PostGigPage() {
                     ))}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="rate">Rate per Creator ($)</Label>
-                        <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" required min="1" disabled={isSubmitting}/>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                     <div className="space-y-2">
                         <Label htmlFor="creators">Creators Needed</Label>
                         <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting}/>
@@ -397,7 +489,106 @@ export default function PostGigPage() {
 
             <Card className="shadow-lg border-primary/10">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
+                    <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
+                  </div>
+                  <Switch checked={isBaseRateEnabled} onCheckedChange={setIsBaseRateEnabled} />
+                </div>
+              </CardHeader>
+              {isBaseRateEnabled && (
+                <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-2">
+                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting}/>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">This amount is pre-funded and held in escrow.</p>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="shadow-lg border-blue-500/20 bg-blue-50/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 4. Performance Rewards</CardTitle>
+                    <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
+                  </div>
+                  <Switch checked={isAffiliateEnabled} onCheckedChange={setIsAffiliateEnabled} />
+                </div>
+              </CardHeader>
+              {isAffiliateEnabled && (
+                <CardContent className="space-y-6 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="rewardType">Reward Logic</Label>
+                      <RadioGroup value={rewardType} onValueChange={(val) => setRewardType(val as any)} className="flex gap-4 mt-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="cpc" id="cpc" />
+                          <Label htmlFor="cpc" className="font-normal flex items-center gap-1"><MousePointer2 className="h-3 w-3" /> Per Click</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="cpa" id="cpa" />
+                          <Label htmlFor="cpa" className="font-normal flex items-center gap-1"><Target className="h-3 w-3" /> Per Conversion</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rewardAmount">Reward Amount ($)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="rewardAmount" type="number" value={rewardAmount} onChange={e => setRewardAmount(e.target.value)} placeholder={rewardType === 'cpc' ? "0.10" : "25.00"} className="pl-9" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="destinationUrl">Destination Link</Label>
+                    <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" />
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Info className="h-3 w-3" /> Creators will receive a unique tracking link pointing to this URL.</p>
+                  </div>
+                  <div className="space-y-4 pt-4 border-t border-blue-500/10">
+                    <Label className="text-base font-semibold">Tracking Method</Label>
+                    <RadioGroup value={trackingMethod} onValueChange={(val) => setTrackingMethod(val as any)} className="flex flex-col gap-3">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="link_only" id="link_only" />
+                        <Label htmlFor="link_only" className="font-normal cursor-pointer">Affiliate Link Only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="promo_code_only" id="promo_code_only" />
+                        <Label htmlFor="promo_code_only" className="font-normal cursor-pointer">Promo Codes Only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="both" id="both" />
+                        <Label htmlFor="both" className="font-normal cursor-pointer">Both Links and Promo Codes</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {(trackingMethod === 'promo_code_only' || trackingMethod === 'both') && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-blue-500/10">
+                      <div className="space-y-2">
+                        <Label htmlFor="promoCodePrefix">Promo Code Prefix <span className="text-destructive">*</span></Label>
+                        <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isSubmitting} required={isAffiliateEnabled} />
+                        <p className="text-[10px] text-muted-foreground">Used to generate unique codes per creator (e.g. SUMMER-JULIA30).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="promoCodeDiscountValue">Discount Value presented to audience</Label>
+                        <Input id="promoCodeDiscountValue" value={promoCodeDiscountValue} onChange={e => setPromoCodeDiscountValue(e.target.value)} placeholder="e.g. 15% Off or $20 Off" disabled={isSubmitting} />
+                        <p className="text-[10px] text-muted-foreground">Let the creator know what discount they are pitching.</p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="shadow-lg border-primary/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 5. Usage Rights & Legal</CardTitle>
                 <CardDescription>Define how you plan to use the content created for this deployment.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -456,7 +647,7 @@ export default function PostGigPage() {
                 <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    By funding this campaign, you agree to Verza's 
+                    By funding this deployment, you agree to Verza's 
                     <Dialog>
                       <DialogTrigger asChild>
                         <button type="button" className="text-primary hover:underline font-medium mx-1">
@@ -481,9 +672,9 @@ export default function PostGigPage() {
                               If you are using the platform on behalf of an agency or brand, you represent that you 
                               have the authority to bind that entity to these terms.
                             </p>
-                            <p className="font-bold">2. MARKETPLACE ROLE</p>
+                            <p className="font-bold">2. DEPLOYMENT NETWORK ROLE</p>
                             <p>
-                              Verza provides a marketplace for brands and creators to collaborate. Verza is not a 
+                              Verza provides a network for brands and creators to collaborate. Verza is not a 
                               party to the specific creative agreements except as specified in the Escrow and 
                               Payment sections.
                             </p>
@@ -515,7 +706,7 @@ export default function PostGigPage() {
                             Escrow & Payment Agreement
                           </DialogTitle>
                           <DialogDescription>
-                            Rules governing campaign funding and secure creator payouts.
+                            Rules governing deployment funding and secure creator payouts.
                           </DialogDescription>
                         </DialogHeader>
                         <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
@@ -535,7 +726,7 @@ export default function PostGigPage() {
                             <p>
                               In the event of a non-responsive creator or failed quality score, funds remain 
                               in the vault. Brands may request a refund for unspent escrow funds after 30 
-                              days of campaign inactivity.
+                              days of deployment inactivity.
                             </p>
                           </div>
                         </ScrollArea>
@@ -554,17 +745,24 @@ export default function PostGigPage() {
             </Card>
 
             <div className="space-y-4">
-              {totalAmount > 0 && (
+              {totalAmount > 0 ? (
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
-                  <p className="text-sm text-muted-foreground font-medium">Total Deployment Funding Required</p>
+                  <p className="text-sm text-muted-foreground font-medium">Fixed Capital Required for Vault</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} rate)</p>
+                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} base rate)</p>
                 </div>
-              )}
+              ) : isAffiliateEnabled ? (
+                <div className="p-6 border rounded-lg bg-blue-500/5 text-center border-blue-500/20">
+                  <p className="text-sm text-blue-600 font-bold flex items-center justify-center gap-2 uppercase tracking-widest">
+                    <Zap className="h-4 w-4" /> Pure Performance Deployment
+                  </p>
+                  <p className="text-muted-foreground text-xs mt-2">No upfront base rate funding required. Performance bonuses are accrued and paid post-conversion.</p>
+                </div>
+              ) : null}
 
-              <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting || totalAmount <= 0}>
+              <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
-                Fund & Launch Campaign
+                {totalAmount > 0 ? 'Fund & Deploy Capital' : 'Launch Performance Campaign'}
               </Button>
             </div>
           </form>

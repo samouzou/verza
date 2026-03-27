@@ -1,17 +1,18 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification, Agency } from '@/types';
+import type { Gig, GigSubmission, Notification, Agency, AffiliateLink } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -48,6 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import confetti from 'canvas-confetti';
+import { cn } from '@/lib/utils';
 
 function GigDetailContent() {
   const params = useParams();
@@ -71,6 +73,11 @@ function GigDetailContent() {
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
 
+  // Affiliate State
+  const [affiliateLinks, setAffiliateLinks] = useState<Record<string, AffiliateLink>>({});
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
   // Acceptance State
   const [hasAgreedToLegal, setHasAgreedToLegal] = useState(false);
 
@@ -85,13 +92,13 @@ function GigDetailContent() {
       const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
       
       trackEvent({
-        action: 'gig_funding_success',
+        action: 'deployment_funding_success',
         category: 'revenue',
         label: gig.title,
         value: totalValue
       });
 
-      router.replace(`/gigs/${gigId}`, { scroll: false });
+      router.replace(`/deployments/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
 
@@ -159,7 +166,24 @@ function GigDetailContent() {
       }
     );
 
-    return () => unsubscribeSubmissions();
+    // Fetch affiliate links
+    const linksQuery = isBrandTeam 
+      ? query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId))
+      : query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
+
+    const unsubscribeLinks = onSnapshot(linksQuery, (snap) => {
+      const linksMap: Record<string, AffiliateLink> = {};
+      snap.docs.forEach(d => {
+        const link = { id: d.id, ...d.data() } as AffiliateLink;
+        linksMap[link.creatorId] = link;
+      });
+      setAffiliateLinks(linksMap);
+    });
+
+    return () => {
+      unsubscribeSubmissions();
+      unsubscribeLinks();
+    };
   }, [gig, user, gigId]);
 
   useEffect(() => {
@@ -188,14 +212,14 @@ function GigDetailContent() {
     if (!user || !gig) return;
 
     if (!hasAgreedToLegal) {
-      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before accepting the deployment.", variant: "destructive" });
+      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before securing the deployment.", variant: "destructive" });
       return;
     }
 
     if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
       toast({
         title: "Bank Account Required",
-        description: "You must connect your bank account before you can accept paid deployments. Head to Settings to get set up securely.",
+        description: "You must connect your bank account before you can secure paid deployments. Head to Settings to get set up securely.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -209,7 +233,7 @@ function GigDetailContent() {
     if (!user.showInMarketplace) {
       toast({
         title: "Public Profile Required",
-        description: "Your profile must be set to 'Public' in the marketplace before you can accept deployments. Head to your profile settings to enable this.",
+        description: "Your profile must be set to 'Public' in the network before you can secure deployments. Head to your profile settings to enable this.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -230,7 +254,7 @@ function GigDetailContent() {
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
       
       if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
-      if (acceptedIds.includes(user.uid)) throw new Error("Already accepted.");
+      if (acceptedIds.includes(user.uid)) throw new Error("Already secured.");
       
       const newAcceptedIds = [...acceptedIds, user.uid];
       const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
@@ -238,7 +262,32 @@ function GigDetailContent() {
       
       await updateDoc(gigDocRef, gigUpdates);
 
-      trackEvent({ action: 'accept_gig', category: 'marketplace', label: gig.title });
+      // Create affiliate link if enabled
+      if (currentGigData.affiliateSettings?.isEnabled) {
+        let generatedPromoCode = undefined;
+        const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
+
+        if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
+            const prefix = currentGigData.affiliateSettings.promoCodePrefix || 'PROMO';
+            const namePart = (user.displayName || 'CREATOR').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+            generatedPromoCode = `${prefix}-${namePart}${randomCode}`;
+        }
+
+        await addDoc(collection(db, 'affiliateLinks'), {
+          gigId: gig.id,
+          creatorId: user.uid,
+          brandId: gig.brandId,
+          destinationUrl: currentGigData.affiliateSettings.destinationUrl,
+          ...(generatedPromoCode && { promoCode: generatedPromoCode }),
+          clicks: 0,
+          conversions: 0,
+          earnedRewards: 0,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      trackEvent({ action: 'accept_deployment', category: 'marketplace', label: gig.title });
 
       const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (agencySnap.exists()) {
@@ -246,10 +295,10 @@ function GigDetailContent() {
         await addDoc(collection(db, 'notifications'), {
           userId: agencyData.ownerId,
           title: "New creator joined!",
-          message: `${user.displayName || 'A creator'} has joined your deployment "${gig.title}".`,
+          message: `${user.displayName || 'A creator'} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
-          link: `/gigs/${gig.id}`,
+          link: `/deployments/${gig.id}`,
           createdAt: serverTimestamp(),
         } as Omit<Notification, 'id'>);
       }
@@ -257,12 +306,21 @@ function GigDetailContent() {
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
       await updateDoc(userDocRef, userUpdates);
 
-      toast({ title: "Deployment Accepted!" });
+      toast({ title: "Deployment Secured!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsAccepting(false);
     }
+  };
+
+  const handleCopyAffiliateLink = (linkId?: string) => {
+    if (!linkId) return;
+    const url = `${window.location.origin}/l/${linkId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    toast({ title: "Link Copied!", description: "Share this unique link to track performance." });
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>, slotIndex: number) => {
@@ -336,7 +394,7 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/gigs/${gig.id}`,
+            link: `/deployments/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
         }
@@ -358,7 +416,7 @@ function GigDetailContent() {
     try {
       await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
       
-      const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'approved'));
+      const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'rejected'));
       for (const sub of batch) {
         await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
       }
@@ -373,7 +431,7 @@ function GigDetailContent() {
         createdAt: serverTimestamp(),
       } as Omit<Notification, 'id'>);
 
-      trackEvent({ action: 'gig_payout', category: 'marketplace', label: gig.title, value: gig.ratePerCreator });
+      trackEvent({ action: 'deployment_payout', category: 'marketplace', label: gig.title, value: gig.ratePerCreator });
       toast({ title: "Payout Processing!", description: "The creator has been paid successfully." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
@@ -388,7 +446,7 @@ function GigDetailContent() {
     try {
       await deleteDoc(doc(db, 'gigs', gig.id));
       toast({ title: "Deployment Deleted", description: "The deployment has been removed." });
-      router.push('/gigs');
+      router.push('/deployments');
     } catch (error: any) {
       console.error(error);
       toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
@@ -401,7 +459,7 @@ function GigDetailContent() {
     if (!gig) return;
     setIsResumingFunding(true);
     trackEvent({
-      action: 'gig_funding_checkout_start',
+      action: 'deployment_funding_checkout_start',
       category: 'revenue',
       label: gig.title
     });
@@ -418,6 +476,7 @@ function GigDetailContent() {
         campaignType: gig.campaignType || 'standard_sponsorship',
         usageRights: gig.usageRights || '1_year',
         allowWhitelisting: !!gig.allowWhitelisting,
+        affiliateSettings: gig.affiliateSettings,
       });
       const data = result.data as { url?: string };
       if (data.url) {
@@ -441,7 +500,7 @@ function GigDetailContent() {
       
       const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
       trackEvent({
-        action: 'gig_funding_success',
+        action: 'deployment_funding_success',
         category: 'revenue',
         label: gig.title,
         value: totalValue
@@ -482,13 +541,15 @@ function GigDetailContent() {
   const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
+  const myLink = user ? affiliateLinks[user.uid] : null;
+
   return (
     <>
       <div className="flex flex-col gap-8 pb-20">
         <PageHeader
           title={gig.title}
           description={`Campaign by ${gig.brandName}`}
-          actions={<Button asChild variant="outline"><Link href="/gigs"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
+          actions={<Button asChild variant="outline"><Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4"/> Back</Link></Button>}
         />
 
         {isCompleted && (
@@ -505,6 +566,74 @@ function GigDetailContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8 min-w-0">
+              {hasAccepted && gig.affiliateSettings?.isEnabled && (
+                <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg animate-in zoom-in-95 duration-300">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
+                    <CardDescription>Share your unique tracking hook to track performance and earn bonuses.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {(!gig.affiliateSettings?.trackingMethod || gig.affiliateSettings.trackingMethod === 'link_only' || gig.affiliateSettings.trackingMethod === 'both') && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Tracking Link</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
+                            {myLink ? `${window.location.origin}/l/${myLink.id}` : 'Generating link...'}
+                          </div>
+                          <Button size="icon" onClick={() => handleCopyAffiliateLink(myLink?.id)} disabled={!myLink}>
+                            {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {myLink?.promoCode && (gig.affiliateSettings?.trackingMethod === 'promo_code_only' || gig.affiliateSettings?.trackingMethod === 'both') && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Promo Code</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm font-bold text-center tracking-wider text-xl">
+                            {myLink.promoCode}
+                          </div>
+                          <Button size="icon" onClick={() => {
+                            navigator.clipboard.writeText(myLink.promoCode || '');
+                            toast({ title: "Promo Code Copied!" });
+                          }}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {gig.affiliateSettings.promoCodeDiscountValue && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Pitch this code to your audience for <strong>{gig.affiliateSettings.promoCodeDiscountValue}</strong> down!
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-4 pt-2">
+                      <div className="p-3 border rounded-lg bg-background text-center">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Total Clicks</p>
+                        <p className="text-xl font-bold">{myLink?.clicks || 0}</p>
+                      </div>
+                      <div className="p-3 border rounded-lg bg-background text-center">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Conversions</p>
+                        <p className="text-xl font-bold">{myLink?.conversions || 0}</p>
+                      </div>
+                      <div className="p-3 border rounded-lg bg-blue-500 text-white text-center">
+                        <p className="text-[10px] uppercase font-bold opacity-80">Bonus Earned</p>
+                        <p className="text-xl font-bold">
+                          ${(Math.max(
+                            myLink?.earnedRewards || 0,
+                            gig.affiliateSettings?.rewardType === 'cpc'
+                              ? (myLink?.clicks || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                              : (myLink?.conversions || 0) * (gig.affiliateSettings?.rewardAmount || 0)
+                          )).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="overflow-hidden">
                   <CardHeader>
                     <div className="flex justify-between items-start">
@@ -568,7 +697,7 @@ function GigDetailContent() {
                     <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
                   </div>
                   <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
-                    By clicking "Accept Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                    By clicking "Secure Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                   </div>
                 </CardContent>
               </Card>
@@ -684,7 +813,7 @@ function GigDetailContent() {
                           <CardDescription>
                             {isCompleted 
                               ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
-                              : `Manage accepted creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
+                              : `Manage secured creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
                           </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -694,6 +823,7 @@ function GigDetailContent() {
                                     const isPaid = gig.paidCreatorIds?.includes(creator.uid);
                                     const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
                                     const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
+                                    const creatorLink = affiliateLinks[creator.uid];
 
                                     return (
                                       <Card key={creator.uid} className="border bg-muted/30">
@@ -741,6 +871,23 @@ function GigDetailContent() {
                                             </div>
                                           </div>
 
+                                          {gig.affiliateSettings?.isEnabled && creatorLink && (
+                                            <div className="py-3 flex flex-wrap gap-4 border-b">
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Affiliate Clicks</span>
+                                                <span className="text-sm font-bold flex items-center gap-1.5"><MousePointer2 className="h-3 w-3 text-blue-500"/> {creatorLink.clicks}</span>
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Conversions</span>
+                                                <span className="text-sm font-bold flex items-center gap-1.5"><Target className="h-3 w-3 text-green-500"/> {creatorLink.conversions}</span>
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Est. Bonus</span>
+                                                <span className="text-sm font-bold text-blue-600">${(creatorLink.conversions * (gig.affiliateSettings?.rewardAmount || 0)).toLocaleString()}</span>
+                                              </div>
+                                            </div>
+                                          )}
+
                                           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {Array.from({ length: gig.videosPerCreator || 1 }).map((_, idx) => {
                                               const sub = creatorSubmissions[idx];
@@ -783,7 +930,7 @@ function GigDetailContent() {
                                   })}
                              </div>
                           ) : (
-                              <p className="text-sm text-muted-foreground text-center py-4">No creators have accepted this deployment yet.</p>
+                              <p className="text-sm text-muted-foreground text-center py-4">No creators have secured this deployment yet.</p>
                           )}
                       </CardContent>
                    </Card>
@@ -813,6 +960,22 @@ function GigDetailContent() {
                           </div>
                         )}
                       </div>
+
+                      {gig.affiliateSettings?.isEnabled && (
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1">
+                              <Zap className="h-3 w-3" /> Performance Pay
+                            </span>
+                            <Badge variant="secondary" className="bg-blue-500 text-white hover:bg-blue-600 text-[10px] h-5">
+                              {gig.affiliateSettings.rewardType === 'cpc' ? 'Per Click' : 'Per Sale'}
+                            </Badge>
+                          </div>
+                          <p className="text-xl font-black text-blue-700">${gig.affiliateSettings.rewardAmount.toLocaleString()}</p>
+                          <p className="text-[10px] text-blue-600/80 leading-tight">Paid automatically for every verified {gig.affiliateSettings.rewardType === 'cpc' ? 'click' : 'conversion'}.</p>
+                        </div>
+                      )}
+
                       <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                       {!isCompleted && (
                         <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
@@ -821,7 +984,7 @@ function GigDetailContent() {
                       
                       {user && !canManageGig && !isCompleted && (
                         hasAccepted ? (
-                          <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Deployment Accepted</Button>
+                          <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured</Button>
                         ) : spotsLeft > 0 && gig.status === 'open' ? (
                           <div className="space-y-4 border-t pt-4">
                             <div className="flex items-start space-x-2">
@@ -848,7 +1011,7 @@ function GigDetailContent() {
                                         Standard Creator Agreement
                                       </DialogTitle>
                                       <DialogDescription>
-                                        The base terms for all Verza Marketplace collaborations.
+                                        The base terms for all Verza network collaborations.
                                       </DialogDescription>
                                     </DialogHeader>
                                     <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
@@ -894,7 +1057,7 @@ function GigDetailContent() {
                                 <Alert variant="destructive" className="py-2 px-3 text-xs">
                                   <AlertTriangle className="h-3 w-3" />
                                   <AlertDescription>
-                                    Public profile required to accept deployments.
+                                    Public profile required to secure deployments.
                                   </AlertDescription>
                                 </Alert>
                               )}
@@ -904,7 +1067,7 @@ function GigDetailContent() {
                                 disabled={isAccepting || !hasAgreedToLegal}
                               >
                                 {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-                                Accept Deployment
+                                Secure Deployment
                               </Button>
                             </div>
                           </div>
@@ -917,7 +1080,7 @@ function GigDetailContent() {
                         <div className="space-y-2">
                           {gig.status === 'pending_payment' && (
                             <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
-                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Project Funding: ${totalCost.toLocaleString()}</p>
+                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Deployment Funding: ${totalCost.toLocaleString()}</p>
                                 <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>
                                   {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <DollarSign className="mr-2 h-4 w-4"/>}
                                   Fund via Secure Payment
@@ -953,7 +1116,7 @@ function GigDetailContent() {
                           )}
                           {!isCompleted && (
                             <Button asChild className="w-full" variant="outline">
-                              <Link href={`/gigs/${gig.id}/edit`}>
+                              <Link href={`/deployments/${gig.id}/edit`}>
                                 <Edit className="mr-2 h-4 w-4" /> Edit Deployment
                               </Link>
                             </Button>

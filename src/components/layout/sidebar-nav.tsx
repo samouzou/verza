@@ -64,7 +64,7 @@ const mainNavItems = [
 ];
 
 const marketplaceNavItems = [
-    { id: 'nav-item-gigs', href: "/gigs", label: "Marketplace", icon: FileStack },
+    { id: 'nav-item-deployments', href: "/deployments", label: "Deployments", icon: FileStack },
 ];
 
 const manageNavItems = [
@@ -91,7 +91,7 @@ const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
       {...props}
     >
       <path d="M13 19l-4-4-4 4" />
-      <path d="M13 5l-4 4-4-4" />
+      <path d="M13 5l-4-4-4-4" />
       <path d="M7 19V5" />
       <path d="M21 19V5" />
     </svg>

@@ -374,6 +374,7 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
 }
 
 export interface AgencyMembership {
@@ -476,11 +477,20 @@ export interface Gig {
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
-  status: 'pending_payment' | 'open' | 'in-progress' | 'completed';
+  status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
   createdAt: ClientTimestamp;
   campaignType: 'standard_sponsorship' | 'production_grant';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
+  affiliateSettings?: {
+    isEnabled: boolean;
+    rewardType: 'cpc' | 'cpa';
+    rewardAmount: number;
+    destinationUrl: string;
+    trackingMethod?: 'link_only' | 'promo_code_only' | 'both';
+    promoCodeDiscountValue?: string;
+    promoCodePrefix?: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {
@@ -514,6 +524,25 @@ export interface GigSubmission {
   verzaScore: number;
   verzaFeedback: string;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  createdAt: ClientTimestamp;
+  affiliateMetrics?: {
+    clicks: number;
+    conversions: number;
+    earned: number;
+  };
+}
+
+export interface AffiliateLink {
+  id: string;
+  gigId: string;
+  creatorId: string;
+  brandId: string;
+  destinationUrl: string;
+  promoCode?: string;
+  clicks: number;
+  conversions: number;
+  earnedRewards?: number;
+  lifetimePaidOut?: number;
   createdAt: ClientTimestamp;
 }
 

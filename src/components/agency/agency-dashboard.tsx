@@ -15,6 +15,7 @@ import { TalentRosterCard } from './talent-roster-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
 import { AgencyGigsCard } from './agency-gigs-card';
+import { WebhookIntegrationsCard } from './webhook-integrations-card';
 import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -116,7 +117,11 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
           
           <TalentRosterCard agency={agency} liveProfiles={liveProfiles} />
           <TeamRosterCard agency={agency} liveProfiles={liveProfiles} />
-          <AgencyGigsCard agencyId={agency.id} />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AgencyGigsCard agencyId={agency.id} />
+            <WebhookIntegrationsCard agency={agency} disabled={isNotOnAgencyPlan} />
+          </div>
         </>
       )}
     </div>
