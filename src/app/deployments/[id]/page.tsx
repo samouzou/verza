@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, CheckCircle, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -268,10 +268,9 @@ function GigDetailContent() {
         const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
 
         if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
-            const prefix = currentGigData.affiliateSettings.promoCodePrefix || 'PROMO';
-            const namePart = (user.displayName || 'CREATOR').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-            generatedPromoCode = `${prefix}-${namePart}${randomCode}`;
+            const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
+            const namePart = (user.displayName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            generatedPromoCode = `${prefix}${namePart}`;
         }
 
         await addDoc(collection(db, 'affiliateLinks'), {
@@ -872,7 +871,13 @@ function GigDetailContent() {
                                           </div>
 
                                           {gig.affiliateSettings?.isEnabled && creatorLink && (
-                                            <div className="py-3 flex flex-wrap gap-4 border-b">
+                                            <div className="py-3 flex flex-wrap gap-6 border-b">
+                                              {creatorLink.promoCode && (
+                                                <div className="flex flex-col">
+                                                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Promo Code</span>
+                                                  <span className="text-sm font-bold flex items-center gap-1.5 text-orange-600"><Ticket className="h-3 w-3 text-orange-500"/> {creatorLink.promoCode}</span>
+                                                </div>
+                                              )}
                                               <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-muted-foreground uppercase">Affiliate Clicks</span>
                                                 <span className="text-sm font-bold flex items-center gap-1.5"><MousePointer2 className="h-3 w-3 text-blue-500"/> {creatorLink.clicks}</span>
