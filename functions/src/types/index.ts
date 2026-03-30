@@ -483,6 +483,8 @@ export interface Gig {
   campaignType: "standard_sponsorship" | "production_grant";
   usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting?: boolean;
+  requireVerzaScore?: boolean;
+  verzaScoreThreshold?: number;
   affiliateSettings?: {
     isEnabled: boolean;
     rewardType: "cpc" | "cpa";

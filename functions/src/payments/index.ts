@@ -784,6 +784,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     usageRights,
     allowWhitelisting,
     affiliateSettings,
+    requireVerzaScore,
+    verzaScoreThreshold,
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
@@ -848,6 +850,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || null,
+    requireVerzaScore: requireVerzaScore ?? true,
+    verzaScoreThreshold: verzaScoreThreshold ?? 65,
   };
 
   if (existingGigId) {

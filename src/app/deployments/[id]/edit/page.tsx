@@ -87,6 +87,10 @@ export default function EditGigPage() {
   const [trackingMethod, setTrackingMethod] = useState<'link_only' | 'promo_code_only' | 'both'>('link_only');
   const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
   const [promoCodePrefix, setPromoCodePrefix] = useState('');
+
+  // Quality Control
+  const [requireVerzaScore, setRequireVerzaScore] = useState(true);
+  const [verzaScoreThreshold, setVerzaScoreThreshold] = useState('65');
   
   useEffect(() => {
     if (!gigId) return;
@@ -124,6 +128,9 @@ export default function EditGigPage() {
               setTrackingMethod(gigData.affiliateSettings?.trackingMethod || 'link_only');
               setPromoCodeDiscountValue(gigData.affiliateSettings?.promoCodeDiscountValue || '');
               setPromoCodePrefix(gigData.affiliateSettings?.promoCodePrefix || '');
+
+              setRequireVerzaScore(gigData.requireVerzaScore ?? true);
+              setVerzaScoreThreshold(String(gigData.verzaScoreThreshold ?? 65));
           } else {
               toast({ title: 'Deployment not found', variant: 'destructive' });
               router.push('/deployments');
@@ -191,6 +198,8 @@ export default function EditGigPage() {
             videosPerCreator: videosNum,
             usageRights,
             allowWhitelisting: allowWhitelisting ?? false,
+            requireVerzaScore,
+            verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) || 65 : 65,
         };
 
         if (isAffiliateEnabled) {
@@ -462,9 +471,48 @@ export default function EditGigPage() {
             )}
           </Card>
 
+          <Card className="border-orange-500/20 bg-orange-50/5">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-orange-500" /> 5. Quality Control (Verza Score)</CardTitle>
+                  <CardDescription>Require a minimum predicted engagement score for created videos.</CardDescription>
+                </div>
+                <Switch checked={requireVerzaScore} onCheckedChange={setRequireVerzaScore} disabled={isFunded || isSubmitting} />
+              </div>
+            </CardHeader>
+            {requireVerzaScore && (
+              <CardContent className="space-y-4 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="threshold">Target Threshold (%)</Label>
+                    <span className="text-sm font-bold text-orange-600">{verzaScoreThreshold}%</span>
+                  </div>
+                  <Input 
+                    id="threshold" 
+                    type="range" 
+                    min="1" 
+                    max="100" 
+                    value={verzaScoreThreshold} 
+                    onChange={e => setVerzaScoreThreshold(e.target.value)} 
+                    disabled={isFunded || isSubmitting}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>1% (Lenient)</span>
+                    <span>100% (Strict)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Videos must score at least <strong>{verzaScoreThreshold}%</strong> to be automatically approved. 
+                    Setting this too high may result in fewer approved submissions. Default is 65%.
+                  </p>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
           <Card className="border-primary/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 5. Usage Rights & Legal</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 6. Usage Rights & Legal</CardTitle>
               <CardDescription>Update how you plan to use the content.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

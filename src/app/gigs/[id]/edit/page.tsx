@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
-import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Save, ShieldAlert, Info, Scale, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -55,6 +56,10 @@ export default function EditGigPage() {
   const [videosPerCreator, setVideosPerCreator] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Quality Control
+  const [requireVerzaScore, setRequireVerzaScore] = useState(true);
+  const [verzaScoreThreshold, setVerzaScoreThreshold] = useState('65');
+
   // Legal Fields
   const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
@@ -80,6 +85,8 @@ export default function EditGigPage() {
             setVideosPerCreator(String(gigData.videosPerCreator || '1'));
             setUsageRights(gigData.usageRights || '1_year');
             setAllowWhitelisting(!!gigData.allowWhitelisting);
+            setRequireVerzaScore(gigData.requireVerzaScore ?? true);
+            setVerzaScoreThreshold(String(gigData.verzaScoreThreshold ?? 65));
         } else {
             toast({ title: 'Gig not found', variant: 'destructive' });
             router.push('/gigs');
@@ -117,6 +124,14 @@ export default function EditGigPage() {
       toast({ title: 'All fields are required', description: 'Please fill out the form completely.', variant: 'destructive' });
       return;
     }
+
+    if (requireVerzaScore) {
+      const thresholdNum = parseInt(verzaScoreThreshold, 10);
+      if (isNaN(thresholdNum) || thresholdNum < 1 || thresholdNum > 100) {
+        toast({ title: 'Invalid Threshold', description: 'Please enter a valid Verza Score threshold between 1 and 100.', variant: 'destructive' });
+        return;
+      }
+    }
     
     setIsSubmitting(true);
     try {
@@ -131,6 +146,8 @@ export default function EditGigPage() {
             videosPerCreator: videosNum,
             usageRights,
             allowWhitelisting,
+            requireVerzaScore,
+            verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) : 65,
         };
       
         await updateDoc(gigDocRef, updates);
@@ -289,9 +306,30 @@ export default function EditGigPage() {
             </CardContent>
           </Card>
 
+          <Card className="shadow-lg border-purple-500/20 bg-purple-50/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-purple-500" /> Quality Control</CardTitle>
+                    <CardDescription>Require creators to meet a minimum Verza Score before their video is approved.</CardDescription>
+                  </div>
+                  <Switch checked={requireVerzaScore} onCheckedChange={setRequireVerzaScore} disabled={isSubmitting} />
+                </div>
+              </CardHeader>
+              {requireVerzaScore && (
+                <CardContent className="space-y-6 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-2 max-w-xs">
+                    <Label htmlFor="verzaScoreThreshold">Minimum Verza Score (%)</Label>
+                    <Input id="verzaScoreThreshold" type="number" value={verzaScoreThreshold} onChange={e => setVerzaScoreThreshold(e.target.value)} min="1" max="100" disabled={isSubmitting} required={requireVerzaScore} />
+                    <p className="text-[10px] text-muted-foreground">Default is 65%. Higher scores mean better estimated engagement.</p>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
           <Card className="border-primary/10">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> 3. Usage Rights & Legal</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5 text-primary" /> Usage Rights & Legal</CardTitle>
               <CardDescription>Update how you plan to use the content.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
