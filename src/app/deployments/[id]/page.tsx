@@ -336,6 +336,7 @@ function GigDetailContent() {
       const uploadResult = await uploadBytes(fileRef, file);
       const videoUrl = await getDownloadURL(uploadResult.ref);
 
+      const isVerzaRequired = gig.requireVerzaScore ?? true;
       const subData: Omit<GigSubmission, 'id'> = {
         gigId: gig.id,
         brandId: gig.brandId,
@@ -345,7 +346,7 @@ function GigDetailContent() {
         videoUrl,
         verzaScore: 0,
         verzaFeedback: "",
-        status: 'pending_verza_score',
+        status: isVerzaRequired ? 'pending_verza_score' : 'submitted',
         createdAt: serverTimestamp() as any,
       };
 
@@ -356,7 +357,25 @@ function GigDetailContent() {
         await addDoc(collection(db, 'submissions'), subData);
       }
       trackEvent({ action: 'video_upload', category: 'marketplace', label: `slot_${slotIndex}` });
-      toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Calculate your Verza Score to verify your work." });
+      
+      if (!isVerzaRequired) {
+        const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
+        if (agencySnap.exists()) {
+          const agencyData = agencySnap.data();
+          await addDoc(collection(db, 'notifications'), {
+            userId: agencyData.ownerId,
+            title: "New submission received",
+            message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
+            type: 'submission_received',
+            read: false,
+            link: `/deployments/${gig.id}`,
+            createdAt: serverTimestamp(),
+          } as Omit<Notification, 'id'>);
+        }
+        toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Your submission has been sent to the brand." });
+      } else {
+        toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Calculate your Verza Score to verify your work." });
+      }
     } catch (error: any) {
       console.error(error);
       toast({ title: "Upload failed", variant: "destructive" });
@@ -374,15 +393,16 @@ function GigDetailContent() {
       const result = await runVerzaScore({ videoUrl: submission.videoUrl });
       const subRef = doc(db, 'submissions', submission.id);
       
+      const threshold = gig.verzaScoreThreshold ?? 65;
       const updates: Partial<GigSubmission> = {
         verzaScore: result.score,
         verzaFeedback: result.feedback,
-        status: result.score >= 65 ? 'submitted' : 'rejected'
+        status: result.score >= threshold ? 'submitted' : 'rejected'
       };
 
       await updateDoc(subRef, updates);
 
-      if (result.score >= 65) {
+      if (result.score >= threshold) {
         trackEvent({ action: 'verza_score_pass', category: 'ai_tool', label: gig.title, value: result.score });
         const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
         if (agencySnap.exists()) {
@@ -692,11 +712,25 @@ function GigDetailContent() {
                     <p className="text-sm font-medium">{gig.allowWhitelisting ? 'Allowed' : 'Not Allowed'}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deliverables</p>
-                    <p className="text-sm font-medium">{gig.videosPerCreator} Video{gig.videosPerCreator > 1 ? 's' : ''}</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      Verza Score
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[250px]">
+                            <p>The AI-driven predictive engagement score required for your video to be approved.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </p>
+                    <p className="text-sm font-medium">
+                      {(gig.requireVerzaScore ?? true) ? `Required (${gig.verzaScoreThreshold ?? 65}%+)` : 'Not Required'}
+                    </p>
                   </div>
                   <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
-                    By clicking "Secure Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                    By clicking "Secure Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                   </div>
                 </CardContent>
               </Card>
@@ -708,7 +742,9 @@ function GigDetailContent() {
                     <CardDescription>
                       {isCompleted 
                         ? 'Review the work you submitted for this complete deployment.'
-                        : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`}
+                        : (gig.requireVerzaScore ?? true) 
+                          ? `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`
+                          : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} to complete your deployment.`}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
@@ -744,7 +780,7 @@ function GigDetailContent() {
                                 </div>
                               </div>
                               
-                              {submission.status === 'pending_verza_score' || submission.status === 'rejected' ? (
+                              {(submission.status === 'pending_verza_score' || submission.status === 'rejected') && (gig.requireVerzaScore ?? true) ? (
                                 <div className="p-4 border rounded-lg bg-background space-y-4 shadow-sm">
                                   <div className="flex justify-between items-center">
                                     <h5 className="font-semibold text-sm">Verza Score Analysis</h5>
@@ -762,10 +798,10 @@ function GigDetailContent() {
                                     </Button>
                                   )}
                                 </div>
-                              ) : (
+                              ) : submission.status !== 'pending_verza_score' && submission.status !== 'rejected' && (
                                 <div className="p-4 border rounded-lg bg-green-50/10 text-green-700 flex items-center gap-3">
                                   <CheckCircle className="h-5 w-5"/>
-                                  <p className="text-sm font-medium">Verified & {submission.status === 'approved' ? 'Approved' : 'Submitted'}! Verza Score: {submission.verzaScore}%</p>
+                                  <p className="text-sm font-medium">Verified & {submission.status === 'approved' ? 'Approved' : 'Submitted'}! {(gig.requireVerzaScore ?? true) && submission.verzaScore > 0 ? ` Verza Score: ${submission.verzaScore}%` : ''}</p>
                                 </div>
                               )}
                               

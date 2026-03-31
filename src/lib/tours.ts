@@ -74,7 +74,7 @@ export const gigDetailTour: Tour = {
     {
       selector: '.lg\\:col-span-3', // Target submission area
       title: 'The Quality Gate',
-      content: 'Submit your work here. Every video must pass the Verza Score—a simulation of 10,000 Gen Z scrollers—to ensure high retention.',
+      content: 'Submit your work here. Some brands may require your video to pass the Verza Score—a simulation of 10,000 Gen Z scrollers—to ensure high retention.',
       side: 'top',
     },
     {
