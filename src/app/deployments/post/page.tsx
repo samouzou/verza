@@ -9,16 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { 
-  Loader2, 
-  AlertTriangle, 
-  ArrowLeft, 
-  DollarSign, 
-  Building, 
-  Sparkles, 
-  ExternalLink, 
-  ShieldCheck, 
-  Scale, 
+import {
+  Loader2,
+  AlertTriangle,
+  ArrowLeft,
+  DollarSign,
+  Building,
+  Sparkles,
+  ExternalLink,
+  ShieldCheck,
+  Scale,
   Info,
   FileText,
   Link2,
@@ -59,7 +59,7 @@ const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
 const quillModules = {
   toolbar: [
     ['bold', 'italic', 'underline', 'strike'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
     ['link'],
     ['clean']
   ],
@@ -74,11 +74,11 @@ export default function PostGigPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  
+
   // Base Rate Logic
   const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
   const [ratePerCreator, setRatePerCreator] = useState('2500');
-  
+
   const [creatorsNeeded, setCreatorsNeeded] = useState('10');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,7 +109,7 @@ export default function PostGigPage() {
       if (!authLoading) setIsLoadingSubscriptionCheck(false);
       return;
     }
-    
+
     if (user.isAgencyOwner) {
       setAgencyOwner(user);
       setIsLoadingSubscriptionCheck(false);
@@ -118,8 +118,8 @@ export default function PostGigPage() {
 
     const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
     if (!isTeamMember) {
-        setIsLoadingSubscriptionCheck(false);
-        return;
+      setIsLoadingSubscriptionCheck(false);
+      return;
     }
 
     // Inherit subscription from agency owner
@@ -129,27 +129,27 @@ export default function PostGigPage() {
 
     const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
     unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
-        if (agencySnap.exists()) {
-            const agencyData = agencySnap.data();
-            const ownerDocRef = doc(db, 'users', agencyData.ownerId);
-            
-            if (unsubOwner) unsubOwner();
-            unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
-                if (ownerDocSnap.exists()) {
-                    setAgencyOwner(ownerDocSnap.data() as UserProfile);
-                } else {
-                    setAgencyOwner(null);
-                }
-                setIsLoadingSubscriptionCheck(false);
-            });
-        } else {
-            setIsLoadingSubscriptionCheck(false);
-        }
+      if (agencySnap.exists()) {
+        const agencyData = agencySnap.data();
+        const ownerDocRef = doc(db, 'users', agencyData.ownerId);
+
+        if (unsubOwner) unsubOwner();
+        unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
+          if (ownerDocSnap.exists()) {
+            setAgencyOwner(ownerDocSnap.data() as UserProfile);
+          } else {
+            setAgencyOwner(null);
+          }
+          setIsLoadingSubscriptionCheck(false);
+        });
+      } else {
+        setIsLoadingSubscriptionCheck(false);
+      }
     });
 
     return () => {
-        if (unsubAgency) unsubAgency();
-        if (unsubOwner) unsubOwner();
+      if (unsubAgency) unsubAgency();
+      if (unsubOwner) unsubOwner();
     };
   }, [user, authLoading]);
 
@@ -168,34 +168,34 @@ export default function PostGigPage() {
     const rate = parseFloat(ratePerCreator);
     const needed = parseInt(creatorsNeeded, 10);
     if (!isNaN(rate) && !isNaN(needed) && rate > 0 && needed > 0) {
-        return rate * needed;
+      return rate * needed;
     }
     return 0;
   }, [ratePerCreator, creatorsNeeded, isBaseRateEnabled]);
 
   const handlePlatformChange = (platform: string) => {
-    setSelectedPlatforms(prev => 
-      prev.includes(platform) 
+    setSelectedPlatforms(prev =>
+      prev.includes(platform)
         ? prev.filter(p => p !== platform)
         : [...prev, platform]
     );
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.primaryAgencyId) {
-        toast({ 
-          title: 'Authentication or Agency Error', 
-          description: "You must be associated with an agency to launch a deployment.", 
-          variant: 'destructive' 
-        });
-        return;
+      toast({
+        title: 'Authentication or Agency Error',
+        description: "You must be associated with an agency to launch a deployment.",
+        variant: 'destructive'
+      });
+      return;
     }
-    
+
     const rateNum = isBaseRateEnabled ? parseFloat(ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
-    
+
     // Core Validation
     if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
       toast({ title: 'Missing Details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
@@ -231,16 +231,16 @@ export default function PostGigPage() {
         return;
       }
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       trackEvent({ action: 'fund_deployment_start', category: 'marketplace', label: title });
-      
+
       // If pure performance ($0 total), we launch directly instead of Stripe Checkout
       if (totalAmount === 0) {
         toast({ title: "Launching Deployment", description: "This performance-only campaign is being prepared..." });
-        
+
         // Direct launch for performance-only
         const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId));
         const agencyData = agencySnap.data();
@@ -285,7 +285,7 @@ export default function PostGigPage() {
       // Hybrid or Fixed model: Use Stripe Checkout
       toast({ title: "Redirecting to Payment", description: "Please complete the funding to launch your deployment." });
       const createCheckout = httpsCallable(functions, 'createGigFundingCheckoutSession');
-      
+
       const payload: any = {
         title: title.trim(),
         description: description.trim(),
@@ -315,26 +315,26 @@ export default function PostGigPage() {
       const result = await createCheckout(payload);
       const data = result.data as { url?: string };
       if (data.url) {
-          window.location.href = data.url;
+        window.location.href = data.url;
       } else {
-          throw new Error("Failed to get payment URL.");
+        throw new Error("Failed to get payment URL.");
       }
     } catch (error: any) {
-        console.error("Error initiating deployment:", error);
-        toast({ 
-          title: 'Deployment Failed', 
-          description: error.message || 'Could not launch the deployment.', 
-          variant: 'destructive' 
-        });
-        setIsSubmitting(false);
+      console.error("Error initiating deployment:", error);
+      toast({
+        title: 'Deployment Failed',
+        description: error.message || 'Could not launch the deployment.',
+        variant: 'destructive'
+      });
+      setIsSubmitting(false);
     }
   };
 
   const nowTime = Date.now();
-  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' || 
-                      (agencyOwner?.subscriptionStatus === 'trialing' && 
-                       agencyOwner?.trialEndsAt && 
-                       agencyOwner.trialEndsAt.toMillis() > nowTime);
+  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' ||
+    (agencyOwner?.subscriptionStatus === 'trialing' &&
+      agencyOwner?.trialEndsAt &&
+      agencyOwner.trialEndsAt.toMillis() > nowTime);
   const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
   const canPost = isSubscribed && hasAgencyPlan;
 
@@ -345,7 +345,7 @@ export default function PostGigPage() {
       </div>
     );
   }
-  
+
   const canPostGigRole = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
   if (!user || !canPostGigRole) {
@@ -374,7 +374,7 @@ export default function PostGigPage() {
               <Sparkles className="h-5 w-5" />
               <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
               <AlertDescription className="text-primary/90">
-                {user.isAgencyOwner 
+                {user.isAgencyOwner
                   ? "You need an active Agency subscription to launch deployments to the network. This plan covers talent management and payout fees."
                   : "Your agency needs an active Agency subscription to launch deployments. Please contact your agency owner to upgrade the account plan."}
               </AlertDescription>
@@ -405,12 +405,12 @@ export default function PostGigPage() {
         title="Launch a New Deployment"
         description="Describe your campaign, set the deployment rate, and recruit creators."
         actions={
-            <Button variant="outline" asChild>
-                <Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4"/> Cancel</Link>
-            </Button>
+          <Button variant="outline" asChild>
+            <Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4" /> Cancel</Link>
+          </Button>
         }
       />
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3">
           <form onSubmit={handleSubmit} className="space-y-8">
@@ -451,28 +451,28 @@ export default function PostGigPage() {
 
             <Card className="shadow-lg">
               <CardHeader>
-                  <CardTitle>2. Deployment Details</CardTitle>
-                  <CardDescription>
-                    Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.
-                  </CardDescription>
+                <CardTitle>2. Deployment Details</CardTitle>
+                <CardDescription>
+                  Describe your {campaignType === 'production_grant' ? 'grant scope' : 'user-generated content (UGC) campaign'}.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                    <Label htmlFor="title">Deployment Title</Label>
-                    <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
+                  <Label htmlFor="title">Deployment Title</Label>
+                  <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Unboxing Video for Skincare Product" required disabled={isSubmitting} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="description">Campaign Brief</Label>
-                    <div className="min-h-[200px] rounded-md border border-input bg-background">
-                      <ReactQuill
-                        theme="snow"
-                        value={description}
-                        onChange={setDescription}
-                        placeholder="Describe the content you need, key talking points, and any do's or don'ts."
-                        readOnly={isSubmitting}
-                        modules={quillModules}
-                      />
-                    </div>
+                  <Label htmlFor="description">Campaign Brief</Label>
+                  <div className="min-h-[200px] rounded-md border border-input bg-background">
+                    <ReactQuill
+                      theme="snow"
+                      value={description}
+                      onChange={setDescription}
+                      placeholder="Describe the content you need, key talking points, and any do's or don'ts."
+                      readOnly={isSubmitting}
+                      modules={quillModules}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Platforms</Label>
@@ -491,14 +491,14 @@ export default function PostGigPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="creators">Creators Needed</Label>
-                        <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting}/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="videos">Videos per Creator</Label>
-                        <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting}/>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="creators">Creators Needed</Label>
+                    <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="videos">Videos per Creator</Label>
+                    <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting} />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -519,7 +519,7 @@ export default function PostGigPage() {
                     <Label htmlFor="rate">Base Rate per Creator ($)</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting}/>
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting} />
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">This amount is pre-funded and held in escrow.</p>
                   </div>
@@ -602,22 +602,40 @@ export default function PostGigPage() {
               )}
             </Card>
 
-            <Card className="shadow-lg border-purple-500/20 bg-purple-50/5">
+            <Card className="shadow-lg border-orange-500/20 bg-orange-50/5">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-purple-500" /> Quality Control</CardTitle>
-                    <CardDescription>Require creators to meet a minimum Verza Score before their video is approved.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-orange-500" /> 5. Quality Control (Verza Score)</CardTitle>
+                    <CardDescription>Require a minimum predicted engagement score for created videos.</CardDescription>
                   </div>
                   <Switch checked={requireVerzaScore} onCheckedChange={setRequireVerzaScore} disabled={isSubmitting} />
                 </div>
               </CardHeader>
               {requireVerzaScore && (
-                <CardContent className="space-y-6 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
-                  <div className="space-y-2 max-w-xs">
-                    <Label htmlFor="verzaScoreThreshold">Minimum Verza Score (%)</Label>
-                    <Input id="verzaScoreThreshold" type="number" value={verzaScoreThreshold} onChange={e => setVerzaScoreThreshold(e.target.value)} min="1" max="100" disabled={isSubmitting} required={requireVerzaScore} />
-                    <p className="text-[10px] text-muted-foreground">Default is 65%. Higher scores mean better estimated engagement.</p>
+                <CardContent className="space-y-4 pt-0 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="threshold">Target Threshold (%)</Label>
+                      <span className="text-sm font-bold text-orange-600">{verzaScoreThreshold}%</span>
+                    </div>
+                    <Input
+                      id="threshold"
+                      type="range"
+                      min="1"
+                      max="100"
+                      value={verzaScoreThreshold}
+                      onChange={e => setVerzaScoreThreshold(e.target.value)}
+                      disabled={isSubmitting}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>1% (Lenient)</span>
+                      <span>100% (Strict)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground pt-2">
+                      Videos must score at least <strong>{verzaScoreThreshold}%</strong> to be automatically approved.
+                      Setting this too high may result in fewer approved submissions. Default is 65%.
+                    </p>
                   </div>
                 </CardContent>
               )}
@@ -644,7 +662,7 @@ export default function PostGigPage() {
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[250px]">
                                 <p>
-                                  The brand claims no commercial usage rights over the final video. 
+                                  The brand claims no commercial usage rights over the final video.
                                   The creator retains full ownership and 100% of their standard sponsor inventory.
                                 </p>
                               </TooltipContent>
@@ -673,9 +691,9 @@ export default function PostGigPage() {
                     <Label htmlFor="whitelisting">Paid Whitelisting Allowed?</Label>
                     <p className="text-xs text-muted-foreground">Allows your brand to run ads directly from the creator's profile.</p>
                   </div>
-                  <Checkbox 
-                    id="whitelisting" 
-                    checked={allowWhitelisting} 
+                  <Checkbox
+                    id="whitelisting"
+                    checked={allowWhitelisting}
                     onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
                     disabled={campaignType === 'production_grant'}
                   />
@@ -684,7 +702,7 @@ export default function PostGigPage() {
                 <div className="p-4 border border-primary/20 rounded-lg bg-primary/5 space-y-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary">Verza Standard Agreement</p>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    By funding this deployment, you agree to Verza's 
+                    By funding this deployment, you agree to Verza's
                     <Dialog>
                       <DialogTrigger asChild>
                         <button type="button" className="text-primary hover:underline font-medium mx-1">
@@ -705,19 +723,19 @@ export default function PostGigPage() {
                           <div className="space-y-4 text-sm leading-relaxed">
                             <p className="font-bold">1. ACCEPTANCE</p>
                             <p>
-                              By accessing or using the Verza platform, you agree to be bound by these Terms of Service. 
-                              If you are using the platform on behalf of an agency or brand, you represent that you 
+                              By accessing or using the Verza platform, you agree to be bound by these Terms of Service.
+                              If you are using the platform on behalf of an agency or brand, you represent that you
                               have the authority to bind that entity to these terms.
                             </p>
                             <p className="font-bold">2. DEPLOYMENT NETWORK ROLE</p>
                             <p>
-                              Verza provides a network for brands and creators to collaborate. Verza is not a 
-                              party to the specific creative agreements except as specified in the Escrow and 
+                              Verza provides a network for brands and creators to collaborate. Verza is not a
+                              party to the specific creative agreements except as specified in the Escrow and
                               Payment sections.
                             </p>
                             <p className="font-bold">3. ACCOUNT SECURITY</p>
                             <p>
-                              You are responsible for maintaining the confidentiality of your account credentials 
+                              You are responsible for maintaining the confidentiality of your account credentials
                               and for all activities that occur under your account.
                             </p>
                           </div>
@@ -729,7 +747,7 @@ export default function PostGigPage() {
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
-                    and 
+                    and
                     <Dialog>
                       <DialogTrigger asChild>
                         <button type="button" className="text-primary hover:underline font-medium mx-1">
@@ -750,19 +768,19 @@ export default function PostGigPage() {
                           <div className="space-y-4 text-sm leading-relaxed">
                             <p className="font-bold">1. CAMPAIGN VAULT</p>
                             <p>
-                              When you launch a deployment, you are required to pre-fund the total campaign cost. 
+                              When you launch a deployment, you are required to pre-fund the total campaign cost.
                               These funds are held by Verza in a secure Campaign Vault (Escrow).
                             </p>
                             <p className="font-bold">2. VERIFICATION & RELEASE</p>
                             <p>
-                              Funds are only released to a creator once they have submitted their work and 
-                              you have manually approved the verified submission in your dashboard. 
+                              Funds are only released to a creator once they have submitted their work and
+                              you have manually approved the verified submission in your dashboard.
                               Once approved, the release is final and non-refundable.
                             </p>
                             <p className="font-bold">3. DISPUTE RESOLUTION</p>
                             <p>
-                              In the event of a non-responsive creator or failed quality score, funds remain 
-                              in the vault. Brands may request a refund for unspent escrow funds after 30 
+                              In the event of a non-responsive creator or failed quality score, funds remain
+                              in the vault. Brands may request a refund for unspent escrow funds after 30
                               days of deployment inactivity.
                             </p>
                           </div>
@@ -774,7 +792,7 @@ export default function PostGigPage() {
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
-                    . Verza will hold all payments securely until verified submission approval and will generate a 
+                    . Verza will hold all payments securely until verified submission approval and will generate a
                     binding clickwrap agreement with the selected creators based on these deployment terms.
                   </p>
                 </div>
