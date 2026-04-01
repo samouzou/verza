@@ -14,7 +14,7 @@ import {
   sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   sendEmailVerification,
   updateProfile as firebaseUpdateProfile,
-  type User as FirebaseUser,
+  type FirebaseUser,
   db,
   doc,
   setDoc,
@@ -100,6 +100,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: UserProfile | null;
   isAgency: boolean; // Helper to determine if user is in an agency flow
+  isAgencyTeam: boolean; // Helper to determine if user is an agency owner/admin/member
   isCreator: boolean; // Helper to determine if user is in a creator flow
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -587,6 +588,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user;
   const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
   const isCreator = user?.role === 'individual_creator' || user?.role === 'talent';
 
   return (
@@ -594,6 +596,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       user,
       isAgency,
+      isAgencyTeam,
       isCreator,
       loginWithGoogle,
       logout,

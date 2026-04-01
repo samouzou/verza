@@ -463,6 +463,13 @@ export interface BrandResearch {
   createdAt: ClientTimestamp;
 }
 
+export interface GigAssignment {
+  agencyId: string;
+  agentId: string; // The specific person who clicked 'Accept'
+  commissionRate: number;
+  assignedAt: ClientTimestamp;
+}
+ 
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner
@@ -491,6 +498,7 @@ export interface Gig {
     rewardAmount: number;
     destinationUrl: string;
   };
+  assignments?: { [creatorId: string]: GigAssignment };
 }
 
 export interface CreatorMarketplaceProfile {

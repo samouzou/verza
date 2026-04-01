@@ -462,6 +462,14 @@ export interface BrandResearch {
   createdAt: ClientTimestamp;
 }
 
+export interface GigAssignment {
+  agencyId: string;
+  agencyName?: string;
+  agentId: string; // The specific person who clicked 'Accept'
+  commissionRate: number;
+  assignedAt: ClientTimestamp;
+}
+ 
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner
@@ -474,6 +482,7 @@ export interface Gig {
   creatorsNeeded: number;
   videosPerCreator: number;
   acceptedCreatorIds: string[];
+  agentIds?: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
@@ -493,6 +502,7 @@ export interface Gig {
     promoCodeDiscountValue?: string;
     promoCodePrefix?: string;
   };
+  assignments?: { [creatorId: string]: GigAssignment };
 }
 
 export interface CreatorMarketplaceProfile {

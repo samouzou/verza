@@ -3,7 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
-import type {Gig, UserProfileFirestoreData, Notification, Agency} from "./../types";
+import type {Gig, UserProfileFirestoreData, Notification, Agency, InternalPayout} from "./../types";
 import * as params from "../config/params";
 import * as admin from "firebase-admin";
 
@@ -60,6 +60,20 @@ export const payoutCreatorForGig = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "The creator does not have a valid Stripe account ready for payouts.");
     }
 
+    // Determine if this was an agency-managed assignment
+    const assignment = gigData.assignments?.[creatorId];
+    let agentProfile: UserProfileFirestoreData | null = null;
+    if (assignment) {
+      const talentAgencySnap = await db.collection("agencies").doc(assignment.agencyId).get();
+      if (talentAgencySnap.exists) {
+        const talentAgencyData = talentAgencySnap.data() as Agency;
+        const agentSnap = await db.collection("users").doc(talentAgencyData.ownerId).get();
+        if (agentSnap.exists) {
+          agentProfile = agentSnap.data() as UserProfileFirestoreData;
+        }
+      }
+    }
+
     const stripeKey = params.STRIPE_SECRET_KEY.value();
     const stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
 
@@ -70,16 +84,24 @@ export const payoutCreatorForGig = onCall(async (request) => {
       sourceTransactionId = paymentIntent.latest_charge as string;
     }
 
-    // Deduct 15% platform fee from the creator's payout
+    // Payout Logic with Agency Split
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
     
-    // Only attempt Stripe transfer if there is a base rate > 0
     if (rawPayoutAmountInCents > 0) {
       const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
-      const finalPayoutAmountInCents = rawPayoutAmountInCents - platformFeeInCents;
+      const netPayoutInCents = rawPayoutAmountInCents - platformFeeInCents;
 
-      const transferParams: Stripe.TransferCreateParams = {
-        amount: finalPayoutAmountInCents,
+      let creatorPayoutInCents = netPayoutInCents;
+      let agencyCommissionInCents = 0;
+
+      if (assignment) {
+        agencyCommissionInCents = Math.round(netPayoutInCents * (assignment.commissionRate / 100));
+        creatorPayoutInCents = netPayoutInCents - agencyCommissionInCents;
+      }
+
+      // 1. Transfer to Creator
+      const creatorTransferParams: Stripe.TransferCreateParams = {
+        amount: creatorPayoutInCents,
         currency: "usd",
         destination: creatorData.stripeAccountId,
         description: `Payout for deployment: ${gigData.title}`,
@@ -87,44 +109,105 @@ export const payoutCreatorForGig = onCall(async (request) => {
           gigId: gigId,
           creatorId: creatorId,
           brandId: gigData.brandId,
-          platformFee: platformFeeInCents.toString(),
+          assignmentMode: assignment ? "agency" : "direct",
         },
       };
 
       if (sourceTransactionId) {
-        transferParams.source_transaction = sourceTransactionId;
+        creatorTransferParams.source_transaction = sourceTransactionId;
       }
 
-      // Release funds to creator
-      await stripe.transfers.create(transferParams);
+      await stripe.transfers.create(creatorTransferParams);
+
+      // 2. Transfer to Agency Owner (if applicable)
+      if (agencyCommissionInCents > 0 && agentProfile?.stripeAccountId && agentProfile?.stripePayoutsEnabled) {
+        const agencyTransferParams: Stripe.TransferCreateParams = {
+          amount: agencyCommissionInCents,
+          currency: "usd",
+          destination: agentProfile.stripeAccountId,
+          description: `Agency Commission (${assignment?.commissionRate}%) for ${creatorData.displayName} on deployment: ${gigData.title}`,
+          metadata: {
+            gigId: gigId,
+            creatorId: creatorId,
+            agencyId: assignment?.agencyId || "unknown",
+            platformFeeShare: "split_from_net",
+          },
+        };
+
+        if (sourceTransactionId) {
+          agencyTransferParams.source_transaction = sourceTransactionId;
+        }
+
+        await stripe.transfers.create(agencyTransferParams);
+      } else if (agencyCommissionInCents > 0 && assignment) {
+        // Fallback: If no Stripe account, we'll need to settle this manually or via Wallet (outside of this simple Stripe flow)
+        logger.warn(`Agency commission of ${agencyCommissionInCents} cents pending for agency ${assignment.agencyId} - No Stripe account found.`);
+        // For now, we'll keep the logic simple and only do Stripe transfers if possible.
+      }
     }
 
-    // Update the gig document and agency escrow in a transaction
+    // Update the documents and record payouts in a transaction
     await db.runTransaction(async (transaction) => {
       const currentGigSnap = await transaction.get(gigDocRef);
       const currentGigData = currentGigSnap.data() as Gig;
-      const currentAgencySnap = await transaction.get(agencyDocRef);
-      const currentAgencyData = currentAgencySnap.data() as Agency;
+      const brandAgencySnap = await transaction.get(agencyDocRef);
+      const brandAgencyData = brandAgencySnap.data() as Agency;
 
+      // 1. Update Gig status and paid creators
       const newPaidCreatorIds = [...(currentGigData.paidCreatorIds || []), creatorId];
       const isGigFullyPaid = newPaidCreatorIds.length === currentGigData.creatorsNeeded;
 
-      const gigUpdates: Partial<Gig> = {
-        paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId) as any,
+      const gigUpdates: any = {
+        paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
       };
       if (isGigFullyPaid) gigUpdates.status = "completed";
       transaction.update(gigDocRef, gigUpdates);
 
-      // Burn down the escrow balance
-      const currentEscrow = currentAgencyData.escrowBalance || 0;
-      transaction.update(agencyDocRef, {escrowBalance: Math.max(0, currentEscrow - gigData.ratePerCreator)});
+      // 2. Burn down the Brand Agency's escrow balance
+      const currentEscrow = brandAgencyData.escrowBalance || 0;
+      transaction.update(agencyDocRef, {
+        escrowBalance: Math.max(0, currentEscrow - gigData.ratePerCreator),
+      });
+
+      // 3. If agency assignment, update Talent Agency's revenue/internal payout
+      if (assignment && rawPayoutAmountInCents > 0) {
+        const talentAgencyDocRef = db.collection("agencies").doc(assignment.agencyId);
+        const talentAgencySnap = await transaction.get(talentAgencyDocRef);
+        
+        if (talentAgencySnap.exists) {
+          const talentAgencyData = talentAgencySnap.data() as Agency;
+          const commissionAmount = (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
+          
+          // Update Talent Agency's available balance (revenue)
+          transaction.update(talentAgencyDocRef, {
+            availableBalance: (talentAgencyData.availableBalance || 0) + commissionAmount,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Create Internal Payout record for the agency
+          const payoutRef = db.collection("internalPayouts").doc();
+          transaction.set(payoutRef, {
+            id: payoutRef.id,
+            agencyId: assignment.agencyId,
+            agencyName: talentAgencyData.name,
+            agencyOwnerId: talentAgencyData.ownerId,
+            talentId: creatorId,
+            talentName: creatorData.displayName || "Unknown Creator",
+            amount: commissionAmount,
+            description: `Commission (${assignment.commissionRate}%) for ${gigData.title}`,
+            status: agentProfile?.stripeAccountId ? "paid" : "pending",
+            initiatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            paidAt: agentProfile?.stripeAccountId ? admin.firestore.FieldValue.serverTimestamp() : null,
+          } as InternalPayout);
+        }
+      }
     });
 
     // Notify Creator
     await db.collection("notifications").add({
       userId: creatorId,
       title: "Payout Received!",
-      message: `Your work for "${gigData.title}" has been approved and paid from the Campaign Vault.`,
+      message: `Your work for "${gigData.title}" has been approved and paid.`,
       type: "payout_received",
       read: false,
       link: "/wallet",
@@ -132,21 +215,32 @@ export const payoutCreatorForGig = onCall(async (request) => {
     } as Omit<Notification, "id">);
 
     // Notify Brand if the project is now complete
-    const agencySnap = await agencyDocRef.get();
-    if (agencySnap.exists) {
-      const agencyData = agencySnap.data();
-      const gigSnapCheck = await gigDocRef.get();
-      if (gigSnapCheck.data()?.status === "completed") {
-        await db.collection("notifications").add({
-          userId: agencyData?.ownerId,
-          title: "Deployment Complete!",
-          message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
-          type: "system",
-          read: false,
-          link: `/deployments/${gigId}`,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        } as Omit<Notification, "id">);
-      }
+    const updatedGigSnap = await gigDocRef.get();
+    if (updatedGigSnap.data()?.status === "completed") {
+      const brandAgencySnap = await agencyDocRef.get();
+      const brandAgencyData = brandAgencySnap.data() as Agency;
+      await db.collection("notifications").add({
+        userId: brandAgencyData.ownerId,
+        title: "Deployment Complete!",
+        message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
+        type: "system",
+        read: false,
+        link: `/deployments/${gigId}`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      } as Omit<Notification, "id">);
+    }
+
+    // Notify Agent if commission was processed
+    if (assignment && agentProfile) {
+      await db.collection("notifications").add({
+        userId: agentProfile.uid,
+        title: "Agency Commission Received!",
+        message: `You earned a commission for ${creatorData.displayName}'s work on "${gigData.title}".`,
+        type: "payout_received",
+        read: false,
+        link: "/agency/dashboard",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      } as Omit<Notification, "id">);
     }
 
     logger.info(`Successfully processed payout for creator ${creatorId} for deployment ${gigId}.`);

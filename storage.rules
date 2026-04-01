@@ -6,7 +6,14 @@ service firebase.storage {
 
     // Helper function to check if the requester is part of the specified agency via custom claims
     function isMemberOfAgency(agencyId) {
-      return request.auth != null && request.auth.token.primaryAgencyId == agencyId;
+      return request.auth != null && request.auth.token.get('primaryAgencyId', null) == agencyId;
+    }
+
+    // Helper to determine if the target user is a talent in the requester's agency
+    function isTalentInMyAgency(targetUserId) {
+      let agencyId = request.auth.token.get('primaryAgencyId', null);
+      return agencyId != null && 
+             firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.talent.exists(t, t.userId == targetUserId);
     }
 
     // Rules for user avatars
@@ -73,10 +80,12 @@ service firebase.storage {
                    && request.resource.contentType.matches('video/.*');
 
       // Creators can read their own submissions, 
-      // and agency members can read submissions for gigs their agency owns.
+      // agency members can read submissions for gigs their agency owns,
+      // and managing agents can read submissions for their talent.
       allow read: if request.auth != null && (
         request.auth.uid == userId || 
-        isMemberOfAgency(firestore.get(/databases/(default)/documents/gigs/$(gigId)).data.brandId)
+        isMemberOfAgency(firestore.get(/databases/(default)/documents/gigs/$(gigId)).data.brandId) ||
+        isTalentInMyAgency(userId)
       );
     }
   }
