@@ -361,6 +361,7 @@ function GigDetailContent() {
         const brandAgencyData = brandAgencySnap.data();
         await addDoc(collection(db, 'notifications'), {
           userId: brandAgencyData.ownerId,
+          agencyId: currentGigData.brandId,
           title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
           message: isAgencyAcceptance 
             ? `${user.displayName || 'An agency'} has assigned ${activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent'} to your deployment "${gig.title}".`
@@ -376,6 +377,7 @@ function GigDetailContent() {
       if (isAgencyAcceptance && selectedTalentId) {
         await addDoc(collection(db, 'notifications'), {
           userId: selectedTalentId,
+          agencyId: userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.id,
           title: "New Deployment Assigned!",
           message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" deployment.`,
           type: 'system',
@@ -1410,6 +1412,13 @@ function GigDetailContent() {
                             </AlertDialogContent>
                           </AlertDialog>
                         )}
+                      </div>
+                    )}
+                    {isAssignedAgent && !isBrandTeam && (
+                      <div className="space-y-2">
+                        <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20 cursor-default" disabled>
+                          <CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured
+                        </Button>
                       </div>
                     )}
                   </div>
