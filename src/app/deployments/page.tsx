@@ -22,7 +22,7 @@ import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
 import { cn } from '@/lib/utils';
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
