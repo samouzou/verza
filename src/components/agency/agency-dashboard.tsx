@@ -33,7 +33,8 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
   const subscriptionHolder = agencyOwner || user;
 
   const activeTalentCount = agency.talent.filter(t => t.status === 'active').length;
-  const talentLimit = subscriptionHolder?.talentLimit ?? 3;
+  const rawLimit = subscriptionHolder?.talentLimit;
+  const talentLimit = rawLimit === 0 ? 3 : (rawLimit ?? 3);
   const atTalentLimit = activeTalentCount >= talentLimit;
   const isNotOnAgencyPlan = !subscriptionHolder?.subscriptionPlanId?.startsWith('agency_');
 
@@ -74,17 +75,14 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
 
   return (
     <div className="space-y-6">
-      {(isNotOnAgencyPlan || atTalentLimit) && (
+      {atTalentLimit && (
         <Alert className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
           <Sparkles className="h-5 w-5" />
           <AlertTitle className="font-semibold text-primary">
-            {atTalentLimit ? "Talent Limit Reached" : "Upgrade Your Plan"}
+            Talent Limit Reached
           </AlertTitle>
           <AlertDescription className="text-primary/90">
-            {atTalentLimit
-              ? `You have reached your limit of ${talentLimit} active talents. Please upgrade to invite more.`
-              : `Unlock unlimited talent, AI contract generation, and the full management suite.`
-            }
+            You have reached your limit of {talentLimit} active talents. Please upgrade your plan to unlock unlimited talent, AI contract generation, and the full management suite.
           </AlertDescription>
           {user?.isAgencyOwner && (
             <div className="mt-3">
@@ -107,7 +105,7 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit} />
-            <InviteTeamMemberCard agencyId={agency.id} disabled={isNotOnAgencyPlan || !canInviteTeam} />
+            <InviteTeamMemberCard agencyId={agency.id} disabled={!canInviteTeam} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

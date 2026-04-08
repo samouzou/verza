@@ -206,6 +206,7 @@ export interface UserProfileFirestoreData {
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null;
+  country?: string | null;
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;

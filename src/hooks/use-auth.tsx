@@ -35,6 +35,7 @@ export interface UserProfile {
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null; 
+  country?: string | null;
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: Timestamp;
@@ -154,7 +155,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.trialEndsAt = trialEndsAtTimestamp;
     updates.subscriptionEndsAt = null;
     updates.trialExtensionUsed = false;
-    updates.talentLimit = 0;
+    updates.talentLimit = 3;
 
     updates.stripeAccountId = null;
     updates.stripeAccountStatus = 'none';
@@ -259,7 +260,7 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     updates.subscriptionStatus = currentSubscriptionStatus; 
 
     if (existingData.subscriptionInterval === undefined) { updates.subscriptionInterval = null; needsUpdate = true; }
-    if (existingData.talentLimit === undefined) { updates.talentLimit = 0; needsUpdate = true; }
+    if (existingData.talentLimit === undefined) { updates.talentLimit = 3; needsUpdate = true; }
 
 
     if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing')) {
@@ -367,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               companyLogoUrl: firestoreUserData.companyLogoUrl || null,
               emailVerified: currentFirebaseUser.emailVerified,
               address: firestoreUserData.address || null, 
+              country: firestoreUserData.country || null,
               tin: firestoreUserData.tin || null,
               taxClassification: firestoreUserData.taxClassification || null,
               createdAt: firestoreUserData.createdAt,
@@ -438,6 +440,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentFbUser = auth.currentUser;
     if (currentFbUser) {
       await currentFbUser.reload();
+      await currentFbUser.getIdToken(true); // Force refresh custom claims
     }
   }, []);
 
