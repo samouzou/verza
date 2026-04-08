@@ -70,8 +70,9 @@ export function StripeConnectCard() {
 
       const result = await response.json();
       if (result.stripeAccountId) {
-        toast({ title: "Stripe Account Created", description: "Please complete onboarding to link your bank account." });
+        toast({ title: "Stripe Account Created", description: "Redirecting to Stripe to complete setup..." });
         await refreshAuthUser(); 
+        await handleManageStripeAccount(); // Auto-redirect to onboarding
       } else {
         throw new Error("Stripe Account ID not returned from backend.");
       }
@@ -169,6 +170,18 @@ export function StripeConnectCard() {
               Payouts: {user.stripePayoutsEnabled ? 'Enabled' : 'Disabled'}
             </p>
           </>
+        )}
+        
+        {user.stripeAccountStatus === 'onboarding_incomplete' && (
+          <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start gap-2">
+            <AlertTriangleIcon className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-destructive">Action Required</p>
+              <p className="text-muted-foreground mt-1">
+                Your account is created, but you must click <strong>Complete Onboarding</strong> below to securely add your banking details in Stripe. Payouts cannot be processed until this is finished.
+              </p>
+            </div>
+          </div>
         )}
       </div>
     );

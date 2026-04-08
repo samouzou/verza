@@ -71,6 +71,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const [summary, setSummary] = useState<SummarizeContractTermsOutput | null>(null);
   const [negotiationSuggestions, setNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [agencyOwnerProfile, setAgencyOwnerProfile] = useState<any>(null);
   
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -85,12 +86,15 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
   const hasInitializedRef = useRef(false);
 
+  const subscriptionHolder = agencyOwnerProfile || user;
   const now = Date.now();
   const canPerformProAction =
-    user?.subscriptionStatus === 'active' ||
-    (user?.subscriptionStatus === 'trialing' &&
-      user.trialEndsAt &&
-      user.trialEndsAt.toMillis() > now);
+    subscriptionHolder?.subscriptionStatus === 'active' ||
+    (subscriptionHolder?.subscriptionStatus === 'trialing' &&
+      subscriptionHolder.trialEndsAt &&
+      (typeof subscriptionHolder.trialEndsAt.toMillis === 'function' 
+        ? subscriptionHolder.trialEndsAt.toMillis() 
+        : subscriptionHolder.trialEndsAt.seconds * 1000) > now);
 
   const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
@@ -148,7 +152,17 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
                 const docSnap = await getDoc(agencyDocRef);
                 if (docSnap.exists()) {
-                    setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+                    const agencyData = { id: docSnap.id, ...docSnap.data() } as Agency;
+                    setAgency(agencyData);
+                    
+                    if (agencyData.ownerId !== user.uid) {
+                        const ownerDocRef = doc(db, "users", agencyData.ownerId);
+                        const ownerSnap = await getDoc(ownerDocRef);
+                        if (ownerSnap.exists()) {
+                            setAgencyOwnerProfile(ownerSnap.data());
+                        }
+                    }
+
                     if (initialSelectedOwner) {
                       setSelectedOwner(initialSelectedOwner);
                     } else if (user.isAgencyOwner) {
