@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building, Lightbulb } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // URLs for your Firebase Cloud Functions (onRequest type)
@@ -228,6 +228,18 @@ export function StripeConnectCard() {
         <div className="p-4 border rounded-lg bg-muted/50">
           {renderStatusDetails()}
         </div>
+
+        {(!user.stripeAccountId || user.stripeAccountStatus === 'none') && (
+          <div className="bg-primary/5 border border-primary/20 rounded-md p-4 flex gap-3 text-sm">
+            <Lightbulb className="h-5 w-5 text-primary shrink-0" />
+            <div>
+              <p className="font-semibold text-primary">Setup Tip: Choose "Individual" Account</p>
+              <p className="text-muted-foreground mt-1">
+                During the Stripe onboarding process, you will be asked for your "Type of Entity". Please ensure you select <strong>"Individual / Sole Proprietor"</strong> unless you possess formal corporate registration documents (like an LLC or C-Corp). Selecting "Company" improperly can lead to payout holds and verification failures.
+              </p>
+            </div>
+          </div>
+        )}
 
         <Button
           onClick={buttonAction.handler}
