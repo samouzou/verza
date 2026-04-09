@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -79,6 +80,9 @@ function GigDetailContent() {
 
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
+  
+  const [linkInputs, setLinkInputs] = useState<Record<number, string>>({});
+  const [isSubmittingLink, setIsSubmittingLink] = useState<number | null>(null);
 
   // Affiliate State
   const [affiliateLinks, setAffiliateLinks] = useState<Record<string, AffiliateLink>>({});
@@ -503,13 +507,74 @@ function GigDetailContent() {
     }
   };
 
+  const handleSubmitLink = async (slotIndex: number) => {
+    const url = linkInputs[slotIndex];
+    if (!url || !user || !gig) return;
+    
+    if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+      toast({ title: "Only YouTube links supported", description: "For TikTok or Instagram, please upload the raw video file.", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmittingLink(slotIndex);
+    try {
+      const isVerzaRequired = gig.requireVerzaScore ?? true;
+      const subData: Omit<GigSubmission, 'id'> = {
+        gigId: gig.id,
+        brandId: gig.brandId,
+        creatorId: user.uid,
+        creatorName: user.displayName || 'Creator',
+        creatorAvatarUrl: user.avatarUrl || null,
+        videoUrl: url,
+        verzaScore: 0,
+        verzaFeedback: "",
+        status: isVerzaRequired ? 'pending_verza_score' : 'submitted',
+        createdAt: serverTimestamp() as any,
+      };
+
+      const existingAtSlot = mySubmissions[slotIndex];
+      if (existingAtSlot) {
+        await updateDoc(doc(db, 'submissions', existingAtSlot.id), subData);
+      } else {
+        await addDoc(collection(db, 'submissions'), subData);
+      }
+      trackEvent({ action: 'link_upload', category: 'marketplace', label: `slot_${slotIndex}` });
+
+      if (!isVerzaRequired) {
+        const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
+        if (agencySnap.exists()) {
+          const agencyData = agencySnap.data();
+          await addDoc(collection(db, 'notifications'), {
+            userId: agencyData.ownerId,
+            title: "New submission received",
+            message: `${user?.displayName || 'A creator'} submitted a link for "${gig.title}".`,
+            type: 'submission_received',
+            read: false,
+            link: `/deployments/${gig.id}`,
+            createdAt: serverTimestamp(),
+          } as Omit<Notification, 'id'>);
+        }
+        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Your submission has been sent to the brand." });
+      } else {
+        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Calculate your Verza Score to verify your link." });
+      }
+      setLinkInputs(prev => ({ ...prev, [slotIndex]: '' }));
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Submission failed", variant: "destructive" });
+    } finally {
+      setIsSubmittingLink(null);
+    }
+  };
+
   const handleRunVerzaScore = async (submission: GigSubmission) => {
     if (!gig) return;
     setIsRunningVerzaScore(submission.id);
     toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
       trackEvent({ action: 'verza_score_start', category: 'ai_tool', label: gig.title });
-      const result = await runVerzaScore({ videoUrl: submission.videoUrl });
+      const isYouTube = submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be');
+      const result = await runVerzaScore({ videoUrl: submission.videoUrl, isYouTube });
       const subRef = doc(db, 'submissions', submission.id);
 
       const threshold = gig.verzaScoreThreshold ?? 65;
@@ -910,14 +975,37 @@ function GigDetailContent() {
                         {submission ? (
                           <div className="space-y-4">
                             <div className="aspect-video bg-black rounded-lg overflow-hidden relative group">
-                              <video src={submission.videoUrl} controls className="w-full h-full" />
-                              <div className="absolute top-2 right-2 flex gap-2">
-                                <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
-                                  <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
-                                    <Download className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              </div>
+                              {(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) ? (
+                                (() => {
+                                  let yId = null;
+                                  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+                                  const match = submission.videoUrl.match(regExp);
+                                  if (match && match[2].length === 11) yId = match[2];
+                                  return yId ? (
+                                    <iframe 
+                                      className="w-full h-full" 
+                                      src={`https://www.youtube.com/embed/${yId}`} 
+                                      frameBorder="0" 
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                      allowFullScreen
+                                    ></iframe>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">Invalid YouTube Link</div>
+                                  );
+                                })()
+                              ) : (
+                                <video src={submission.videoUrl} controls className="w-full h-full" />
+                              )}
+                              
+                              {!(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) && (
+                                <div className="absolute top-2 right-2 flex gap-2">
+                                  <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
+                                    <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
+                                      <Download className="h-3 w-3" />
+                                    </a>
+                                  </Button>
+                                </div>
+                              )}
                             </div>
 
                             {(submission.status === 'pending_verza_score' || submission.status === 'rejected') && (gig.requireVerzaScore ?? true) ? (
@@ -946,27 +1034,71 @@ function GigDetailContent() {
                             )}
 
                             {!isCompleted && submission.status !== 'approved' && (
-                              <div className="pt-2 flex justify-center">
-                                <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
-                                  <Edit className="h-3 w-3" /> Replace Video
-                                </Label>
-                                <input id={`video-replace-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading || !!isRunningVerzaScore} />
+                              <div className="pt-2 flex flex-col items-center gap-2 mt-2">
+                                <div className="flex gap-4 border-t pt-4 w-full">
+                                  <div className="flex-1 flex flex-col gap-1 items-center">
+                                    <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+                                      <UploadCloud className="h-3 w-3" /> Upload New File
+                                    </Label>
+                                    <input id={`video-replace-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading || !!isRunningVerzaScore} />
+                                  </div>
+                                </div>
+
+                                <div className="w-full mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <Input 
+                                      className="h-8 text-sm flex-1" 
+                                      placeholder="Replace with YouTube link..." 
+                                      value={linkInputs[i] || ''} 
+                                      onChange={(e) => setLinkInputs(p => ({...p, [i]: e.target.value}))} 
+                                      disabled={isSubmittingLink === i || !!isRunningVerzaScore}
+                                    />
+                                    <Button size="sm" variant="secondary" onClick={() => handleSubmitLink(i)} disabled={isSubmittingLink === i || !(linkInputs[i]?.trim()) || !!isRunningVerzaScore}>
+                                      {isSubmittingLink === i ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Replace'}
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
                         ) : (
                           !isCompleted ? (
-                            <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
-                              <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading} />
-                              <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
+                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg bg-background hover:bg-muted/10 transition-colors">
+                              <div className="flex flex-col items-center gap-2 mb-6">
                                 <div className="p-4 bg-muted rounded-full">
                                   {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <UploadCloud className="h-8 w-8 text-primary" />}
                                 </div>
                                 <div className="text-center">
-                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
-                                  <p className="text-sm text-muted-foreground">MP4 or MOV, max 100MB</p>
+                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video File'}</p>
+                                  <p className="text-xs text-muted-foreground mb-3">MP4/MOV, max 100MB (non-YouTube)</p>
+                                  <label htmlFor={`video-upload-${i}`} className="cursor-pointer">
+                                    <Button size="sm" variant="secondary" asChild disabled={!!isUploading}><span className="cursor-pointer">Choose File</span></Button>
+                                  </label>
+                                  <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading} />
                                 </div>
-                              </label>
+                              </div>
+
+                              <div className="w-full flex items-center gap-4 mb-4">
+                                <div className="flex-1 h-px bg-border"></div>
+                                <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">OR</span>
+                                <div className="flex-1 h-px bg-border"></div>
+                              </div>
+
+                              <div className="w-full space-y-2">
+                                <Label className="text-xs">Submit a YouTube Link</Label>
+                                <div className="flex items-center gap-2">
+                                  <Input 
+                                    className="h-8 text-sm" 
+                                    placeholder="https://youtube.com/watch?v=..." 
+                                    value={linkInputs[i] || ''} 
+                                    onChange={(e) => setLinkInputs(p => ({...p, [i]: e.target.value}))} 
+                                    disabled={isSubmittingLink === i}
+                                  />
+                                  <Button size="sm" onClick={() => handleSubmitLink(i)} disabled={isSubmittingLink === i || !(linkInputs[i]?.trim())}>
+                                    {isSubmittingLink === i ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background">
