@@ -208,6 +208,7 @@ export interface UserProfileFirestoreData {
   companyLogoUrl?: string | null;
   emailVerified: boolean;
   address?: string | null;
+  country?: string | null;
   tin?: string | null;
   taxClassification?: TaxClassification | null;
   createdAt?: ClientTimestamp;
@@ -370,6 +371,7 @@ export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
+  paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
   availableBalance?: number;
   escrowBalance?: number;
   createdAt: ClientTimestamp;
@@ -463,6 +465,13 @@ export interface BrandResearch {
   createdAt: ClientTimestamp;
 }
 
+export interface GigAssignment {
+  agencyId: string;
+  agentId: string; // The specific person who clicked 'Accept'
+  commissionRate: number;
+  assignedAt: ClientTimestamp;
+}
+ 
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner
@@ -470,7 +479,7 @@ export interface Gig {
   brandLogoUrl?: string | null;
   title: string;
   description: string;
-  platforms: ("TikTok" | "Instagram" | "YouTube" | "Facebook")[];
+  platforms: ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn")[];
   ratePerCreator: number;
   creatorsNeeded: number;
   videosPerCreator: number;
@@ -483,12 +492,15 @@ export interface Gig {
   campaignType: "standard_sponsorship" | "production_grant";
   usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting?: boolean;
+  requireVerzaScore?: boolean;
+  verzaScoreThreshold?: number;
   affiliateSettings?: {
     isEnabled: boolean;
     rewardType: "cpc" | "cpa";
     rewardAmount: number;
     destinationUrl: string;
   };
+  assignments?: { [creatorId: string]: GigAssignment };
 }
 
 export interface CreatorMarketplaceProfile {

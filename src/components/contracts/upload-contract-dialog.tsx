@@ -33,6 +33,7 @@ import { DocumentEditorContainerComponent, Inject, Toolbar, Ribbon } from '@sync
 import { registerLicense } from '@syncfusion/ej2-base';
 import { v4 as uuidv4 } from 'uuid';
 import { trackEvent } from "@/lib/analytics";
+import mammoth from 'mammoth';
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -70,6 +71,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const [summary, setSummary] = useState<SummarizeContractTermsOutput | null>(null);
   const [negotiationSuggestions, setNegotiationSuggestions] = useState<NegotiationSuggestionsOutput | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [agencyOwnerProfile, setAgencyOwnerProfile] = useState<any>(null);
   
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -84,12 +86,15 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
   const hasInitializedRef = useRef(false);
 
+  const subscriptionHolder = agencyOwnerProfile || user;
   const now = Date.now();
   const canPerformProAction =
-    user?.subscriptionStatus === 'active' ||
-    (user?.subscriptionStatus === 'trialing' &&
-      user.trialEndsAt &&
-      user.trialEndsAt.toMillis() > now);
+    subscriptionHolder?.subscriptionStatus === 'active' ||
+    (subscriptionHolder?.subscriptionStatus === 'trialing' &&
+      subscriptionHolder.trialEndsAt &&
+      (typeof subscriptionHolder.trialEndsAt.toMillis === 'function' 
+        ? subscriptionHolder.trialEndsAt.toMillis() 
+        : subscriptionHolder.trialEndsAt.seconds * 1000) > now);
 
   const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
@@ -110,7 +115,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
   const resetState = () => {
       if (editorRef.current?.documentEditor) {
-          editorRef.current.documentEditor.open(JSON.stringify({ sfdt: '' }));
+          const emptySfdt = JSON.stringify({ sections: [{ blocks: [{ inlines: [{ text: "" }] }], sectionFormat: { pageWidth: 612, pageHeight: 792, leftMargin: 72, rightMargin: 72, topMargin: 72, bottomMargin: 72 } }] });
+          editorRef.current.documentEditor.open(emptySfdt);
       }
       setFileName("");
       setProjectName("");
@@ -146,7 +152,17 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
                 const agencyDocRef = doc(db, "agencies", user.primaryAgencyId);
                 const docSnap = await getDoc(agencyDocRef);
                 if (docSnap.exists()) {
-                    setAgency({ id: docSnap.id, ...docSnap.data() } as Agency);
+                    const agencyData = { id: docSnap.id, ...docSnap.data() } as Agency;
+                    setAgency(agencyData);
+                    
+                    if (agencyData.ownerId !== user.uid) {
+                        const ownerDocRef = doc(db, "users", agencyData.ownerId);
+                        const ownerSnap = await getDoc(ownerDocRef);
+                        if (ownerSnap.exists()) {
+                            setAgencyOwnerProfile(ownerSnap.data());
+                        }
+                    }
+
                     if (initialSelectedOwner) {
                       setSelectedOwner(initialSelectedOwner);
                     } else if (user.isAgencyOwner) {
@@ -247,22 +263,35 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       const isPdfOrImage = file.type.startsWith('application/pdf') || file.type.startsWith('image/');
 
       if (isWordDoc) {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          try {
-            const base64Content = (event.target?.result as string).split(',')[1];
-            editorRef.current!.documentEditor.open(base64Content);
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            
+            const sfdtPayload = {
+              sections: [
+                 {
+                   blocks: result.value.split('\n').map(paragraph => ({
+                     inlines: [{ 
+                        text: paragraph, 
+                        characterFormat: { fontSize: 11, fontFamily: 'Arial' } 
+                     }],
+                     paragraphFormat: { styleName: 'Normal' }
+                   })),
+                   sectionFormat: { pageWidth: 612, pageHeight: 792, leftMargin: 72, rightMargin: 72, topMargin: 72, bottomMargin: 72 }
+                 }
+              ]
+            };
+            
+            const sfdtString = JSON.stringify(sfdtPayload);
+            editorRef.current.documentEditor.open(sfdtString);
+            
             setTimeout(async () => {
-              const sfdtString = editorRef.current!.documentEditor.serialize();
-              await handleFullAnalysis(sfdtString);
-            }, 1500);
-          } catch (editorError) {
-            console.error("Error opening DOCX in editor:", editorError);
-            throw new Error("The editor could not process this .docx file.");
-          }
-        };
-        reader.onerror = () => { throw new Error("Failed to read the .docx file."); };
-        reader.readAsDataURL(file);
+                await handleFullAnalysis(sfdtString);
+            }, 1000);
+        } catch (editorError) {
+          console.error("Error parsing DOCX with Mammoth:", editorError);
+          throw new Error("The editor could not process this .docx file.");
+        }
 
       } else if (isPdfOrImage) {
         const reader = new FileReader();
@@ -275,12 +304,17 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
         const ocrResult = await ocrDocument({ documentDataUri: dataUri });
         
         const sfdtPayload = {
-          "sections": [
-            {
-              "blocks": ocrResult.extractedText.split('\n').map(paragraph => ({
-                "inlines": [{ "text": paragraph }]
-              }))
-            }
+          sections: [
+             {
+               blocks: ocrResult.extractedText.split('\n').map(paragraph => ({
+                 inlines: [{ 
+                    text: paragraph, 
+                    characterFormat: { fontSize: 11, fontFamily: 'Arial' } 
+                 }],
+                 paragraphFormat: { styleName: 'Normal' }
+               })),
+               sectionFormat: { pageWidth: 612, pageHeight: 792, leftMargin: 72, rightMargin: 72, topMargin: 72, bottomMargin: 72 }
+             }
           ]
         };
         

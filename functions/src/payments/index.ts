@@ -337,10 +337,11 @@ export const createPaymentIntent = onRequest(async (request, response) => {
           receipt_email: emailForReceiptAndMetadata || undefined,
         };
       } else { // Contract is for the agency itself (created by owner or team member)
-        const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+        const paymentHolder = agencyData.paymentDelegateId || agencyData.ownerId;
+        const agencyOwnerUserDoc = await db.collection("users").doc(paymentHolder).get();
         const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
         if (!agencyOwnerData?.stripeAccountId || !agencyOwnerData.stripePayoutsEnabled) {
-          throw new Error("Agency owner does not have a valid, active bank account for receiving payments.");
+          throw new Error("Agency payment account holder does not have a valid, active bank account for receiving payments.");
         }
         paymentIntentParams = {
           amount: amountInCents,
@@ -640,7 +641,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const talentInfo = agencyData.talent.find((t) => t.userId === contractData.userId);
 
             if (agencyData && talentInfo && typeof talentInfo.commissionRate === "number") {
-              const agencyOwnerUserDoc = await db.collection("users").doc(agencyData.ownerId).get();
+              const paymentHolder = agencyData.paymentDelegateId || agencyData.ownerId;
+              const agencyOwnerUserDoc = await db.collection("users").doc(paymentHolder).get();
               const agencyOwnerData = agencyOwnerUserDoc.data() as UserProfileFirestoreData;
               const talentUserDoc = await db.collection("users").doc(contractData.userId).get();
               const talentUserData = talentUserDoc.data() as UserProfileFirestoreData;
@@ -784,6 +786,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     usageRights,
     allowWhitelisting,
     affiliateSettings,
+    requireVerzaScore,
+    verzaScoreThreshold,
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
@@ -848,6 +852,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || null,
+    requireVerzaScore: requireVerzaScore ?? true,
+    verzaScoreThreshold: verzaScoreThreshold ?? 65,
   };
 
   if (existingGigId) {
