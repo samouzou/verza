@@ -67,7 +67,9 @@ export const payoutCreatorForGig = onCall(async (request) => {
       const talentAgencySnap = await db.collection("agencies").doc(assignment.agencyId).get();
       if (talentAgencySnap.exists) {
         const talentAgencyData = talentAgencySnap.data() as Agency;
-        const agentSnap = await db.collection("users").doc(talentAgencyData.ownerId).get();
+        // Use paymentDelegateId if set, otherwise fall back to ownerId
+        const commissionReceiverId = talentAgencyData.paymentDelegateId || talentAgencyData.ownerId;
+        const agentSnap = await db.collection("users").doc(commissionReceiverId).get();
         if (agentSnap.exists) {
           agentProfile = agentSnap.data() as UserProfileFirestoreData;
         }

@@ -369,6 +369,7 @@ export interface Agency {
   id: string;
   name: string;
   ownerId: string; // UID of the user who owns the agency
+  paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
   availableBalance?: number;
   escrowBalance?: number;
   createdAt: ClientTimestamp;
