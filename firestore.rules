@@ -25,9 +25,10 @@ service cloud.firestore {
 
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
-      let requesterAgencyId = request.auth.token.get('primaryAgencyId', null);
-      // If the requester doesn't belong to an agency, they can't have talent.
-      return requesterAgencyId != null &&
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let requesterAgencyId = request.auth.token.get('primaryAgencyId', userDoc.get('primaryAgencyId', null));
+      
+      return requesterAgencyId != null && 
              'talent' in get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data &&
              get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data.talent.exists(t, t.userId == targetUserId);
     }
@@ -103,7 +104,9 @@ service cloud.firestore {
     match /gigs/{gigId} {
       allow read: if request.auth != null;
       allow create: if isTeamMemberOf(request.resource.data.brandId);
-      allow update: if (isTeamMemberOf(resource.data.brandId)) || (request.auth != null && resource.data.status == 'open');
+      allow update: if (isTeamMemberOf(resource.data.brandId)) || 
+                       (request.auth != null && resource.data.status == 'open' && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'assignments', 'updatedAt', 'status', 'agentIds']));
       allow delete: if isTeamMemberOf(resource.data.brandId) && 
                       (resource.data.status == 'pending_payment' || 
                        (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
@@ -113,7 +116,9 @@ service cloud.firestore {
     match /submissions/{submissionId} {
       allow read: if request.auth != null && (
         resource.data.creatorId == request.auth.uid || 
-        isTeamMemberOf(resource.data.brandId)
+        resource.data.brandId == request.auth.token.get('primaryAgencyId', null) ||
+        isTalentInMyAgency(resource.data.creatorId) ||
+        (resource.data.get('gigId', null) != null && request.auth.uid in get(/databases/$(database)/documents/gigs/$(resource.data.gigId)).data.get('agentIds', []))
       );
       allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
       allow update: if request.auth != null && (
@@ -128,8 +133,8 @@ service cloud.firestore {
       // Auth users need to read to see metrics in their dashboard
       allow read: if true; 
       
-      // Creators create their links when securing a deployment
-      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+      // Creators or their agents create their links when securing a deployment
+      allow create: if request.auth != null && (request.resource.data.creatorId == request.auth.uid || isTalentInMyAgency(request.resource.data.creatorId));
       
       // Publicly allowed to increment clicks, but nothing else
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']);
@@ -139,10 +144,11 @@ service cloud.firestore {
 
     // Rules for notifications
     match /notifications/{notificationId} {
-      allow read: if isOwner(resource.data.userId);
-      allow update: if isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow create: if request.auth != null; // Ideally restricted to backend but allowed for client-side triggered notifications
-      allow delete: if isOwner(resource.data.userId);
+      allow read, delete: if isOwner(resource.data.userId) || 
+                          (resource.data.get('agencyId', null) != null && isMemberOfAgency(resource.data.agencyId));
+      allow update: if (isOwner(resource.data.userId) || (resource.data.get('agencyId', null) != null && isMemberOfAgency(resource.data.agencyId))) && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if request.auth != null; // Triggered by users/agencies
     }
 
     // Rules for brand_research collection

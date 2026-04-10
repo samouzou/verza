@@ -12,6 +12,7 @@ import { z } from 'genkit';
 
 const VerzaScoreInputSchema = z.object({
   videoUrl: z.string().url().describe('The URL of the video to analyze.'),
+  isYouTube: z.boolean().optional(),
 });
 export type VerzaScoreInput = z.infer<typeof VerzaScoreInputSchema>;
 
@@ -28,8 +29,8 @@ export async function runVerzaScore(input: VerzaScoreInput): Promise<VerzaScoreO
   return verzaScoreFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'verzaScorePrompt',
+const shortFormPrompt = ai.definePrompt({
+  name: 'shortFormPrompt',
   model: googleAI.model('gemini-3-flash-preview'),
   input: { schema: VerzaScoreInputSchema },
   output: { schema: VerzaScoreOutputSchema },
@@ -48,7 +49,32 @@ const prompt = ai.definePrompt({
   Provide ruthlessly honest feedback. Use lowercase and slang where appropriate, but keep it professional enough for a brand to see. 
   Example feedback: "the hook was mid. lighting is flat. you took 4 seconds to say hi, i'm already scrolled. fix the opening."
   
+  {{#unless isYouTube}}
   Video: {{media url=videoUrl}}
+  {{/unless}}
+  `,
+});
+
+const longFormPrompt = ai.definePrompt({
+  name: 'longFormPrompt',
+  model: googleAI.model('gemini-3-flash-preview'),
+  input: { schema: VerzaScoreInputSchema },
+  output: { schema: VerzaScoreOutputSchema },
+  prompt: `You are the "Verza Score" algorithm, designed to evaluate long-form YouTube integrations and dedicated videos.
+  Unlike short-form content, YouTube videos rely on storytelling, trust-building, and audience retention.
+
+  Analyze the YouTube video at this URL: {{videoUrl}}
+  
+  Score it based on:
+  1. **Integration / Hook**: Does the creator introduce the topic or sponsor smoothly without it feeling jarring?
+  2. **Pacing & Retention**: Is the storytelling compelling? Even for long-form, are there enough visual changes (B-roll, zoom cuts) to retain modern audiences?
+  3. **Vibe & Authenticity**: Does the content feel authentic to the creator's audience, or does it feel like a forced, robotic corporate ad?
+
+  The overall **score** is a weighted average (0-100) focused on storytelling and retention potential.
+
+  Provide ruthlessly honest feedback but adapted for YouTube. If it's a 10-minute video, don't penalize it for not jumping to the point in 1 second, but do penalize it if the first 30 seconds are boring. Use professional but direct language.
+  
+  Example feedback: "the intro storytelling was fantastic, but the sponsor integration at 3:00 felt forced and read like a script. pacing lags in the middle. good B-roll."
   `,
 });
 
@@ -59,7 +85,9 @@ const verzaScoreFlow = ai.defineFlow(
     outputSchema: VerzaScoreOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const { output } = input.isYouTube 
+      ? await longFormPrompt(input)
+      : await shortFormPrompt(input);
     return output!;
   }
 );

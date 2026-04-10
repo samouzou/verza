@@ -20,8 +20,8 @@ import * as params from "../config/params";
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: SubscriptionPlanId; talentLimit: number } } = {
-    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 0},
-    [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 0},
+    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 3},
+    [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 3},
 
     [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
     [params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_yearly", talentLimit: 9},
@@ -36,7 +36,7 @@ function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanI
     [params.STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_enterprise_yearly", talentLimit: 500},
   };
 
-  return priceIdMap[priceId] || {planId: null, talentLimit: 0};
+  return priceIdMap[priceId] || {planId: null, talentLimit: 3};
 }
 
 /**
@@ -49,7 +49,7 @@ function getTalentLimitFromPlanId(planId: string): number {
   if (planId.includes("network")) return 124;
   if (planId.includes("pro")) return 24;
   if (planId.includes("pilot")) return 9;
-  return 0;
+  return 3;
 }
 
 
@@ -356,7 +356,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       const {planId: planFromPrice, talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
 
       const planId = planFromPrice || subscription.metadata?.planId;
-      const talentLimit = limitFromPrice || (planId ? getTalentLimitFromPlanId(planId) : 0);
+      const talentLimit = limitFromPrice || (planId ? getTalentLimitFromPlanId(planId) : 3);
       const interval = subscription.items.data[0]?.price?.recurring?.interval || (planId?.endsWith("yearly") ? "year" : "month");
 
       const updates: Partial<UserProfileFirestoreData> = {
@@ -397,7 +397,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       await userDocRef.update({
         subscriptionStatus: "canceled",
         subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
-        talentLimit: 0, // Reset talent limit on cancellation
+        talentLimit: 3, // Reset down to free tier talent limit on cancellation
       });
       logger.info("Updated user subscription from customer.subscription.deleted:",
         {userId: firebaseUID, subId: subscription.id, status: "canceled"});

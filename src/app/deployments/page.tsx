@@ -22,7 +22,7 @@ import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
 import { cn } from '@/lib/utils';
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
@@ -151,39 +151,60 @@ export default function GigsPage() {
   useEffect(() => {
     if (!user) return;
 
-    const participatingQuery = query(
+    const results = {
+      participating: [] as Gig[],
+      managing: [] as Gig[],
+      secured: [] as Gig[]
+    };
+
+    const updateCombinedGigs = () => {
+      const combined = new Map<string, Gig>();
+      results.participating.forEach(g => combined.set(g.id, g));
+      results.managing.forEach(g => combined.set(g.id, g));
+      results.secured.forEach(g => combined.set(g.id, g));
+      
+      const sorted = Array.from(combined.values()).sort((a, b) => 
+        (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis()
+      );
+      setMyGigs(sorted);
+    };
+
+    const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+
+    const unsubParticipating = onSnapshot(query(
       collection(db, "gigs"),
       where("acceptedCreatorIds", "array-contains", user.uid)
-    );
-
-    const managingQuery = user.primaryAgencyId ? query(
-      collection(db, "gigs"),
-      where("brandId", "==", user.primaryAgencyId)
-    ) : null;
-
-    const unsubParticipating = onSnapshot(participatingQuery, (snapshot) => {
-      const participatingGigs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
-      
-      if (managingQuery) {
-        onSnapshot(managingQuery, (brandSnapshot) => {
-          const managingGigs = brandSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
-          
-          const combined = new Map<string, Gig>();
-          participatingGigs.forEach(g => combined.set(g.id, g));
-          managingGigs.forEach(g => combined.set(g.id, g));
-          
-          const sorted = Array.from(combined.values()).sort((a, b) => 
-            (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis()
-          );
-          setMyGigs(sorted);
-        });
-      } else {
-        setMyGigs(participatingGigs.sort((a, b) => (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis()));
-      }
+    ), (snap) => {
+      results.participating = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
+      updateCombinedGigs();
     });
+
+    let unsubManaging = () => {};
+    if (user.primaryAgencyId && isAgencyTeam) {
+      unsubManaging = onSnapshot(query(
+        collection(db, "gigs"),
+        where("brandId", "==", user.primaryAgencyId)
+      ), (snap) => {
+        results.managing = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
+        updateCombinedGigs();
+      });
+    }
+
+    let unsubSecured = () => {};
+    if (isAgencyTeam) {
+      unsubSecured = onSnapshot(query(
+        collection(db, "gigs"),
+        where("agentIds", "array-contains", user.uid)
+      ), (snap) => {
+        results.secured = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Gig));
+        updateCombinedGigs();
+      });
+    }
 
     return () => {
       unsubParticipating();
+      unsubManaging();
+      unsubSecured();
     };
   }, [user]);
 

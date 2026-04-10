@@ -54,7 +54,7 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
 
 const quillModules = {
   toolbar: [

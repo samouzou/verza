@@ -40,7 +40,7 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
 
 const quillModules = {
   toolbar: [
@@ -192,7 +192,7 @@ export default function EditGigPage() {
             campaignType,
             title: title.trim(),
             description: description.trim(),
-            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook")[],
+            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn")[],
             ratePerCreator: rateNum,
             creatorsNeeded: creatorsNum,
             videosPerCreator: videosNum,
@@ -236,6 +236,8 @@ export default function EditGigPage() {
 
   const canManageGig = user && gig && (user.primaryAgencyId === gig.brandId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
   const isFunded = Boolean(gig && gig.status !== 'pending_payment');
+  const hasAcceptedCreators = (gig?.acceptedCreatorIds?.length || 0) > 0;
+  const isLocked = isFunded || hasAcceptedCreators;
 
   if (authLoading || isLoadingGig) {
     return (
@@ -279,12 +281,15 @@ export default function EditGigPage() {
         }
       />
       <div className="max-w-3xl mx-auto space-y-6">
-        {isFunded && (
+        {isLocked && (
           <Alert variant="default" className="bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200">
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Scope Locked</AlertTitle>
             <AlertDescription>
-              This deployment has already been funded. Financial details and creator counts are locked to ensure consistency for creators. You can still update the title, description, and platforms.
+              {isFunded 
+                ? "This deployment has already been funded." 
+                : "Creators have already secured positions in this deployment."} 
+              Financial details, performance rewards, and creator counts are locked to ensure consistency. You can still update the title, brief, and platforms.
             </AlertDescription>
           </Alert>
         )}
@@ -296,7 +301,7 @@ export default function EditGigPage() {
               <CardDescription>Update the type of engagement for this campaign.</CardDescription>
             </CardHeader>
             <CardContent>
-              <RadioGroup value={campaignType} onValueChange={(val) => setCampaignType(val as any)} className="space-y-4" disabled={isFunded || isSubmitting}>
+              <RadioGroup value={campaignType} onValueChange={(val) => setCampaignType(val as any)} className="space-y-4" disabled={isLocked || isSubmitting}>
                 <div className={cn(
                   "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
                   campaignType === 'standard_sponsorship' ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
@@ -363,11 +368,11 @@ export default function EditGigPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                       <Label htmlFor="creators">Creators Needed</Label>
-                      <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
+                      <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isLocked}/>
                   </div>
                   <div className="space-y-2">
                       <Label htmlFor="videos">Videos per Creator</Label>
-                      <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting || isFunded}/>
+                      <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting || isLocked}/>
                   </div>
               </div>
             </CardContent>
@@ -380,7 +385,7 @@ export default function EditGigPage() {
                   <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
                   <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
                 </div>
-                <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isFunded || isSubmitting} />
+                <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
               </div>
             </CardHeader>
             {isBaseRateEnabled && (
@@ -389,7 +394,7 @@ export default function EditGigPage() {
                   <Label htmlFor="rate">Base Rate per Creator ($)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isFunded}/>
+                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked}/>
                   </div>
                 </div>
               </CardContent>
@@ -403,7 +408,7 @@ export default function EditGigPage() {
                   <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 4. Performance Rewards</CardTitle>
                   <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
                 </div>
-                <Switch checked={isAffiliateEnabled ?? false} onCheckedChange={setIsAffiliateEnabled} disabled={isSubmitting} />
+                <Switch checked={isAffiliateEnabled ?? false} onCheckedChange={setIsAffiliateEnabled} disabled={isLocked || isSubmitting} />
               </div>
             </CardHeader>
             {isAffiliateEnabled && (
@@ -411,7 +416,7 @@ export default function EditGigPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="rewardType">Reward Logic</Label>
-                    <RadioGroup value={rewardType} onValueChange={(val) => setRewardType(val as any)} className="flex gap-4 mt-1" disabled={isSubmitting}>
+                    <RadioGroup value={rewardType} onValueChange={(val) => setRewardType(val as any)} className="flex gap-4 mt-1" disabled={isLocked || isSubmitting}>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="cpc" id="cpc" />
                         <Label htmlFor="cpc" className="font-normal flex items-center gap-1"><MousePointer2 className="h-3 w-3" /> Per Click</Label>
@@ -426,18 +431,18 @@ export default function EditGigPage() {
                     <Label htmlFor="rewardAmount">Reward Amount ($)</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rewardAmount" type="number" value={rewardAmount} onChange={e => setRewardAmount(e.target.value)} placeholder={rewardType === 'cpc' ? "0.10" : "25.00"} className="pl-9" disabled={isSubmitting} />
+                      <Input id="rewardAmount" type="number" value={rewardAmount} onChange={e => setRewardAmount(e.target.value)} placeholder={rewardType === 'cpc' ? "0.10" : "25.00"} className="pl-9" disabled={isLocked || isSubmitting} />
                     </div>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="destinationUrl">Destination Link</Label>
-                  <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" disabled={isSubmitting} />
+                  <Input id="destinationUrl" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} placeholder="https://yourbrand.com/shop" disabled={isLocked || isSubmitting} />
                 </div>
                 
                 <div className="space-y-4 pt-4 border-t border-blue-500/10">
                   <Label className="text-base font-semibold">Tracking Method</Label>
-                  <RadioGroup value={trackingMethod} onValueChange={(val) => setTrackingMethod(val as any)} className="flex flex-col gap-3" disabled={isSubmitting}>
+                  <RadioGroup value={trackingMethod} onValueChange={(val) => setTrackingMethod(val as any)} className="flex flex-col gap-3" disabled={isLocked || isSubmitting}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="link_only" id="link_only" />
                       <Label htmlFor="link_only" className="font-normal cursor-pointer">Affiliate Link Only</Label>
@@ -457,12 +462,12 @@ export default function EditGigPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-blue-500/10">
                     <div className="space-y-2">
                       <Label htmlFor="promoCodePrefix">Promo Code Prefix <span className="text-destructive">*</span></Label>
-                      <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isSubmitting} required={isAffiliateEnabled} />
+                      <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isLocked || isSubmitting} required={isAffiliateEnabled} />
                       <p className="text-[10px] text-muted-foreground">Used to generate unique codes per creator (e.g. SUMMER-JULIA30).</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="promoCodeDiscountValue">Discount Value presented to audience</Label>
-                      <Input id="promoCodeDiscountValue" value={promoCodeDiscountValue} onChange={e => setPromoCodeDiscountValue(e.target.value)} placeholder="e.g. 15% Off or $20 Off" disabled={isSubmitting} />
+                      <Input id="promoCodeDiscountValue" value={promoCodeDiscountValue} onChange={e => setPromoCodeDiscountValue(e.target.value)} placeholder="e.g. 15% Off or $20 Off" disabled={isLocked || isSubmitting} />
                       <p className="text-[10px] text-muted-foreground">Let the creator know what discount they are pitching.</p>
                     </div>
                   </div>
@@ -478,7 +483,7 @@ export default function EditGigPage() {
                   <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-orange-500" /> 5. Quality Control (Verza Score)</CardTitle>
                   <CardDescription>Require a minimum predicted engagement score for created videos.</CardDescription>
                 </div>
-                <Switch checked={requireVerzaScore} onCheckedChange={setRequireVerzaScore} disabled={isFunded || isSubmitting} />
+                <Switch checked={requireVerzaScore} onCheckedChange={setRequireVerzaScore} disabled={isLocked || isSubmitting} />
               </div>
             </CardHeader>
             {requireVerzaScore && (
@@ -495,7 +500,7 @@ export default function EditGigPage() {
                     max="100" 
                     value={verzaScoreThreshold} 
                     onChange={e => setVerzaScoreThreshold(e.target.value)} 
-                    disabled={isFunded || isSubmitting}
+                    disabled={isLocked || isSubmitting}
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>1% (Lenient)</span>
@@ -518,7 +523,7 @@ export default function EditGigPage() {
             <CardContent className="space-y-6">
               <div className="space-y-3">
                 <Label>Usage Rights Duration</Label>
-                <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4" disabled={isFunded || isSubmitting}>
+                <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4" disabled={isLocked || isSubmitting}>
                   {campaignType === 'production_grant' && (
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="none" id="none" />
@@ -561,7 +566,7 @@ export default function EditGigPage() {
                   id="whitelisting" 
                   checked={allowWhitelisting} 
                   onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
-                  disabled={isFunded || isSubmitting || campaignType === 'production_grant'}
+                  disabled={isLocked || isSubmitting || campaignType === 'production_grant'}
                 />
               </div>
             </CardContent>

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "@/lib/firebase";
+import { db, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, or } from "@/lib/firebase";
 import type { Notification } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
@@ -28,11 +28,17 @@ export function NotificationBell() {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, "notifications"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const q = user.primaryAgencyId 
+      ? query(
+          collection(db, "notifications"),
+          or(where("userId", "==", user.uid), where("agencyId", "==", user.primaryAgencyId)),
+          orderBy("createdAt", "desc")
+        )
+      : query(
+          collection(db, "notifications"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));

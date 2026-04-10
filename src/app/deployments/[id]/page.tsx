@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -34,6 +35,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +80,9 @@ function GigDetailContent() {
 
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
+  
+  const [linkInputs, setLinkInputs] = useState<Record<number, string>>({});
+  const [isSubmittingLink, setIsSubmittingLink] = useState<number | null>(null);
 
   // Affiliate State
   const [affiliateLinks, setAffiliateLinks] = useState<Record<string, AffiliateLink>>({});
@@ -80,6 +91,9 @@ function GigDetailContent() {
 
   // Acceptance State
   const [hasAgreedToLegal, setHasAgreedToLegal] = useState(false);
+  const [userAgencies, setUserAgencies] = useState<Agency[]>([]);
+  const [selectedTalentId, setSelectedTalentId] = useState<string | null>(null);
+  const [isAgencyAcceptance, setIsAgencyAcceptance] = useState(false);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
@@ -116,7 +130,10 @@ function GigDetailContent() {
           setGig(data);
 
           // Fetch agency data if viewer can manage
-          const canManage = user && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId));
+          const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+          const isAssignedAgent = Object.values(data.assignments || {}).some(a => a.agentId === user?.uid);
+          const canManage = user && (isAgencyTeam && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId)) || isAssignedAgent);
+          
           if (canManage) {
             onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
               if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
@@ -141,16 +158,42 @@ function GigDetailContent() {
   }, [gigId, user]);
 
   useEffect(() => {
+    if (!user) return;
+
+    // Fetch agencies where user is owner or admin/member
+    const agenciesQuery = query(collection(db, 'agencies'), where('ownerId', '==', user.uid));
+    const unsubscribeAgencies = onSnapshot(agenciesQuery, (snap) => {
+      const agencies = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
+      setUserAgencies(agencies);
+    });
+
+    return () => unsubscribeAgencies();
+  }, [user]);
+
+  const activeTalent = useMemo(() => {
+    if (userAgencies.length === 0) return [];
+    // Flatten all talent from all managed agencies
+    const allTalent = userAgencies.flatMap(a => a.talent || []).filter(t => t.status === 'active');
+    // De-duplicate by userId
+    const uniqueTalent = Array.from(new Map(allTalent.map(t => [t.userId, t])).values());
+    return uniqueTalent;
+  }, [userAgencies]);
+
+  useEffect(() => {
     if (!gig || !user) return;
 
     const isBrandTeam = gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId);
+    const isAssignedAgent = Object.values(gig.assignments || {}).some(a => a.agentId === user.uid);
     const hasAccepted = gig.acceptedCreatorIds?.includes(user.uid);
 
-    if (!isBrandTeam && !hasAccepted) return;
+    if (!isBrandTeam && !hasAccepted && !isAssignedAgent) return;
 
+    // Brands and managing agents can see all submissions for context
     const submissionsQuery = isBrandTeam
       ? query(collection(db, 'submissions'), where('gigId', '==', gigId), where('brandId', '==', gig.brandId))
-      : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
+      : isAssignedAgent
+        ? query(collection(db, 'submissions'), where('gigId', '==', gigId))
+        : query(collection(db, 'submissions'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
 
     const unsubscribeSubmissions = onSnapshot(submissionsQuery,
       (snapshot) => {
@@ -167,7 +210,7 @@ function GigDetailContent() {
     );
 
     // Fetch affiliate links
-    const linksQuery = isBrandTeam
+    const linksQuery = (isBrandTeam || isAssignedAgent)
       ? query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId))
       : query(collection(db, 'affiliateLinks'), where('gigId', '==', gigId), where('creatorId', '==', user.uid));
 
@@ -246,7 +289,8 @@ function GigDetailContent() {
 
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
-    const userDocRef = doc(db, 'users', user.uid);
+    const targetUserId = isAgencyAcceptance && selectedTalentId ? selectedTalentId : user.uid;
+
     try {
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Deployment no longer exists.");
@@ -254,28 +298,55 @@ function GigDetailContent() {
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
 
       if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
-      if (acceptedIds.includes(user.uid)) throw new Error("Already secured.");
+      if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
 
-      const newAcceptedIds = [...acceptedIds, user.uid];
-      const gigUpdates: Partial<Gig> = { acceptedCreatorIds: newAcceptedIds };
+      const newAcceptedIds = [...acceptedIds, targetUserId];
+      const gigUpdates: any = { 
+        acceptedCreatorIds: newAcceptedIds,
+        updatedAt: serverTimestamp()
+      };
       if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
+
+      // Handle agency assignment metadata
+      if (isAgencyAcceptance && selectedTalentId) {
+        const talentDoc = activeTalent.find(t => t.userId === selectedTalentId);
+        const agencyDoc = userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId));
+        
+        if (talentDoc && agencyDoc) {
+          gigUpdates[`assignments.${selectedTalentId}`] = {
+            agencyId: agencyDoc.id,
+            agencyName: agencyDoc.name,
+            agentId: user.uid,
+            commissionRate: talentDoc.commissionRate ?? 15,
+            assignedAt: serverTimestamp()
+          };
+          gigUpdates.agentIds = arrayUnion(user.uid);
+        }
+      }
 
       await updateDoc(gigDocRef, gigUpdates);
 
       // Create affiliate link if enabled
       if (currentGigData.affiliateSettings?.isEnabled) {
         let generatedPromoCode = undefined;
+        let creatorName = user.displayName;
+
+        if (isAgencyAcceptance && selectedTalentId) {
+          const talentDoc = activeTalent.find(t => t.userId === selectedTalentId);
+          if (talentDoc) creatorName = talentDoc.displayName;
+        }
+
         const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
 
         if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
           const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
-          const namePart = (user.displayName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const namePart = (creatorName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
           generatedPromoCode = `${prefix}${namePart}`;
         }
 
         await addDoc(collection(db, 'affiliateLinks'), {
           gigId: gig.id,
-          creatorId: user.uid,
+          creatorId: targetUserId,
           brandId: gig.brandId,
           destinationUrl: currentGigData.affiliateSettings.destinationUrl,
           ...(generatedPromoCode && { promoCode: generatedPromoCode }),
@@ -288,26 +359,78 @@ function GigDetailContent() {
 
       trackEvent({ action: 'accept_deployment', category: 'marketplace', label: gig.title });
 
-      const agencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
-      if (agencySnap.exists()) {
-        const agencyData = agencySnap.data();
+      // Notify the brand
+      const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
+      if (brandAgencySnap.exists()) {
+        const brandAgencyData = brandAgencySnap.data();
         await addDoc(collection(db, 'notifications'), {
-          userId: agencyData.ownerId,
-          title: "New creator joined!",
-          message: `${user.displayName || 'A creator'} has secured your deployment "${gig.title}".`,
+          userId: brandAgencyData.ownerId,
+          agencyId: currentGigData.brandId,
+          title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
+          message: isAgencyAcceptance 
+            ? `${user.displayName || 'An agency'} has assigned ${activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent'} to your deployment "${gig.title}".`
+            : `${user.displayName || 'A creator'} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
           link: `/deployments/${gig.id}`,
           createdAt: serverTimestamp(),
-        } as Omit<Notification, 'id'>);
+        });
       }
 
+      // Notify the talent if they were assigned by an agency
+      if (isAgencyAcceptance && selectedTalentId) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: selectedTalentId,
+          agencyId: userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.id,
+          title: "New Deployment Assigned!",
+          message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" deployment.`,
+          type: 'system',
+          read: false,
+          link: `/deployments/${gig.id}`,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      // Update the creator's profile to track who they are working for
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
-      await updateDoc(userDocRef, userUpdates);
+      await updateDoc(doc(db, 'users', targetUserId), userUpdates);
 
       toast({ title: "Deployment Secured!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  const handleGenerateAffiliateLink = async () => {
+    if (!user || !gig || !gig.affiliateSettings) return;
+    
+    setIsAccepting(true);
+    try {
+      let creatorName = user.displayName;
+      let promoCode = undefined;
+      
+      if (gig.affiliateSettings.trackingMethod !== 'link_only') {
+        const prefix = gig.affiliateSettings.promoCodePrefix || '';
+        promoCode = `${prefix}${creatorName?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}`;
+      }
+      
+      await addDoc(collection(db, 'affiliateLinks'), {
+        gigId: gig.id,
+        creatorId: user.uid,
+        brandId: gig.brandId,
+        destinationUrl: gig.affiliateSettings.destinationUrl,
+        ...(promoCode && { promoCode }),
+        clicks: 0,
+        conversions: 0,
+        earnedRewards: 0,
+        createdAt: serverTimestamp(),
+      });
+      toast({ title: "Link Generated!", description: "Your performance tracking is now active." });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Generation Failed", description: "Could not create link. Try again or contact support.", variant: "destructive" });
     } finally {
       setIsAccepting(false);
     }
@@ -384,13 +507,74 @@ function GigDetailContent() {
     }
   };
 
+  const handleSubmitLink = async (slotIndex: number) => {
+    const url = linkInputs[slotIndex];
+    if (!url || !user || !gig) return;
+    
+    if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+      toast({ title: "Only YouTube links supported", description: "For TikTok or Instagram, please upload the raw video file.", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmittingLink(slotIndex);
+    try {
+      const isVerzaRequired = gig.requireVerzaScore ?? true;
+      const subData: Omit<GigSubmission, 'id'> = {
+        gigId: gig.id,
+        brandId: gig.brandId,
+        creatorId: user.uid,
+        creatorName: user.displayName || 'Creator',
+        creatorAvatarUrl: user.avatarUrl || null,
+        videoUrl: url,
+        verzaScore: 0,
+        verzaFeedback: "",
+        status: isVerzaRequired ? 'pending_verza_score' : 'submitted',
+        createdAt: serverTimestamp() as any,
+      };
+
+      const existingAtSlot = mySubmissions[slotIndex];
+      if (existingAtSlot) {
+        await updateDoc(doc(db, 'submissions', existingAtSlot.id), subData);
+      } else {
+        await addDoc(collection(db, 'submissions'), subData);
+      }
+      trackEvent({ action: 'link_upload', category: 'marketplace', label: `slot_${slotIndex}` });
+
+      if (!isVerzaRequired) {
+        const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
+        if (agencySnap.exists()) {
+          const agencyData = agencySnap.data();
+          await addDoc(collection(db, 'notifications'), {
+            userId: agencyData.ownerId,
+            title: "New submission received",
+            message: `${user?.displayName || 'A creator'} submitted a link for "${gig.title}".`,
+            type: 'submission_received',
+            read: false,
+            link: `/deployments/${gig.id}`,
+            createdAt: serverTimestamp(),
+          } as Omit<Notification, 'id'>);
+        }
+        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Your submission has been sent to the brand." });
+      } else {
+        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Calculate your Verza Score to verify your link." });
+      }
+      setLinkInputs(prev => ({ ...prev, [slotIndex]: '' }));
+    } catch (error: any) {
+      console.error(error);
+      toast({ title: "Submission failed", variant: "destructive" });
+    } finally {
+      setIsSubmittingLink(null);
+    }
+  };
+
   const handleRunVerzaScore = async (submission: GigSubmission) => {
     if (!gig) return;
     setIsRunningVerzaScore(submission.id);
     toast({ title: "Calculating Verza Score...", description: "AI is analyzing engagement potential..." });
     try {
       trackEvent({ action: 'verza_score_start', category: 'ai_tool', label: gig.title });
-      const result = await runVerzaScore({ videoUrl: submission.videoUrl });
+      const isYouTube = submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be');
+      const result = await runVerzaScore({ videoUrl: submission.videoUrl, isYouTube });
       const subRef = doc(db, 'submissions', submission.id);
 
       const threshold = gig.verzaScoreThreshold ?? 65;
@@ -551,9 +735,12 @@ function GigDetailContent() {
   const acceptedIds = gig.acceptedCreatorIds || [];
   const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
-  const canManageGig = user ? gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId) : false;
+  const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const isBrandTeam = user && gig && isAgencyTeam && (gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
+  const isAssignedAgent = user && gig && Object.values(gig.assignments || {}).some(a => a.agentId === user.uid);
+  const canManageGig = isBrandTeam || isAssignedAgent;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
-  const canDeleteGig = canManageGig && (gig.status === 'pending_payment' || (gig.status === 'open' && acceptedIds.length === 0));
+  const canDeleteGig = isBrandTeam && (gig.status === 'pending_payment' || (gig.status === 'open' && acceptedIds.length === 0));
   const isCompleted = gig.status === 'completed';
 
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
@@ -599,7 +786,23 @@ function GigDetailContent() {
                       <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Tracking Link</Label>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm break-all">
-                          {myLink ? `${window.location.origin}/l/${myLink.id}` : 'Generating link...'}
+                          {myLink ? (
+                            `${window.location.origin}/l/${myLink.id}`
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground italic">Link not yet generated</span>
+                              <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                className="h-7 text-[10px]"
+                                onClick={handleGenerateAffiliateLink}
+                                disabled={isAccepting}
+                              >
+                                {isAccepting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+                                Generate My Link
+                              </Button>
+                            </div>
+                          )}
                         </div>
                         <Button size="icon" onClick={() => handleCopyAffiliateLink(myLink?.id)} disabled={!myLink}>
                           {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -622,9 +825,9 @@ function GigDetailContent() {
                           <Copy className="h-4 w-4" />
                         </Button>
                       </div>
-                      {gig.affiliateSettings.promoCodeDiscountValue && (
+                      {gig.affiliateSettings?.promoCodeDiscountValue && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Pitch this code to your audience for <strong>{gig.affiliateSettings.promoCodeDiscountValue}</strong> down!
+                          Pitch this code to your audience for <strong>{gig.affiliateSettings?.promoCodeDiscountValue}</strong> down!
                         </p>
                       )}
                     </div>
@@ -772,14 +975,37 @@ function GigDetailContent() {
                         {submission ? (
                           <div className="space-y-4">
                             <div className="aspect-video bg-black rounded-lg overflow-hidden relative group">
-                              <video src={submission.videoUrl} controls className="w-full h-full" />
-                              <div className="absolute top-2 right-2 flex gap-2">
-                                <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
-                                  <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
-                                    <Download className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              </div>
+                              {(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) ? (
+                                (() => {
+                                  let yId = null;
+                                  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+                                  const match = submission.videoUrl.match(regExp);
+                                  if (match && match[2].length === 11) yId = match[2];
+                                  return yId ? (
+                                    <iframe 
+                                      className="w-full h-full" 
+                                      src={`https://www.youtube.com/embed/${yId}`} 
+                                      frameBorder="0" 
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                      allowFullScreen
+                                    ></iframe>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">Invalid YouTube Link</div>
+                                  );
+                                })()
+                              ) : (
+                                <video src={submission.videoUrl} controls className="w-full h-full" />
+                              )}
+                              
+                              {!(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) && (
+                                <div className="absolute top-2 right-2 flex gap-2">
+                                  <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
+                                    <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
+                                      <Download className="h-3 w-3" />
+                                    </a>
+                                  </Button>
+                                </div>
+                              )}
                             </div>
 
                             {(submission.status === 'pending_verza_score' || submission.status === 'rejected') && (gig.requireVerzaScore ?? true) ? (
@@ -808,27 +1034,71 @@ function GigDetailContent() {
                             )}
 
                             {!isCompleted && submission.status !== 'approved' && (
-                              <div className="pt-2 flex justify-center">
-                                <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
-                                  <Edit className="h-3 w-3" /> Replace Video
-                                </Label>
-                                <input id={`video-replace-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading || !!isRunningVerzaScore} />
+                              <div className="pt-2 flex flex-col items-center gap-2 mt-2">
+                                <div className="flex gap-4 border-t pt-4 w-full">
+                                  <div className="flex-1 flex flex-col gap-1 items-center">
+                                    <Label htmlFor={`video-replace-${i}`} className="cursor-pointer text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+                                      <UploadCloud className="h-3 w-3" /> Upload New File
+                                    </Label>
+                                    <input id={`video-replace-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading || !!isRunningVerzaScore} />
+                                  </div>
+                                </div>
+
+                                <div className="w-full mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <Input 
+                                      className="h-8 text-sm flex-1" 
+                                      placeholder="Replace with YouTube link..." 
+                                      value={linkInputs[i] || ''} 
+                                      onChange={(e) => setLinkInputs(p => ({...p, [i]: e.target.value}))} 
+                                      disabled={isSubmittingLink === i || !!isRunningVerzaScore}
+                                    />
+                                    <Button size="sm" variant="secondary" onClick={() => handleSubmitLink(i)} disabled={isSubmittingLink === i || !(linkInputs[i]?.trim()) || !!isRunningVerzaScore}>
+                                      {isSubmittingLink === i ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Replace'}
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
                         ) : (
                           !isCompleted ? (
-                            <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background hover:bg-muted/30 transition-colors">
-                              <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading} />
-                              <label htmlFor={`video-upload-${i}`} className="cursor-pointer flex flex-col items-center gap-3">
+                            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg bg-background hover:bg-muted/10 transition-colors">
+                              <div className="flex flex-col items-center gap-2 mb-6">
                                 <div className="p-4 bg-muted rounded-full">
                                   {slotLoading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <UploadCloud className="h-8 w-8 text-primary" />}
                                 </div>
                                 <div className="text-center">
-                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video'}</p>
-                                  <p className="text-sm text-muted-foreground">MP4 or MOV, max 100MB</p>
+                                  <p className="font-medium">{slotLoading ? 'Uploading...' : 'Upload Video File'}</p>
+                                  <p className="text-xs text-muted-foreground mb-3">MP4/MOV, max 100MB (non-YouTube)</p>
+                                  <label htmlFor={`video-upload-${i}`} className="cursor-pointer">
+                                    <Button size="sm" variant="secondary" asChild disabled={!!isUploading}><span className="cursor-pointer">Choose File</span></Button>
+                                  </label>
+                                  <input id={`video-upload-${i}`} type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={(e) => handleVideoUpload(e, i)} disabled={!!isUploading} />
                                 </div>
-                              </label>
+                              </div>
+
+                              <div className="w-full flex items-center gap-4 mb-4">
+                                <div className="flex-1 h-px bg-border"></div>
+                                <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">OR</span>
+                                <div className="flex-1 h-px bg-border"></div>
+                              </div>
+
+                              <div className="w-full space-y-2">
+                                <Label className="text-xs">Submit a YouTube Link</Label>
+                                <div className="flex items-center gap-2">
+                                  <Input 
+                                    className="h-8 text-sm" 
+                                    placeholder="https://youtube.com/watch?v=..." 
+                                    value={linkInputs[i] || ''} 
+                                    onChange={(e) => setLinkInputs(p => ({...p, [i]: e.target.value}))} 
+                                    disabled={isSubmittingLink === i}
+                                  />
+                                  <Button size="sm" onClick={() => handleSubmitLink(i)} disabled={isSubmittingLink === i || !(linkInputs[i]?.trim())}>
+                                    {isSubmittingLink === i ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-lg bg-background">
@@ -873,7 +1143,23 @@ function GigDetailContent() {
                                       <AvatarFallback>{creator.displayName?.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                      <p className="font-semibold hover:underline">{creator.displayName}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-semibold hover:underline">{creator.displayName}</p>
+                                        {gig.assignments?.[creator.uid] && (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] h-4 px-1.5 flex items-center gap-1">
+                                                  <ShieldCheck className="h-2.5 w-2.5" /> Managed
+                                                </Badge>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p className="text-[10px] font-medium">Secured by {gig.assignments[creator.uid].agencyName || 'Agency'}</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        )}
+                                      </div>
                                       <p className="text-xs text-muted-foreground">{creator.email}</p>
                                     </div>
                                   </Link>
@@ -884,9 +1170,14 @@ function GigDetailContent() {
                                   ) : (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
-                                        <Button size="sm" disabled={isPaying === creator.uid || !allVideosSubmitted}>
+                                      {isBrandTeam && (
+                                        <Button 
+                                          size="sm" 
+                                          disabled={isPaying === creator.uid || !allVideosSubmitted}
+                                        >
                                           {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />} Approve & Pay
                                         </Button>
+                                      )}
                                       </AlertDialogTrigger>
                                       <AlertDialogContent>
                                         <AlertDialogHeader>
@@ -1018,11 +1309,11 @@ function GigDetailContent() {
                         <Zap className="h-3 w-3" /> Performance Pay
                       </span>
                       <Badge variant="secondary" className="bg-blue-500 text-white hover:bg-blue-600 text-[10px] h-5">
-                        {gig.affiliateSettings.rewardType === 'cpc' ? 'Per Click' : 'Per Sale'}
+                        {gig.affiliateSettings?.rewardType === 'cpc' ? 'Per Click' : 'Per Sale'}
                       </Badge>
                     </div>
-                    <p className="text-xl font-black text-blue-700">${gig.affiliateSettings.rewardAmount.toLocaleString()}</p>
-                    <p className="text-[10px] text-blue-600/80 leading-tight">Paid automatically for every verified {gig.affiliateSettings.rewardType === 'cpc' ? 'click' : 'conversion'}.</p>
+                    <p className="text-xl font-black text-blue-700">${gig.affiliateSettings?.rewardAmount?.toLocaleString()}</p>
+                    <p className="text-[10px] text-blue-600/80 leading-tight">Paid automatically for every verified {gig.affiliateSettings?.rewardType === 'cpc' ? 'click' : 'conversion'}.</p>
                   </div>
                 )}
 
@@ -1034,7 +1325,13 @@ function GigDetailContent() {
 
                 {user && !canManageGig && !isCompleted && (
                   hasAccepted ? (
-                    <Button className="w-full" disabled><CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured</Button>
+                    <div className="space-y-4 pt-4 border-t">
+                      <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" disabled>
+                        <CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured
+                      </Button>
+                      
+                      
+                    </div>
                   ) : spotsLeft > 0 && gig.status === 'open' ? (
                     <div className="space-y-4 border-t pt-4">
                       <div className="flex items-start space-x-2">
@@ -1089,6 +1386,52 @@ function GigDetailContent() {
                                   <p>Both parties agree to keep the terms of this deployment and any proprietary brand information confidential.</p>
                                 </div>
                               </ScrollArea>
+
+                              {activeTalent.length > 0 && (
+                                <div className="mt-4 p-4 rounded-lg border-2 border-primary/10 bg-primary/5 space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                      <Label className="text-sm font-bold flex items-center gap-2">
+                                        <Users className="h-4 w-4 text-primary" /> Management Mode
+                                      </Label>
+                                      <p className="text-[10px] text-muted-foreground">Claim this deployment on behalf of your talent.</p>
+                                    </div>
+                                    <Checkbox 
+                                      id="agency-mode" 
+                                      checked={isAgencyAcceptance} 
+                                      onCheckedChange={(checked) => setIsAgencyAcceptance(!!checked)}
+                                    />
+                                  </div>
+
+                                  {isAgencyAcceptance && (
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                      <Label className="text-xs font-semibold uppercase text-muted-foreground">Select Recipient Talent</Label>
+                                      <Select value={selectedTalentId || ""} onValueChange={setSelectedTalentId}>
+                                        <SelectTrigger className="w-full bg-white dark:bg-zinc-950 border-primary/20">
+                                          <SelectValue placeholder="Choose a creator..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {activeTalent.map((t) => (
+                                            <SelectItem key={t.userId} value={t.userId}>
+                                              <div className="flex items-center gap-2">
+                                                <Avatar className="h-5 w-5">
+                                                  <AvatarFallback className="text-[8px]">{t.displayName?.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <span>{t.displayName} <span className="text-[10px] text-muted-foreground ml-1">({t.commissionRate || 15}% Commission)</span></span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <div className="p-2 bg-blue-500/10 rounded-md border border-blue-500/20 text-[10px] text-blue-700 leading-tight">
+                                        <Info className="h-3 w-3 inline mr-1 -mt-0.5" />
+                                        Payouts for this creator will be split automatically with your agency.
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               <DialogFooter className="mt-4">
                                 <Button onClick={() => { }} variant="outline">Close</Button>
                               </DialogFooter>
@@ -1118,7 +1461,7 @@ function GigDetailContent() {
                         <Button
                           className="w-full"
                           onClick={handleAcceptGig}
-                          disabled={isAccepting || !hasAgreedToLegal}
+                          disabled={isAccepting || !hasAgreedToLegal || (isAgencyAcceptance && !selectedTalentId)}
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           Secure Deployment
@@ -1130,7 +1473,7 @@ function GigDetailContent() {
                   )
                 )}
 
-                {canManageGig && (
+                {isBrandTeam && (
                   <div className="space-y-2">
                     {gig.status === 'pending_payment' && (
                       <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
@@ -1168,36 +1511,47 @@ function GigDetailContent() {
                         </TooltipProvider>
                       </div>
                     )}
-                    {!isCompleted && (
-                      <Button asChild className="w-full" variant="outline">
-                        <Link href={`/deployments/${gig.id}/edit`}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit Deployment
-                        </Link>
-                      </Button>
-                    )}
-                    {canDeleteGig && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button className="w-full" variant="destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Deployment
+                    {isBrandTeam && (
+                      <div className="space-y-2">
+                        {!isCompleted && (
+                          <Button asChild className="w-full" variant="outline">
+                            <Link href={`/deployments/${gig.id}/edit`}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit Deployment
+                            </Link>
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete this deployment?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently remove the deployment listing. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteGig} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                        )}
+                        {canDeleteGig && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button className="w-full" variant="destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Deployment
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete this deployment?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently remove the deployment listing. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteGig} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    )}
+                    {isAssignedAgent && !isBrandTeam && (
+                      <div className="space-y-2">
+                        <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20 cursor-default" disabled>
+                          <CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
