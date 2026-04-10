@@ -255,6 +255,7 @@ export interface UserProfileFirestoreData {
   stripeAccountStatus?: "none" | "onboarding_incomplete" | "pending_verification" | "active" | "restricted" | "restricted_soon";
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  stripeAccountCountry?: string | null;
 
   // Onboarding fields
   hasCreatedContract?: boolean;
@@ -471,7 +472,7 @@ export interface GigAssignment {
   commissionRate: number;
   assignedAt: ClientTimestamp;
 }
- 
+
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner

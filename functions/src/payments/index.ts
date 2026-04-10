@@ -57,9 +57,44 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
     const userDoc = await userRef.get();
     const userData = userDoc.data() as UserProfileFirestoreData;
 
+    // Get user country from body, log clearly if missing
+    const country = request.body.country;
+    if (!country) {
+      logger.warn(`No country provided in request body for user ${userId}. Defaulting to 'US' for backward compatibility.`);
+    }
+    const finalCountry = country || "US";
+
+    // Country to Currency Mapping
+    const COUNTRY_CURRENCY_MAP: Record<string, string> = {
+      "US": "usd", "CA": "cad", "GB": "gbp", "AU": "aud", "NZ": "nzd",
+      "IE": "eur", "DE": "eur", "FR": "eur", "ES": "eur", "IT": "eur",
+      "NL": "eur", "BE": "eur", "AT": "eur", "SE": "sek", "DK": "dkk",
+      "NO": "nok", "CH": "chf", "HK": "hkd", "SG": "sgd", "JP": "jpy",
+    };
+    const defaultCurrency = COUNTRY_CURRENCY_MAP[finalCountry] || "usd";
+
+    // Check if user already has a Stripe account and verify the country matches
     if (userData?.stripeAccountId) {
-      response.json({stripeAccountId: userData.stripeAccountId});
-      return;
+      // If country is missing from DB, backfill it if it's the US (legacy default)
+      // otherwise proceed to mismatch detection
+      if (!userData.stripeAccountCountry && finalCountry === "US") {
+        await userRef.update({stripeAccountCountry: "US"});
+        response.json({stripeAccountId: userData.stripeAccountId});
+        return;
+      }
+
+      if (userData.stripeAccountCountry === finalCountry) {
+        response.json({stripeAccountId: userData.stripeAccountId});
+        return;
+      } else if (userData.stripePayoutsEnabled) {
+        // If payouts are already enabled, we shouldn't automatically overwrite a verified account
+        logger.warn(`User ${userId} requested country ${finalCountry}
+          but already has verified account in ${userData.stripeAccountCountry}.`);
+        response.json({stripeAccountId: userData.stripeAccountId});
+        return;
+      }
+      logger.info(`User ${userId} changing country from ${userData.stripeAccountCountry || "unknown"}
+        to ${finalCountry}. Creating new account.`);
     }
 
     // Get user email
@@ -70,10 +105,14 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       throw new Error("User must have an email address");
     }
 
+    logger.info(`Creating Stripe Express account for user ${userId} in country ${finalCountry} (${defaultCurrency})`);
+
     // Create Stripe Connected Account
     const account = await stripe.accounts.create({
       type: "express",
       email,
+      country: finalCountry,
+      default_currency: defaultCurrency,
       capabilities: {
         card_payments: {requested: true},
         transfers: {requested: true},
@@ -81,8 +120,10 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
     });
 
     // Update user document with Stripe account info
+    logger.info(`Finalizing Firestore update for user ${userId}: Account=${account.id}, Country=${finalCountry}`);
     await userRef.update({
       stripeAccountId: account.id,
+      stripeAccountCountry: finalCountry,
       stripeAccountStatus: "onboarding_incomplete",
       stripeChargesEnabled: false,
       stripePayoutsEnabled: false,
@@ -607,7 +648,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractDoc = await contractDocRef.get();
         const contractData = contractDoc.data() as Contract;
 
-        const updates: {[key: string]: unknown} = {
+        const updates: { [key: string]: unknown } = {
           updatedAt: admin.firestore.Timestamp.now(),
           invoiceHistory: admin.firestore.FieldValue.arrayUnion({
             timestamp: admin.firestore.Timestamp.now(),
@@ -748,6 +789,7 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
         stripeAccountStatus: account.details_submitted ?
           "active" :
           "onboarding_incomplete",
+        ...(account.country ? {stripeAccountCountry: account.country} : {}),
       };
 
       await userDoc.ref.update(updates);
@@ -810,9 +852,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
 
   const now = Date.now();
   const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
-                      (agencyOwnerData.subscriptionStatus === "trialing" &&
-                       agencyOwnerData.trialEndsAt &&
-                       (agencyOwnerData.trialEndsAt as any).toMillis() > now);
+    (agencyOwnerData.subscriptionStatus === "trialing" &&
+      agencyOwnerData.trialEndsAt &&
+      (agencyOwnerData.trialEndsAt as any).toMillis() > now);
 
   const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith("agency_");
 

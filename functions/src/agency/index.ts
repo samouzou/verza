@@ -3,8 +3,10 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
-  InternalPayout, TeamMember, Gig} from "./../types";
+import type {
+  Agency, Talent, UserProfileFirestoreData, AgencyMembership,
+  InternalPayout, TeamMember, Gig,
+} from "./../types";
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail} from "../notifications";
 import * as params from "../config/params";
@@ -470,14 +472,16 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
 
-    // The person initiating the payout must be an admin, but the payment comes from the delegate's account (or owner if no delegate).
+    // The person initiating the payout must be an admin, but the payment comes from
+    // the delegate's account (or owner if no delegate).
     const agencyOwnerId = agencyData.paymentDelegateId || agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
     if (!agencyOwnerData.stripeCustomerId) {
-      throw new HttpsError("failed-precondition", "Agency payment account holder does not have a Stripe Customer ID and cannot make payments.");
+      throw new HttpsError("failed-precondition",
+        "Agency payment account holder does not have a Stripe Customer ID and cannot make payments.");
     }
 
     const paymentMethods = await stripe.paymentMethods.list({customer: agencyOwnerData.stripeCustomerId});

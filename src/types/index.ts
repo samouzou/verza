@@ -47,7 +47,7 @@ export interface Contract {
   status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced' | 'partially_paid';
   contractType: 'sponsorship' | 'consulting' | 'affiliate' | 'retainer' | 'other';
   projectName?: string; // Optional project name
-  
+
   // Payment Milestones
   milestones?: PaymentMilestone[];
 
@@ -70,27 +70,27 @@ export interface Contract {
   previousContractText?: string | null;
   fileName?: string;
   fileUrl: string | null;
-  
+
   // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
   invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string, emailLogId?: string }>;
   lastReminderSentAt?: ClientTimestamp | null;
-  
+
   editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
 
   // Recurrence fields
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
-  
+
   // E-Signature fields (HelloSign/Dropbox Sign)
   helloSignRequestId?: string | null;
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
   lastSignatureEventAt?: ClientTimestamp | null;
   lastGeneratedSignatureFilePath?: string | null;
-  
+
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
   access: { [key: string]: 'owner' | 'viewer' | 'talent' };
@@ -170,7 +170,7 @@ export interface EarningsDataPoint {
   invoiced: number;
 }
 
-export interface UpcomingIncome extends Pick<Contract, 'id' | 'brand' | 'amount' | 'dueDate' | 'projectName'> {}
+export interface UpcomingIncome extends Pick<Contract, 'id' | 'brand' | 'amount' | 'dueDate' | 'projectName'> { }
 
 export interface AtRiskPayment extends Pick<Contract, 'id' | 'brand' | 'amount' | 'dueDate' | 'status' | 'projectName'> {
   riskReason: string;
@@ -188,12 +188,12 @@ export type SubscriptionStatus =
   | 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
   | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
 
-export type TaxClassification = 
-  | 'individual' 
-  | 'c_corp' 
-  | 's_corp' 
-  | 'partnership' 
-  | 'trust_estate' 
+export type TaxClassification =
+  | 'individual'
+  | 'c_corp'
+  | 's_corp'
+  | 'partnership'
+  | 'trust_estate'
   | 'llc';
 
 // For Firestore user document
@@ -253,7 +253,9 @@ export interface UserProfileFirestoreData {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
-  
+  stripeAccountCountry?: string | null;
+
+
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
@@ -286,20 +288,20 @@ export interface CreditTransaction {
 export interface Receipt {
   id: string; // Firestore Document ID
   userId: string;
-  
-  description?: string; 
-  category?: string;    
-  amount?: number;      
-  receiptDate?: string; 
-  vendorName?: string;  
 
-  linkedContractId: string | null; 
+  description?: string;
+  category?: string;
+  amount?: number;
+  receiptDate?: string;
+  vendorName?: string;
+
+  linkedContractId: string | null;
 
   receiptImageUrl: string;
   receiptFileName: string;
-  
-  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived'; 
-  
+
+  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived';
+
   uploadedAt: ClientTimestamp;
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
@@ -322,17 +324,17 @@ export interface BankAccount {
 }
 
 export interface BankTransaction {
-  id: string; 
+  id: string;
   userId: string;
-  accountId: string; 
-  date: string; 
+  accountId: string;
+  date: string;
   description: string;
-  amount: number; 
+  amount: number;
   currency: string;
-  category?: string; 
+  category?: string;
   isTaxDeductible?: boolean;
-  isBrandSpend?: boolean; 
-  linkedReceiptId?: string | null; 
+  isBrandSpend?: boolean;
+  linkedReceiptId?: string | null;
   createdAt: ClientTimestamp;
   updatedAt?: ClientTimestamp;
 }
@@ -342,8 +344,8 @@ export interface TaxEstimation {
   estimatedTaxOwed: number;
   suggestedSetAsidePercentage: number;
   suggestedSetAsideAmount: number;
-  notes?: string[]; 
-  calculationDate: string; 
+  notes?: string[];
+  calculationDate: string;
 }
 
 // Agency & Talent Types
@@ -449,15 +451,15 @@ export interface BrandResearch {
   status: "pending" | "completed" | "failed";
   report?: {
     decisionMakers: {
-        name?: string;
-        title: string;
-        email?: string;
+      name?: string;
+      title: string;
+      email?: string;
     }[];
     currentVibe: string;
     pitchHooks: string[];
     emailPitches: {
-        subject: string;
-        body: string;
+      subject: string;
+      body: string;
     }[];
   };
   error?: string;
@@ -471,7 +473,7 @@ export interface GigAssignment {
   commissionRate: number;
   assignedAt: ClientTimestamp;
 }
- 
+
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner

@@ -88,7 +88,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
     // Payout Logic with Agency Split
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
-    
+
     if (rawPayoutAmountInCents > 0) {
       const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
       const netPayoutInCents = rawPayoutAmountInCents - platformFeeInCents;
@@ -127,7 +127,8 @@ export const payoutCreatorForGig = onCall(async (request) => {
           amount: agencyCommissionInCents,
           currency: "usd",
           destination: agentProfile.stripeAccountId,
-          description: `Agency Commission (${assignment?.commissionRate}%) for ${creatorData.displayName} on deployment: ${gigData.title}`,
+          description: `Agency Commission (${assignment?.commissionRate}%)
+           for ${creatorData.displayName} on deployment: ${gigData.title}`,
           metadata: {
             gigId: gigId,
             creatorId: creatorId,
@@ -142,8 +143,10 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
         await stripe.transfers.create(agencyTransferParams);
       } else if (agencyCommissionInCents > 0 && assignment) {
-        // Fallback: If no Stripe account, we'll need to settle this manually or via Wallet (outside of this simple Stripe flow)
-        logger.warn(`Agency commission of ${agencyCommissionInCents} cents pending for agency ${assignment.agencyId} - No Stripe account found.`);
+        // Fallback: If no Stripe account, we'll need to settle this manually or
+        // via Wallet (outside of this simple Stripe flow)
+        logger.warn(`Agency commission of ${agencyCommissionInCents} cents pending for agency
+          ${assignment.agencyId} - No Stripe account found.`);
         // For now, we'll keep the logic simple and only do Stripe transfers if possible.
       }
     }
@@ -175,11 +178,12 @@ export const payoutCreatorForGig = onCall(async (request) => {
       if (assignment && rawPayoutAmountInCents > 0) {
         const talentAgencyDocRef = db.collection("agencies").doc(assignment.agencyId);
         const talentAgencySnap = await transaction.get(talentAgencyDocRef);
-        
+
         if (talentAgencySnap.exists) {
           const talentAgencyData = talentAgencySnap.data() as Agency;
-          const commissionAmount = (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
-          
+          const commissionAmount =
+            (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
+
           // Update Talent Agency's available balance (revenue)
           transaction.update(talentAgencyDocRef, {
             availableBalance: (talentAgencyData.availableBalance || 0) + commissionAmount,

@@ -26,6 +26,34 @@ export function StripeConnectCard() {
   const [agency, setAgency] = useState<Agency | null>(null);
   const [isTransferringDelegate, setIsTransferringDelegate] = useState(false);
   const [selectedNewDelegate, setSelectedNewDelegate] = useState<string>("");
+  const [selectedCountry, setSelectedCountry] = useState<string>("US");
+
+  const STRIPE_SUPPORTED_COUNTRIES = [
+    { code: "US", name: "United States" },
+    { code: "CA", name: "Canada" },
+    { code: "GB", name: "United Kingdom" },
+    { code: "AU", name: "Australia" },
+    { code: "IE", name: "Ireland" },
+    { code: "DE", name: "Germany" },
+    { code: "FR", name: "France" },
+    { code: "ES", name: "Spain" },
+    { code: "IT", name: "Italy" },
+    { code: "NL", name: "Netherlands" },
+    { code: "BE", name: "Belgium" },
+    { code: "AT", name: "Austria" },
+    { code: "SE", name: "Sweden" },
+    { code: "DK", name: "Denmark" },
+    { code: "NO", name: "Norway" },
+    { code: "FI", name: "Finland" },
+    { code: "NZ", name: "New Zealand" },
+    { code: "CH", name: "Switzerland" },
+    { code: "PT", name: "Portugal" },
+    { code: "GR", name: "Greece" },
+    { code: "PL", name: "Poland" },
+    { code: "HK", name: "Hong Kong" },
+    { code: "SG", name: "Singapore" },
+    { code: "JP", name: "Japan" },
+  ];
 
   useEffect(() => {
     if (!user?.primaryAgencyId) return;
@@ -67,6 +95,7 @@ export function StripeConnectCard() {
       const response = await fetch(CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ country: selectedCountry }),
       });
 
       if (!response.ok) {
@@ -284,7 +313,30 @@ export function StripeConnectCard() {
           </div>
         )}
 
-        <Button onClick={buttonAction.handler} disabled={isProcessing} className="w-full sm:w-auto">
+        {(!user.stripeAccountId || user.stripeAccountStatus === 'none') && (
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="country-select" className="text-sm font-medium">Select Your Country</Label>
+              <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+                <SelectTrigger id="country-select" className="w-full">
+                  <SelectValue placeholder="Select your banking country..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {STRIPE_SUPPORTED_COUNTRIES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">Stripe onboarding requirements vary by country. Please select the country where your bank account is located.</p>
+            </div>
+          </div>
+        )}
+
+        <Button 
+          onClick={buttonAction.handler} 
+          disabled={isProcessing || (!user.stripeAccountId && !selectedCountry)} 
+          className="w-full sm:w-auto"
+        >
           {isProcessing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
