@@ -470,14 +470,14 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
 
-    // The person initiating the payout must be an admin, but the payment comes from the owner's account.
-    const agencyOwnerId = agencyData.ownerId;
+    // The person initiating the payout must be an admin, but the payment comes from the delegate's account (or owner if no delegate).
+    const agencyOwnerId = agencyData.paymentDelegateId || agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
     if (!agencyOwnerData.stripeCustomerId) {
-      throw new HttpsError("failed-precondition", "Agency owner does not have a Stripe Customer ID and cannot make payments.");
+      throw new HttpsError("failed-precondition", "Agency payment account holder does not have a Stripe Customer ID and cannot make payments.");
     }
 
     const paymentMethods = await stripe.paymentMethods.list({customer: agencyOwnerData.stripeCustomerId});

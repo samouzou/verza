@@ -34,10 +34,22 @@ const taxClassifications: { value: TaxClassification; label: string }[] = [
   { value: 'llc', label: 'Limited Liability Company' },
 ];
 
+const US_TREATY_COUNTRIES = [
+  "United States", "Australia", "Austria", "Bangladesh", "Barbados", "Belgium", "Bulgaria", "Canada", "China", 
+  "Cyprus", "Czech Republic", "Denmark", "Egypt", "Estonia", "Finland", "France", "Germany", 
+  "Greece", "Hungary", "Iceland", "India", "Indonesia", "Ireland", "Israel", "Italy", "Jamaica", 
+  "Japan", "Kazakhstan", "Korea (South)", "Latvia", "Lithuania", "Luxembourg", "Malta", "Mexico", 
+  "Morocco", "Netherlands", "New Zealand", "Norway", "Pakistan", "Philippines", "Poland", 
+  "Portugal", "Romania", "Russian Federation", "Slovak Republic", "Slovenia", "South Africa", 
+  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Thailand", "Trinidad and Tobago", "Tunisia", 
+  "Turkey", "Ukraine", "United Kingdom", "Venezuela", "Other"
+];
+
 export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
   const [legalName, setLegalName] = useState(currentUser.legalName || "");
   const [address, setAddress] = useState(currentUser.address || ""); 
+  const [country, setCountry] = useState(currentUser.country || ""); 
   const [tin, setTin] = useState(currentUser.tin || "");
   const [taxClassification, setTaxClassification] = useState<TaxClassification | null>(currentUser.taxClassification || null);
   
@@ -61,6 +73,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     setDisplayName(currentUser.displayName || "");
     setLegalName(currentUser.legalName || "");
     setAddress(currentUser.address || "");
+    setCountry(currentUser.country || "");
     setTin(currentUser.tin || "");
     setTaxClassification(currentUser.taxClassification || null);
     setAvatarPreview(currentUser.avatarUrl);
@@ -97,6 +110,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     const hasProfileChanged = displayName.trim() !== (currentUser.displayName || "") ||
                              legalName.trim() !== (currentUser.legalName || "") ||
                              address.trim() !== (currentUser.address || "") ||
+                             country !== (currentUser.country || "") ||
                              tin.trim() !== (currentUser.tin || "") ||
                              taxClassification !== (currentUser.taxClassification || null) ||
                              showInMarketplace !== (currentUser.showInMarketplace || false) ||
@@ -146,6 +160,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       if (address.trim() !== (currentUser.address || "")) {
         firestoreUpdates.address = address.trim();
       }
+      if (country !== (currentUser.country || "")) {
+        firestoreUpdates.country = country;
+      }
       if (tin.trim() !== (currentUser.tin || "")) {
         firestoreUpdates.tin = tin.trim();
       }
@@ -185,6 +202,13 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   };
 
   const userInitialForFallback = currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : (currentUser.email ? currentUser.email.charAt(0).toUpperCase() : "U");
+
+  const getTaxFormType = () => {
+    if (!country || country === "United States") return "W-9";
+    if (taxClassification === "individual") return "W-8BEN";
+    return "W-8BEN-E";
+  };
+  const taxFormType = getTaxFormType();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -250,13 +274,26 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Tax & W-9 Information</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Tax & {taxFormType} Information</CardTitle>
           <CardDescription>Capture legal information for tax reporting and end-of-year summaries.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <Label htmlFor="legalName">Legal Name (for W-9)</Label>
+              <Label htmlFor="country">Country of Residence</Label>
+              <Select value={country} onValueChange={(val) => setCountry(val)}>
+                <SelectTrigger id="country" className="mt-1">
+                  <SelectValue placeholder="Select country..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {US_TREATY_COUNTRIES.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="legalName">Legal Name (for {taxFormType})</Label>
               <Input
                 id="legalName"
                 value={legalName}

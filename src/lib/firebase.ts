@@ -34,7 +34,8 @@ import {
   arrayUnion,
   arrayRemove,
   documentId,
-  limit
+  limit,
+  or
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
@@ -109,5 +110,6 @@ export {
   arrayUnion,
   arrayRemove,
   documentId,
-  limit
+  limit,
+  or
 };
