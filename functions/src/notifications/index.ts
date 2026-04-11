@@ -421,6 +421,225 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
 }
 
 /**
+ * Sends an email from the agency onboarding sequence to a new agency owner.
+ * Step 0 is sent immediately on agency creation. Steps 1–5 are drip emails.
+ * @param {string} toEmail The recipient's email address.
+ * @param {string} name The recipient's name.
+ * @param {string} agencyName The name of the agency they created.
+ * @param {number} step The step number (0–5).
+ */
+export async function sendAgencyEmailSequence(
+  toEmail: string, name: string, agencyName: string, step: number
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping agency email sequence.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+
+  let subject = "";
+  let content = "";
+
+  const signature = `
+    <p style="margin-top: 30px; font-size: 14px; color: #666;">
+      Cheers,<br/>
+      <strong>Serge Amouzou</strong><br/>
+      Founder & CEO of Verza
+    </p>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+
+  switch (step) {
+  case 0: // Immediate — agency is live
+    subject = `${agencyName} is officially live on Verza`;
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Congrats, ${name} — your agency is live!</h1>
+      <p style="color: #555; line-height: 1.6;"><strong>${agencyName}</strong> is now set up on Verza.
+      You have a full command center waiting for you — here's what's ready to go:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li><strong>Talent Roster</strong> — invite creators and manage your roster</li>
+        <li><strong>Team Management</strong> — bring in admins and team members</li>
+        <li><strong>Payouts</strong> — pay talent directly to their bank account</li>
+        <li><strong>Deployments</strong> — run brand campaigns across your entire roster</li>
+        <li><strong>AI Contracts</strong> — generate and send contracts in seconds</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">Head to your dashboard to get started.
+      Over the next two weeks I'll walk you through each feature one by one.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/agency" style="${btnStyle}">Go to Your Agency Dashboard</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 1: // Day 2 — invite talent
+    subject = "Step 1: Build your roster — invite your first creator";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Your roster starts with one invite</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">The first thing to do inside <strong>${agencyName}</strong> is build
+      your roster. From the agency dashboard, hit <strong>Invite Talent</strong> and enter a creator's email.</p>
+      <p style="color: #555; line-height: 1.6;">They'll get an invitation, and once they accept they're live on
+      your roster. You can also set a <strong>per-creator commission rate</strong> so every deal they close
+      through Verza automatically calculates your cut.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/agency" style="${btnStyle}">Invite Your First Creator</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 2: // Day 4 — invite team
+    subject = "Step 2: You don't have to run this alone";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Add your team to ${agencyName}</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Running an agency is a team sport. Verza lets you bring in
+      <strong>admins</strong> and <strong>members</strong> to help manage things:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li><strong>Admins</strong> — full management access, plus automatic access to all agency contracts</li>
+        <li><strong>Members</strong> — read-only access to keep everyone in the loop</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">Invite anyone on your team and they'll be up to speed
+      instantly — no back-and-forth needed.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/agency" style="${btnStyle}">Invite a Team Member</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 3: // Day 7 — payouts
+    subject = "Step 3: Pay your talent fast — no more Venmo, no more chasing";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Payouts that actually work</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Forget Venmo, wire transfers, and "I'll get you this week."
+      Verza lets you pay your talent <strong>directly to their bank account</strong> in a few clicks —
+      every payout is logged and tracked automatically.</p>
+      <p style="color: #555; line-height: 1.6;">Your talent connects their bank account once, and every
+      future payout lands there automatically. No chasing, no confusion.</p>
+      <p style="color: #555; line-height: 1.6;">Head to your agency dashboard and try <strong>Create a Payout</strong>.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/agency" style="${btnStyle}">Create a Payout</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 4: // Day 10 — deployments
+    subject = "Step 4: Launch a deployment campaign for your entire roster";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Run campaigns across your whole roster</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Deployments let you run brand campaigns at scale.
+      Create a deployment, set the rate per creator and how many you need, then fund it from your agency wallet.</p>
+      <p style="color: #555; line-height: 1.6;">Assign creators from your roster, track submissions,
+      and when work is approved <strong>payouts release automatically</strong> to their bank account.
+      No manual steps, no delays.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/deployments" style="${btnStyle}">Create a Deployment</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 5: // Day 14 — upgrade push
+    subject = "Unlock the full agency suite on Verza";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">You've seen the basics — here's what's next</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">You've set up <strong>${agencyName}</strong>, built your roster,
+      and started running operations. The agency plan unlocks the tools that make everything faster:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li><strong>AI Contract Generator</strong> — generate agency-ready contracts in seconds,
+        no lawyers required</li>
+        <li><strong>Webhook Integrations</strong> — connect your external tools and automate your workflow</li>
+        <li><strong>Unlimited Talent</strong> — grow your roster without hitting a ceiling</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">These are the tools serious agencies use to move faster
+      than the competition.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${appUrl}/settings" style="${btnStyle}">Upgrade Your Plan</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  default:
+    logger.info(`No agency email template configured for step ${step}.`);
+    return;
+  }
+
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <div style="padding: 10px 0;">
+          ${content}
+        </div>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const msg = {
+    to: toEmail,
+    from: {
+      name: "Serge from Verza",
+      email: params.SENDGRID_FROM_EMAIL.value(),
+    },
+    subject,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Agency email sequence step ${step} sent to ${toEmail}.`);
+    await db.collection("emailLogs").add({
+      to: toEmail,
+      subject,
+      html,
+      type: "agency_onboarding",
+      timestamp: admin.firestore.Timestamp.now(),
+      status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send agency email sequence step ${step} to ${toEmail}:`, error);
+  }
+}
+
+/**
  * Handles incoming feedback from users and routes it to support team.
  */
 export const submitFeedback = onCall(async (request) => {

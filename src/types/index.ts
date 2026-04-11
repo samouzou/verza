@@ -263,6 +263,10 @@ export interface UserProfileFirestoreData {
     step: number;
     nextEmailAt: ClientTimestamp;
   };
+  agencyEmailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+  };
 
   // SceneSpawner Credits
   credits?: number;

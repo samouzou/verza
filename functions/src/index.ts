@@ -35,6 +35,7 @@ import {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  sendAgencyDripCampaignEmails,
   processAffiliatePayouts,
 } from "./scheduler";
 
@@ -95,6 +96,7 @@ export {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  sendAgencyDripCampaignEmails,
   processAffiliatePayouts,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,

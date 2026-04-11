@@ -6,7 +6,7 @@ import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract} from "./../types";
-import {sendEmailSequence} from "../notifications";
+import {sendEmailSequence, sendAgencyEmailSequence} from "../notifications";
 import * as params from "../config/params";
 
 // Send reminders for overdue invoices
@@ -357,6 +357,57 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
     logger.info(`Processed ${usersSnapshot.size} users for the drip campaign.`);
   } catch (error) {
     logger.error("Error in sendDripCampaignEmails:", error);
+  }
+});
+
+export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async () => {
+  logger.info("Starting sendAgencyDripCampaignEmails function.");
+  const now = admin.firestore.Timestamp.now();
+
+  try {
+    const usersSnapshot = await db.collection("users")
+      .where("agencyEmailSequence.nextEmailAt", "<=", now)
+      .where("agencyEmailSequence.step", "<=", 5)
+      .get();
+
+    if (usersSnapshot.empty) {
+      logger.info("No agency owners due for a drip campaign email.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const user = userDoc.data() as UserProfileFirestoreData;
+      if (!user.email || !user.agencyEmailSequence) continue;
+
+      const currentStep = user.agencyEmailSequence.step;
+      const agencyName = user.agencyMemberships?.find((m) => m.role === "owner")?.agencyName || "your agency";
+
+      await sendAgencyEmailSequence(user.email, user.displayName || "there", agencyName, currentStep);
+
+      const nextStep = currentStep + 1;
+      // Space emails: steps 1-3 every 2 days, steps 4-5 every 3 days
+      const daysUntilNext = currentStep >= 3 ? 3 : 2;
+      const nextEmailAt = new admin.firestore.Timestamp(
+        now.seconds + daysUntilNext * 24 * 60 * 60, 0
+      );
+
+      if (nextStep > 5) {
+        // Sequence complete — remove the field so this user is never picked up again
+        batch.update(userDoc.ref, {agencyEmailSequence: admin.firestore.FieldValue.delete()});
+      } else {
+        batch.update(userDoc.ref, {
+          "agencyEmailSequence.step": nextStep,
+          "agencyEmailSequence.nextEmailAt": nextEmailAt,
+        });
+      }
+    }
+
+    await batch.commit();
+    logger.info(`Processed ${usersSnapshot.size} agency owners for the drip campaign.`);
+  } catch (error) {
+    logger.error("Error in sendAgencyDripCampaignEmails:", error);
   }
 });
 
