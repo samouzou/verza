@@ -36,6 +36,7 @@ import {
   processRecurringContracts,
   sendDripCampaignEmails,
   sendAgencyDripCampaignEmails,
+  sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
 } from "./scheduler";
 
@@ -70,7 +71,7 @@ import {
   fundGigFromWallet,
 } from "./agency";
 
-import {payoutCreatorForGig} from "./gigs";
+import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
@@ -97,6 +98,7 @@ export {
   processRecurringContracts,
   sendDripCampaignEmails,
   sendAgencyDripCampaignEmails,
+  sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
@@ -115,6 +117,8 @@ export {
   inviteTeamMemberToAgency,
   fundGigFromWallet,
   payoutCreatorForGig,
+  onGigCreated,
+  onGigStatusOpened,
   generateScene,
   generateImage,
   analyzeBrand,

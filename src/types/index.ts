@@ -511,6 +511,11 @@ export interface Gig {
     promoCodePrefix?: string;
   };
   assignments?: { [creatorId: string]: GigAssignment };
+  deploymentEmailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+    ownerUserId: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {

@@ -5,8 +5,8 @@ import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
-import type {UserProfileFirestoreData, Contract} from "./../types";
-import {sendEmailSequence, sendAgencyEmailSequence} from "../notifications";
+import type {UserProfileFirestoreData, Contract, Gig} from "./../types";
+import {sendEmailSequence, sendAgencyEmailSequence, sendDeploymentEmailSequence} from "../notifications";
 import * as params from "../config/params";
 
 // Send reminders for overdue invoices
@@ -408,6 +408,65 @@ export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async (
     logger.info(`Processed ${usersSnapshot.size} agency owners for the drip campaign.`);
   } catch (error) {
     logger.error("Error in sendAgencyDripCampaignEmails:", error);
+  }
+});
+
+export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", async () => {
+  logger.info("Starting sendDeploymentDripCampaignEmails function.");
+  const now = admin.firestore.Timestamp.now();
+
+  try {
+    const gigsSnapshot = await db.collection("gigs")
+      .where("deploymentEmailSequence.nextEmailAt", "<=", now)
+      .where("deploymentEmailSequence.step", "<=", 4)
+      .get();
+
+    if (gigsSnapshot.empty) {
+      logger.info("No deployments due for a drip campaign email.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const gigDoc of gigsSnapshot.docs) {
+      const gig = gigDoc.data() as Gig;
+      if (!gig.deploymentEmailSequence) continue;
+
+      const {step, ownerUserId} = gig.deploymentEmailSequence;
+
+      const ownerSnap = await db.collection("users").doc(ownerUserId).get();
+      if (!ownerSnap.exists) {
+        batch.update(gigDoc.ref, {deploymentEmailSequence: admin.firestore.FieldValue.delete()});
+        continue;
+      }
+      const ownerData = ownerSnap.data() as UserProfileFirestoreData;
+      if (!ownerData.email) continue;
+
+      await sendDeploymentEmailSequence(
+        ownerData.email, ownerData.displayName || "there", gig.title, gigDoc.id, step
+      );
+
+      const nextStep = step + 1;
+      // Space emails: steps 1-3 every 2 days, step 4 after 3 days
+      const daysUntilNext = step >= 3 ? 3 : 2;
+      const nextEmailAt = new admin.firestore.Timestamp(
+        now.seconds + daysUntilNext * 24 * 60 * 60, 0
+      );
+
+      if (nextStep > 4) {
+        batch.update(gigDoc.ref, {deploymentEmailSequence: admin.firestore.FieldValue.delete()});
+      } else {
+        batch.update(gigDoc.ref, {
+          "deploymentEmailSequence.step": nextStep,
+          "deploymentEmailSequence.nextEmailAt": nextEmailAt,
+        });
+      }
+    }
+
+    await batch.commit();
+    logger.info(`Processed ${gigsSnapshot.size} deployments for the drip campaign.`);
+  } catch (error) {
+    logger.error("Error in sendDeploymentDripCampaignEmails:", error);
   }
 });
 

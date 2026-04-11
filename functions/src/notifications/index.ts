@@ -421,6 +421,216 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
 }
 
 /**
+ * Sends an email from the deployment onboarding sequence to the brand who posted it.
+ * Step 0 is sent immediately when the deployment goes live. Steps 1–4 are drip emails.
+ * @param {string} toEmail The recipient's email address.
+ * @param {string} name The recipient's name.
+ * @param {string} gigTitle The title of the deployment.
+ * @param {string} gigId The Firestore ID of the deployment (for deep links).
+ * @param {number} step The step number (0–4).
+ */
+export async function sendDeploymentEmailSequence(
+  toEmail: string, name: string, gigTitle: string, gigId: string, step: number
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping deployment email sequence.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const deploymentUrl = `${appUrl}/deployments/${gigId}`;
+
+  let subject = "";
+  let content = "";
+
+  const signature = `
+    <p style="margin-top: 30px; font-size: 14px; color: #666;">
+      Cheers,<br/>
+      <strong>Serge Amouzou</strong><br/>
+      Founder & CEO of Verza
+    </p>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+
+  switch (step) {
+  case 0: // Immediate — deployment is live
+    subject = `Your deployment "${gigTitle}" is live`;
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Your deployment is live, ${name}!</h1>
+      <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is now visible to creators
+      in the Verza marketplace. Here's what happens next:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li>Creators will discover your campaign and apply for spots</li>
+        <li>You review and accept the creators you want</li>
+        <li>Accepted creators submit their work for your approval</li>
+        <li>You approve and pay — funds go straight to their bank account</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">Over the next week I'll walk you through each step as your
+      campaign runs. Head to your deployment now to see who's applying.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${deploymentUrl}" style="${btnStyle}">View Your Deployment</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 1: // Day 2 — managing applications
+    subject = `Creators are applying to "${gigTitle}" — here's how to manage them`;
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Your first applications are in</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Creators are discovering <strong>"${gigTitle}"</strong> in
+      the marketplace. Here's how the acceptance flow works:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li>Open your deployment and scroll to the creator list</li>
+        <li>Review each applicant's profile, follower count, and engagement rate</li>
+        <li>Accept the creators you want — they'll be notified immediately and get access to submit work</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">Tip: the best creators move fast and take multiple campaigns
+      at once. Fill your spots early.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${deploymentUrl}" style="${btnStyle}">Review Applications</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 2: // Day 4 — submissions and Verza Score
+    subject = "How submissions and the Verza Score work";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Your creators are submitting work</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Once a creator is accepted into <strong>"${gigTitle}"</strong>,
+      they can upload their videos or links directly on the deployment page. Here's what you'll see:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li><strong>Verza Score</strong> — an AI simulation of how the content performs with a real audience.
+        If you required a score threshold, creators must hit it before their submission counts</li>
+        <li><strong>AI Feedback</strong> — a breakdown of what's working and what isn't, so creators
+        can improve before resubmitting</li>
+        <li>You can see all scores and feedback before deciding to approve</li>
+      </ul>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${deploymentUrl}" style="${btnStyle}">Review Submissions</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 3: // Day 7 — approving and paying
+    subject = "Approve work and pay creators in one click";
+    content = `
+      <h1 style="color: #333; font-size: 22px;">Ready to pay your creators?</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">Once you're satisfied with a creator's submission on
+      <strong>"${gigTitle}"</strong>, paying them is one step. Hit <strong>Approve & Pay</strong> on the
+      deployment page — funds go directly to their bank account, no manual transfers needed.</p>
+      <ul style="color: #555; line-height: 2;">
+        <li>Every payout is logged and tracked on the deployment page</li>
+        <li>The creator is notified the moment their payment is processed</li>
+        <li>When all creators are paid, the campaign is automatically marked complete</li>
+      </ul>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${deploymentUrl}" style="${btnStyle}">Process Payouts</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  case 4: // Day 10 — tracking performance
+    subject = `Track the real-world results of "${gigTitle}"`;
+    content = `
+      <h1 style="color: #333; font-size: 22px;">See what your campaign actually drove</h1>
+      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+      <p style="color: #555; line-height: 1.6;">If you enabled affiliate tracking on
+      <strong>"${gigTitle}"</strong>, each creator has their own unique link or promo code.
+      From the deployment page you can see:</p>
+      <ul style="color: #555; line-height: 2;">
+        <li><strong>Clicks and conversions</strong> per creator — see who actually drove results</li>
+        <li><strong>Earned rewards</strong> — tracked automatically against each creator's link</li>
+        <li>Use this data to know exactly who to bring back for your next campaign</li>
+      </ul>
+      <p style="color: #555; line-height: 1.6;">The brands that win at performance marketing are the ones
+      who double down on what worked. Your data is waiting.</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${deploymentUrl}" style="${btnStyle}">View Deployment Results</a>
+      </div>
+      ${signature}
+    `;
+    break;
+
+  default:
+    logger.info(`No deployment email template configured for step ${step}.`);
+    return;
+  }
+
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <div style="padding: 10px 0;">
+          ${content}
+        </div>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const msg = {
+    to: toEmail,
+    from: {
+      name: "Serge from Verza",
+      email: params.SENDGRID_FROM_EMAIL.value(),
+    },
+    subject,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Deployment email sequence step ${step} sent to ${toEmail} for gig ${gigId}.`);
+    await db.collection("emailLogs").add({
+      to: toEmail,
+      subject,
+      html,
+      type: "deployment_onboarding",
+      timestamp: admin.firestore.Timestamp.now(),
+      status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send deployment email sequence step ${step} to ${toEmail}:`, error);
+  }
+}
+
+/**
  * Sends an email from the agency onboarding sequence to a new agency owner.
  * Step 0 is sent immediately on agency creation. Steps 1–5 are drip emails.
  * @param {string} toEmail The recipient's email address.
