@@ -424,7 +424,7 @@ export type Tour = {
   onStop?: () => void;
 };
 
-// Scene Spawner Types
+// AI Studio Types
 export interface Generation {
   id: string;
   userId: string;

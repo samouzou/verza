@@ -46,10 +46,7 @@ import {
   stripeSubscriptionWebhookHandler,
 } from "./subscriptions";
 
-import {
-  createShareableContractVersion,
-  getPublicContractDetails,
-} from "./sharing";
+import {getPublicContractDetails} from "./sharing";
 
 import {
   initiateHelloSignRequest,
@@ -103,7 +100,6 @@ export {
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
-  createShareableContractVersion,
   getPublicContractDetails,
   initiateHelloSignRequest,
   helloSignWebhookHandler,

@@ -41,7 +41,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { useTour } from '@/hooks/use-tour';
-import { sceneSpawnerTour } from '@/lib/tours';
+import { aiStudioTour } from '@/lib/tours';
 import { trackEvent } from '@/lib/analytics';
 import { useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
@@ -94,7 +94,7 @@ function SceneSpawnerContent() {
         label: 'scene_credits'
       });
 
-      router.replace('/scene-spawner', { scroll: false });
+      router.replace('/ai-studio', { scroll: false });
     }
   }, [searchParams, router]);
 
@@ -253,7 +253,7 @@ function SceneSpawnerContent() {
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
-        trackEvent({ action: 'create_character', category: 'engagement', label: 'scene_spawner' });
+        trackEvent({ action: 'create_character', category: 'engagement', label: 'ai_studio' });
         toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
         setNewCharacterName("");
         setNewCharacterDescription("");
@@ -298,10 +298,10 @@ function SceneSpawnerContent() {
   return (
     <>
       <PageHeader
-        title="Scene Spawner"
+        title="AI Studio"
         description="Generate video clips and images for your content using AI."
         actions={
-          <Button variant="outline" onClick={() => startTour(sceneSpawnerTour)}>
+          <Button variant="outline" onClick={() => startTour(aiStudioTour)}>
             <LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour
           </Button>
         }

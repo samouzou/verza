@@ -1026,8 +1026,8 @@ export const createCreditCheckoutSession = onCall(async (request) => {
       customer: stripeCustomerId,
       invoice_creation: {enabled: true},
       line_items: [{price: priceId, quantity: 1}],
-      success_url: `${params.APP_URL.value()}/scene-spawner?purchase_success=true`,
-      cancel_url: `${params.APP_URL.value()}/scene-spawner`,
+      success_url: `${params.APP_URL.value()}/ai-studio?purchase_success=true`,
+      cancel_url: `${params.APP_URL.value()}/ai-studio`,
       payment_intent_data: {
         metadata: {
           firebaseUID: userId,

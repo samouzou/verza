@@ -320,17 +320,21 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
       `;
     break;
   case 1: // AI Edge & Verza Score
-    subject = "Master the \"Verza Score\" with AI";
+    subject = "How the Verza Score works — and why it matters for your payouts";
     content = `
-        <h1 style="color: #333; font-size: 22px;">Stop Guessing. Start Spawning.</h1>
+        <h1 style="color: #333; font-size: 22px;">Brands only pay for content that performs.</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">On Verza,
-        every piece of content passes through <strong>"The Gauntlet"</strong>—an 
-        AI simulation of 10,000 Gen Z scrollers. Brands only pay for what performs.</p>
-        <p style="color: #555; line-height: 1.6;">Use our <strong>Scene Spawner</strong> AI to iterate on your hooks and 
-        visuals before you submit. It's your secret weapon to hitting that 65% benchmark and securing your payout.</p>
+        <p style="color: #555; line-height: 1.6;">Every piece of content you submit on Verza runs through
+        <strong>"The Gauntlet"</strong> — an AI simulation that predicts how your content will perform
+        with a real audience. It doesn't matter if you make 60-second clips or 60-minute deep dives.
+        The Gauntlet evaluates what works for <em>your</em> format and platform.</p>
+        <p style="color: #555; line-height: 1.6;">Hit the <strong>65% benchmark</strong> and your submission
+        is approved. Miss it and you get specific AI feedback telling you exactly what to improve — so you
+        can resubmit with confidence instead of guessing.</p>
+        <p style="color: #555; line-height: 1.6;">Use our <strong>AI Studio</strong> to prototype and
+        refine your content before you submit. Less rework, faster approvals, more payouts.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/scene-spawner" style="${btnStyle}">Spawn Your First Scene</a>
+          <a href="${appUrl}/ai-studio" style="${btnStyle}">Try AI Studio</a>
         </div>
         ${signature}
       `;
