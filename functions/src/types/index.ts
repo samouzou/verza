@@ -260,6 +260,7 @@ export interface UserProfileFirestoreData {
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
+  referralSource?: string;
   emailSequence?: {
     step: number;
     nextEmailAt: ClientTimestamp;
