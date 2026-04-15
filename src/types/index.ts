@@ -259,7 +259,12 @@ export interface UserProfileFirestoreData {
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
+  referralSource?: string;
   emailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+  };
+  agencyEmailSequence?: {
     step: number;
     nextEmailAt: ClientTimestamp;
   };
@@ -420,7 +425,7 @@ export type Tour = {
   onStop?: () => void;
 };
 
-// Scene Spawner Types
+// AI Studio Types
 export interface Generation {
   id: string;
   userId: string;
@@ -507,6 +512,11 @@ export interface Gig {
     promoCodePrefix?: string;
   };
   assignments?: { [creatorId: string]: GigAssignment };
+  deploymentEmailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+    ownerUserId: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {

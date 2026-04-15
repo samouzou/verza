@@ -8,7 +8,7 @@ import type {
   InternalPayout, TeamMember, Gig,
 } from "./../types";
 import Stripe from "stripe";
-import {sendAgencyInvitationEmail} from "../notifications";
+import {sendAgencyInvitationEmail, sendAgencyEmailSequence} from "../notifications";
 import * as params from "../config/params";
 
 export const createAgency = onCall(async (request) => {
@@ -62,6 +62,19 @@ export const createAgency = onCall(async (request) => {
     await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true, primaryAgencyId: newAgency.id});
 
     await batch.commit();
+
+    // Send immediate congratulations email and initialize the agency drip sequence
+    const userSnap = await userDocRef.get();
+    const userData = userSnap.data();
+    if (userData?.email) {
+      const twoDaysFromNow = new admin.firestore.Timestamp(
+        admin.firestore.Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
+      );
+      await userDocRef.update({
+        agencyEmailSequence: {step: 1, nextEmailAt: twoDaysFromNow},
+      });
+      await sendAgencyEmailSequence(userData.email, userData.displayName || "there", name.trim(), 0);
+    }
 
     logger.info(`Agency "${name}" created successfully for user ${userId}. Custom claim and Firestore field set.`);
 

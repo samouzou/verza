@@ -6,6 +6,7 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
+import {sendSubscriptionReceiptEmail} from "../notifications";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
@@ -330,6 +331,20 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         });
         logger.info("Updated user subscription from checkout.session.completed:",
           {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId: planIdFromMeta});
+
+        // Send new subscription receipt
+        const userSnap = await userDocRef.get();
+        const userData = userSnap.data() as UserProfileFirestoreData;
+        if (userData?.email) {
+          await sendSubscriptionReceiptEmail(userData.email, userData.displayName || "there", {
+            planId: planIdFromMeta,
+            interval,
+            amountPaid: session.amount_total || 0,
+            nextBillingDate: subscription.current_period_end,
+            transactionId: subscription.id,
+            type: "new",
+          });
+        }
       }
       break;
     }
@@ -418,6 +433,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         }
 
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
+        const priceId = subscription.items.data[0]?.price.id;
+        const {planId: renewedPlanId} = getPlanDetailsFromPriceId(priceId);
 
         await userDocRef.update({
           subscriptionStatus: "active",
@@ -426,6 +443,20 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         });
         logger.info("Updated user subscription from invoice.payment_succeeded:",
           {userId: firebaseUID, subId: subscription.id, status: "active", interval: interval});
+
+        // Send renewal receipt
+        const userSnap = await userDocRef.get();
+        const userData = userSnap.data() as UserProfileFirestoreData;
+        if (userData?.email) {
+          await sendSubscriptionReceiptEmail(userData.email, userData.displayName || "there", {
+            planId: renewedPlanId || userData.subscriptionPlanId,
+            interval,
+            amountPaid: invoice.amount_paid,
+            nextBillingDate: subscription.current_period_end,
+            transactionId: invoice.id || subscription.id,
+            type: "renewal",
+          });
+        }
       }
       break;
     }

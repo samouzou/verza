@@ -41,7 +41,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { useTour } from '@/hooks/use-tour';
-import { sceneSpawnerTour } from '@/lib/tours';
+import { aiStudioTour } from '@/lib/tours';
 import { trackEvent } from '@/lib/analytics';
 import { useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
@@ -94,7 +94,7 @@ function SceneSpawnerContent() {
         label: 'scene_credits'
       });
 
-      router.replace('/scene-spawner', { scroll: false });
+      router.replace('/ai-studio', { scroll: false });
     }
   }, [searchParams, router]);
 
@@ -181,12 +181,14 @@ function SceneSpawnerContent() {
     }
 
     const mode = activeTab;
-    const currentPrompt = mode === 'text-to-video' ? prompt : imagePrompt;
-    const cost = mode === 'image-to-image' ? IMAGE_COST : VIDEO_COST;
+    const isTextMode = mode === 'text-to-video' || mode === 'text-to-image';
+    const isImageMode = mode === 'image-to-video' || mode === 'image-to-image';
+    const currentPrompt = isTextMode ? prompt : imagePrompt;
+    const cost = (mode === 'image-to-image' || mode === 'text-to-image') ? IMAGE_COST : VIDEO_COST;
     const credits = user.credits ?? 0;
-    
-    if (!currentPrompt.trim() || (mode !== 'text-to-video' && !imageFile)) {
-      toast({ title: "Missing Input", description: `Please provide a prompt${mode !== 'text-to-video' ? ' and an image' : ''}.`, variant: "destructive" });
+
+    if (!currentPrompt.trim() || (isImageMode && !imageFile)) {
+      toast({ title: "Missing Input", description: `Please provide a prompt${isImageMode ? ' and an image' : ''}.`, variant: "destructive" });
       return;
     }
      if (credits < cost) {
@@ -214,7 +216,7 @@ function SceneSpawnerContent() {
       
       trackEvent({ action: 'spawn_scene_start', category: 'ai_tool', label: mode });
 
-      if (mode === 'image-to-image') {
+      if (mode === 'image-to-image' || mode === 'text-to-image') {
         const generateImageCallable = httpsCallable(functions, 'generateImage');
         result = await generateImageCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
         data = result.data as { imageUrl: string, remainingCredits: number };
@@ -253,7 +255,7 @@ function SceneSpawnerContent() {
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
-        trackEvent({ action: 'create_character', category: 'engagement', label: 'scene_spawner' });
+        trackEvent({ action: 'create_character', category: 'engagement', label: 'ai_studio' });
         toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
         setNewCharacterName("");
         setNewCharacterDescription("");
@@ -282,13 +284,13 @@ function SceneSpawnerContent() {
  };
 
 
-  const cost = activeTab === 'image-to-image' ? IMAGE_COST : VIDEO_COST;
+  const cost = (activeTab === 'image-to-image' || activeTab === 'text-to-image') ? IMAGE_COST : VIDEO_COST;
   const credits = user?.credits ?? 0;
   const canAfford = credits >= cost;
-  
+
   const isGenerateButtonDisabled = isGenerating ||
-    (activeTab === 'text-to-video' && !prompt.trim()) ||
-    (activeTab !== 'text-to-video' && (!imagePrompt.trim() || !imageFile));
+    ((activeTab === 'text-to-video' || activeTab === 'text-to-image') && !prompt.trim()) ||
+    ((activeTab === 'image-to-video' || activeTab === 'image-to-image') && (!imagePrompt.trim() || !imageFile));
 
 
   if (authLoading) {
@@ -298,10 +300,10 @@ function SceneSpawnerContent() {
   return (
     <>
       <PageHeader
-        title="Scene Spawner"
+        title="AI Studio"
         description="Generate video clips and images for your content using AI."
         actions={
-          <Button variant="outline" onClick={() => startTour(sceneSpawnerTour)}>
+          <Button variant="outline" onClick={() => startTour(aiStudioTour)}>
             <LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour
           </Button>
         }
@@ -314,10 +316,11 @@ function SceneSpawnerContent() {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
                   <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
                   <TabsTrigger value="image-to-image">Image to Image</TabsTrigger>
+                  <TabsTrigger value="text-to-image">Text to Image</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="text-to-video" className="space-y-4 pt-4">
@@ -384,6 +387,20 @@ function SceneSpawnerContent() {
                   </div>
                 </TabsContent>
 
+                <TabsContent value="text-to-image" className="space-y-4 pt-4">
+                  <div>
+                    <Label htmlFor="text-to-image-prompt">Prompt</Label>
+                    <Textarea
+                      id="text-to-image-prompt"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="e.g., A serene mountain lake at sunrise, photorealistic, golden light"
+                      disabled={isGenerating}
+                      rows={2}
+                    />
+                  </div>
+                </TabsContent>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
                     <div className="md:col-span-1">
                       <Label htmlFor="style">Style</Label>
@@ -399,7 +416,7 @@ function SceneSpawnerContent() {
                       <RadioGroup
                         value={orientation}
                         onValueChange={(value) => setOrientation(value as any)}
-                        className="flex items-center gap-4 mt-2"
+                        className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2"
                         disabled={isGenerating}
                       >
                         <div className="flex items-center space-x-2">
@@ -410,12 +427,12 @@ function SceneSpawnerContent() {
                           <RadioGroupItem value="9:16" id="orientation-v" />
                           <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
                         </div>
-                         {activeTab === 'image-to-image' && (
-                           <div className="flex items-center space-x-2">
+                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') && (
+                          <div className="flex items-center space-x-2">
                             <RadioGroupItem value="1:1" id="orientation-s" />
                             <Label htmlFor="orientation-s" className="flex items-center gap-1 cursor-pointer"><Camera className="h-4 w-4"/> Square</Label>
                           </div>
-                         )}
+                        )}
                       </RadioGroup>
                     </div>
                     <div className="md:col-span-1">
@@ -436,7 +453,7 @@ function SceneSpawnerContent() {
                     {canAfford ? (
                       <Button onClick={handleGeneration} disabled={isGenerateButtonDisabled}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        {activeTab === 'image-to-image' ? `Generate Image (${cost} Credit)` : `Spawn Scene (${cost} Credits)`}
+                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') ? `Generate Image (${cost} Credit)` : `Spawn Scene (${cost} Credits)`}
                       </Button>
                     ) : (
                       <AlertDialog>

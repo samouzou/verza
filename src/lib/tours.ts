@@ -14,7 +14,7 @@ export const getStartedTour: Tour = {
       align: 'start',
     },
     {
-      selector: '#nav-item-scene-spawner',
+      selector: '#nav-item-ai-studio',
       title: 'Unleash Your Creativity',
       content: "Use AI to generate high-quality video clips and images. Perfect for iterating on hooks or creating B-roll.",
       side: 'right',
@@ -86,8 +86,8 @@ export const gigDetailTour: Tour = {
   ],
 };
 
-export const sceneSpawnerTour: Tour = {
-  id: 'scene-spawner-tour',
+export const aiStudioTour: Tour = {
+  id: 'ai-studio-tour',
   steps: [
     {
       selector: '[role="tablist"]',
