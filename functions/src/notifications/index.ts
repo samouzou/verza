@@ -425,6 +425,168 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
 }
 
 /**
+ * Maps an internal subscription plan ID to a human-readable plan name.
+ * @param {string | undefined} planId The internal plan identifier.
+ * @return {string} A readable plan name.
+ */
+function getPlanDisplayName(planId: string | null | undefined): string {
+  if (!planId) return "Verza Plan";
+  if (planId.includes("enterprise")) return "Agency Enterprise";
+  if (planId.includes("network")) return "Agency Network";
+  if (planId.includes("agency_pro")) return "Agency Pro";
+  if (planId.includes("pilot")) return "Agency Pilot";
+  if (planId.includes("individual")) return "Individual Pro";
+  return "Verza Plan";
+}
+
+/**
+ * Sends a subscription receipt email to a user on new subscription or renewal.
+ * @param {string} toEmail The recipient's email address.
+ * @param {string} name The recipient's display name.
+ * @param {object} details Receipt details.
+ * @param {string} details.planId The internal plan identifier.
+ * @param {string} details.interval The billing interval ('month' or 'year').
+ * @param {number} details.amountPaid The amount paid in cents.
+ * @param {number} details.nextBillingDate Unix timestamp of the next billing date.
+ * @param {string} details.transactionId The Stripe invoice or payment intent ID.
+ * @param {'new' | 'renewal'} details.type Whether this is a new subscription or a renewal.
+ * @return {Promise<void>}
+ */
+export async function sendSubscriptionReceiptEmail(
+  toEmail: string,
+  name: string,
+  details: {
+    planId: string | null | undefined;
+    interval: string;
+    amountPaid: number;
+    nextBillingDate: number;
+    transactionId: string;
+    type: "new" | "renewal";
+  }
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping subscription receipt email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const planName = getPlanDisplayName(details.planId);
+  const intervalLabel = details.interval === "year" ? "Annual" : "Monthly";
+  const amountFormatted = "$" + (details.amountPaid / 100)
+    .toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const nextDate = details.nextBillingDate && details.nextBillingDate > 0 ?
+    new Date(details.nextBillingDate * 1000)
+      .toLocaleDateString("en-US", {year: "numeric", month: "long", day: "numeric"}) :
+    "—";
+
+  const isNew = details.type === "new";
+  const subject = isNew ? "You're subscribed to Verza — receipt inside" : "Your Verza subscription has renewed";
+  const headline = isNew ? "Subscription Confirmed" : "Renewal Confirmed";
+  const subheadline = isNew ?
+    `Welcome to ${planName}. Your account is fully active.` :
+    `Your ${planName} plan has been successfully renewed.`;
+  const vaultNote = isNew ?
+    "Your plan is now active. Head to your dashboard to get started." :
+    "Nothing changes on your end — your plan continues uninterrupted.";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="background-color: #f4f4f7; padding: 40px 20px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0;
+        border-radius: 16px; background-color: #ffffff;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+
+        <div style="text-align: center; margin-bottom: 30px;">
+          <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+            style="vertical-align: middle; margin-right: 8px;">
+          <span style="font-weight: bold; font-size: 24px; color: #000000;
+            vertical-align: middle; font-family: sans-serif;">Verza</span>
+        </div>
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800;
+            letter-spacing: -0.025em;">${headline}</h1>
+          <p style="color: #718096; margin-top: 8px; font-size: 16px;">${subheadline}</p>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px;
+          border: 1px solid #edf2f7; margin-bottom: 32px;">
+          <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase;
+            color: #a0aec0; margin: 0 0 16px 0;">Subscription Breakdown</h2>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Plan</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">${planName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Billing Interval</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px;
+                font-weight: 600; text-align: right;">${intervalLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Next Billing Date</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">${nextDate}</td>
+            </tr>
+            <tr style="border-top: 2px solid #edf2f7;">
+              <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Amount Paid</td>
+              <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800;
+                text-align: right; font-size: 24px;">${amountFormatted}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0;
+          border: 1px solid #feebc8; margin-bottom: 32px;">
+          <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
+            <strong>Hi ${name} —</strong> ${vaultNote}
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${appUrl}/settings" style="background-color: #6B37FF; color: white;
+            padding: 12px 28px; text-decoration: none; border-radius: 8px;
+            font-weight: bold; font-size: 15px; display: inline-block;">Manage Subscription</a>
+        </div>
+
+        <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
+          <p style="color: #a0aec0; font-size: 12px; margin: 0;">Transaction ID: ${details.transactionId}</p>
+          <p style="color: #a0aec0; font-size: 12px; margin-top: 4px;">
+            Powered by Verza &bull; High-Performance Financial Infrastructure</p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `;
+
+  const msg = {
+    to: toEmail,
+    from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+    subject,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Subscription receipt (${details.type}) sent to ${toEmail} for plan ${details.planId}.`);
+    await db.collection("emailLogs").add({
+      to: toEmail,
+      subject,
+      html,
+      type: "subscription_receipt",
+      timestamp: admin.firestore.Timestamp.now(),
+      status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send subscription receipt to ${toEmail}:`, error);
+  }
+}
+
+/**
  * Sends an email from the deployment onboarding sequence to the brand who posted it.
  * Step 0 is sent immediately when the deployment goes live. Steps 1–4 are drip emails.
  * @param {string} toEmail The recipient's email address.
