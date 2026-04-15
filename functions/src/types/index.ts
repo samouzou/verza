@@ -255,11 +255,17 @@ export interface UserProfileFirestoreData {
   stripeAccountStatus?: "none" | "onboarding_incomplete" | "pending_verification" | "active" | "restricted" | "restricted_soon";
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+  stripeAccountCountry?: string | null;
 
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
+  referralSource?: string;
   emailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+  };
+  agencyEmailSequence?: {
     step: number;
     nextEmailAt: ClientTimestamp;
   };
@@ -419,7 +425,7 @@ export type Tour = {
   onStop?: () => void;
 };
 
-// Scene Spawner Types
+// AI Studio Types
 export interface Generation {
   id: string;
   userId: string;
@@ -471,7 +477,7 @@ export interface GigAssignment {
   commissionRate: number;
   assignedAt: ClientTimestamp;
 }
- 
+
 export interface Gig {
   id: string;
   brandId: string; // The UID of the brand user/agency owner
@@ -501,6 +507,11 @@ export interface Gig {
     destinationUrl: string;
   };
   assignments?: { [creatorId: string]: GigAssignment };
+  deploymentEmailSequence?: {
+    step: number;
+    nextEmailAt: ClientTimestamp;
+    ownerUserId: string;
+  };
 }
 
 export interface CreatorMarketplaceProfile {

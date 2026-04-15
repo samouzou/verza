@@ -31,7 +31,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: Trophy,
       title: "Winning Hooks",
-      description: "Use Scene Spawner to iterate on your first 3 seconds. The hook determines your Verza Score.",
+      description: "Use AI Studio to iterate on your content before you submit. The stronger your execution, the higher your Verza Score.",
     }
   ],
   find_talent: [

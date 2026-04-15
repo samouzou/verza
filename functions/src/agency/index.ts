@@ -3,10 +3,12 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
-import type {Agency, Talent, UserProfileFirestoreData, AgencyMembership,
-  InternalPayout, TeamMember, Gig} from "./../types";
+import type {
+  Agency, Talent, UserProfileFirestoreData, AgencyMembership,
+  InternalPayout, TeamMember, Gig,
+} from "./../types";
 import Stripe from "stripe";
-import {sendAgencyInvitationEmail} from "../notifications";
+import {sendAgencyInvitationEmail, sendAgencyEmailSequence} from "../notifications";
 import * as params from "../config/params";
 
 export const createAgency = onCall(async (request) => {
@@ -60,6 +62,19 @@ export const createAgency = onCall(async (request) => {
     await admin.auth().setCustomUserClaims(userId, {isAgencyOwner: true, primaryAgencyId: newAgency.id});
 
     await batch.commit();
+
+    // Send immediate congratulations email and initialize the agency drip sequence
+    const userSnap = await userDocRef.get();
+    const userData = userSnap.data();
+    if (userData?.email) {
+      const twoDaysFromNow = new admin.firestore.Timestamp(
+        admin.firestore.Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
+      );
+      await userDocRef.update({
+        agencyEmailSequence: {step: 1, nextEmailAt: twoDaysFromNow},
+      });
+      await sendAgencyEmailSequence(userData.email, userData.displayName || "there", name.trim(), 0);
+    }
 
     logger.info(`Agency "${name}" created successfully for user ${userId}. Custom claim and Firestore field set.`);
 
@@ -470,14 +485,16 @@ export const createInternalPayout = onCall(async (request) => {
       throw new HttpsError("permission-denied", "You do not have permission to manage this agency.");
     }
 
-    // The person initiating the payout must be an admin, but the payment comes from the delegate's account (or owner if no delegate).
+    // The person initiating the payout must be an admin, but the payment comes from
+    // the delegate's account (or owner if no delegate).
     const agencyOwnerId = agencyData.paymentDelegateId || agencyData.ownerId;
     const agencyOwnerUserDocRef = db.collection("users").doc(agencyOwnerId);
     const agencyOwnerSnap = await agencyOwnerUserDocRef.get();
     const agencyOwnerData = agencyOwnerSnap.data() as UserProfileFirestoreData;
 
     if (!agencyOwnerData.stripeCustomerId) {
-      throw new HttpsError("failed-precondition", "Agency payment account holder does not have a Stripe Customer ID and cannot make payments.");
+      throw new HttpsError("failed-precondition",
+        "Agency payment account holder does not have a Stripe Customer ID and cannot make payments.");
     }
 
     const paymentMethods = await stripe.paymentMethods.list({customer: agencyOwnerData.stripeCustomerId});

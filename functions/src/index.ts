@@ -35,6 +35,8 @@ import {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  sendAgencyDripCampaignEmails,
+  sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
 } from "./scheduler";
 
@@ -44,10 +46,7 @@ import {
   stripeSubscriptionWebhookHandler,
 } from "./subscriptions";
 
-import {
-  createShareableContractVersion,
-  getPublicContractDetails,
-} from "./sharing";
+import {getPublicContractDetails} from "./sharing";
 
 import {
   initiateHelloSignRequest,
@@ -69,7 +68,7 @@ import {
   fundGigFromWallet,
 } from "./agency";
 
-import {payoutCreatorForGig} from "./gigs";
+import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
@@ -95,11 +94,12 @@ export {
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
+  sendAgencyDripCampaignEmails,
+  sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
   createStripeSubscriptionCheckoutSession,
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
-  createShareableContractVersion,
   getPublicContractDetails,
   initiateHelloSignRequest,
   helloSignWebhookHandler,
@@ -113,6 +113,8 @@ export {
   inviteTeamMemberToAgency,
   fundGigFromWallet,
   payoutCreatorForGig,
+  onGigCreated,
+  onGigStatusOpened,
   generateScene,
   generateImage,
   analyzeBrand,

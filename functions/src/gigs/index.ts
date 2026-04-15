@@ -1,11 +1,13 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onDocumentCreated, onDocumentUpdated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
 import type {Gig, UserProfileFirestoreData, Notification, Agency, InternalPayout} from "./../types";
 import * as params from "../config/params";
 import * as admin from "firebase-admin";
+import {sendDeploymentEmailSequence} from "../notifications";
 
 export const payoutCreatorForGig = onCall(async (request) => {
   if (!request.auth) {
@@ -88,7 +90,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
     // Payout Logic with Agency Split
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
-    
+
     if (rawPayoutAmountInCents > 0) {
       const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
       const netPayoutInCents = rawPayoutAmountInCents - platformFeeInCents;
@@ -127,7 +129,8 @@ export const payoutCreatorForGig = onCall(async (request) => {
           amount: agencyCommissionInCents,
           currency: "usd",
           destination: agentProfile.stripeAccountId,
-          description: `Agency Commission (${assignment?.commissionRate}%) for ${creatorData.displayName} on deployment: ${gigData.title}`,
+          description: `Agency Commission (${assignment?.commissionRate}%)
+           for ${creatorData.displayName} on deployment: ${gigData.title}`,
           metadata: {
             gigId: gigId,
             creatorId: creatorId,
@@ -142,8 +145,10 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
         await stripe.transfers.create(agencyTransferParams);
       } else if (agencyCommissionInCents > 0 && assignment) {
-        // Fallback: If no Stripe account, we'll need to settle this manually or via Wallet (outside of this simple Stripe flow)
-        logger.warn(`Agency commission of ${agencyCommissionInCents} cents pending for agency ${assignment.agencyId} - No Stripe account found.`);
+        // Fallback: If no Stripe account, we'll need to settle this manually or
+        // via Wallet (outside of this simple Stripe flow)
+        logger.warn(`Agency commission of ${agencyCommissionInCents} cents pending for agency
+          ${assignment.agencyId} - No Stripe account found.`);
         // For now, we'll keep the logic simple and only do Stripe transfers if possible.
       }
     }
@@ -175,11 +180,12 @@ export const payoutCreatorForGig = onCall(async (request) => {
       if (assignment && rawPayoutAmountInCents > 0) {
         const talentAgencyDocRef = db.collection("agencies").doc(assignment.agencyId);
         const talentAgencySnap = await transaction.get(talentAgencyDocRef);
-        
+
         if (talentAgencySnap.exists) {
           const talentAgencyData = talentAgencySnap.data() as Agency;
-          const commissionAmount = (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
-          
+          const commissionAmount =
+            (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
+
           // Update Talent Agency's available balance (revenue)
           transaction.update(talentAgencyDocRef, {
             availableBalance: (talentAgencyData.availableBalance || 0) + commissionAmount,
@@ -254,4 +260,58 @@ export const payoutCreatorForGig = onCall(async (request) => {
     }
     throw new HttpsError("internal", error.message || "An unexpected error occurred during payout.");
   }
+});
+
+
+/**
+ * Looks up the agency owner for a gig, then sends deployment email step 0
+ * and initializes the drip sequence on the gig doc.
+ * @param {string} gigId The Firestore document ID of the gig.
+ * @param {Gig} gigData The gig document data.
+ */
+async function initDeploymentEmailSequence(gigId: string, gigData: Gig): Promise<void> {
+  try {
+    const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+    if (!agencySnap.exists) return;
+    const agencyData = agencySnap.data() as Agency;
+
+    const ownerUserId = agencyData.ownerId;
+    const ownerSnap = await db.collection("users").doc(ownerUserId).get();
+    if (!ownerSnap.exists) return;
+    const ownerData = ownerSnap.data() as UserProfileFirestoreData;
+    if (!ownerData.email) return;
+
+    const twoDaysFromNow = new admin.firestore.Timestamp(
+      admin.firestore.Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
+    );
+
+    await db.collection("gigs").doc(gigId).update({
+      deploymentEmailSequence: {step: 1, nextEmailAt: twoDaysFromNow, ownerUserId},
+    });
+
+    await sendDeploymentEmailSequence(
+      ownerData.email, ownerData.displayName || "there", gigData.title, gigId, 0
+    );
+  } catch (error) {
+    logger.error(`Failed to init deployment email sequence for gig ${gigId}:`, error);
+  }
+}
+
+// Fires for performance-only deployments created directly as 'open'
+export const onGigCreated = onDocumentCreated("gigs/{gigId}", async (event) => {
+  const gigData = event.data?.data() as Gig | undefined;
+  if (!gigData || gigData.status !== "open") return;
+  await initDeploymentEmailSequence(event.params.gigId, gigData);
+});
+
+// Fires for paid deployments when Stripe flips status from 'pending_payment' to 'open'
+// Also covers wallet-funded deployments via fundGigFromWallet
+export const onGigStatusOpened = onDocumentUpdated("gigs/{gigId}", async (event) => {
+  const before = event.data?.before.data() as Gig | undefined;
+  const after = event.data?.after.data() as Gig | undefined;
+  if (!before || !after) return;
+  if (before.status === after.status) return; // no status change
+  if (after.status !== "open") return; // not becoming open
+  if (before.status === "open") return; // was already open (shouldn't happen, but guard)
+  await initDeploymentEmailSequence(event.params.gigId, after);
 });

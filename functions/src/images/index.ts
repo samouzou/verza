@@ -32,9 +32,7 @@ export const generateImage = onCall({
   if (!orientation || !["16:9", "9:16", "1:1"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9', '9:16', or '1:1') is required.");
   }
-  if (!imageDataUri || typeof imageDataUri !== "string") {
-    throw new HttpsError("invalid-argument", "An 'imageDataUri' must be a string for image-to-image generation.");
-  }
+  const hasSourceImage = typeof imageDataUri === "string" && imageDataUri.length > 0;
 
   if (!admin.apps.length) {
     admin.initializeApp();
@@ -78,21 +76,30 @@ export const generateImage = onCall({
 
   // Generate image
   try {
-    // Store source image
-    const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
-    const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
-    const imageBufferFromUri = Buffer.from(imageDataUri.split(",")[1], "base64");
-    await sourceImageFile.save(imageBufferFromUri, {metadata: {contentType: "image/jpeg"}});
-    const [signedSourceUrl] = await sourceImageFile.getSignedUrl({action: "read", expires: Date.now() + 1000 * 60 * 60 * 24 * 7});
-    sourceImageUrl = signedSourceUrl;
+    // Store source image if provided (image-to-image mode)
+    if (hasSourceImage) {
+      const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
+      const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
+      const imageBufferFromUri = Buffer.from(imageDataUri.split(",")[1], "base64");
+      await sourceImageFile.save(imageBufferFromUri, {metadata: {contentType: "image/jpeg"}});
+      const [signedSourceUrl] = await sourceImageFile.getSignedUrl({
+        action: "read", expires: Date.now() +
+          1000 * 60 * 60 * 24 * 7,
+      });
+      sourceImageUrl = signedSourceUrl;
+    }
 
-    logger.info(`Starting image-to-image generation for user ${userId}.`);
-    const {media} = await ai.generate({
-      model: googleAI.model("gemini-2.5-flash-image"),
-      prompt: [
+    logger.info(`Starting ${hasSourceImage ? "image-to-image" : "text-to-image"} generation for user ${userId}.`);
+    const aiPrompt = hasSourceImage ?
+      [
         {text: `In a ${style} style: ${prompt}`},
         {media: {url: imageDataUri, contentType: "image/jpeg"}},
-      ],
+      ] :
+      [{text: `Generate an image in a ${style} style: ${prompt}`}];
+
+    const {media} = await ai.generate({
+      model: googleAI.model("gemini-2.5-flash-image"),
+      prompt: aiPrompt,
       config: {
         responseModalities: ["TEXT", "IMAGE"],
       },
