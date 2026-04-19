@@ -29,7 +29,9 @@ export function PayoutHistoryCard({ agencyId }: PayoutHistoryCardProps) {
         orderBy("initiatedAt", "desc")
     );
     const unsubscribe = onSnapshot(payoutsQuery, (snapshot) => {
-        const history = snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as InternalPayout));
+        const history = snapshot.docs
+          .map(doc => ({...doc.data(), id: doc.id} as InternalPayout))
+          .filter(p => !p.type || p.type === "creator_payment");
         setPayoutHistory(history);
         setIsLoadingHistory(false);
     }, (error) => {

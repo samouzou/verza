@@ -259,20 +259,6 @@ function GigDetailContent() {
       return;
     }
 
-    if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
-      toast({
-        title: "Bank Account Required",
-        description: "You must connect your bank account before you can secure paid deployments. Head to Settings to get set up securely.",
-        variant: "destructive",
-        action: (
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/settings">Settings</Link>
-          </Button>
-        ),
-      });
-      return;
-    }
-
     if (!user.showInMarketplace) {
       toast({
         title: "Public Profile Required",
@@ -1183,8 +1169,7 @@ function GigDetailContent() {
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            You are about to release <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>.
-                                            This action confirms the work is complete and releases the funds from escrow. This cannot be undone.
+                                            You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>'s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -1443,10 +1428,10 @@ function GigDetailContent() {
 
                       <div className="space-y-3">
                         {!isStripeSetup && (
-                          <Alert variant="destructive" className="py-2 px-3 text-xs">
+                          <Alert className="py-2 px-3 text-xs">
                             <AlertTriangle className="h-3 w-3" />
                             <AlertDescription>
-                              Bank account connection required to receive payouts.
+                              Connect a bank account in Settings to withdraw your earnings after approval.
                             </AlertDescription>
                           </Alert>
                         )}

@@ -22,6 +22,7 @@ import {
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
+  initiateCreatorPayout,
 } from "./payments";
 
 import {
@@ -66,6 +67,7 @@ import {
   createInternalPayout,
   inviteTeamMemberToAgency,
   fundGigFromWallet,
+  initiateAgencyPayout,
 } from "./agency";
 
 import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
@@ -87,6 +89,7 @@ export {
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
+  initiateCreatorPayout,
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
@@ -112,6 +115,7 @@ export {
   createInternalPayout,
   inviteTeamMemberToAgency,
   fundGigFromWallet,
+  initiateAgencyPayout,
   payoutCreatorForGig,
   onGigCreated,
   onGigStatusOpened,

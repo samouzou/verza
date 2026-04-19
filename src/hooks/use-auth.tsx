@@ -60,6 +60,9 @@ export interface UserProfile {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+
+  // Verza Wallet
+  walletBalance?: number;
   
   // Onboarding fields
   hasCreatedContract?: boolean;
@@ -410,6 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               followers: firestoreUserData.followers,
               engagementRate: firestoreUserData.engagementRate,
               averageVerzaScore: firestoreUserData.averageVerzaScore,
+              walletBalance: firestoreUserData.walletBalance,
             });
           } else {
              setUser(null);

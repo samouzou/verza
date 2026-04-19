@@ -4,7 +4,18 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { DollarSign, PlusCircle, Lock, Wallet, Loader2 } from 'lucide-react';
+import { DollarSign, PlusCircle, Lock, Wallet, Loader2, ArrowDownCircle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Agency } from '@/types';
 import {
   Dialog,
@@ -30,10 +41,27 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("500");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPayingOut, setIsPayingOut] = useState(false);
 
   const available = agency.availableBalance || 0;
   const escrow = agency.escrowBalance || 0;
   const total = available + escrow;
+
+  const handlePayout = async () => {
+    setIsPayingOut(true);
+    try {
+      const initiateAgencyPayout = httpsCallable(functions, 'initiateAgencyPayout');
+      await initiateAgencyPayout({ agencyId: agency.id });
+      toast({
+        title: "Payout Initiated!",
+        description: `$${available.toFixed(2)} is on its way to your bank account. Allow 1-3 business days.`,
+      });
+    } catch (error: any) {
+      toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsPayingOut(false);
+    }
+  };
 
   const handleTopUp = async () => {
     const amountNum = parseFloat(topUpAmount);
@@ -67,9 +95,31 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
             <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <Wallet className="h-4 w-4" /> Total Verza Liquidity
             </CardTitle>
-            <CardDescription>Consolidated budget across wallet and active gigs.</CardDescription>
+            <CardDescription>Consolidated budget across wallet and active deployments.</CardDescription>
           </div>
-          <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
+          <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" disabled={isPayingOut || available < 1}>
+                  {isPayingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowDownCircle className="mr-2 h-4 w-4" />}
+                  Payout to Bank
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Initiate Agency Payout?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will transfer your available balance of <span className="font-bold text-foreground">${available.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> to the connected bank account. Allow 1-3 business days. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handlePayout}>Confirm Payout</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-primary text-primary-foreground font-bold shadow-md hover:shadow-lg transition-all">
                 <PlusCircle className="mr-2 h-4 w-4" /> Top Up Wallet
@@ -104,6 +154,7 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
           <div className="text-4xl font-black text-primary mb-6">${total.toLocaleString()}</div>

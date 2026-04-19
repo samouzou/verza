@@ -257,6 +257,9 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
   stripeAccountCountry?: string | null;
 
+  // Verza Wallet
+  walletBalance?: number;
+
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
@@ -395,9 +398,10 @@ export interface AgencyMembership {
 
 export interface InternalPayout {
   id: string;
-  agencyId: string;
-  agencyName: string;
-  agencyOwnerId: string;
+  type?: "creator_payment" | "creator_withdrawal" | "agency_commission" | "agency_withdrawal";
+  agencyId?: string;
+  agencyName?: string;
+  agencyOwnerId?: string;
   talentId: string;
   talentName: string;
   amount: number;
