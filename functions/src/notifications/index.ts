@@ -1016,6 +1016,155 @@ export async function sendAgencyEmailSequence(
 }
 
 /**
+ * Sends an email to the brand owner when a creator secures a spot on their deployment.
+ * @param {string} toEmail The brand owner's email address.
+ * @param {string} brandName The brand owner's display name.
+ * @param {string} creatorName The name of the creator or talent who joined.
+ * @param {string} gigTitle The title of the deployment.
+ * @param {string} gigId The Firestore document ID of the deployment.
+ * @param {boolean} isAgencyAcceptance Whether the acceptance was made by an agency on behalf of talent.
+ * @return {Promise<void>}
+ */
+export async function sendCreatorSecuredEmail(
+  toEmail: string,
+  brandName: string,
+  creatorName: string,
+  gigTitle: string,
+  gigId: string,
+  isAgencyAcceptance: boolean
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping creator secured email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const deploymentUrl = `${appUrl}/deployments/${gigId}`;
+
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+
+  const subject = isAgencyAcceptance ?
+    `An agency has filled a spot on "${gigTitle}"` :
+    `${creatorName} secured a spot on "${gigTitle}"`;
+
+  const headline = isAgencyAcceptance ?
+    "A new creator just joined your deployment" :
+    `${creatorName} is in`;
+
+  const body = isAgencyAcceptance ?
+    `An agency has assigned <strong>${creatorName}</strong> to your deployment
+       <strong>"${gigTitle}"</strong>. Head to your deployment to review the roster
+       and track content submissions.` :
+    `<strong>${creatorName}</strong> just secured a spot on your deployment
+       <strong>"${gigTitle}"</strong>. Head to your deployment to review the roster
+       and track content submissions.`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <h1 style="color: #333; font-size: 22px;">${headline}</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${brandName},</p>
+        <p style="color: #555; line-height: 1.6;">${body}</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${deploymentUrl}" style="${btnStyle}">View Deployment</a>
+        </div>
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          Cheers,<br/>
+          <strong>Serge Amouzou</strong><br/>
+          Founder &amp; CEO of Verza
+        </p>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await sgMail.send({
+      to: toEmail,
+      from: {name: "Serge from Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+      subject,
+      html,
+    });
+    logger.info(`Creator secured email sent to ${toEmail} for deployment ${gigId}.`);
+  } catch (error) {
+    logger.error(`Failed to send creator secured email to ${toEmail}:`, error);
+  }
+}
+
+export const notifyBrandCreatorJoined = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {gigId, creatorName, isAgencyAcceptance} = request.data;
+  if (!gigId || !creatorName) {
+    throw new HttpsError("invalid-argument", "gigId and creatorName are required.");
+  }
+
+  try {
+    const gigSnap = await db.collection("gigs").doc(gigId).get();
+    if (!gigSnap.exists) {
+      throw new HttpsError("not-found", "Deployment not found.");
+    }
+    const gigData = gigSnap.data() as {title: string; brandId: string};
+
+    const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+    if (!agencySnap.exists) return {success: true};
+    const agencyData = agencySnap.data() as {ownerId: string; name: string};
+
+    const ownerSnap = await db.collection("users").doc(agencyData.ownerId).get();
+    if (!ownerSnap.exists) return {success: true};
+    const ownerData = ownerSnap.data() as {email: string | null; displayName: string | null};
+
+    if (!ownerData.email) return {success: true};
+
+    await sendCreatorSecuredEmail(
+      ownerData.email,
+      ownerData.displayName || agencyData.name,
+      creatorName,
+      gigData.title,
+      gigId,
+      isAgencyAcceptance ?? false
+    );
+
+    return {success: true};
+  } catch (error: any) {
+    logger.error(`Error in notifyBrandCreatorJoined for gig ${gigId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Failed to send notification email.");
+  }
+});
+
+/**
  * Handles incoming feedback from users and routes it to support team.
  */
 export const submitFeedback = onCall(async (request) => {

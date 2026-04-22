@@ -29,6 +29,7 @@ import {
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
+  notifyBrandCreatorJoined,
 } from "./notifications";
 
 import {
@@ -93,6 +94,7 @@ export {
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
+  notifyBrandCreatorJoined,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,

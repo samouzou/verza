@@ -349,17 +349,26 @@ function GigDetailContent() {
       const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (brandAgencySnap.exists()) {
         const brandAgencyData = brandAgencySnap.data();
+        const creatorName = isAgencyAcceptance
+          ? (activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent')
+          : (user.displayName || 'A creator');
         await addDoc(collection(db, 'notifications'), {
           userId: brandAgencyData.ownerId,
           agencyId: currentGigData.brandId,
           title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
-          message: isAgencyAcceptance 
-            ? `${user.displayName || 'An agency'} has assigned ${activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent'} to your deployment "${gig.title}".`
-            : `${user.displayName || 'A creator'} has secured your deployment "${gig.title}".`,
+          message: isAgencyAcceptance
+            ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your deployment "${gig.title}".`
+            : `${creatorName} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
           link: `/deployments/${gig.id}`,
           createdAt: serverTimestamp(),
+        });
+
+        // Send email to brand owner
+        const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
+        notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+          console.error('Failed to send brand notification email:', err);
         });
       }
 
