@@ -77,7 +77,14 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   const userData = userDoc.data();
 
   if (!userData) {
-    throw new HttpsError("not-found", "User found");
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  if (!userData.isAgencyOwner && !userData.role?.startsWith("agency")) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Individual creators on Verza are free forever and do not require a subscription."
+    );
   }
 
   try {

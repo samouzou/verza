@@ -34,6 +34,7 @@ import { registerLicense } from '@syncfusion/ej2-base';
 import { v4 as uuidv4 } from 'uuid';
 import { trackEvent } from "@/lib/analytics";
 import mammoth from 'mammoth';
+import { generateContractFromPrompt } from "@/ai/flows/generate-contract-from-prompt-flow";
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -82,18 +83,22 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
 
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<Contract['recurrenceInterval'] | undefined>(undefined);
+  const [generationPrompt, setGenerationPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const editorRef = useRef<DocumentEditorContainerComponent | null>(null);
   const hasInitializedRef = useRef(false);
 
   const subscriptionHolder = agencyOwnerProfile || user;
   const now = Date.now();
+  const isIndividualCreator = user?.role === 'individual_creator';
   const canPerformProAction =
+    isIndividualCreator ||
     subscriptionHolder?.subscriptionStatus === 'active' ||
     (subscriptionHolder?.subscriptionStatus === 'trialing' &&
       subscriptionHolder.trialEndsAt &&
-      (typeof subscriptionHolder.trialEndsAt.toMillis === 'function' 
-        ? subscriptionHolder.trialEndsAt.toMillis() 
+      (typeof subscriptionHolder.trialEndsAt.toMillis === 'function'
+        ? subscriptionHolder.trialEndsAt.toMillis()
         : subscriptionHolder.trialEndsAt.seconds * 1000) > now);
 
   const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
@@ -133,6 +138,8 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       setMilestones([{ id: uuidv4(), description: "", amount: 0, dueDate: "" }]);
       setIsRecurring(false);
       setRecurrenceInterval(undefined);
+      setGenerationPrompt("");
+      setIsGenerating(false);
       setAgency(null);
       setSelectedOwner("personal");
       hasInitializedRef.current = false;
@@ -242,6 +249,36 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       });
     } finally {
       setIsProcessingAi(false);
+    }
+  };
+
+  const handleGenerateContract = async () => {
+    if (!generationPrompt.trim() || !editorRef.current) return;
+    setIsGenerating(true);
+    toast({ title: "Generating Contract", description: "AI is drafting your contract..." });
+    try {
+      const result = await generateContractFromPrompt({
+        prompt: generationPrompt,
+        creatorName: user?.displayName || undefined,
+        clientName: clientName.trim() || undefined,
+      });
+      const sfdtPayload = {
+        sections: [{
+          blocks: result.contractText.split('\n').map(paragraph => ({
+            inlines: [{ text: paragraph, characterFormat: { fontSize: 11, fontFamily: 'Arial' } }],
+            paragraphFormat: { styleName: 'Normal' },
+          })),
+          sectionFormat: { pageWidth: 612, pageHeight: 792, leftMargin: 72, rightMargin: 72, topMargin: 72, bottomMargin: 72 },
+        }],
+      };
+      editorRef.current.documentEditor.open(JSON.stringify(sfdtPayload));
+      toast({ title: "Contract Generated", description: "Your contract has been loaded into the editor. Review and edit as needed." });
+      trackEvent({ action: 'generate_contract_from_prompt', category: 'ai_tool' });
+    } catch (error) {
+      console.error("Contract generation error:", error);
+      toast({ title: "Generation Failed", description: error instanceof Error ? error.message : "Could not generate contract.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -530,7 +567,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><FileText className="h-6 w-6 text-primary" /> Add New Contract</DialogTitle>
-          <DialogDescription>Upload a contract file or paste text to automatically extract details and analyze with AI.</DialogDescription>
+          <DialogDescription>Generate a contract with AI, upload a file, or paste text to extract details and analyze.</DialogDescription>
         </DialogHeader>
         
         {!canPerformProAction && (
@@ -562,6 +599,29 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             )}
             <div><Label htmlFor="fileName">File Name (Optional)</Label><Input id="fileName" type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="e.g., BrandX_Sponsorship_Q4.pdf" className="mt-1" /></div>
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
+
+            <Card>
+              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" />Generate with AI</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  id="generationPrompt"
+                  value={generationPrompt}
+                  onChange={(e) => setGenerationPrompt(e.target.value)}
+                  placeholder="e.g., Draft a 6-month sponsorship agreement with Brand X for $5,000, covering 4 YouTube videos per month with 30-day payment terms and no exclusivity."
+                  rows={4}
+                  disabled={isGenerating || isProcessingAi}
+                />
+                <Button
+                  type="button"
+                  onClick={handleGenerateContract}
+                  disabled={!generationPrompt.trim() || isGenerating || isProcessingAi}
+                  className="w-full"
+                >
+                  {isGenerating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</> : <><Sparkles className="mr-2 h-4 w-4" />Generate Contract</>}
+                </Button>
+              </CardContent>
+            </Card>
+
             <div><Label htmlFor="contractFile">Upload Contract File</Label><Input id="contractFile" type="file" accept=".pdf,.doc,.docx,image/*" className="mt-1" onChange={handleFileChange} /><p className="text-xs text-muted-foreground mt-1">Supports DOCX, PDF, PNG, JPG. Text will be loaded into the editor.</p></div>
 
             <Card><CardHeader><CardTitle className="text-lg">Client & Payment Details (for Invoicing)</CardTitle></CardHeader><CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">

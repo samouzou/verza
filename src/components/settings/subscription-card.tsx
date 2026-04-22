@@ -151,6 +151,32 @@ export function SubscriptionCard() {
     .filter(([id]) => id.endsWith(billingFrequency))
     .filter(([id]) => user.isAgencyOwner ? id.startsWith('agency') : id.startsWith('individual'));
 
+  if (!user.isAgencyOwner && user.role !== 'agency_admin' && user.role !== 'agency_member') {
+    return (
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-6 w-6 text-primary" />
+            Creator Plan
+          </CardTitle>
+          <CardDescription>Your access to Verza as an individual creator.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 border rounded-lg bg-muted/50 flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-lg">Free Forever</p>
+              <p className="text-sm text-muted-foreground mt-1">Full access to contracts, invoicing, and deployments — no subscription needed.</p>
+            </div>
+            <Badge className="bg-green-500 text-white hover:bg-green-600 shrink-0">Free Forever</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground text-center pt-2">
+            Verza earns a small fee on invoice payments. No monthly charges, ever.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (user.role === 'agency_admin' || user.role === 'agency_member') {
     return (
       <Card className="shadow-lg">
