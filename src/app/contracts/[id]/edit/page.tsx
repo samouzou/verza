@@ -27,7 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL = "https://initiatehellosignrequest-cpmccwbluq-uc.a.run.app";
+const INITIATE_BOLDSIGN_REQUEST_FUNCTION_URL = "https://initiateboldsignrequest-cpmccwbluq-uc.a.run.app";
 
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
@@ -231,16 +231,16 @@ export default function EditContractPage() {
       }
       
       const initiateRequestCallable = httpsCallableFromURL(
-        firebaseAppFunctions, 
-        INITIATE_HELLOSIGN_REQUEST_FUNCTION_URL
+        firebaseAppFunctions,
+        INITIATE_BOLDSIGN_REQUEST_FUNCTION_URL
       );
-  
+
       const result = await initiateRequestCallable({
         contractId: contract.id,
         signerEmailOverride: signerEmailOverride.trim(),
       });
-  
-      const data = result.data as { success: boolean; message: string; helloSignRequestId?: string };
+
+      const data = result.data as { success: boolean; message: string; boldSignDocumentId?: string };
   
       if (data.success) {
         toast({ title: "E-Signature Request Sent", description: data.message });
@@ -250,7 +250,7 @@ export default function EditContractPage() {
         throw new Error(data.message || "Failed to send e-signature request.");
       }
     } catch (error: any) {
-      console.error("Error initiating Dropbox Sign request:", error);
+      console.error("Error initiating BoldSign request:", error);
       toast({
         title: "E-Signature Error",
         description: error.message || "Could not initiate e-signature request.",
@@ -375,7 +375,7 @@ export default function EditContractPage() {
                     <DialogHeader>
                       <DialogTitle>Send for E-Signature</DialogTitle>
                       <DialogDescription>
-                        This will first save any unsaved changes, then send the updated contract to the client for signature via Dropbox Sign. You will also be required to sign.
+                        This will first save any unsaved changes, then send the updated contract to the client for signature via BoldSign. You will also be required to sign.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">

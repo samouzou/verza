@@ -84,8 +84,9 @@ export interface Contract {
   isRecurring?: boolean;
   recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
 
-  // E-Signature fields (HelloSign/Dropbox Sign)
-  helloSignRequestId?: string | null;
+  // E-Signature fields (BoldSign)
+  boldSignDocumentId?: string | null;
+  helloSignRequestId?: string | null; // legacy — kept for existing records
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
   lastSignatureEventAt?: ClientTimestamp | null;
@@ -119,7 +120,7 @@ export interface SharedContractVersion {
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
   sharedAt: ClientTimestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;

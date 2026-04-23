@@ -51,8 +51,8 @@ import {
 import {getPublicContractDetails} from "./sharing";
 
 import {
-  initiateHelloSignRequest,
-  helloSignWebhookHandler,
+  initiateBoldSignRequest,
+  boldSignWebhookHandler,
 } from "./esignatures";
 
 import {
@@ -106,8 +106,8 @@ export {
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
   getPublicContractDetails,
-  initiateHelloSignRequest,
-  helloSignWebhookHandler,
+  initiateBoldSignRequest,
+  boldSignWebhookHandler,
   generateFinicityConnectUrl,
   finicityWebhookHandler,
   createAgency,

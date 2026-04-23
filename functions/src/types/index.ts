@@ -84,8 +84,9 @@ export interface Contract {
   isRecurring?: boolean;
   recurrenceInterval?: "monthly" | "quarterly" | "annually";
 
-  // E-Signature fields (HelloSign/Dropbox Sign)
-  helloSignRequestId?: string | null;
+  // E-Signature fields (BoldSign)
+  boldSignDocumentId?: string | null;
+  helloSignRequestId?: string | null; // legacy — kept for existing records
   signatureStatus?: "none" | "sent" | "viewed_by_signer" | "signed" | "declined" | "canceled" | "error" | null;
   signedDocumentUrl?: string | null;
   lastSignatureEventAt?: ClientTimestamp | null;
