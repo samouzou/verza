@@ -5,7 +5,6 @@ import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import {DocumentApi, DocumentSigner, FormField, SendForSign} from "boldsign";
 import type {Contract, UserProfileFirestoreData} from "./../types";
-import * as crypto from "crypto";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
@@ -368,23 +367,15 @@ export const boldSignWebhookHandler = onRequest(
       return;
     }
 
-    // Verify BoldSign HMAC-SHA256 signature
-    const receivedSignature = request.headers["x-boldsign-signature"] as string | undefined;
-    if (webhookSecret && receivedSignature) {
-      const rawBody = Buffer.isBuffer(request.body) ?
-        request.body.toString("utf8") :
-        JSON.stringify(request.body);
-      const expectedSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(rawBody)
-        .digest("base64");
-      if (expectedSignature !== receivedSignature) {
-        logger.warn("BoldSign webhook signature mismatch.");
-        response.status(403).send("Invalid signature.");
+    // BoldSign sends the secret as a static value in a custom header (not HMAC).
+    // Configure via BoldSign UI: "Add secret header", header name = "x-verza-secret".
+    const receivedSecret = request.headers["x-verza-secret"] as string | undefined;
+    if (webhookSecret) {
+      if (!receivedSecret || receivedSecret !== webhookSecret) {
+        logger.warn("BoldSign webhook: missing or invalid secret header.");
+        response.status(403).send("Forbidden.");
         return;
       }
-    } else if (!webhookSecret) {
-      logger.warn("BOLDSIGN_WEBHOOK_SECRET not configured — skipping signature verification.");
     }
 
     let payload: any;
@@ -398,9 +389,16 @@ export const boldSignWebhookHandler = onRequest(
       return;
     }
 
+    // Actual BoldSign payload shape:
+    // payload.event.eventType  = "Completed" | "Signed" | "Viewed" | "Declined" | "Revoked" | "Expired" | "Sent"
+    // payload.data.documentId
+    // payload.data.signerDetails[]  — who signed/viewed
+    // payload.context.actor         — actor for partial events (may be null)
     const eventType: string = payload?.event?.eventType;
-    const eventData = payload?.event?.eventData;
-    const documentId: string = eventData?.documentId;
+    const documentId: string = payload?.data?.documentId;
+    const signerDetails: any[] = payload?.data?.signerDetails || [];
+    const actor = payload?.context?.actor;
+    const actorName: string | null = actor?.name || actor?.emailAddress || null;
 
     logger.info(`BoldSign webhook received: ${eventType}`, {documentId});
 
@@ -426,33 +424,58 @@ export const boldSignWebhookHandler = onRequest(
       const contractData = snap.docs[0].data() as Contract;
 
       let newStatus: Contract["signatureStatus"] = contractData.signatureStatus;
-      let historyAction = `BoldSign Event: ${eventType}`;
+      let historyAction: string;
+      let historyDetails: string;
 
       switch (eventType) {
-      case "Document.Viewed":
+      case "Viewed": {
         newStatus = "viewed_by_signer";
-        historyAction = "Document Viewed by Signer (BoldSign)";
+        const viewer = actorName ||
+          signerDetails.find((s) => s.isViewed)?.signerName ||
+          "A signer";
+        historyAction = "Document Viewed (BoldSign)";
+        historyDetails = `${viewer} viewed the document. Document ID: ${documentId}`;
         break;
-      case "Document.Signed":
-        // Partial — not all signers done yet
-        historyAction = "Signer Action: Signed (awaiting others) (BoldSign)";
+      }
+      case "Signed": {
+        // One signer signed; not all done yet
+        const signer = actorName ||
+          signerDetails.find((s) => s.status === "Completed")?.signerName ||
+          "A signer";
+        historyAction = `Document Signed by ${signer} (BoldSign)`;
+        historyDetails = `${signer} signed the document. Awaiting remaining signers. Document ID: ${documentId}`;
         break;
-      case "Document.Completed":
+      }
+      case "Completed": {
         newStatus = "signed";
-        historyAction = "Document Fully Signed (BoldSign)";
+        const signerNames = signerDetails.map((s) => s.signerName).join(", ");
+        historyAction = "Document Fully Signed — All Parties (BoldSign)";
+        historyDetails = `Signed by: ${signerNames || "all parties"}. Document ID: ${documentId}`;
         break;
-      case "Document.Declined":
+      }
+      case "Declined": {
         newStatus = "declined";
-        historyAction = "Signature Declined by Signer (BoldSign)";
+        const decliner = actorName ||
+          signerDetails.find((s) => s.status === "Declined")?.signerName ||
+          "A signer";
+        historyAction = `Signature Declined by ${decliner} (BoldSign)`;
+        historyDetails = `${decliner} declined to sign. Document ID: ${documentId}`;
         break;
-      case "Document.Revoked":
+      }
+      case "Revoked":
         newStatus = "canceled";
         historyAction = "Signature Request Revoked (BoldSign)";
+        historyDetails = `The signature request was revoked. Document ID: ${documentId}`;
         break;
-      case "Document.Expired":
+      case "Expired":
         newStatus = "canceled";
         historyAction = "Signature Request Expired (BoldSign)";
+        historyDetails = `The signature request expired. Document ID: ${documentId}`;
         break;
+      case "Sent":
+        // Already recorded when we called sendDocument — just acknowledge
+        response.status(200).send("OK");
+        return;
       default:
         logger.info(`Unhandled BoldSign event type: ${eventType}`);
         response.status(200).send("OK");
@@ -465,7 +488,7 @@ export const boldSignWebhookHandler = onRequest(
         invoiceHistory: admin.firestore.FieldValue.arrayUnion({
           timestamp: admin.firestore.Timestamp.now(),
           action: historyAction,
-          details: `BoldSign Event: ${eventType}. Document ID: ${documentId}`,
+          details: historyDetails,
         }),
       };
 
