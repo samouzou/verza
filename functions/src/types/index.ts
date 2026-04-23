@@ -84,8 +84,9 @@ export interface Contract {
   isRecurring?: boolean;
   recurrenceInterval?: "monthly" | "quarterly" | "annually";
 
-  // E-Signature fields (HelloSign/Dropbox Sign)
-  helloSignRequestId?: string | null;
+  // E-Signature fields (BoldSign)
+  boldSignDocumentId?: string | null;
+  helloSignRequestId?: string | null; // legacy — kept for existing records
   signatureStatus?: "none" | "sent" | "viewed_by_signer" | "signed" | "declined" | "canceled" | "error" | null;
   signedDocumentUrl?: string | null;
   lastSignatureEventAt?: ClientTimestamp | null;
@@ -257,6 +258,9 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
   stripeAccountCountry?: string | null;
 
+  // Verza Wallet
+  walletBalance?: number;
+
   // Onboarding fields
   hasCreatedContract?: boolean;
   hasCompletedOnboarding?: boolean;
@@ -395,9 +399,10 @@ export interface AgencyMembership {
 
 export interface InternalPayout {
   id: string;
-  agencyId: string;
-  agencyName: string;
-  agencyOwnerId: string;
+  type?: "creator_payment" | "creator_withdrawal" | "agency_commission" | "agency_withdrawal";
+  agencyId?: string;
+  agencyName?: string;
+  agencyOwnerId?: string;
   talentId: string;
   talentName: string;
   amount: number;

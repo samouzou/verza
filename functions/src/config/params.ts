@@ -6,7 +6,8 @@ import {defineString, defineSecret} from "firebase-functions/params";
 // e.g., `firebase functions:secrets:set STRIPE_SECRET_KEY` and enter the value.
 export const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 export const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
-export const HELLOSIGN_API_KEY = defineSecret("HELLOSIGN_API_KEY");
+export const BOLDSIGN_API_KEY = defineSecret("BOLDSIGN_API_KEY");
+export const BOLDSIGN_WEBHOOK_SECRET = defineSecret("BOLDSIGN_WEBHOOK_SECRET");
 export const FINICITY_PARTNER_SECRET = defineSecret("FINICITY_PARTNER_SECRET");
 export const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOOK_SECRET");

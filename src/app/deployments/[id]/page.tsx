@@ -259,20 +259,6 @@ function GigDetailContent() {
       return;
     }
 
-    if (!user.stripeAccountId || !user.stripePayoutsEnabled) {
-      toast({
-        title: "Bank Account Required",
-        description: "You must connect your bank account before you can secure paid deployments. Head to Settings to get set up securely.",
-        variant: "destructive",
-        action: (
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/settings">Settings</Link>
-          </Button>
-        ),
-      });
-      return;
-    }
-
     if (!user.showInMarketplace) {
       toast({
         title: "Public Profile Required",
@@ -363,17 +349,26 @@ function GigDetailContent() {
       const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
       if (brandAgencySnap.exists()) {
         const brandAgencyData = brandAgencySnap.data();
+        const creatorName = isAgencyAcceptance
+          ? (activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent')
+          : (user.displayName || 'A creator');
         await addDoc(collection(db, 'notifications'), {
           userId: brandAgencyData.ownerId,
           agencyId: currentGigData.brandId,
           title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
-          message: isAgencyAcceptance 
-            ? `${user.displayName || 'An agency'} has assigned ${activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent'} to your deployment "${gig.title}".`
-            : `${user.displayName || 'A creator'} has secured your deployment "${gig.title}".`,
+          message: isAgencyAcceptance
+            ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your deployment "${gig.title}".`
+            : `${creatorName} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
           link: `/deployments/${gig.id}`,
           createdAt: serverTimestamp(),
+        });
+
+        // Send email to brand owner
+        const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
+        notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+          console.error('Failed to send brand notification email:', err);
         });
       }
 
@@ -1183,8 +1178,7 @@ function GigDetailContent() {
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            You are about to release <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to <span className="font-bold text-foreground">{creator.displayName}</span>.
-                                            This action confirms the work is complete and releases the funds from escrow. This cannot be undone.
+                                            You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>'s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -1443,10 +1437,10 @@ function GigDetailContent() {
 
                       <div className="space-y-3">
                         {!isStripeSetup && (
-                          <Alert variant="destructive" className="py-2 px-3 text-xs">
+                          <Alert className="py-2 px-3 text-xs">
                             <AlertTriangle className="h-3 w-3" />
                             <AlertDescription>
-                              Bank account connection required to receive payouts.
+                              Connect a bank account in Settings to withdraw your earnings after approval.
                             </AlertDescription>
                           </Alert>
                         )}

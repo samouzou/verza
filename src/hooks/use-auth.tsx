@@ -60,6 +60,9 @@ export interface UserProfile {
   stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
+
+  // Verza Wallet
+  walletBalance?: number;
   
   // Onboarding fields
   hasCreatedContract?: boolean;
@@ -149,10 +152,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
 
     updates.stripeCustomerId = null;
     updates.stripeSubscriptionId = null;
-    updates.subscriptionStatus = 'trialing';
-    updates.subscriptionPlanId = 'individual_monthly';
+    updates.subscriptionStatus = 'active';
+    updates.subscriptionPlanId = 'individual_free';
     updates.subscriptionInterval = null;
-    updates.trialEndsAt = trialEndsAtTimestamp;
+    updates.trialEndsAt = null;
     updates.subscriptionEndsAt = null;
     updates.trialExtensionUsed = false;
     updates.talentLimit = 3;
@@ -263,16 +266,27 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     if (existingData.talentLimit === undefined) { updates.talentLimit = 3; needsUpdate = true; }
 
 
-    if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing')) {
+    // Migrate individual creators who were previously on a trial to free forever
+    const isIndividualCreator = existingData.role === 'individual_creator' || (!existingData.isAgencyOwner && !existingData.role?.startsWith('agency'));
+    if (isIndividualCreator && existingData.subscriptionPlanId !== 'individual_free') {
+      const hasNoActiveStripeSubscription = !existingData.stripeSubscriptionId ||
+        existingData.subscriptionStatus === 'none' ||
+        existingData.subscriptionStatus === 'trialing';
+      if (hasNoActiveStripeSubscription) {
+        updates.subscriptionStatus = 'active';
+        updates.subscriptionPlanId = 'individual_free';
+        updates.trialEndsAt = null;
+        needsUpdate = true;
+      }
+    } else if (existingData.trialEndsAt === undefined && (currentSubscriptionStatus === 'none' || currentSubscriptionStatus === 'trialing') && !isIndividualCreator) {
       const createdAt = existingData.createdAt || Timestamp.now();
       updates.trialEndsAt = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
       if (currentSubscriptionStatus === 'none') {
-         updates.subscriptionStatus = 'trialing';
-         updates.subscriptionPlanId = 'individual_monthly';
+        updates.subscriptionStatus = 'trialing';
       }
       needsUpdate = true;
-    } else if (existingData.trialEndsAt && existingData.trialEndsAt.toMillis() < Date.now() && currentSubscriptionStatus === 'trialing') {
-      updates.subscriptionStatus = 'none'; 
+    } else if (existingData.trialEndsAt && existingData.trialEndsAt.toMillis() < Date.now() && currentSubscriptionStatus === 'trialing' && !isIndividualCreator) {
+      updates.subscriptionStatus = 'none';
       needsUpdate = true;
     }
 
@@ -410,6 +424,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               followers: firestoreUserData.followers,
               engagementRate: firestoreUserData.engagementRate,
               averageVerzaScore: firestoreUserData.averageVerzaScore,
+              walletBalance: firestoreUserData.walletBalance,
             });
           } else {
              setUser(null);

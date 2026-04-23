@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpRight, ArrowDownLeft, Receipt, Briefcase, FileText, Send, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownCircle, Briefcase, Send, Wallet } from "lucide-react";
 import type { InternalPayout } from "@/types";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils";
@@ -39,21 +39,21 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
             </TableHeader>
             <TableBody>
               {transactions.map((txn) => {
-                const isReceived = txn.talentId === currentUserId;
-                
+                const isWithdrawal = txn.type === "creator_withdrawal";
+
                 return (
                   <TableRow key={txn.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {isReceived ? (
+                        {isWithdrawal ? (
                           <>
-                            <ArrowUpRight className="h-4 w-4 text-green-500" />
-                            <span className="capitalize font-medium">Received</span>
+                            <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Withdrawn</span>
                           </>
                         ) : (
                           <>
-                            <Send className="h-4 w-4 text-muted-foreground" />
-                            <span className="capitalize font-medium">Sent</span>
+                            <ArrowUpRight className="h-4 w-4 text-green-500" />
+                            <span className="font-medium">Received</span>
                           </>
                         )}
                       </div>
@@ -64,30 +64,30 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">
                       <div className="flex items-center gap-1.5 text-xs">
-                        {isReceived ? (
+                        {isWithdrawal ? (
                           <>
-                            <Briefcase className="h-3 w-3" />
-                            <span>{txn.agencyName}</span>
+                            <Wallet className="h-3 w-3" />
+                            <span>Bank Transfer</span>
                           </>
                         ) : (
                           <>
-                            <User className="h-3 w-3" />
-                            <span>{txn.talentName}</span>
+                            <Briefcase className="h-3 w-3" />
+                            <span>{txn.agencyName}</span>
                           </>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <Badge variant={txn.status === 'paid' ? 'default' : 'secondary'} 
+                      <Badge variant="secondary"
                              className={`capitalize text-xs ${txn.status === 'paid' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'}`}>
-                        {txn.status}
+                        {txn.status === 'paid' ? (isWithdrawal ? 'Paid Out' : 'Paid') : 'In Wallet'}
                       </Badge>
                     </TableCell>
                     <TableCell className={cn(
                       "text-right font-semibold font-mono",
-                      isReceived ? "text-green-600" : "text-foreground"
+                      isWithdrawal ? "text-muted-foreground" : "text-green-600"
                     )}>
-                      {isReceived ? '+' : '-'}${txn.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {isWithdrawal ? '-' : '+'}${txn.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>
                   </TableRow>
                 );
@@ -101,22 +101,3 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
   );
 }
 
-function User(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}

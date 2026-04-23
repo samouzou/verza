@@ -644,3 +644,119 @@ export const fundGigFromWallet = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "Failed to fund gig.");
   }
 });
+
+export const initiateAgencyPayout = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {agencyId} = request.data;
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+
+  const requesterId = request.auth.uid;
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+    if (!agencySnap.exists) {
+      throw new HttpsError("not-found", "Agency not found.");
+    }
+    const agencyData = agencySnap.data() as Agency;
+
+    const isAuthorized = agencyData.ownerId === requesterId ||
+      agencyData.team?.some((m) => m.userId === requesterId && (m.role === "admin" || m.role === "member"));
+    if (!isAuthorized) {
+      throw new HttpsError("permission-denied", "You do not have permission to initiate payouts for this agency.");
+    }
+
+    const availableBalance = agencyData.availableBalance || 0;
+    if (availableBalance < 1) {
+      throw new HttpsError("failed-precondition", "Insufficient available balance. Minimum payout is $1.00.");
+    }
+
+    // Use paymentDelegateId if set, otherwise fall back to ownerId
+    const receiverId = agencyData.paymentDelegateId || agencyData.ownerId;
+    const receiverSnap = await db.collection("users").doc(receiverId).get();
+    if (!receiverSnap.exists) {
+      throw new HttpsError("not-found", "Payout recipient not found.");
+    }
+    const receiverData = receiverSnap.data() as UserProfileFirestoreData;
+
+    if (!receiverData.stripeAccountId || !receiverData.stripePayoutsEnabled) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The payout recipient must connect a bank account before withdrawing funds. Go to Settings to get set up."
+      );
+    }
+
+    const amountInCents = Math.floor(availableBalance * 100);
+
+    await stripe.transfers.create({
+      amount: amountInCents,
+      currency: "usd",
+      destination: receiverData.stripeAccountId,
+      description: `Agency wallet payout for ${agencyData.name}`,
+      metadata: {agencyId, receiverId},
+    });
+
+    await db.runTransaction(async (transaction) => {
+      transaction.update(agencyDocRef, {availableBalance: 0});
+
+      const pendingCommissionsSnap = await db.collection("internalPayouts")
+        .where("agencyId", "==", agencyId)
+        .where("type", "==", "agency_commission")
+        .where("status", "==", "pending")
+        .get();
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      pendingCommissionsSnap.forEach((doc) => {
+        transaction.update(doc.ref, {status: "paid", paidAt: now});
+      });
+
+      const withdrawalRef = db.collection("internalPayouts").doc();
+      transaction.set(withdrawalRef, {
+        id: withdrawalRef.id,
+        type: "agency_withdrawal",
+        agencyId,
+        agencyName: agencyData.name,
+        agencyOwnerId: receiverId,
+        talentId: receiverId,
+        talentName: receiverData.displayName || "Unknown",
+        amount: availableBalance,
+        description: `Agency wallet payout for ${agencyData.name}`,
+        status: "paid",
+        initiatedAt: now,
+        paidAt: now,
+      });
+    });
+
+    await db.collection("notifications").add({
+      userId: receiverId,
+      title: "Agency Payout Initiated!",
+      message: `$${availableBalance.toFixed(2)} from ${agencyData.name}'s wallet has been transferred to your bank account.
+       It may take 1-3 business days to arrive.`,
+      type: "payout_received",
+      read: false,
+      link: "/wallet",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Successfully initiated agency payout of $${availableBalance} for agency ${agencyId} to user ${receiverId}.`);
+    return {success: true, amount: availableBalance};
+  } catch (error: any) {
+    logger.error(`Error initiating agency payout for ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "An unexpected error occurred.");
+  }
+});
