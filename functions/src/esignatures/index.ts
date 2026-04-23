@@ -162,17 +162,17 @@ async function generateContractPdf(
     color: rgb(0.4, 0.4, 0.4),
   });
 
-  // Client block (left)
+  // Brand block (left) — label and name sit well above the line so a drawn signature won't overlap
   const leftX = MARGIN;
-  page.drawText("Client", {x: leftX, y: sigLineY + 40, size: 11, font: bold, color: rgb(0, 0, 0)});
-  page.drawText(clientName, {x: leftX, y: sigLineY + 24, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
+  page.drawText("Brand", {x: leftX, y: sigLineY + 80, size: 11, font: bold, color: rgb(0, 0, 0)});
+  page.drawText(clientName, {x: leftX, y: sigLineY + 62, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
   page.drawLine({start: {x: leftX, y: sigLineY}, end: {x: leftX + 200, y: sigLineY}, thickness: 0.75, color: rgb(0, 0, 0)});
   page.drawText("Signature", {x: leftX, y: sigLineY - 13, size: 8, font: regular, color: rgb(0.5, 0.5, 0.5)});
 
   // Creator block (right)
   const rightX = 320;
-  page.drawText("Creator", {x: rightX, y: sigLineY + 40, size: 11, font: bold, color: rgb(0, 0, 0)});
-  page.drawText(creatorName, {x: rightX, y: sigLineY + 24, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
+  page.drawText("Creator", {x: rightX, y: sigLineY + 80, size: 11, font: bold, color: rgb(0, 0, 0)});
+  page.drawText(creatorName, {x: rightX, y: sigLineY + 62, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
   page.drawLine({start: {x: rightX, y: sigLineY}, end: {x: rightX + 200, y: sigLineY}, thickness: 0.75, color: rgb(0, 0, 0)});
   page.drawText("Signature", {x: rightX, y: sigLineY - 13, size: 8, font: regular, color: rgb(0.5, 0.5, 0.5)});
 
@@ -283,13 +283,13 @@ export const initiateBoldSignRequest = onCall(
       const clientField = new FormField();
       clientField.fieldType = FormField.FieldTypeEnum.Signature;
       clientField.pageNumber = signaturePage;
-      clientField.bounds = {x: 72, y: SIGNATURE_Y, width: 200, height: 40} as any;
+      clientField.bounds = {x: 72, y: SIGNATURE_Y - 50, width: 200, height: 50} as any;
       clientField.isRequired = true;
 
       const creatorField = new FormField();
       creatorField.fieldType = FormField.FieldTypeEnum.Signature;
       creatorField.pageNumber = signaturePage;
-      creatorField.bounds = {x: 320, y: SIGNATURE_Y, width: 200, height: 40} as any;
+      creatorField.bounds = {x: 320, y: SIGNATURE_Y - 50, width: 200, height: 50} as any;
       creatorField.isRequired = true;
 
       const clientSigner = new DocumentSigner();
