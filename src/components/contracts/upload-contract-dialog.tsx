@@ -601,7 +601,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
             <div><Label htmlFor="projectName">Project Name (Optional)</Label><Input id="projectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g., Q3 YouTube Campaign" className="mt-1" /></div>
 
             <Card>
-              <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" />Generate with AI</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg flex items-center justify-between"><span className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" />Contract Co-Pilot</span><span className="text-sm font-normal text-muted-foreground">Generate with AI</span></CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <Textarea
                   id="generationPrompt"
@@ -642,6 +642,7 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
               <div className="text-right font-semibold">Total Amount: ${currentTotalAmount.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground text-right">A 15% Verza fee + payment processing fees apply on invoice payments.</p>
             </CardContent></Card>
             
             <Card><CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader><CardContent className="space-y-4">
