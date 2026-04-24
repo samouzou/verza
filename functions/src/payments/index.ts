@@ -930,7 +930,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Capital Deployment: ${title}`,
+            name: `Campaign Budget: ${title}`,
             description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
           },
           unit_amount: totalAmountInCents,
