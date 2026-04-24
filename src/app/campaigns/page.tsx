@@ -249,7 +249,7 @@ export default function GigsPage() {
               <Button asChild>
                 <Link href="/campaigns/post">
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Deploy Capital
+                  Launch Campaign
                 </Link>
               </Button>
             )}
