@@ -358,7 +358,7 @@ function GigDetailContent() {
           title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
           message: isAgencyAcceptance
             ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your campaign "${gig.title}".`
-            : `${creatorName} has secured your campaign "${gig.title}".`,
+            : `${creatorName} has accepted your campaign "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
           link: `/campaigns/${gig.id}`,
@@ -390,7 +390,7 @@ function GigDetailContent() {
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
       await updateDoc(doc(db, 'users', targetUserId), userUpdates);
 
-      toast({ title: "Campaign Secured!" });
+      toast({ title: "Campaign Accepted!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -930,7 +930,7 @@ function GigDetailContent() {
                   </p>
                 </div>
                 <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
-                  By clicking "Secure Campaign", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                  By clicking "Accept Campaign", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                 </div>
               </CardContent>
             </Card>
@@ -1321,7 +1321,7 @@ function GigDetailContent() {
                   hasAccepted ? (
                     <div className="space-y-4 pt-4 border-t">
                       <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" disabled>
-                        <CheckCircle className="mr-2 h-4 w-4" /> Campaign Secured
+                        <CheckCircle className="mr-2 h-4 w-4" /> Campaign Accepted
                       </Button>
                       
                       
@@ -1458,7 +1458,7 @@ function GigDetailContent() {
                           disabled={isAccepting || !hasAgreedToLegal || (isAgencyAcceptance && !selectedTalentId)}
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Secure Campaign
+                          Accept Campaign
                         </Button>
                       </div>
                     </div>
@@ -1543,7 +1543,7 @@ function GigDetailContent() {
                     {isAssignedAgent && !isBrandTeam && (
                       <div className="space-y-2">
                         <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20 cursor-default" disabled>
-                          <CheckCircle className="mr-2 h-4 w-4" /> Campaign Secured
+                          <CheckCircle className="mr-2 h-4 w-4" /> Campaign Accepted
                         </Button>
                       </div>
                     )}

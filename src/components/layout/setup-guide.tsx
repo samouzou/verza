@@ -90,7 +90,7 @@ export function useSetupSteps() {
             { id: 'profile', label: 'Complete creator profile', isCompleted: isProfileComplete, href: '/profile', icon: UserCircle },
             { id: 'social', label: 'Verify your social reach', isCompleted: isSocialConnected, href: '/insights', icon: Sparkles },
             { id: 'bank', label: 'Connect bank for payouts', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
-            { id: 'payout', label: 'Secure your first campaign', isCompleted: !payoutSnapshot.empty, href: '/campaigns', icon: DollarSign },
+            { id: 'payout', label: 'Accept your first campaign', isCompleted: !payoutSnapshot.empty, href: '/campaigns', icon: DollarSign },
           ];
           setSteps(definedSteps);
           setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
