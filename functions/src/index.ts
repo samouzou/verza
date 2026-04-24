@@ -69,6 +69,7 @@ import {
   inviteTeamMemberToAgency,
   fundGigFromWallet,
   initiateAgencyPayout,
+  initiateInternalTalentPayment,
 } from "./agency";
 
 import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
@@ -118,6 +119,7 @@ export {
   inviteTeamMemberToAgency,
   fundGigFromWallet,
   initiateAgencyPayout,
+  initiateInternalTalentPayment,
   payoutCreatorForGig,
   onGigCreated,
   onGigStatusOpened,

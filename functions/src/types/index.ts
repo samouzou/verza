@@ -399,7 +399,7 @@ export interface AgencyMembership {
 
 export interface InternalPayout {
   id: string;
-  type?: "creator_payment" | "creator_withdrawal" | "agency_commission" | "agency_withdrawal";
+  type?: "creator_payment" | "creator_withdrawal" | "agency_commission" | "agency_withdrawal" | "agency_talent_payment";
   agencyId?: string;
   agencyName?: string;
   agencyOwnerId?: string;
