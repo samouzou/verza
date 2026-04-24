@@ -208,7 +208,7 @@ export function SidebarNav() {
 
             <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center">
-                    <span className="group-data-[collapsible=icon]:hidden">Exchange</span>
+                    <span className="group-data-[collapsible=icon]:hidden">Marketplace</span>
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                     {marketplaceNavItems.map((item) => (
