@@ -937,8 +937,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         },
         quantity: 1,
       }],
-      success_url: `${params.APP_URL.value()}/deployments/${gigRef.id}?funding_success=true`,
-      cancel_url: `${params.APP_URL.value()}/deployments/${gigRef.id}`,
+      success_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}?funding_success=true`,
+      cancel_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
           purchaseType: "gigFunding",

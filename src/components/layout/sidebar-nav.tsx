@@ -64,7 +64,7 @@ const mainNavItems = [
 ];
 
 const marketplaceNavItems = [
-    { id: 'nav-item-deployments', href: "/deployments", label: "Deployments", icon: FileStack },
+    { id: 'nav-item-campaigns', href: "/campaigns", label: "Campaigns", icon: FileStack },
 ];
 
 const manageNavItems = [

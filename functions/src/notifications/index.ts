@@ -311,10 +311,10 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         <h1 style="color: #333; font-size: 22px;">Welcome to the family, ${name}!</h1>
         <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza. We built this platform because the creator 
         economy is broken. High fees, slow payments, and "guesswork" marketing are holding us back.</p>
-        <p style="color: #555; line-height: 1.6;">Verza is your new command center. Your first mission? 
-        <strong>Browse the Deployment Network</strong>. Brands are looking for performance content right now.</p>
+        <p style="color: #555; line-height: 1.6;">Verza is your new command center. Your first mission?
+        <strong>Browse the Campaign Network</strong>. Brands are looking for performance content right now.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/deployments" style="${btnStyle}">Browse Active Deployments</a>
+          <a href="${appUrl}/campaigns" style="${btnStyle}">Browse Active Campaigns</a>
         </div>
         ${signature}
       `;
@@ -606,7 +606,7 @@ export async function sendDeploymentEmailSequence(
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
-  const deploymentUrl = `${appUrl}/deployments/${gigId}`;
+  const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
 
   let subject = "";
   let content = "";
@@ -919,7 +919,7 @@ export async function sendAgencyEmailSequence(
       and when work is approved <strong>payouts release automatically</strong> to their bank account.
       No manual steps, no delays.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${appUrl}/deployments" style="${btnStyle}">Create a Deployment</a>
+        <a href="${appUrl}/campaigns" style="${btnStyle}">Create a Campaign</a>
       </div>
       ${signature}
     `;
@@ -1041,7 +1041,7 @@ export async function sendCreatorSecuredEmail(
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
-  const deploymentUrl = `${appUrl}/deployments/${gigId}`;
+  const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
 
   const emailLogoHeader = `
     <div style="text-align: center; margin-bottom: 30px;">
@@ -1133,7 +1133,7 @@ export const notifyBrandCreatorJoined = onCall(async (request) => {
   try {
     const gigSnap = await db.collection("gigs").doc(gigId).get();
     if (!gigSnap.exists) {
-      throw new HttpsError("not-found", "Deployment not found.");
+      throw new HttpsError("not-found", "Campaign not found.");
     }
     const gigData = gigSnap.data() as {title: string; brandId: string};
 

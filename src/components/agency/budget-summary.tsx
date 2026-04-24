@@ -145,7 +145,7 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
             <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <Wallet className="h-4 w-4" /> Total Verza Liquidity
             </CardTitle>
-            <CardDescription>Consolidated budget across wallet and active deployments.</CardDescription>
+            <CardDescription>Consolidated budget across wallet and active campaigns.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Dialog open={isPayCreatorOpen} onOpenChange={setIsPayCreatorOpen}>

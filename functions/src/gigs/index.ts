@@ -177,11 +177,11 @@ export const payoutCreatorForGig = onCall(async (request) => {
       const brandAgencyData = brandAgencySnap.data() as Agency;
       await db.collection("notifications").add({
         userId: brandAgencyData.ownerId,
-        title: "Deployment Complete!",
+        title: "Campaign Complete!",
         message: `Your campaign "${gigData.title}" is now complete. All ${gigData.creatorsNeeded} creators have been paid.`,
         type: "system",
         read: false,
-        link: `/deployments/${gigId}`,
+        link: `/campaigns/${gigId}`,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       } as unknown as Omit<Notification, "id">);
     }
