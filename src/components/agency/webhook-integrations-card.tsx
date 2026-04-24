@@ -28,8 +28,7 @@ export function WebhookIntegrationsCard({ agency, disabled }: WebhookIntegration
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
 
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'verza';
-  const webhookUrl = `https://us-central1-${projectId}.cloudfunctions.net/conversionWebhook?agencyId=${agency.id}`;
+  const webhookUrl = `https://conversionwebhook-cpmccwbluq-uc.a.run.app?agencyId=${agency.id}`;
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
