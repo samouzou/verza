@@ -670,7 +670,7 @@ export async function sendDeploymentEmailSequence(
     content = `
       <h1 style="color: #333; font-size: 22px;">Your creators are submitting work</h1>
       <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-      <p style="color: #555; line-height: 1.6;">Once a creator is accepted into <strong>"${gigTitle}"</strong>,
+      <p style="color: #555; line-height: 1.6;">Once a creator has claimed a spot in <strong>"${gigTitle}"</strong>,
       they can upload their videos or links directly on the campaign page. Here's what you'll see:</p>
       <ul style="color: #555; line-height: 2;">
         <li><strong>Verza Score</strong> — an AI simulation of how the content performs with a real audience.
@@ -1057,7 +1057,7 @@ export async function sendCreatorSecuredEmail(
 
   const subject = isAgencyAcceptance ?
     `An agency has filled a spot on "${gigTitle}"` :
-    `${creatorName} accepted a spot on "${gigTitle}"`;
+    `${creatorName} claimed a spot on "${gigTitle}"`;
 
   const headline = isAgencyAcceptance ?
     "A new creator just joined your campaign" :
@@ -1067,7 +1067,7 @@ export async function sendCreatorSecuredEmail(
     `An agency has assigned <strong>${creatorName}</strong> to your campaign
        <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
        and track content submissions.` :
-    `<strong>${creatorName}</strong> just accepted a spot on your campaign
+    `<strong>${creatorName}</strong> just claimed a spot on your campaign
        <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
        and track content submissions.`;
 
