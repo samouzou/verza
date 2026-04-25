@@ -453,7 +453,7 @@ function SceneSpawnerContent() {
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                   <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
                   <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
                   <TabsTrigger value="image-to-image">Image to Image</TabsTrigger>
