@@ -50,6 +50,51 @@ const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const IMAGE_COST = 1;
 
+const INSPIRATION_EXAMPLES = [
+  {
+    tab: "text-to-video",
+    style: "Realistic",
+    prompt: "Golden hour lifestyle shot of someone hiking through a misty forest, cinematic",
+    gradient: "from-emerald-900 via-teal-800 to-cyan-700",
+    label: "Lifestyle Video",
+  },
+  {
+    tab: "text-to-image",
+    style: "Realistic",
+    prompt: "Brand ambassador posing confidently in front of a luxury hotel lobby, editorial lighting",
+    gradient: "from-slate-900 via-purple-900 to-indigo-800",
+    label: "Brand Shoot",
+  },
+  {
+    tab: "text-to-video",
+    style: "Anime",
+    prompt: "Anime-style cityscape with cherry blossoms falling at dusk, glowing streetlights",
+    gradient: "from-pink-900 via-rose-700 to-orange-600",
+    label: "Anime Scene",
+  },
+  {
+    tab: "text-to-image",
+    style: "3D Render",
+    prompt: "Sleek skincare product on a marble surface with soft diffused lighting, minimalist",
+    gradient: "from-zinc-800 via-stone-700 to-amber-700",
+    label: "Product Shot",
+  },
+  {
+    tab: "text-to-video",
+    style: "Claymation",
+    prompt: "Claymation character dancing in a candy-colored kitchen, playful and bouncy",
+    gradient: "from-violet-800 via-fuchsia-700 to-pink-600",
+    label: "Claymation",
+  },
+  {
+    tab: "text-to-image",
+    style: "Anime",
+    prompt: "Anime creator recording content in a neon-lit bedroom studio, vibrant colors",
+    gradient: "from-blue-900 via-indigo-700 to-violet-600",
+    label: "Creator Studio",
+  },
+] as const;
+
 function SceneSpawnerContent() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
@@ -308,6 +353,33 @@ function SceneSpawnerContent() {
           </Button>
         }
       />
+      <div className="mb-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-3">Inspiration — click to try</p>
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+          {INSPIRATION_EXAMPLES.map((ex) => (
+            <button
+              key={ex.prompt}
+              onClick={() => {
+                setActiveTab(ex.tab);
+                setStyle(ex.style as any);
+                setPrompt(ex.prompt);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex-shrink-0 w-44 h-28 rounded-xl bg-gradient-to-br ${ex.gradient} relative overflow-hidden group text-left`}
+            >
+              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+              <div className="absolute bottom-0 left-0 right-0 p-2.5 bg-gradient-to-t from-black/70 to-transparent">
+                <span className="block text-[10px] font-bold text-white/70 uppercase tracking-wider mb-0.5">{ex.label}</span>
+                <span className="block text-xs text-white font-medium leading-tight line-clamp-2">{ex.prompt}</span>
+              </div>
+              <div className="absolute top-2 right-2">
+                <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">{ex.style}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <Card className="shadow-lg">
