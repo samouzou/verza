@@ -126,7 +126,7 @@ export const conversionWebhook = onRequest(async (req, res) => {
         message: `Your code ${matchingPromoCode} generated a sale! You earned $${rewardAmount}.`,
         type: "system",
         read: false,
-        link: `/deployments/${gigId}`,
+        link: `/campaigns/${gigId}`,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }

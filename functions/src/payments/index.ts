@@ -930,15 +930,15 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Capital Deployment: ${title}`,
+            name: `Campaign Budget: ${title}`,
             description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
           },
           unit_amount: totalAmountInCents,
         },
         quantity: 1,
       }],
-      success_url: `${params.APP_URL.value()}/deployments/${gigRef.id}?funding_success=true`,
-      cancel_url: `${params.APP_URL.value()}/deployments/${gigRef.id}`,
+      success_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}?funding_success=true`,
+      cancel_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
           purchaseType: "gigFunding",

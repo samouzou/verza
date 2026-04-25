@@ -2,7 +2,6 @@
 
 import { useState, useEffect, ChangeEvent, Suspense } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +49,51 @@ const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const IMAGE_COST = 1;
 
+const INSPIRATION_EXAMPLES = [
+  {
+    tab: "text-to-video",
+    style: "Realistic",
+    prompt: "Golden hour lifestyle shot of someone hiking through a misty forest, cinematic",
+    gradient: "from-emerald-900 via-teal-800 to-cyan-700",
+    label: "Lifestyle Video",
+  },
+  {
+    tab: "text-to-image",
+    style: "Realistic",
+    prompt: "Brand ambassador posing confidently in front of a luxury hotel lobby, editorial lighting",
+    gradient: "from-slate-900 via-purple-900 to-indigo-800",
+    label: "Brand Shoot",
+  },
+  {
+    tab: "text-to-video",
+    style: "Anime",
+    prompt: "Anime-style cityscape with cherry blossoms falling at dusk, glowing streetlights",
+    gradient: "from-pink-900 via-rose-700 to-orange-600",
+    label: "Anime Scene",
+  },
+  {
+    tab: "text-to-image",
+    style: "3D Render",
+    prompt: "Sleek skincare product on a marble surface with soft diffused lighting, minimalist",
+    gradient: "from-zinc-800 via-stone-700 to-amber-700",
+    label: "Product Shot",
+  },
+  {
+    tab: "text-to-video",
+    style: "Claymation",
+    prompt: "Claymation character dancing in a candy-colored kitchen, playful and bouncy",
+    gradient: "from-violet-800 via-fuchsia-700 to-pink-600",
+    label: "Claymation",
+  },
+  {
+    tab: "text-to-image",
+    style: "Anime",
+    prompt: "Anime creator recording content in a neon-lit bedroom studio, vibrant colors",
+    gradient: "from-blue-900 via-indigo-700 to-violet-600",
+    label: "Creator Studio",
+  },
+] as const;
+
 function SceneSpawnerContent() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const { toast } = useToast();
@@ -58,6 +102,7 @@ function SceneSpawnerContent() {
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState("text-to-video");
+  const [marqueePaused, setMarqueePaused] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
   const [orientation, setOrientation] = useState<'16:9' | '9:16' | '1:1'>('16:9');
@@ -299,24 +344,116 @@ function SceneSpawnerContent() {
 
   return (
     <>
-      <PageHeader
-        title="AI Studio"
-        description="Generate video clips and images for your content using AI."
-        actions={
-          <Button variant="outline" onClick={() => startTour(aiStudioTour)}>
-            <LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour
-          </Button>
+      <style>{`
+        @keyframes gradient-shift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
-      />
+        @keyframes marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+      `}</style>
+
+      {/* Cinematic hero */}
+      <div
+        className="relative rounded-2xl overflow-hidden mb-6"
+        style={{
+          background: 'linear-gradient(135deg, #0f0c29, #302b63, #1a1a4e, #24105a)',
+          backgroundSize: '400% 400%',
+          animation: 'gradient-shift 12s ease infinite',
+        }}
+      >
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px)',
+          }}
+        />
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-violet-600/25 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-56 h-56 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-7 sm:px-8 sm:py-8">
+          <div>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <Sparkles className="h-6 w-6 text-violet-300" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">AI Studio</h1>
+            </div>
+            <p className="text-sm text-white/55 max-w-sm leading-relaxed">
+              Turn a prompt into a video or image in seconds. Click an example below or write your own.
+            </p>
+          </div>
+          <div className="flex items-center gap-5 flex-shrink-0">
+            <div className="text-right">
+              <p className={`text-4xl font-bold tabular-nums leading-none ${credits > 20 ? 'text-emerald-400' : credits > 5 ? 'text-amber-400' : 'text-red-400'}`}>
+                {credits}
+              </p>
+              <p className="text-[11px] text-white/40 uppercase tracking-widest mt-1">credits</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white bg-white/5 hover:bg-white/15 hover:text-white"
+              onClick={() => startTour(aiStudioTour)}
+            >
+              <LifeBuoy className="mr-2 h-4 w-4" /> Tour
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Auto-scrolling inspiration strip */}
+      <div className="mb-6">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-3">Inspiration — click to try</p>
+        <div
+          className="overflow-hidden"
+          onMouseEnter={() => setMarqueePaused(true)}
+          onMouseLeave={() => setMarqueePaused(false)}
+        >
+          <div
+            className="flex gap-3"
+            style={{
+              width: 'max-content',
+              animation: 'marquee 40s linear infinite',
+              animationPlayState: marqueePaused ? 'paused' : 'running',
+            }}
+          >
+            {[...INSPIRATION_EXAMPLES, ...INSPIRATION_EXAMPLES].map((ex, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setActiveTab(ex.tab);
+                  setStyle(ex.style as any);
+                  setPrompt(ex.prompt);
+                  document.getElementById('generator-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`flex-shrink-0 w-48 h-32 rounded-xl bg-gradient-to-br ${ex.gradient} relative overflow-hidden text-left transition-transform duration-300 hover:scale-105`}
+              >
+                <div className="absolute inset-0 bg-black/20 hover:bg-black/10 transition-colors" />
+                <div className="absolute bottom-0 left-0 right-0 p-2.5 bg-gradient-to-t from-black/75 to-transparent">
+                  <span className="block text-[10px] font-bold text-white/70 uppercase tracking-wider mb-0.5">{ex.label}</span>
+                  <span className="block text-xs text-white font-medium leading-tight line-clamp-2">{ex.prompt}</span>
+                </div>
+                <div className="absolute top-2 right-2">
+                  <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">{ex.style}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <Card className="shadow-lg">
+          <Card id="generator-card" className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl"><Sparkles className="h-6 w-6 text-primary" />Generator</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                   <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
                   <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
                   <TabsTrigger value="image-to-image">Image to Image</TabsTrigger>

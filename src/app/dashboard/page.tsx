@@ -264,7 +264,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Your unified command center for contracts and deployment activity."
+        description="Your unified command center for contracts and campaign activity."
         actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
       />
 
@@ -275,7 +275,7 @@ export default function DashboardPage() {
           <Sparkles className="h-5 w-5 text-primary" />
           <AlertTitle className="font-semibold text-primary">Unlock Full Potential!</AlertTitle>
           <AlertDescription>
-            Upgrade to Verza Pro to access the Deployment Network and advanced financial tracking.
+            Upgrade to Verza Pro to access the Campaign Network and advanced financial tracking.
           </AlertDescription>
           <Button variant="default" size="sm" asChild className="mt-3">
             <Link href="/settings">Manage Subscription <ExternalLink className="ml-2 h-4 w-4" /></Link>
@@ -290,8 +290,8 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
         <SummaryCard 
-          id="summary-card-active-deployments"
-          title="Active Deployments" value={stats.activeGigsCount.toString()} 
+          id="summary-card-active-campaigns"
+          title="Active Campaigns" value={stats.activeGigsCount.toString()}
           icon={Video} description="Ongoing campaigns" 
         />
         <SummaryCard 

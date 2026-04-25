@@ -36,7 +36,7 @@ export function WalletOverview({
           </CardTitle>
         </div>
         <CardDescription>
-          Earnings from approved deployments. Connect a bank account to withdraw funds.
+          Earnings from approved campaigns. Connect a bank account to withdraw funds.
         </CardDescription>
       </CardHeader>
       <CardContent>
