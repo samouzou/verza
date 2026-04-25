@@ -311,10 +311,10 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         <h1 style="color: #333; font-size: 22px;">Welcome to the family, ${name}!</h1>
         <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza. We built this platform because the creator 
         economy is broken. High fees, slow payments, and "guesswork" marketing are holding us back.</p>
-        <p style="color: #555; line-height: 1.6;">Verza is your new command center. Your first mission? 
-        <strong>Browse the Deployment Network</strong>. Brands are looking for performance content right now.</p>
+        <p style="color: #555; line-height: 1.6;">Verza is your new command center. Your first mission?
+        <strong>Browse the Campaign Network</strong>. Brands are looking for performance content right now.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/deployments" style="${btnStyle}">Browse Active Deployments</a>
+          <a href="${appUrl}/campaigns" style="${btnStyle}">Browse Active Campaigns</a>
         </div>
         ${signature}
       `;
@@ -606,7 +606,7 @@ export async function sendDeploymentEmailSequence(
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
-  const deploymentUrl = `${appUrl}/deployments/${gigId}`;
+  const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
 
   let subject = "";
   let content = "";
@@ -623,10 +623,10 @@ export async function sendDeploymentEmailSequence(
                    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
-  case 0: // Immediate — deployment is live
-    subject = `Your deployment "${gigTitle}" is live`;
+  case 0: // Immediate — campaign is live
+    subject = `Your campaign "${gigTitle}" is live`;
     content = `
-      <h1 style="color: #333; font-size: 22px;">Your deployment is live, ${name}!</h1>
+      <h1 style="color: #333; font-size: 22px;">Your campaign is live, ${name}!</h1>
       <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is now visible to creators
       in the Verza marketplace. Here's what happens next:</p>
       <ul style="color: #555; line-height: 2;">
@@ -636,9 +636,9 @@ export async function sendDeploymentEmailSequence(
         <li>You approve and pay — funds go straight to their bank account</li>
       </ul>
       <p style="color: #555; line-height: 1.6;">Over the next week I'll walk you through each step as your
-      campaign runs. Head to your deployment now to see who's applying.</p>
+      campaign runs. Head to your campaign now to see who's applying.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${deploymentUrl}" style="${btnStyle}">View Your Deployment</a>
+        <a href="${deploymentUrl}" style="${btnStyle}">View Your Campaign</a>
       </div>
       ${signature}
     `;
@@ -652,7 +652,7 @@ export async function sendDeploymentEmailSequence(
       <p style="color: #555; line-height: 1.6;">Creators are discovering <strong>"${gigTitle}"</strong> in
       the marketplace. Here's how the acceptance flow works:</p>
       <ul style="color: #555; line-height: 2;">
-        <li>Open your deployment and scroll to the creator list</li>
+        <li>Open your campaign and scroll to the creator list</li>
         <li>Review each applicant's profile, follower count, and engagement rate</li>
         <li>Accept the creators you want — they'll be notified immediately and get access to submit work</li>
       </ul>
@@ -670,8 +670,8 @@ export async function sendDeploymentEmailSequence(
     content = `
       <h1 style="color: #333; font-size: 22px;">Your creators are submitting work</h1>
       <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-      <p style="color: #555; line-height: 1.6;">Once a creator is accepted into <strong>"${gigTitle}"</strong>,
-      they can upload their videos or links directly on the deployment page. Here's what you'll see:</p>
+      <p style="color: #555; line-height: 1.6;">Once a creator has claimed a spot in <strong>"${gigTitle}"</strong>,
+      they can upload their videos or links directly on the campaign page. Here's what you'll see:</p>
       <ul style="color: #555; line-height: 2;">
         <li><strong>Verza Score</strong> — an AI simulation of how the content performs with a real audience.
         If you required a score threshold, creators must hit it before their submission counts</li>
@@ -693,9 +693,9 @@ export async function sendDeploymentEmailSequence(
       <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
       <p style="color: #555; line-height: 1.6;">Once you're satisfied with a creator's submission on
       <strong>"${gigTitle}"</strong>, paying them is one step. Hit <strong>Approve & Pay</strong> on the
-      deployment page — funds go directly to their bank account, no manual transfers needed.</p>
+      campaign page — funds go directly to their bank account, no manual transfers needed.</p>
       <ul style="color: #555; line-height: 2;">
-        <li>Every payout is logged and tracked on the deployment page</li>
+        <li>Every payout is logged and tracked on the campaign page</li>
         <li>The creator is notified the moment their payment is processed</li>
         <li>When all creators are paid, the campaign is automatically marked complete</li>
       </ul>
@@ -713,7 +713,7 @@ export async function sendDeploymentEmailSequence(
       <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
       <p style="color: #555; line-height: 1.6;">If you enabled affiliate tracking on
       <strong>"${gigTitle}"</strong>, each creator has their own unique link or promo code.
-      From the deployment page you can see:</p>
+      From the campaign page you can see:</p>
       <ul style="color: #555; line-height: 2;">
         <li><strong>Clicks and conversions</strong> per creator — see who actually drove results</li>
         <li><strong>Earned rewards</strong> — tracked automatically against each creator's link</li>
@@ -722,7 +722,7 @@ export async function sendDeploymentEmailSequence(
       <p style="color: #555; line-height: 1.6;">The brands that win at performance marketing are the ones
       who double down on what worked. Your data is waiting.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${deploymentUrl}" style="${btnStyle}">View Deployment Results</a>
+        <a href="${deploymentUrl}" style="${btnStyle}">View Campaign Results</a>
       </div>
       ${signature}
     `;
@@ -841,7 +841,7 @@ export async function sendAgencyEmailSequence(
         <li><strong>Talent Roster</strong> — invite creators and manage your roster</li>
         <li><strong>Team Management</strong> — bring in admins and team members</li>
         <li><strong>Payouts</strong> — pay talent directly to their bank account</li>
-        <li><strong>Deployments</strong> — run brand campaigns across your entire roster</li>
+        <li><strong>Campaigns</strong> — run brand campaigns across your entire roster</li>
         <li><strong>AI Contracts</strong> — generate and send contracts in seconds</li>
       </ul>
       <p style="color: #555; line-height: 1.6;">Head to your dashboard to get started.
@@ -908,18 +908,18 @@ export async function sendAgencyEmailSequence(
     `;
     break;
 
-  case 4: // Day 10 — deployments
-    subject = "Step 4: Launch a deployment campaign for your entire roster";
+  case 4: // Day 10 — campaigns
+    subject = "Step 4: Launch a campaign for your entire roster";
     content = `
       <h1 style="color: #333; font-size: 22px;">Run campaigns across your whole roster</h1>
       <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-      <p style="color: #555; line-height: 1.6;">Deployments let you run brand campaigns at scale.
-      Create a deployment, set the rate per creator and how many you need, then fund it from your agency wallet.</p>
+      <p style="color: #555; line-height: 1.6;">Campaigns let you run brand activations at scale.
+      Create a campaign, set the rate per creator and how many you need, then fund it from your agency wallet.</p>
       <p style="color: #555; line-height: 1.6;">Assign creators from your roster, track submissions,
       and when work is approved <strong>payouts release automatically</strong> to their bank account.
       No manual steps, no delays.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${appUrl}/deployments" style="${btnStyle}">Create a Deployment</a>
+        <a href="${appUrl}/campaigns" style="${btnStyle}">Create a Campaign</a>
       </div>
       ${signature}
     `;
@@ -1014,6 +1014,155 @@ export async function sendAgencyEmailSequence(
     logger.error(`Failed to send agency email sequence step ${step} to ${toEmail}:`, error);
   }
 }
+
+/**
+ * Sends an email to the brand owner when a creator secures a spot on their deployment.
+ * @param {string} toEmail The brand owner's email address.
+ * @param {string} brandName The brand owner's display name.
+ * @param {string} creatorName The name of the creator or talent who joined.
+ * @param {string} gigTitle The title of the deployment.
+ * @param {string} gigId The Firestore document ID of the deployment.
+ * @param {boolean} isAgencyAcceptance Whether the acceptance was made by an agency on behalf of talent.
+ * @return {Promise<void>}
+ */
+export async function sendCreatorSecuredEmail(
+  toEmail: string,
+  brandName: string,
+  creatorName: string,
+  gigTitle: string,
+  gigId: string,
+  isAgencyAcceptance: boolean
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping creator secured email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
+
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+
+  const subject = isAgencyAcceptance ?
+    `An agency has filled a spot on "${gigTitle}"` :
+    `${creatorName} claimed a spot on "${gigTitle}"`;
+
+  const headline = isAgencyAcceptance ?
+    "A new creator just joined your campaign" :
+    `${creatorName} is in`;
+
+  const body = isAgencyAcceptance ?
+    `An agency has assigned <strong>${creatorName}</strong> to your campaign
+       <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
+       and track content submissions.` :
+    `<strong>${creatorName}</strong> just claimed a spot on your campaign
+       <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
+       and track content submissions.`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <h1 style="color: #333; font-size: 22px;">${headline}</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${brandName},</p>
+        <p style="color: #555; line-height: 1.6;">${body}</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${deploymentUrl}" style="${btnStyle}">View Deployment</a>
+        </div>
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          Cheers,<br/>
+          <strong>Serge Amouzou</strong><br/>
+          Founder &amp; CEO of Verza
+        </p>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await sgMail.send({
+      to: toEmail,
+      from: {name: "Serge from Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+      subject,
+      html,
+    });
+    logger.info(`Creator secured email sent to ${toEmail} for deployment ${gigId}.`);
+  } catch (error) {
+    logger.error(`Failed to send creator secured email to ${toEmail}:`, error);
+  }
+}
+
+export const notifyBrandCreatorJoined = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {gigId, creatorName, isAgencyAcceptance} = request.data;
+  if (!gigId || !creatorName) {
+    throw new HttpsError("invalid-argument", "gigId and creatorName are required.");
+  }
+
+  try {
+    const gigSnap = await db.collection("gigs").doc(gigId).get();
+    if (!gigSnap.exists) {
+      throw new HttpsError("not-found", "Campaign not found.");
+    }
+    const gigData = gigSnap.data() as {title: string; brandId: string};
+
+    const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+    if (!agencySnap.exists) return {success: true};
+    const agencyData = agencySnap.data() as {ownerId: string; name: string};
+
+    const ownerSnap = await db.collection("users").doc(agencyData.ownerId).get();
+    if (!ownerSnap.exists) return {success: true};
+    const ownerData = ownerSnap.data() as {email: string | null; displayName: string | null};
+
+    if (!ownerData.email) return {success: true};
+
+    await sendCreatorSecuredEmail(
+      ownerData.email,
+      ownerData.displayName || agencyData.name,
+      creatorName,
+      gigData.title,
+      gigId,
+      isAgencyAcceptance ?? false
+    );
+
+    return {success: true};
+  } catch (error: any) {
+    logger.error(`Error in notifyBrandCreatorJoined for gig ${gigId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Failed to send notification email.");
+  }
+});
 
 /**
  * Handles incoming feedback from users and routes it to support team.

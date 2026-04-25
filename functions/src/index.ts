@@ -22,12 +22,14 @@ import {
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
+  initiateCreatorPayout,
 } from "./payments";
 
 import {
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
+  notifyBrandCreatorJoined,
 } from "./notifications";
 
 import {
@@ -49,8 +51,8 @@ import {
 import {getPublicContractDetails} from "./sharing";
 
 import {
-  initiateHelloSignRequest,
-  helloSignWebhookHandler,
+  initiateBoldSignRequest,
+  boldSignWebhookHandler,
 } from "./esignatures";
 
 import {
@@ -66,6 +68,8 @@ import {
   createInternalPayout,
   inviteTeamMemberToAgency,
   fundGigFromWallet,
+  initiateAgencyPayout,
+  initiateInternalTalentPayment,
 } from "./agency";
 
 import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
@@ -87,9 +91,11 @@ export {
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
+  initiateCreatorPayout,
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
+  notifyBrandCreatorJoined,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
@@ -101,8 +107,8 @@ export {
   createStripeCustomerPortalSession,
   stripeSubscriptionWebhookHandler,
   getPublicContractDetails,
-  initiateHelloSignRequest,
-  helloSignWebhookHandler,
+  initiateBoldSignRequest,
+  boldSignWebhookHandler,
   generateFinicityConnectUrl,
   finicityWebhookHandler,
   createAgency,
@@ -112,6 +118,8 @@ export {
   createInternalPayout,
   inviteTeamMemberToAgency,
   fundGigFromWallet,
+  initiateAgencyPayout,
+  initiateInternalTalentPayment,
   payoutCreatorForGig,
   onGigCreated,
   onGigStatusOpened,

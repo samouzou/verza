@@ -109,7 +109,7 @@ export function ContractList({ contracts }: ContractListProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href={`/contracts/${contract.id}/edit`}>
-                        <Edit3 className="mr-2 h-4 w-4" /> Edit
+                        <Edit3 className="mr-2 h-4 w-4" /> Contract Co-Pilot
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="text-destructive focus:text-destructive focus:bg-destructive/10">

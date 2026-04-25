@@ -930,15 +930,15 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Capital Deployment: ${title}`,
+            name: `Campaign Budget: ${title}`,
             description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
           },
           unit_amount: totalAmountInCents,
         },
         quantity: 1,
       }],
-      success_url: `${params.APP_URL.value()}/deployments/${gigRef.id}?funding_success=true`,
-      cancel_url: `${params.APP_URL.value()}/deployments/${gigRef.id}`,
+      success_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}?funding_success=true`,
+      cancel_url: `${params.APP_URL.value()}/campaigns/${gigRef.id}`,
       payment_intent_data: {
         metadata: {
           purchaseType: "gigFunding",
@@ -1129,5 +1129,100 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   } catch (error: any) {
     logger.error("Error creating top-up session:", error);
     throw new HttpsError("internal", "Could not create checkout session.");
+  }
+});
+
+export const initiateCreatorPayout = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const userDocRef = db.collection("users").doc(userId);
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  try {
+    const userSnap = await userDocRef.get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "User not found.");
+    }
+    const userData = userSnap.data() as UserProfileFirestoreData;
+
+    if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
+      throw new HttpsError(
+        "failed-precondition",
+        "You must connect a bank account before initiating a payout. Go to Settings to get set up."
+      );
+    }
+
+    const walletBalance = userData.walletBalance || 0;
+    if (walletBalance < 1) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Insufficient wallet balance. Minimum payout is $1.00."
+      );
+    }
+
+    const amountInCents = Math.floor(walletBalance * 100);
+
+    await stripe.transfers.create({
+      amount: amountInCents,
+      currency: "usd",
+      destination: userData.stripeAccountId,
+      description: "Verza wallet payout",
+      metadata: {userId},
+    });
+
+    await db.runTransaction(async (transaction) => {
+      transaction.update(userDocRef, {walletBalance: 0});
+
+      const pendingPayoutsSnap = await db.collection("internalPayouts")
+        .where("talentId", "==", userId)
+        .where("status", "==", "pending")
+        .get();
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      pendingPayoutsSnap.forEach((doc) => {
+        transaction.update(doc.ref, {status: "paid", paidAt: now});
+      });
+
+      const withdrawalRef = db.collection("internalPayouts").doc();
+      transaction.set(withdrawalRef, {
+        id: withdrawalRef.id,
+        type: "creator_withdrawal",
+        talentId: userId,
+        talentName: userData.displayName || "Unknown",
+        amount: walletBalance,
+        description: "Payout to bank account",
+        status: "paid",
+        initiatedAt: now,
+        paidAt: now,
+      });
+    });
+
+    await db.collection("notifications").add({
+      userId,
+      title: "Payout Initiated!",
+      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-3 business days to arrive.`,
+      type: "payout_received",
+      read: false,
+      link: "/wallet",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Successfully initiated payout of $${walletBalance} for user ${userId}.`);
+    return {success: true, amount: walletBalance};
+  } catch (error: any) {
+    logger.error(`Error initiating payout for user ${userId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "An unexpected error occurred.");
   }
 });

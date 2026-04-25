@@ -3,15 +3,13 @@ import {onCall, HttpsError, onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
-import * as DropboxSign from "@dropbox/sign";
+import {DocumentApi, DocumentSigner, FormField, SendForSign} from "boldsign";
 import type {Contract, UserProfileFirestoreData} from "./../types";
-import * as crypto from "crypto";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
-import axios from "axios";
-import FormData from "form-data";
 import * as params from "../config/params";
+import {PDFDocument, StandardFonts, PageSizes, rgb} from "pdf-lib";
 
 
 /**
@@ -33,523 +31,475 @@ async function verifyAuth(uid: string | undefined): Promise<string> {
   }
 }
 
-export const initiateHelloSignRequest = onCall(async (request) => {
-  const HELLOSIGN_API_KEY = params.HELLOSIGN_API_KEY.value();
+// Y position of signature fields on the dedicated signature page
+const SIGNATURE_Y = 220;
 
-  if (HELLOSIGN_API_KEY) {
-    new DropboxSign.SignatureRequestApi().username = HELLOSIGN_API_KEY;
-  } else {
-    logger.error("Dropbox Sign API client not initialized. API key missing or invalid.");
-    throw new HttpsError("failed-precondition", "E-signature service is not configured.");
-  }
-
-  const requesterId = await verifyAuth(request.auth?.uid);
-  const {contractId, signerEmailOverride} = request.data;
-
-  if (!contractId || typeof contractId !== "string") {
-    throw new HttpsError("invalid-argument", "Valid contract ID is required.");
-  }
-
-  let tempFilePath: string | null = null;
-  let fileSentViaUrl = false;
-
+/**
+ * Extracts plain text paragraphs from an SFDT JSON string.
+ * @param {string} contractText The SFDT JSON string or plain text.
+ * @return {string[]} Array of paragraph strings.
+ */
+function extractParagraphs(contractText: string): string[] {
   try {
-    const contractDocRef = db.collection("contracts").doc(contractId);
-    const contractSnap = await contractDocRef.get();
-
-    if (!contractSnap.exists) {
-      throw new HttpsError("not-found", "Contract not found.");
-    }
-
-    const contractData = contractSnap.data() as Contract;
-
-    const requesterDoc = await db.collection("users").doc(requesterId).get();
-    const requesterData = requesterDoc.data() as UserProfileFirestoreData;
-
-    // --- PERMISSION CHECK ---
-    const isDirectOwner = contractData.userId === requesterId;
-    let isAuthorizedTeamMember = false;
-
-    if (contractData.ownerType === "agency" && contractData.ownerId) {
-      const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
-      if (agencyDoc.exists) {
-        const agencyData = agencyDoc.data();
-        const isAgencyOwner = agencyData?.ownerId === requesterId;
-        const isTeamMember = agencyData?.team?.some((m: any) => m.userId === requesterId &&
-            (m.role === "admin" || m.role === "member"));
-        isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
-      }
-    }
-
-    if (!isDirectOwner && !isAuthorizedTeamMember) {
-      throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
-    }
-    // --- END PERMISSION CHECK ---
-
-
-    const formData = new FormData();
-    const API_ENDPOINT = "https://api.hellosign.com/v3/signature_request/send";
-
-    if (contractData.contractText) {
-      logger.info(`Generating and writing HTML file locally for contract ${contractId}.`);
-
-      let htmlBody = "";
-      try {
-        const sfdtData = JSON.parse(contractData.contractText);
-
-        if (sfdtData && sfdtData.sec) {
-          sfdtData.sec.forEach((section: any) => {
-            if (section.b) {
-              section.b.forEach((block: any) => {
-                let paragraphHtml = "";
-                if (block.i) {
-                  block.i.forEach((inline: any) => {
-                    if (inline.tlp) {
-                      let text = inline.tlp;
-                      // Apply character formatting
-                      if (inline.cf) {
-                        if (inline.cf.b) text = `<strong>${text}</strong>`;
-                        if (inline.cf.i) text = `<em>${text}</em>`;
-                      }
-                      paragraphHtml += text;
-                    }
-                  });
-                }
-
-                // Apply paragraph formatting
-                let blockTag = "p";
-                const blockStyles: string[] = [];
-                if (block.pf) {
-                  if (block.pf.stn?.startsWith("Heading")) {
-                    const level = block.pf.stn.split(" ")[1];
-                    if (level && !isNaN(parseInt(level))) {
-                      blockTag = `h${level}`;
-                    }
-                  }
-                  if (block.pf.ta === 1) blockStyles.push("text-align: center;");
-                  if (block.pf.ta === 2) blockStyles.push("text-align: right;");
-                }
-
-                if (paragraphHtml.trim().length > 0) {
-                  htmlBody += `<${blockTag} style="${blockStyles.join(" ")}">${paragraphHtml}</${blockTag}>`;
-                } else {
-                  htmlBody += "<br>"; // Add a line break for empty blocks to preserve spacing
-                }
-              });
-            }
-          });
-        }
-      } catch (e) {
-        logger.error(`Failed to parse SFDT JSON for contract ${contractId}. Using raw text as fallback.`, e);
-        // Fallback for plain text
-        htmlBody = contractData.contractText
-          .split("\n")
-          .map((p) => p.trim() ? `<p>${p}</p>` : "<br>")
-          .join("");
-      }
-
-
-      const htmlContent = `
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Contract: ${contractData.projectName || contractData.brand}</title>
-            <style>
-              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; margin: 2rem; color: #000; }
-              p, h1, h2, h3, h4, h5, h6 { margin-bottom: 1em; }
-              h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.17em; }
-            </style>
-          </head>
-          <body>
-            ${htmlBody}
-          </body>
-          </html>
-        `;
-
-      // --- DIAGNOSTIC LOGGING ---
-      if (htmlBody.length < 5) {
-        logger.warn(`Generated HTML Body is likely EMPTY. Length: ${htmlBody.length}.`);
-        logger.warn(`SFDT Data Size Check: ${contractData.contractText.length} characters.`);
-      } else {
-        logger.info(`Successfully generated HTML. Length: ${htmlBody.length}.
-          Preview (first 500 chars): ${htmlContent.substring(0, 500)}`);
-      }
-      // --- END DIAGNOSTIC LOGGING ---
-
-      tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.html`);
-      fs.writeFileSync(tempFilePath, htmlContent);
-
-      formData.append("file[0]", fs.createReadStream(tempFilePath), {
-        filename: `contract-${contractId}-${Date.now()}.html`,
-        contentType: "text/html",
+    const sfdt = JSON.parse(contractText);
+    const sections = sfdt.sections || sfdt.sec || [];
+    const paragraphs: string[] = [];
+    sections.forEach((section: any) => {
+      const blocks = section.blocks || section.b || [];
+      blocks.forEach((block: any) => {
+        const inlines = block.inlines || block.i || [];
+        let para = "";
+        inlines.forEach((inline: any) => {
+          para += inline.text || inline.tlp || "";
+        });
+        paragraphs.push(para);
       });
-    } else if (contractData.fileUrl) {
-      logger.info(`Using existing fileUrl for contract ${contractId}.`);
-      formData.append("file_url[0]", contractData.fileUrl);
-      fileSentViaUrl = true;
-    } else {
-      throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
-    }
-
-    const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
-    if (!finalSignerEmail) {
-      throw new HttpsError("invalid-argument", "Signer email is missing. Please ensure client email is set or provide one.");
-    }
-
-    const creatorUserId = contractData.userId;
-    const creatorUserRecord = await admin.auth().getUser(creatorUserId);
-    const creatorEmail = creatorUserRecord.email;
-    if (!creatorEmail) {
-      throw new HttpsError("failed-precondition", "Creator's email not found. Cannot send signature request.");
-    }
-
-    const creatorUserDoc = await db.collection("users").doc(creatorUserId).get();
-    const creatorUserData = creatorUserDoc.data() as UserProfileFirestoreData;
-    if (!creatorUserData) {
-      throw new HttpsError("failed-precondition", "Creator's display name not found. Cannot send signature request.");
-    }
-
-    // Convert complex objects to JSON strings or simple values for form-data
-    const metadata = JSON.stringify({
-      contract_id: contractId,
-      user_id: creatorUserId,
-      verza_env: "development",
     });
+    return paragraphs;
+  } catch (e) {
+    return contractText.split("\n");
+  }
+}
 
-    const signers = JSON.stringify([
-      {
-        email_address: finalSignerEmail,
-        name: contractData.clientName || "Client Signer",
-        order: 0, // Explicitly set order if needed
-      },
-      {
-        email_address: creatorEmail,
-        name: creatorUserData.displayName || "Creator Signer",
-        order: 1, // Explicitly set order if needed
-      },
-    ]);
+/**
+ * Generates a PDF buffer from contract text with a dedicated signature page appended.
+ * Returns the PDF buffer and the 1-indexed page number of the signature page.
+ * @param {string} contractText The SFDT or plain text contract content.
+ * @param {string} title Document title shown at the top.
+ * @param {string} clientName Name of the client signer.
+ * @param {string} creatorName Name of the creator signer.
+ * @return {Promise<{buffer: Buffer, signaturePage: number}>} PDF buffer and signature page number.
+ */
+async function generateContractPdf(
+  contractText: string,
+  title: string,
+  clientName: string,
+  creatorName: string,
+): Promise<{buffer: Buffer; signaturePage: number}> {
+  const [PAGE_W, PAGE_H] = PageSizes.Letter; // 612 x 792
+  const MARGIN = 72;
+  const CONTENT_W = PAGE_W - 2 * MARGIN;
+  const BODY_SIZE = 11;
+  const LINE_H = BODY_SIZE * 1.45;
 
-    // Append all options required by the Dropbox Sign API to the form data
-    formData.append("test_mode", "1"); // Equivalent to options.testMode: true
-    formData.append("title", contractData.projectName || `Contract with ${contractData.brand}`);
-    formData.append("subject", contractData.projectName || `Contract for ${contractData.brand}`);
-    formData.append("message", `Hello,\n\nPlease review and sign the attached contract regarding ${contractData.projectName ||
-      contractData.brand}.\n\nThank you,\n${creatorUserData.displayName || "The Contract Sender"}`);
-    formData.append("signers", signers); // Sending signers array as JSON string
-    formData.append("metadata", metadata); // Sending metadata object as JSON string
+  const pdfDoc = await PDFDocument.create();
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    if (isAuthorizedTeamMember && requesterData.email) {
-      formData.append("cc_email_addresses", JSON.stringify([requesterData.email!]));
-      // Note: Message needs to be updated before appending if necessary
+  // pdf-lib origin is bottom-left; y decreases as we move down the page
+  let page = pdfDoc.addPage(PageSizes.Letter);
+  let y = PAGE_H - MARGIN;
+
+  const ensureSpace = (needed: number) => {
+    if (y - needed < MARGIN) {
+      page = pdfDoc.addPage(PageSizes.Letter);
+      y = PAGE_H - MARGIN;
     }
+  };
 
-    logger.info("Sending Dropbox Sign request using FormData via Axios.");
+  const drawLine = (text: string, font: typeof regular, size: number, x = MARGIN) => {
+    ensureSpace(size * 1.5);
+    page.drawText(text, {x, y, size, font, color: rgb(0, 0, 0), maxWidth: CONTENT_W});
+    y -= LINE_H;
+  };
 
-    const response = await axios.post(
-      API_ENDPOINT,
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          "Authorization": `Basic ${Buffer.from(HELLOSIGN_API_KEY + ":").toString("base64")}`,
-        },
-        auth: {
-          username: HELLOSIGN_API_KEY,
-          password: "",
-        },
+  // Word-wrap a paragraph into individual lines, then draw each
+  const drawParagraph = (text: string, font: typeof regular, size: number) => {
+    const words = text.split(" ").filter((w) => w.length > 0);
+    let line = "";
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(test, size) > CONTENT_W && line) {
+        drawLine(line, font, size);
+        line = word;
+      } else {
+        line = test;
       }
-    );
-
-    const responseData = response.data;
-    const signatureRequestId = responseData.signature_request?.signature_request_id;
-
-    if (!signatureRequestId) {
-      logger.error("Dropbox Sign response missing signature_request_id", responseData);
-      throw new HttpsError("internal", "Failed to get signature request ID from Dropbox Sign.");
     }
+    if (line) drawLine(line, font, size);
+  };
 
-    await contractDocRef.update({
-      helloSignRequestId: signatureRequestId,
-      signatureStatus: "sent",
-      lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
-      invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-        timestamp: admin.firestore.Timestamp.now(),
-        action: "E-Signature Request Sent (Dropbox Sign)",
-        details: `To Client: ${finalSignerEmail}, To Creator: ${creatorEmail}. Dropbox Sign ID: ${signatureRequestId}`,
-      }),
-    });
+  // Title
+  drawParagraph(title, bold, 16);
+  y -= 10;
 
-    logger.info(`Dropbox Sign request ${signatureRequestId} sent for contract ${contractId}.`);
-    return {
-      success: true,
-      message: `Signature request sent to ${finalSignerEmail} and ${creatorEmail} via Dropbox Sign.`,
-      helloSignRequestId: signatureRequestId,
-    };
-  } catch (error: any) {
-    logger.error(`Error initiating Dropbox Sign request for contract ${contractId}:`, error);
-
-    let errorMessage = "An unknown error occurred.";
-    if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.error?.error_msg || error.message;
-      if (error.response?.status === 401) {
-        throw new HttpsError("unauthenticated", "Dropbox Sign API key is invalid or missing, or network issue.");
-      }
-      if (error.response?.status === 400) {
-        throw new HttpsError("invalid-argument", `Dropbox Sign error: ${errorMessage}`);
-      }
-    } else if (error instanceof HttpsError) {
-      throw error;
+  // Body
+  const paragraphs = extractParagraphs(contractText);
+  for (const para of paragraphs) {
+    if (para.trim()) {
+      drawParagraph(para.trim(), regular, BODY_SIZE);
+      y -= 4;
     } else {
-      errorMessage = error.message;
-    }
-
-    throw new HttpsError("internal", errorMessage);
-  } finally {
-    if (tempFilePath && !fileSentViaUrl) {
-      try {
-        fs.unlinkSync(tempFilePath);
-      } catch (e) {
-        logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
-      }
+      y -= LINE_H * 0.5;
     }
   }
-});
 
+  // ---- Signature page ----
+  page = pdfDoc.addPage(PageSizes.Letter);
+  const signaturePage = pdfDoc.getPageCount(); // 1-indexed
 
-export const helloSignWebhookHandler = onRequest(async (request, response) => {
-  const HELLOSIGN_API_KEY = params.HELLOSIGN_API_KEY.value();
+  // pdf-lib y for the signature field: PAGE_H - SIGNATURE_Y = 792 - 220 = 572 (from bottom)
+  const sigLineY = PAGE_H - SIGNATURE_Y; // 572
 
-  if (request.method !== "POST") {
-    logger.warn("Received non-POST request to webhook.");
-    response.status(405).send("Method Not Allowed");
-    return;
-  }
+  // Heading
+  const headingText = "SIGNATURES";
+  const headingW = bold.widthOfTextAtSize(headingText, 14);
+  page.drawText(headingText, {
+    x: (PAGE_W - headingW) / 2,
+    y: PAGE_H - MARGIN,
+    size: 14,
+    font: bold,
+    color: rgb(0, 0, 0),
+  });
 
-  let actualEventPayload: any = null;
-  const contentType = request.headers["content-type"] || "";
+  const subText = "By signing below, both parties agree to the terms of this contract.";
+  const subW = regular.widthOfTextAtSize(subText, 9);
+  page.drawText(subText, {
+    x: (PAGE_W - subW) / 2,
+    y: PAGE_H - MARGIN - 22,
+    size: 9,
+    font: regular,
+    color: rgb(0.4, 0.4, 0.4),
+  });
 
-  if (contentType.startsWith("application/json") && typeof request.body === "object" && !Buffer.isBuffer(request.body)) {
-    actualEventPayload = request.body;
-    logger.info("Webhook payload used directly from request.body (application/json).");
-  } else if (contentType.startsWith("application/x-www-form-urlencoded") && typeof request.body === "object" &&
-  typeof request.body.json === "string") {
+  // Brand block (left) — label and name sit well above the line so a drawn signature won't overlap
+  const leftX = MARGIN;
+  page.drawText("Brand", {x: leftX, y: sigLineY + 80, size: 11, font: bold, color: rgb(0, 0, 0)});
+  page.drawText(clientName, {x: leftX, y: sigLineY + 62, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
+  page.drawLine({start: {x: leftX, y: sigLineY}, end: {x: leftX + 200, y: sigLineY}, thickness: 0.75, color: rgb(0, 0, 0)});
+  page.drawText("Signature", {x: leftX, y: sigLineY - 13, size: 8, font: regular, color: rgb(0.5, 0.5, 0.5)});
+
+  // Creator block (right)
+  const rightX = 320;
+  page.drawText("Creator", {x: rightX, y: sigLineY + 80, size: 11, font: bold, color: rgb(0, 0, 0)});
+  page.drawText(creatorName, {x: rightX, y: sigLineY + 62, size: 10, font: regular, color: rgb(0.2, 0.2, 0.2)});
+  page.drawLine({start: {x: rightX, y: sigLineY}, end: {x: rightX + 200, y: sigLineY}, thickness: 0.75, color: rgb(0, 0, 0)});
+  page.drawText("Signature", {x: rightX, y: sigLineY - 13, size: 8, font: regular, color: rgb(0.5, 0.5, 0.5)});
+
+  const pdfBytes = await pdfDoc.save();
+  return {buffer: Buffer.from(pdfBytes), signaturePage};
+}
+
+export const initiateBoldSignRequest = onCall(
+  {secrets: [params.BOLDSIGN_API_KEY]},
+  async (request) => {
+    const apiKey = params.BOLDSIGN_API_KEY.value();
+    if (!apiKey) {
+      throw new HttpsError("failed-precondition", "E-signature service is not configured.");
+    }
+
+    const requesterId = await verifyAuth(request.auth?.uid);
+    const {contractId, signerEmailOverride} = request.data;
+
+    if (!contractId || typeof contractId !== "string") {
+      throw new HttpsError("invalid-argument", "Valid contract ID is required.");
+    }
+
+    let tempFilePath: string | null = null;
+
     try {
-      actualEventPayload = JSON.parse(request.body.json);
-      logger.info("Webhook payload parsed from request.body.json (application/x-www-form-urlencoded).");
-    } catch (e: any) {
-      logger.error("Failed to parse request.body.json from form-urlencoded:", e.message, "Content:", request.body.json);
-    }
-  } else if (contentType.startsWith("multipart/form-data") && Buffer.isBuffer(request.body)) {
-    logger.info("Multipart/form-data detected. Attempting to extract 'json' field.");
-    const bodyString = request.body.toString("utf8");
-    const boundaryHeader = contentType.split("boundary=")[1];
+      const contractDocRef = db.collection("contracts").doc(contractId);
+      const contractSnap = await contractDocRef.get();
 
-    if (boundaryHeader) {
-      const boundary = `--${boundaryHeader}`;
-      const parts = bodyString.split(boundary);
+      if (!contractSnap.exists) {
+        throw new HttpsError("not-found", "Contract not found.");
+      }
 
-      for (const part of parts) {
-        if (part.includes("Content-Disposition: form-data; name=\"json\"")) {
-          const headerEndMatch = part.match(/(\r\n\r\n|\n\n)/);
-          if (headerEndMatch && headerEndMatch.index !== undefined) {
-            const jsonContentStartIndex = headerEndMatch.index + headerEndMatch[0].length;
-            let jsonStr = part.substring(jsonContentStartIndex).trim();
-            if (jsonStr.endsWith("\r\n")) {
-              jsonStr = jsonStr.slice(0, -2);
-            } else if (jsonStr.endsWith("\n")) {
-              jsonStr = jsonStr.slice(0, -1);
-            }
-            try {
-              actualEventPayload = JSON.parse(jsonStr);
-              logger.info("Successfully parsed 'json' field from multipart/form-data. Length:", jsonStr.length);
-              break;
-            } catch (e: any) {
-              logger.error("Failed to parse JSON from extracted 'json' multipart field:", {
-                errorMessage: e.message,
-                extractedStringStart: jsonStr.substring(0, 200),
-                extractedStringEnd: jsonStr.substring(Math.max(0, jsonStr.length - 200)),
-              });
-            }
-          }
+      const contractData = contractSnap.data() as Contract;
+
+      // --- PERMISSION CHECK ---
+      const isDirectOwner = contractData.userId === requesterId;
+      let isAuthorizedTeamMember = false;
+
+      if (contractData.ownerType === "agency" && contractData.ownerId) {
+        const agencyDoc = await db.collection("agencies").doc(contractData.ownerId).get();
+        if (agencyDoc.exists) {
+          const agencyData = agencyDoc.data();
+          const isAgencyOwner = agencyData?.ownerId === requesterId;
+          const isTeamMember = agencyData?.team?.some((m: any) =>
+            m.userId === requesterId && (m.role === "admin" || m.role === "member")
+          );
+          isAuthorizedTeamMember = isAgencyOwner || isTeamMember;
         }
       }
-      if (!actualEventPayload) {
-        logger.warn("Could not find or parse 'json' field in multipart/form-data body after splitting by boundary.");
+
+      if (!isDirectOwner && !isAuthorizedTeamMember) {
+        throw new HttpsError("permission-denied", "You do not have permission to access this contract.");
       }
-    } else {
-      logger.warn("Multipart/form-data but boundary not found in Content-Type header.");
+      // --- END PERMISSION CHECK ---
+
+      const finalSignerEmail = signerEmailOverride || contractData.clientEmail;
+      if (!finalSignerEmail) {
+        throw new HttpsError("invalid-argument",
+          "Signer email is missing. Please ensure client email is set or provide one.");
+      }
+
+      const creatorUserRecord = await admin.auth().getUser(contractData.userId);
+      const creatorEmail = creatorUserRecord.email;
+      if (!creatorEmail) {
+        throw new HttpsError("failed-precondition", "Creator's email not found.");
+      }
+
+      const creatorUserDoc = await db.collection("users").doc(contractData.userId).get();
+      const creatorUserData = creatorUserDoc.data() as UserProfileFirestoreData;
+      if (!creatorUserData) {
+        throw new HttpsError("failed-precondition", "Creator profile not found.");
+      }
+
+      const docTitle = contractData.projectName || `Contract with ${contractData.brand}`;
+
+      // Build HTML from SFDT and write to temp file
+      if (!contractData.contractText && !contractData.fileUrl) {
+        throw new HttpsError("failed-precondition", "Contract has no text or file to send for signature.");
+      }
+
+      let fileStream: fs.ReadStream;
+      let signaturePage = 1;
+
+      if (contractData.contractText) {
+        // Generate a proper PDF with a dedicated signature page
+        const {buffer, signaturePage: sigPage} = await generateContractPdf(
+          contractData.contractText,
+          docTitle,
+          contractData.clientName || "Client Signer",
+          creatorUserData.displayName || "Creator Signer",
+        );
+        signaturePage = sigPage;
+        tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.pdf`);
+        fs.writeFileSync(tempFilePath, buffer);
+        fileStream = fs.createReadStream(tempFilePath);
+      } else {
+        // File URL path: download to temp file (must already be a PDF)
+        const {default: fetch} = await import("node-fetch");
+        const fileResponse = await fetch(contractData.fileUrl!);
+        const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+        tempFilePath = path.join(os.tmpdir(), `contract-${contractId}-${Date.now()}.pdf`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
+        fileStream = fs.createReadStream(tempFilePath);
+        signaturePage = 1; // file-based contracts: fields go on page 1
+      }
+
+      // Signature fields on the known signature page at fixed coordinates
+      const clientField = new FormField();
+      clientField.fieldType = FormField.FieldTypeEnum.Signature;
+      clientField.pageNumber = signaturePage;
+      clientField.bounds = {x: 72, y: SIGNATURE_Y - 50, width: 200, height: 50} as any;
+      clientField.isRequired = true;
+
+      const creatorField = new FormField();
+      creatorField.fieldType = FormField.FieldTypeEnum.Signature;
+      creatorField.pageNumber = signaturePage;
+      creatorField.bounds = {x: 320, y: SIGNATURE_Y - 50, width: 200, height: 50} as any;
+      creatorField.isRequired = true;
+
+      const clientSigner = new DocumentSigner();
+      clientSigner.name = contractData.clientName || "Client Signer";
+      clientSigner.emailAddress = finalSignerEmail;
+      clientSigner.signerOrder = 1;
+      clientSigner.formFields = [clientField];
+
+      const creatorSigner = new DocumentSigner();
+      creatorSigner.name = creatorUserData.displayName || "Creator Signer";
+      creatorSigner.emailAddress = creatorEmail;
+      creatorSigner.signerOrder = 2;
+      creatorSigner.formFields = [creatorField];
+
+      const sendForSign = new SendForSign();
+      sendForSign.title = docTitle;
+      sendForSign.message =
+        `Hello,\n\nPlease review and sign the attached contract for ${docTitle}.
+        \n\nThank you,\n${creatorUserData.displayName || "The Sender"}`;
+      sendForSign.signers = [clientSigner, creatorSigner];
+      sendForSign.files = [fileStream as any];
+      sendForSign.enableSigningOrder = true;
+
+      const documentApi = new DocumentApi();
+      documentApi.setApiKey(apiKey);
+
+      const boldSignResponse = await documentApi.sendDocument(sendForSign);
+      const documentId = (boldSignResponse as any).documentId;
+
+      if (!documentId) {
+        throw new HttpsError("internal", "Failed to get document ID from BoldSign.");
+      }
+
+      await contractDocRef.update({
+        boldSignDocumentId: documentId,
+        signatureStatus: "sent",
+        lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
+        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
+          timestamp: admin.firestore.Timestamp.now(),
+          action: "E-Signature Request Sent (BoldSign)",
+          details: `To Client: ${finalSignerEmail}, To Creator: ${creatorEmail}. BoldSign Document ID: ${documentId}`,
+        }),
+      });
+
+      logger.info(`BoldSign document ${documentId} sent for contract ${contractId}.`);
+      return {
+        success: true,
+        message: `Signature request sent to ${finalSignerEmail} and ${creatorEmail} via BoldSign.`,
+        boldSignDocumentId: documentId,
+      };
+    } catch (error: any) {
+      logger.error(`Error initiating BoldSign request for contract ${contractId}:`, error);
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError("internal", error.message || "An unknown error occurred.");
+    } finally {
+      if (tempFilePath) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (e) {
+          logger.warn(`Could not delete temp file: ${tempFilePath}`, e);
+        }
+      }
     }
-  } else if (Buffer.isBuffer(request.body)) {
-    const bodyString = request.body.toString("utf8");
-    logger.info("Raw buffer body received (not handled by specific content type logic)," +
-      "attempting direct JSON parse. Length:", bodyString.length);
+  }
+);
+
+
+export const boldSignWebhookHandler = onRequest(
+  {secrets: [params.BOLDSIGN_WEBHOOK_SECRET]},
+  async (request, response) => {
+    const webhookSecret = params.BOLDSIGN_WEBHOOK_SECRET.value();
+
+    if (request.method !== "POST") {
+      response.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    // BoldSign sends the secret as a static value in a custom header (not HMAC).
+    // Configure via BoldSign UI: "Add secret header", header name = "x-verza-secret".
+    const receivedSecret = request.headers["x-verza-secret"] as string | undefined;
+    if (webhookSecret) {
+      if (!receivedSecret || receivedSecret !== webhookSecret) {
+        logger.warn("BoldSign webhook: missing or invalid secret header.");
+        response.status(403).send("Forbidden.");
+        return;
+      }
+    }
+
+    let payload: any;
     try {
-      actualEventPayload = JSON.parse(bodyString);
-      logger.info("Webhook payload parsed from raw Buffer body (direct JSON parse).");
+      payload = typeof request.body === "object" && !Buffer.isBuffer(request.body) ?
+        request.body :
+        JSON.parse(request.body.toString("utf8"));
     } catch (e) {
-      logger.warn("Request body is a Buffer (unknown type) and could not be parsed as JSON directly. Body (partial):",
-        bodyString.substring(0, 250));
-    }
-  }
-
-  if (actualEventPayload && typeof actualEventPayload === "object" && actualEventPayload.event &&
-    typeof actualEventPayload.event.event_type === "string" &&
-      (actualEventPayload.event.event_type === "test" ||
-        actualEventPayload.event.event_type.endsWith("_test"))
-  ) {
-    logger.info(`Received Dropbox Sign test event: ${actualEventPayload.event.event_type}. Responding with 200 OK.`,
-      actualEventPayload);
-    response.status(200).send("Hello API Event Received");
-    return;
-  }
-
-  if (!actualEventPayload || typeof actualEventPayload !== "object") {
-    logger.error("Webhook payload could not be successfully parsed into a usable object or was empty/unrecognized.", {
-      originalBodyType: typeof request.body,
-      isBuffer: Buffer.isBuffer(request.body),
-      contentType: request.headers["content-type"] || "N/A",
-      bodyPreview: Buffer.isBuffer(request.body) ? request.body.toString("utf8", 0, 250) : (typeof request.body === "string" ?
-        request.body.substring(0, 250) : "Non-string/buffer body"),
-    });
-    response.status(400).send("Invalid payload format or content.");
-    return;
-  }
-
-  if (!HELLOSIGN_API_KEY) {
-    logger.error("HELLOSIGN_API_KEY is not configured. Cannot verify webhook.");
-    response.status(500).send("Webhook not configured.");
-    return;
-  }
-
-  try {
-    const eventData = actualEventPayload.event;
-    const signatureRequestData = actualEventPayload.signature_request;
-
-    if (!eventData || typeof eventData !== "object" || !eventData.event_time ||
-      !eventData.event_type || !eventData.event_hash) {
-      logger.error("Invalid webhook payload: Missing essential event data fields (event_time, event_type, event_hash)" +
-        "in parsed payload.", actualEventPayload);
-      response.status(400).send("Invalid payload: missing required event data fields.");
+      logger.error("Failed to parse BoldSign webhook payload.", e);
+      response.status(400).send("Invalid payload.");
       return;
     }
 
-    const {event_time: eventTime, event_type: eventType, event_hash: receivedHash} = eventData;
-    const computedHash = crypto
-      .createHmac("sha256", HELLOSIGN_API_KEY)
-      .update(eventTime + eventType)
-      .digest("hex");
+    // Actual BoldSign payload shape:
+    // payload.event.eventType  = "Completed" | "Signed" | "Viewed" | "Declined" | "Revoked" | "Expired" | "Sent"
+    // payload.data.documentId
+    // payload.data.signerDetails[]  — who signed/viewed
+    // payload.context.actor         — actor for partial events (may be null)
+    const eventType: string = payload?.event?.eventType;
+    const documentId: string = payload?.data?.documentId;
+    const signerDetails: any[] = payload?.data?.signerDetails || [];
+    const actor = payload?.context?.actor;
+    const actorName: string | null = actor?.name || actor?.emailAddress || null;
 
-    if (computedHash !== receivedHash) {
-      logger.warn("Webhook event hash mismatch. Potential tampering or misconfiguration.", {receivedHash, computedHash});
-      response.status(403).send("Invalid signature.");
+    logger.info(`BoldSign webhook received: ${eventType}`, {documentId});
+
+    if (!eventType || !documentId) {
+      response.status(200).send("OK");
       return;
     }
 
-    logger.info(`Received verified Dropbox Sign event: ${eventType}`, {eventMetadata: eventData.event_metadata});
-
-    const signatureRequestId = signatureRequestData?.signature_request_id;
-
-    if (!signatureRequestId && eventData.event_metadata?.reported_for_account_id) {
-      logger.info(`Received account-level callback: ${eventType}. No signature_request_id expected or needed for this type.`);
-      response.status(200).send("Hello API Event Received");
-      return;
-    }
-
-    if (eventType.startsWith("signature_request_") && !signatureRequestId) {
-      logger.error("Webhook payload missing signature_request_id for a signature_request event.", signatureRequestData);
-      response.status(200).send("Hello API Event Received (Error Logged)"); // Acknowledge but log
-      return;
-    }
-
-    if (signatureRequestId) {
+    try {
       const contractsRef = db.collection("contracts");
-      const q = contractsRef.where("helloSignRequestId", "==", signatureRequestId).limit(1);
-      const contractSnapshot = await q.get();
+      const snap = await contractsRef
+        .where("boldSignDocumentId", "==", documentId)
+        .limit(1)
+        .get();
 
-      if (contractSnapshot.empty) {
-        logger.warn(`No contract found for helloSignRequestId: ${signatureRequestId}`);
-        response.status(200).send("Hello API Event Received"); // Acknowledge
+      if (snap.empty) {
+        logger.warn(`No contract found for boldSignDocumentId: ${documentId}`);
+        response.status(200).send("OK");
         return;
       }
 
-      const contractDocRef = contractSnapshot.docs[0].ref;
-      const contractData = contractSnapshot.docs[0].data() as Contract;
+      const contractDocRef = snap.docs[0].ref;
+      const contractData = snap.docs[0].data() as Contract;
+
       let newStatus: Contract["signatureStatus"] = contractData.signatureStatus;
-      let signedDocumentUrl: string | null = contractData.signedDocumentUrl || null;
-      let historyAction = `Dropbox Sign Event: ${eventType}`;
+      let historyAction: string;
+      let historyDetails: string;
 
       switch (eventType) {
-      case "signature_request_viewed":
+      case "Viewed": {
         newStatus = "viewed_by_signer";
-        historyAction = "Document Viewed by Signer (Dropbox Sign)";
+        const viewer = actorName ||
+          signerDetails.find((s) => s.isViewed)?.signerName ||
+          "A signer";
+        historyAction = "Document Viewed (BoldSign)";
+        historyDetails = `${viewer} viewed the document. Document ID: ${documentId}`;
         break;
-      case "signature_request_signed":
-        if (signatureRequestData?.is_complete) {
-          newStatus = "signed";
-          historyAction = "Document Fully Signed (Dropbox Sign)";
-          if (signatureRequestData.files_url) {
-            signedDocumentUrl = signatureRequestData.files_url;
-          }
-        } else {
-          logger.info(`Signature received for ${signatureRequestId}, but not all signed yet.`);
-          historyAction = `Signer Action: ${eventType} (Pending others)`;
-        }
+      }
+      case "Signed": {
+        // One signer signed; not all done yet
+        const signer = actorName ||
+          signerDetails.find((s) => s.status === "Completed")?.signerName ||
+          "A signer";
+        historyAction = `Document Signed by ${signer} (BoldSign)`;
+        historyDetails = `${signer} signed the document. Awaiting remaining signers. Document ID: ${documentId}`;
         break;
-      case "signature_request_all_signed":
+      }
+      case "Completed": {
         newStatus = "signed";
-        historyAction = "Document Fully Signed (Dropbox Sign)";
-        if (signatureRequestData?.files_url) {
-          signedDocumentUrl = signatureRequestData.files_url;
-        }
+        const signerNames = signerDetails.map((s) => s.signerName).join(", ");
+        historyAction = "Document Fully Signed — All Parties (BoldSign)";
+        historyDetails = `Signed by: ${signerNames || "all parties"}. Document ID: ${documentId}`;
         break;
-      case "signature_request_declined":
+      }
+      case "Declined": {
         newStatus = "declined";
-        historyAction = "Signature Declined by Signer (Dropbox Sign)";
+        const decliner = actorName ||
+          signerDetails.find((s) => s.status === "Declined")?.signerName ||
+          "A signer";
+        historyAction = `Signature Declined by ${decliner} (BoldSign)`;
+        historyDetails = `${decliner} declined to sign. Document ID: ${documentId}`;
         break;
-      case "signature_request_canceled":
+      }
+      case "Revoked":
         newStatus = "canceled";
-        historyAction = "Signature Request Canceled (Dropbox Sign)";
+        historyAction = "Signature Request Revoked (BoldSign)";
+        historyDetails = `The signature request was revoked. Document ID: ${documentId}`;
         break;
-      case "signature_request_error":
-        newStatus = "error";
-        historyAction = "Dropbox Sign Error Processing Request";
-        logger.error(`Dropbox Sign error event for ${signatureRequestId}:`, signatureRequestData?.error);
+      case "Expired":
+        newStatus = "canceled";
+        historyAction = "Signature Request Expired (BoldSign)";
+        historyDetails = `The signature request expired. Document ID: ${documentId}`;
         break;
+      case "Sent":
+        // Already recorded when we called sendDocument — just acknowledge
+        response.status(200).send("OK");
+        return;
       default:
-        logger.info(`Unhandled Dropbox Sign event type specific to signature requests: ${eventType}`);
-        response.status(200).send("Hello API Event Received");
+        logger.info(`Unhandled BoldSign event type: ${eventType}`);
+        response.status(200).send("OK");
         return;
       }
 
-      const updates: Partial<Contract> = {
+      const updates: any = {
         signatureStatus: newStatus,
-        lastSignatureEventAt: admin.firestore.Timestamp.fromDate(new Date(eventTime * 1000)) as any,
+        lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
         invoiceHistory: admin.firestore.FieldValue.arrayUnion({
           timestamp: admin.firestore.Timestamp.now(),
           action: historyAction,
-          details: `Dropbox Sign Event: ${eventType}. Request ID: ${signatureRequestId}`,
-        }) as any,
+          details: historyDetails,
+        }),
       };
 
-      if (signedDocumentUrl && signedDocumentUrl !== contractData.signedDocumentUrl) {
-        updates.signedDocumentUrl = signedDocumentUrl;
-      }
-
       await contractDocRef.update(updates);
-      logger.info(`Contract ${contractDocRef.id} updated successfully for event ${eventType}.`);
-    } else if (eventType !== "account_callback_test" &&
-      !eventData.event_metadata?.reported_for_account_id) {
-      logger.warn(`Received event type ${eventType} without a signatureRequestId and it's not a known 
-        account event or specific test.`);
+      logger.info(`Contract ${contractDocRef.id} updated for BoldSign event ${eventType}.`);
+    } catch (error) {
+      logger.error("Error processing BoldSign webhook:", error);
+      response.status(500).send("Error processing webhook.");
+      return;
     }
 
-    response.status(200).send("Hello API Event Received");
-  } catch (error) {
-    logger.error("Error processing Dropbox Sign webhook:", error);
-    if (!response.headersSent) {
-      response.status(500).send("Error processing webhook.");
-    }
+    response.status(200).send("OK");
   }
-});
+);

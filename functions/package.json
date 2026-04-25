@@ -15,7 +15,8 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@dropbox/sign": "^1.10.0",
+    "boldsign": "^3.1.3",
+    "pdf-lib": "^1.17.1",
     "@genkit-ai/firebase": "^1.28.0",
     "@genkit-ai/google-genai": "^1.28.0",
     "@sendgrid/mail": "^8.1.5",

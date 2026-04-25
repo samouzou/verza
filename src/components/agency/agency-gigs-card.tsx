@@ -36,7 +36,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
         setIsLoadingGigs(false);
     }, (error) => {
         console.error("Error fetching agency gigs:", error);
-        toast({ title: "Deployments Error", description: "Could not fetch your agency's deployments.", variant: "destructive" });
+        toast({ title: "Campaigns Error", description: "Could not fetch your agency's campaigns.", variant: "destructive" });
         setIsLoadingGigs(false);
     });
 
@@ -47,7 +47,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
     <Card id="agency-gigs-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Active Campaigns</CardTitle>
-        <CardDescription>A history of all deployments launched by your agency.</CardDescription>
+        <CardDescription>A history of all campaigns launched by your agency.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoadingGigs ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
@@ -75,7 +75,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
                   <TableCell className="text-right font-mono">${gig.ratePerCreator.toLocaleString()}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild variant="ghost" size="sm">
-                        <Link href={`/deployments/${gig.id}`}>
+                        <Link href={`/campaigns/${gig.id}`}>
                             View <ExternalLink className="ml-2 h-3 w-3" />
                         </Link>
                     </Button>

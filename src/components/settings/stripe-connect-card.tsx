@@ -295,6 +295,26 @@ export function StripeConnectCard() {
         </div>
 
         {(!user.stripeAccountId || user.stripeAccountStatus === 'none') && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-4 flex gap-3 text-sm">
+            <AlertTriangleIcon className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-2">
+              <p className="font-semibold text-amber-600 dark:text-amber-400">🚨 The Stripe &ldquo;Limbo&rdquo; Bug — Read Before Clicking</p>
+              <p className="text-muted-foreground">
+                Stripe has a known bug: if you verify using an email already tied to an old Stripe account, their risk engine can put your application in <strong>&ldquo;review limbo&rdquo;</strong> indefinitely with no follow-up.
+              </p>
+              <p className="font-medium text-foreground">The Verza Cheat Code</p>
+              <p className="text-muted-foreground">
+                Use an email that has <strong>never been used on Stripe before</strong> — this guarantees instant approval. This email does <em>not</em> need to match your Verza login.
+              </p>
+              <p className="text-muted-foreground">
+                Easiest fix: add <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">+stripe</code> to your Gmail — e.g.{" "}
+                <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">name+stripe@gmail.com</code>. Stripe treats it as a brand-new account, giving you a clean slate for instant payouts.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {(!user.stripeAccountId || user.stripeAccountStatus === 'none') && (
           <div className="bg-primary/5 border border-primary/20 rounded-md p-4 flex gap-3 text-sm">
             <Lightbulb className="h-5 w-5 text-primary shrink-0" />
             <div>

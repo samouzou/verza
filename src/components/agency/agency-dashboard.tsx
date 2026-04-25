@@ -9,8 +9,6 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Sparkles, Loader2 } from "lucide-react";
 import Link from 'next/link';
 import { InviteTalentCard } from './invite-talent-card';
-import { CreatePayoutCard } from './create-payout-card';
-import { AIGeneratorCard } from './ai-generator-card';
 import { TalentRosterCard } from './talent-roster-card';
 import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
@@ -36,7 +34,6 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
   const rawLimit = subscriptionHolder?.talentLimit;
   const talentLimit = rawLimit === 0 ? 3 : (rawLimit ?? 3);
   const atTalentLimit = activeTalentCount >= talentLimit;
-  const isNotOnAgencyPlan = !subscriptionHolder?.subscriptionPlanId?.startsWith('agency_');
 
   const canInviteTeam = user?.isAgencyOwner || user?.agencyMemberships?.some(m => m.role === 'admin');
 
@@ -106,11 +103,6 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit} />
             <InviteTeamMemberCard agencyId={agency.id} disabled={!canInviteTeam} />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <CreatePayoutCard agency={agency} liveProfiles={liveProfiles} disabled={false} />
-            <AIGeneratorCard agency={agency} liveProfiles={liveProfiles} disabled={isNotOnAgencyPlan} />
           </div>
 
           <TalentRosterCard agency={agency} liveProfiles={liveProfiles} />

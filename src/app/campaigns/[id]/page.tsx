@@ -112,7 +112,7 @@ function GigDetailContent() {
         value: totalValue
       });
 
-      router.replace(`/deployments/${gigId}`, { scroll: false });
+      router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
 
@@ -255,14 +255,14 @@ function GigDetailContent() {
     if (!user || !gig) return;
 
     if (!hasAgreedToLegal) {
-      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before securing the deployment.", variant: "destructive" });
+      toast({ title: "Legal Agreement Required", description: "Please agree to the terms before securing the campaign.", variant: "destructive" });
       return;
     }
 
     if (!user.showInMarketplace) {
       toast({
         title: "Public Profile Required",
-        description: "Your profile must be set to 'Public' in the network before you can secure deployments. Head to your profile settings to enable this.",
+        description: "Your profile must be set to 'Public' in the network before you can secure campaigns. Head to your profile settings to enable this.",
         variant: "destructive",
         action: (
           <Button variant="outline" size="sm" asChild>
@@ -279,11 +279,11 @@ function GigDetailContent() {
 
     try {
       const currentGigSnap = await getDoc(gigDocRef);
-      if (!currentGigSnap.exists()) throw new Error("Deployment no longer exists.");
+      if (!currentGigSnap.exists()) throw new Error("Campaign no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
 
-      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
+      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
 
       const newAcceptedIds = [...acceptedIds, targetUserId];
@@ -357,11 +357,11 @@ function GigDetailContent() {
           agencyId: currentGigData.brandId,
           title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
           message: isAgencyAcceptance
-            ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your deployment "${gig.title}".`
-            : `${creatorName} has secured your deployment "${gig.title}".`,
+            ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your campaign "${gig.title}".`
+            : `${creatorName} has claimed your campaign "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
 
@@ -377,11 +377,11 @@ function GigDetailContent() {
         await addDoc(collection(db, 'notifications'), {
           userId: selectedTalentId,
           agencyId: userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.id,
-          title: "New Deployment Assigned!",
-          message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" deployment.`,
+          title: "New Campaign Assigned!",
+          message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" campaign.`,
           type: 'system',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
       }
@@ -390,7 +390,7 @@ function GigDetailContent() {
       const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
       await updateDoc(doc(db, 'users', targetUserId), userUpdates);
 
-      toast({ title: "Deployment Secured!" });
+      toast({ title: "Campaign Claimed!" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -486,7 +486,7 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
         }
@@ -545,7 +545,7 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a link for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
         }
@@ -592,7 +592,7 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
         }
@@ -643,8 +643,8 @@ function GigDetailContent() {
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'gigs', gig.id));
-      toast({ title: "Deployment Deleted", description: "The deployment has been removed." });
-      router.push('/deployments');
+      toast({ title: "Campaign Deleted", description: "The campaign has been removed." });
+      router.push('/campaigns');
     } catch (error: any) {
       console.error(error);
       toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
@@ -704,7 +704,7 @@ function GigDetailContent() {
         value: totalValue
       });
 
-      toast({ title: "Deployment Funded!", description: "Funds have been moved from your wallet to this campaign." });
+      toast({ title: "Campaign Funded!", description: "Funds have been moved from your wallet to this campaign." });
     } catch (error: any) {
       toast({ title: "Funding Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -720,12 +720,12 @@ function GigDetailContent() {
     }
     if (status === 'pending_payment') return 'Funding Pending';
     if (status === 'in-progress') return 'In Progress';
-    if (status === 'completed') return 'Deployment Complete';
+    if (status === 'completed') return 'Campaign Complete';
     return status?.replace(/_/g, ' ') || 'unknown';
   };
 
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Deployment Not Found</h3></div>;
+  if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Campaign Not Found</h3></div>;
 
   const acceptedIds = gig.acceptedCreatorIds || [];
   const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
@@ -752,13 +752,13 @@ function GigDetailContent() {
         <PageHeader
           title={gig.title}
           description={`Campaign by ${gig.brandName}`}
-          actions={<Button asChild variant="outline"><Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
+          actions={<Button asChild variant="outline"><Link href="/campaigns"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
         />
 
         {isCompleted && (
           <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800 text-green-800 dark:text-green-300">
             <PartyPopper className="h-5 w-5" />
-            <AlertTitle className="font-bold">Deployment Complete!</AlertTitle>
+            <AlertTitle className="font-bold">Campaign Complete!</AlertTitle>
             <AlertDescription>
               {canManageGig
                 ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
@@ -930,7 +930,7 @@ function GigDetailContent() {
                   </p>
                 </div>
                 <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
-                  By clicking "Secure Deployment", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
+                  By clicking "Claim Campaign", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                 </div>
               </CardContent>
             </Card>
@@ -941,10 +941,10 @@ function GigDetailContent() {
                   <CardTitle className="flex items-center gap-2"><UploadCloud className="text-primary" /> {isCompleted ? 'Your Submissions' : 'Submit Your Work'}</CardTitle>
                   <CardDescription>
                     {isCompleted
-                      ? 'Review the work you submitted for this complete deployment.'
+                      ? 'Review the work you submitted for this complete campaign.'
                       : (gig.requireVerzaScore ?? true)
                         ? `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} and calculate your Verza Score for each.`
-                        : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} to complete your deployment.`}
+                        : `Upload ${gig.videosPerCreator} video${gig.videosPerCreator > 1 ? 's' : ''} to complete your campaign.`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -1265,7 +1265,7 @@ function GigDetailContent() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No creators have secured this deployment yet.</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">No creators have secured this campaign yet.</p>
                   )}
                 </CardContent>
               </Card>
@@ -1273,7 +1273,7 @@ function GigDetailContent() {
           </div>
           <div className="lg:col-span-1 space-y-6 min-w-0">
             <Card>
-              <CardHeader><CardTitle>Deployment Overview</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Campaign Overview</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between items-center">
@@ -1321,7 +1321,7 @@ function GigDetailContent() {
                   hasAccepted ? (
                     <div className="space-y-4 pt-4 border-t">
                       <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" disabled>
-                        <CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured
+                        <CheckCircle className="mr-2 h-4 w-4" /> Campaign Claimed
                       </Button>
                       
                       
@@ -1358,26 +1358,26 @@ function GigDetailContent() {
                               <ScrollArea className="flex-1 mt-4 pr-4 border rounded-md p-4 bg-muted/10">
                                 <div className="space-y-4 text-sm leading-relaxed">
                                   <p className="font-bold">1. PARTIES & SCOPE</p>
-                                  <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific campaign ('Deployment') defined in this brief.</p>
+                                  <p>This Standard Creator Agreement ('Agreement') governs the relationship between the Brand ('Client') and the Content Creator ('Creator') for the specific campaign defined in this brief.</p>
 
                                   <p className="font-bold">2. SERVICES & DELIVERABLES</p>
-                                  <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the deployment brief. {gig.requireVerzaScore ? `Deliverables must pass the Verza Quality Score threshold of ${gig.verzaScoreThreshold}% to be eligible for payout.` : "Deliverables must meet the brand's quality standards to be eligible for payout."}</p>
+                                  <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the campaign brief. {gig.requireVerzaScore ? `Deliverables must pass the Verza Quality Score threshold of ${gig.verzaScoreThreshold}% to be eligible for payout.` : "Deliverables must meet the brand's quality standards to be eligible for payout."}</p>
 
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
                                   {(gig.ratePerCreator || 0) > 0 ? (
-                                    <p>The Client has pre-funded the base rate for this deployment ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
+                                    <p>The Client has pre-funded the base rate for this campaign ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
                                   ) : (
-                                    <p>This is a performance-based deployment. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 15% platform service fee.</p>
+                                    <p>This is a performance-based campaign. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 15% platform service fee.</p>
                                   )}
 
                                   <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
-                                  <p>Unless the deployment is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the brief. Creator retains original ownership of the underlying content.</p>
+                                  <p>Unless the campaign is explicitly marked as a 'Production Grant' with 'None' usage rights, the Creator grants the Client a non-exclusive, worldwide, transferable license to use the Deliverables for the duration specified in the brief. Creator retains original ownership of the underlying content.</p>
 
                                   <p className="font-bold">5. INDEPENDENT CONTRACTOR</p>
                                   <p>Creator is an independent contractor. Nothing in this Agreement creates an employer-employee relationship or partnership.</p>
 
                                   <p className="font-bold">6. CONFIDENTIALITY</p>
-                                  <p>Both parties agree to keep the terms of this deployment and any proprietary brand information confidential.</p>
+                                  <p>Both parties agree to keep the terms of this campaign and any proprietary brand information confidential.</p>
                                 </div>
                               </ScrollArea>
 
@@ -1388,7 +1388,7 @@ function GigDetailContent() {
                                       <Label className="text-sm font-bold flex items-center gap-2">
                                         <Users className="h-4 w-4 text-primary" /> Management Mode
                                       </Label>
-                                      <p className="text-[10px] text-muted-foreground">Claim this deployment on behalf of your talent.</p>
+                                      <p className="text-[10px] text-muted-foreground">Claim this campaign on behalf of your talent.</p>
                                     </div>
                                     <Checkbox 
                                       id="agency-mode" 
@@ -1448,7 +1448,7 @@ function GigDetailContent() {
                           <Alert variant="destructive" className="py-2 px-3 text-xs">
                             <AlertTriangle className="h-3 w-3" />
                             <AlertDescription>
-                              Public profile required to secure deployments.
+                              Public profile required to secure campaigns.
                             </AlertDescription>
                           </Alert>
                         )}
@@ -1458,12 +1458,12 @@ function GigDetailContent() {
                           disabled={isAccepting || !hasAgreedToLegal || (isAgencyAcceptance && !selectedTalentId)}
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Secure Deployment
+                          Claim Campaign
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Deployment Full'}</Button>
+                    <Button className="w-full" disabled>{gig.status === 'pending_payment' ? 'Funding Pending' : 'Campaign Full'}</Button>
                   )
                 )}
 
@@ -1471,7 +1471,7 @@ function GigDetailContent() {
                   <div className="space-y-2">
                     {gig.status === 'pending_payment' && (
                       <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
-                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Deployment Funding: ${totalCost.toLocaleString()}</p>
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Campaign Funding: ${totalCost.toLocaleString()}</p>
                         <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>
                           {isResumingFunding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                           Fund via Secure Payment
@@ -1509,8 +1509,8 @@ function GigDetailContent() {
                       <div className="space-y-2">
                         {!isCompleted && (
                           <Button asChild className="w-full" variant="outline">
-                            <Link href={`/deployments/${gig.id}/edit`}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Deployment
+                            <Link href={`/campaigns/${gig.id}/edit`}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit Campaign
                             </Link>
                           </Button>
                         )}
@@ -1518,14 +1518,14 @@ function GigDetailContent() {
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button className="w-full" variant="destructive">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete Deployment
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Campaign
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete this deployment?</AlertDialogTitle>
+                                <AlertDialogTitle>Delete this campaign?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will permanently remove the deployment listing. This action cannot be undone.
+                                  This will permanently remove the campaign listing. This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1543,7 +1543,7 @@ function GigDetailContent() {
                     {isAssignedAgent && !isBrandTeam && (
                       <div className="space-y-2">
                         <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20 cursor-default" disabled>
-                          <CheckCircle className="mr-2 h-4 w-4" /> Deployment Secured
+                          <CheckCircle className="mr-2 h-4 w-4" /> Campaign Claimed
                         </Button>
                       </div>
                     )}

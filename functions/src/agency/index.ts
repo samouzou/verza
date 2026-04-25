@@ -644,3 +644,245 @@ export const fundGigFromWallet = onCall(async (request) => {
     throw new HttpsError("internal", error.message || "Failed to fund gig.");
   }
 });
+
+export const initiateAgencyPayout = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {agencyId} = request.data;
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+
+  const requesterId = request.auth.uid;
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+    if (!agencySnap.exists) {
+      throw new HttpsError("not-found", "Agency not found.");
+    }
+    const agencyData = agencySnap.data() as Agency;
+
+    const isAuthorized = agencyData.ownerId === requesterId ||
+      agencyData.team?.some((m) => m.userId === requesterId && (m.role === "admin" || m.role === "member"));
+    if (!isAuthorized) {
+      throw new HttpsError("permission-denied", "You do not have permission to initiate payouts for this agency.");
+    }
+
+    const availableBalance = agencyData.availableBalance || 0;
+    if (availableBalance < 1) {
+      throw new HttpsError("failed-precondition", "Insufficient available balance. Minimum payout is $1.00.");
+    }
+
+    const requestedAmount = request.data.amount ? parseFloat(request.data.amount) : availableBalance;
+    if (isNaN(requestedAmount) || requestedAmount < 1) {
+      throw new HttpsError("invalid-argument", "Minimum payout amount is $1.00.");
+    }
+    if (requestedAmount > availableBalance) {
+      throw new HttpsError("failed-precondition", "Requested amount exceeds available balance.");
+    }
+    const payoutAmount = requestedAmount;
+
+    // Use paymentDelegateId if set, otherwise fall back to ownerId
+    const receiverId = agencyData.paymentDelegateId || agencyData.ownerId;
+    const receiverSnap = await db.collection("users").doc(receiverId).get();
+    if (!receiverSnap.exists) {
+      throw new HttpsError("not-found", "Payout recipient not found.");
+    }
+    const receiverData = receiverSnap.data() as UserProfileFirestoreData;
+
+    if (!receiverData.stripeAccountId || !receiverData.stripePayoutsEnabled) {
+      throw new HttpsError(
+        "failed-precondition",
+        "The payout recipient must connect a bank account before withdrawing funds. Go to Settings to get set up."
+      );
+    }
+
+    const amountInCents = Math.floor(payoutAmount * 100);
+
+    await stripe.transfers.create({
+      amount: amountInCents,
+      currency: "usd",
+      destination: receiverData.stripeAccountId,
+      description: `Agency wallet payout for ${agencyData.name}`,
+      metadata: {agencyId, receiverId},
+    });
+
+    await db.runTransaction(async (transaction) => {
+      transaction.update(agencyDocRef, {
+        availableBalance: admin.firestore.FieldValue.increment(-payoutAmount),
+      });
+
+      const pendingCommissionsSnap = await db.collection("internalPayouts")
+        .where("agencyId", "==", agencyId)
+        .where("type", "==", "agency_commission")
+        .where("status", "==", "pending")
+        .get();
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      pendingCommissionsSnap.forEach((doc) => {
+        transaction.update(doc.ref, {status: "paid", paidAt: now});
+      });
+
+      const withdrawalRef = db.collection("internalPayouts").doc();
+      transaction.set(withdrawalRef, {
+        id: withdrawalRef.id,
+        type: "agency_withdrawal",
+        agencyId,
+        agencyName: agencyData.name,
+        agencyOwnerId: receiverId,
+        talentId: receiverId,
+        talentName: receiverData.displayName || "Unknown",
+        amount: payoutAmount,
+        description: `Agency wallet payout for ${agencyData.name}`,
+        status: "paid",
+        initiatedAt: now,
+        paidAt: now,
+      });
+    });
+
+    await db.collection("notifications").add({
+      userId: receiverId,
+      title: "Agency Payout Initiated!",
+      message: `$${payoutAmount.toFixed(2)} from ${agencyData.name}'s wallet has been transferred to your bank account.
+        It may take 1-3 business days to arrive.`,
+      type: "payout_received",
+      read: false,
+      link: "/wallet",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Successfully initiated agency payout of $${payoutAmount} for agency ${agencyId} to user ${receiverId}.`);
+    return {success: true, amount: payoutAmount};
+  } catch (error: any) {
+    logger.error(`Error initiating agency payout for ${agencyId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "An unexpected error occurred.");
+  }
+});
+
+export const initiateInternalTalentPayment = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const {agencyId, talentUserId, amount, note} = request.data;
+
+  if (!agencyId || !talentUserId) {
+    throw new HttpsError("invalid-argument", "Agency ID and talent user ID are required.");
+  }
+  if (!amount || typeof amount !== "number" || amount < 1) {
+    throw new HttpsError("invalid-argument", "Amount must be at least $1.00.");
+  }
+
+  const requesterId = request.auth.uid;
+
+  try {
+    const agencyDocRef = db.collection("agencies").doc(agencyId);
+    const agencySnap = await agencyDocRef.get();
+    if (!agencySnap.exists) {
+      throw new HttpsError("not-found", "Agency not found.");
+    }
+    const agencyData = agencySnap.data() as Agency;
+
+    const isAuthorized = agencyData.ownerId === requesterId ||
+      agencyData.team?.some((m) => m.userId === requesterId && (m.role === "admin" || m.role === "member"));
+    if (!isAuthorized) {
+      throw new HttpsError("permission-denied", "You do not have permission to make payments for this agency.");
+    }
+
+    const availableBalance = agencyData.availableBalance || 0;
+    if (availableBalance < amount) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Insufficient balance. Available: $${availableBalance.toFixed(2)}, requested: $${amount.toFixed(2)}.`
+      );
+    }
+
+    const talentDocRef = db.collection("users").doc(talentUserId);
+    const talentSnap = await talentDocRef.get();
+    if (!talentSnap.exists) {
+      throw new HttpsError("not-found", "Creator not found.");
+    }
+    const talentData = talentSnap.data() as UserProfileFirestoreData;
+
+    const description = note?.trim() || `Payment from ${agencyData.name}`;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    await db.runTransaction(async (transaction) => {
+      // Deduct from agency available balance
+      transaction.update(agencyDocRef, {
+        availableBalance: admin.firestore.FieldValue.increment(-amount),
+      });
+
+      // Credit creator wallet
+      transaction.update(talentDocRef, {
+        walletBalance: admin.firestore.FieldValue.increment(amount),
+      });
+
+      // Audit record — agency side
+      const agencyPayoutRef = db.collection("internalPayouts").doc();
+      transaction.set(agencyPayoutRef, {
+        id: agencyPayoutRef.id,
+        type: "agency_talent_payment",
+        agencyId,
+        agencyName: agencyData.name,
+        agencyOwnerId: agencyData.ownerId,
+        talentId: talentUserId,
+        talentName: talentData.displayName || "Unknown Creator",
+        amount,
+        description,
+        status: "paid",
+        initiatedAt: now,
+        paidAt: now,
+      } as unknown as InternalPayout);
+
+      // Audit record — creator side
+      const creatorPayoutRef = db.collection("internalPayouts").doc();
+      transaction.set(creatorPayoutRef, {
+        id: creatorPayoutRef.id,
+        type: "creator_payment",
+        agencyId,
+        agencyName: agencyData.name,
+        agencyOwnerId: agencyData.ownerId,
+        talentId: talentUserId,
+        talentName: talentData.displayName || "Unknown Creator",
+        amount,
+        description,
+        status: "paid",
+        initiatedAt: now,
+        paidAt: now,
+      } as unknown as InternalPayout);
+    });
+
+    // Notify the creator
+    await db.collection("notifications").add({
+      userId: talentUserId,
+      title: "Funds Added to Wallet!",
+      message: `${agencyData.name} sent you $${amount.toFixed(2)}. ${description !== `Payment from ${agencyData.name}` ?
+        `"${description}"` : ""}`.trim(),
+      type: "payout_received",
+      read: false,
+      link: "/wallet",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Agency ${agencyId} sent $${amount} to creator ${talentUserId}.`);
+    return {success: true};
+  } catch (error: any) {
+    logger.error("Error initiating internal talent payment:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "An unexpected error occurred.");
+  }
+});
