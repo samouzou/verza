@@ -243,7 +243,7 @@ function SceneSpawnerContent() {
 
     setIsGenerating(true);
     setGeneratedMedia(null);
-    toast({ title: "Spawning...", description: "AI is generating your media. This may take a minute or two." });
+    toast({ title: "Generating...", description: "AI is generating your media. This may take a minute or two." });
 
     try {
       let result;
@@ -590,7 +590,7 @@ function SceneSpawnerContent() {
                     {canAfford ? (
                       <Button onClick={handleGeneration} disabled={isGenerateButtonDisabled}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') ? `Generate Image (${cost} Credit)` : `Spawn Scene (${cost} Credits)`}
+                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') ? `Generate Image (${cost} Credit)` : `Generate Video (${cost} Credits)`}
                       </Button>
                     ) : (
                       <AlertDialog>
