@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame, Zap } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame, Zap, Heart } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,7 +29,10 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isCompleted = gig.status === 'completed';
 
   const getStatusLabel = (status: string) => {
-    if (status === 'open') return 'Capital Available';
+    if (status === 'open') {
+      if (gig.campaignType === 'cause_campaign') return 'Open for Creators';
+      return (gig.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
+    }
     if (status === 'pending_payment') return 'Funding Pending';
     if (status === 'in-progress') return 'In Progress';
     if (status === 'completed') return 'Campaign Complete';
@@ -84,6 +87,11 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           <div className="text-xl font-bold text-primary">
             {(gig.ratePerCreator || 0) > 0 ? (
               `$${(gig.ratePerCreator || 0).toLocaleString()}`
+            ) : gig.campaignType === 'cause_campaign' ? (
+              <div className="flex items-center gap-1.5 text-rose-500 text-sm">
+                <Heart className="h-4 w-4 fill-rose-500" />
+                <span>Volunteer</span>
+              </div>
             ) : (
               <div className="flex items-center gap-1.5 text-blue-600 text-sm">
                 <Zap className="h-4 w-4 fill-blue-600" />
@@ -91,7 +99,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
               </div>
             )}
           </div>
-          {(gig.ratePerCreator || 0) > 0 && gig.affiliateSettings?.isEnabled && (
+          {(gig.ratePerCreator || 0) > 0 && gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
             <div className="flex items-center gap-1 text-blue-600 text-[10px] font-bold uppercase tracking-tight">
               <Zap className="h-3 w-3 fill-blue-600" />
               <span>+ Performance</span>

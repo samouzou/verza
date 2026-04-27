@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Infinity as InfinityIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -282,16 +282,17 @@ function GigDetailContent() {
       if (!currentGigSnap.exists()) throw new Error("Campaign no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
+      const isCauseGig = currentGigData.campaignType === 'cause_campaign';
 
-      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
+      if (!isCauseGig && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
 
       const newAcceptedIds = [...acceptedIds, targetUserId];
-      const gigUpdates: any = { 
+      const gigUpdates: any = {
         acceptedCreatorIds: newAcceptedIds,
         updatedAt: serverTimestamp()
       };
-      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
+      if (!isCauseGig && newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
 
       // Handle agency assignment metadata
       if (isAgencyAcceptance && selectedTalentId) {
@@ -638,6 +639,31 @@ function GigDetailContent() {
     }
   };
 
+  const handleApproveContribution = async (creator: UserProfile) => {
+    if (!user || !gig) return;
+    setIsPaying(creator.uid);
+    try {
+      const batch = submissions.filter(s => s.creatorId === creator.uid && s.status !== 'approved');
+      for (const sub of batch) {
+        await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
+      }
+      await addDoc(collection(db, 'notifications'), {
+        userId: creator.uid,
+        title: "Contribution Approved!",
+        message: `Your content for "${gig.title}" has been approved. Thank you for supporting this cause!`,
+        type: 'payout_received',
+        read: false,
+        link: `/campaigns/${gig.id}`,
+        createdAt: serverTimestamp(),
+      } as Omit<Notification, 'id'>);
+      toast({ title: "Approved!", description: `${creator.displayName}'s contribution has been acknowledged.` });
+    } catch (error: any) {
+      toast({ title: "Approval Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsPaying(null);
+    }
+  };
+
   const handleDeleteGig = async () => {
     if (!gig) return;
     setIsDeleting(true);
@@ -716,6 +742,7 @@ function GigDetailContent() {
 
   const getStatusLabel = (status: string) => {
     if (status === 'open') {
+      if (gig?.campaignType === 'cause_campaign') return 'Open for Creators';
       return (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
     }
     if (status === 'pending_payment') return 'Funding Pending';
@@ -728,7 +755,8 @@ function GigDetailContent() {
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Campaign Not Found</h3></div>;
 
   const acceptedIds = gig.acceptedCreatorIds || [];
-  const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
+  const isCauseCampaign = gig.campaignType === 'cause_campaign';
+  const spotsLeft = isCauseCampaign ? Infinity : (gig.creatorsNeeded || 0) - acceptedIds.length;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
   const isBrandTeam = user && gig && isAgencyTeam && (gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
@@ -739,7 +767,7 @@ function GigDetailContent() {
   const isCompleted = gig.status === 'completed';
 
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
-  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
+  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : gig.campaignType === 'cause_campaign' ? 'Cause Campaign' : 'Standard Sponsorship';
 
   const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
@@ -761,7 +789,7 @@ function GigDetailContent() {
             <AlertTitle className="font-bold">Campaign Complete!</AlertTitle>
             <AlertDescription>
               {canManageGig
-                ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                ? isCauseCampaign ? `All participating creators have finished their work for this cause.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
             </AlertDescription>
           </Alert>
@@ -769,7 +797,7 @@ function GigDetailContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3 space-y-8 min-w-0">
-            {hasAccepted && gig.affiliateSettings?.isEnabled && (
+            {hasAccepted && gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
               <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg animate-in zoom-in-95 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
@@ -857,7 +885,8 @@ function GigDetailContent() {
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle>Campaign Objective</CardTitle>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                  <Badge variant="secondary" className={isCauseCampaign ? "bg-rose-500/10 text-rose-600 border-rose-500/20" : "bg-primary/10 text-primary border-primary/20"}>
+                    {isCauseCampaign && <Heart className="h-3 w-3 mr-1 inline" />}
                     {campaignTypeLabel}
                   </Badge>
                 </div>
@@ -1114,7 +1143,7 @@ function GigDetailContent() {
                   <CardTitle className="flex items-center gap-2"><Users className="text-primary" /> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
                   <CardDescription>
                     {isCompleted
-                      ? `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                      ? isCauseCampaign ? `All participating creators have finished their work.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                       : `Manage secured creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
                   </CardDescription>
                 </CardHeader>
@@ -1160,14 +1189,43 @@ function GigDetailContent() {
                                   </Link>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  {isPaid ? (
+                                  {isCauseCampaign ? (
+                                    (() => {
+                                      const isApproved = creatorSubmissions.length > 0 && creatorSubmissions.every(s => s.status === 'approved');
+                                      return isApproved ? (
+                                        <Badge variant="default" className="bg-green-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Approved</Badge>
+                                      ) : isBrandTeam ? (
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button size="sm" variant="outline" disabled={isPaying === creator.uid || !allVideosSubmitted} className="border-rose-300 text-rose-600 hover:bg-rose-50">
+                                              {isPaying === creator.uid ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Heart className="h-3.5 w-3.5 mr-1" />} Approve
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Approve this contribution?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                You're acknowledging <span className="font-bold text-foreground">{creator.displayName}</span>'s content for your cause. Their work will be marked as approved and they'll receive a thank-you notification. This cannot be undone.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleApproveContribution(creator)} className="bg-rose-500 hover:bg-rose-600 text-white">
+                                                Approve Contribution
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      ) : null;
+                                    })()
+                                  ) : isPaid ? (
                                     <Badge variant="default" className="bg-green-500">Paid</Badge>
                                   ) : (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                       {isBrandTeam && (
-                                        <Button 
-                                          size="sm" 
+                                        <Button
+                                          size="sm"
                                           disabled={isPaying === creator.uid || !allVideosSubmitted}
                                         >
                                           {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />} Approve & Pay
@@ -1282,6 +1340,10 @@ function GigDetailContent() {
                       <span className="font-bold text-2xl text-primary">
                         ${(gig.ratePerCreator || 0).toLocaleString()}
                       </span>
+                    ) : isCauseCampaign ? (
+                      <Badge variant="secondary" className="border-rose-500/30 bg-rose-500/5 text-rose-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight">
+                        <Heart className="h-3 w-3 mr-1 fill-rose-500" /> Volunteer
+                      </Badge>
                     ) : (
                       <Badge variant="secondary" className="border-blue-500/30 bg-blue-500/5 text-blue-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight animate-pulse">
                         <Zap className="h-3.5 w-3.5 mr-1 fill-blue-600" /> Performance Only
@@ -1296,7 +1358,7 @@ function GigDetailContent() {
                   )}
                 </div>
 
-                {gig.affiliateSettings?.isEnabled && (
+                {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
                   <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-bold text-blue-600 uppercase flex items-center gap-1">
@@ -1313,7 +1375,14 @@ function GigDetailContent() {
 
                 <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                 {!isCompleted && (
-                  <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Spots Remaining</span>
+                    {isCauseCampaign ? (
+                      <span className="font-bold flex items-center gap-1 text-rose-500"><InfinityIcon className="h-4 w-4" /> Unlimited</span>
+                    ) : (
+                      <span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span>
+                    )}
+                  </div>
                 )}
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{getStatusLabel(gig.status)}</Badge></div>
 
@@ -1326,7 +1395,7 @@ function GigDetailContent() {
                       
                       
                     </div>
-                  ) : spotsLeft > 0 && gig.status === 'open' ? (
+                  ) : (isCauseCampaign || spotsLeft > 0) && gig.status === 'open' ? (
                     <div className="space-y-4 border-t pt-4">
                       <div className="flex items-start space-x-2">
                         <Checkbox
