@@ -99,7 +99,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
               </div>
             )}
           </div>
-          {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
+          {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && ((gig.ratePerCreator || 0) > 0 || gig.campaignType === 'cause_campaign') && (
             <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight ${gig.campaignType === 'cause_campaign' ? 'text-rose-500' : 'text-blue-600'}`}>
               <Zap className={`h-3 w-3 ${gig.campaignType === 'cause_campaign' ? 'fill-rose-500' : 'fill-blue-600'}`} />
               <span>{gig.campaignType === 'cause_campaign' ? '+ Performance Bonus' : '+ Performance'}</span>
