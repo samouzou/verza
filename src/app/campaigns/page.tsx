@@ -247,7 +247,7 @@ export default function GigsPage() {
     <>
       <PageHeader
         title="Campaigns"
-        description="Discover enterprise campaigns or manage your active campaigns."
+        description="Discover campaigns or manage your active campaigns."
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => startTour(marketplaceTour)}>

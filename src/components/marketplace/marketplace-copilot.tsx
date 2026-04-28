@@ -20,7 +20,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: ShieldCheck,
       title: "Verified Edge",
-      description: "Creators with connected social accounts secure 3x more enterprise deployments.",
+      description: "Creators with connected social accounts secure 3x more campaigns.",
       badge: "PRO TIP"
     },
     {
@@ -86,8 +86,8 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
   details_creator: [
     {
       icon: Lock,
-      title: "Pre-Funded Deployments",
-      description: "The brand has already funded this deployment. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
+      title: "Pre-Funded Campaigns",
+      description: "The brand has already funded this campaign. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
       badge: "SECURE"
     },
     {
