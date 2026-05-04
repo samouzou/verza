@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building, Lightbulb, RefreshCw } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building, Lightbulb, RefreshCw, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, updateDoc, query, collection, where, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import type { Agency, TeamMember } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,13 @@ export function StripeConnectCard() {
   const [selectedNewDelegate, setSelectedNewDelegate] = useState<string>("");
   const [selectedCountry, setSelectedCountry] = useState<string>("US");
 
-  const STRIPE_SUPPORTED_COUNTRIES = [
+  const STRIPE_CONNECT_COUNTRIES = new Set([
+    "US", "CA", "GB", "AU", "IE", "DE", "FR", "ES", "IT", "NL",
+    "BE", "AT", "SE", "DK", "NO", "FI", "NZ", "CH", "PT", "GR",
+    "PL", "HK", "SG", "JP",
+  ]);
+
+  const ALL_COUNTRIES = [
     { code: "US", name: "United States" },
     { code: "CA", name: "Canada" },
     { code: "GB", name: "United Kingdom" },
@@ -53,6 +59,34 @@ export function StripeConnectCard() {
     { code: "HK", name: "Hong Kong" },
     { code: "SG", name: "Singapore" },
     { code: "JP", name: "Japan" },
+    // Global Payouts countries
+    { code: "NG", name: "Nigeria" },
+    { code: "GH", name: "Ghana" },
+    { code: "KE", name: "Kenya" },
+    { code: "ZA", name: "South Africa" },
+    { code: "EG", name: "Egypt" },
+    { code: "MA", name: "Morocco" },
+    { code: "BR", name: "Brazil" },
+    { code: "MX", name: "Mexico" },
+    { code: "CO", name: "Colombia" },
+    { code: "AR", name: "Argentina" },
+    { code: "CL", name: "Chile" },
+    { code: "PE", name: "Peru" },
+    { code: "IN", name: "India" },
+    { code: "PK", name: "Pakistan" },
+    { code: "BD", name: "Bangladesh" },
+    { code: "ID", name: "Indonesia" },
+    { code: "PH", name: "Philippines" },
+    { code: "VN", name: "Vietnam" },
+    { code: "TH", name: "Thailand" },
+    { code: "MY", name: "Malaysia" },
+    { code: "AE", name: "United Arab Emirates" },
+    { code: "SA", name: "Saudi Arabia" },
+    { code: "TR", name: "Turkey" },
+    { code: "UA", name: "Ukraine" },
+    { code: "RO", name: "Romania" },
+    { code: "CZ", name: "Czech Republic" },
+    { code: "HU", name: "Hungary" },
   ];
 
   useEffect(() => {
@@ -65,6 +99,8 @@ export function StripeConnectCard() {
   }, [user?.primaryAgencyId]);
 
   if (!user) return null;
+
+  const isGlobalPayoutCountry = selectedCountry && !STRIPE_CONNECT_COUNTRIES.has(selectedCountry);
 
   const isAgencyAdmin = user.role === 'agency_admin';
   const isAgencyMember = user.role === 'agency_member';
@@ -342,28 +378,60 @@ export function StripeConnectCard() {
                   <SelectValue placeholder="Select your banking country..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {STRIPE_SUPPORTED_COUNTRIES.map((c) => (
+                  {ALL_COUNTRIES.map((c) => (
                     <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">Stripe onboarding requirements vary by country. Please select the country where your bank account is located.</p>
+              <p className="text-[11px] text-muted-foreground">Stripe onboarding requirements vary by country. Select the country where your bank account is located.</p>
             </div>
           </div>
         )}
 
-        <Button 
-          onClick={buttonAction.handler} 
-          disabled={isProcessing || (!user.stripeAccountId && !selectedCountry)} 
-          className="w-full sm:w-auto"
-        >
-          {isProcessing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <buttonAction.Icon className="mr-2 h-4 w-4" />
-          )}
-          {buttonAction.text}
-        </Button>
+        {/* Global Payouts path for unsupported Connect countries */}
+        {(!user.stripeAccountId || user.stripeAccountStatus === 'none') && isGlobalPayoutCountry ? (
+          <div className="space-y-3">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-md p-4 flex gap-3 text-sm">
+              <Globe className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-blue-600 dark:text-blue-400">Global Payouts — Early Access</p>
+                <p className="text-muted-foreground">
+                  Stripe Connect doesn&rsquo;t support your country yet, but Verza supports payouts to your region via Global Payouts.
+                  This path routes your earnings directly to your local bank account.
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  To connect your bank account for Global Payouts, email{" "}
+                  <a href="mailto:support@tryverza.com" className="underline hover:text-primary">support@tryverza.com</a>{" "}
+                  with the subject <strong>&ldquo;Global Payouts Setup&rdquo;</strong> and we&rsquo;ll get you onboarded within 24 hours.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <Button
+            onClick={buttonAction.handler}
+            disabled={isProcessing || (!user.stripeAccountId && !selectedCountry)}
+            className="w-full sm:w-auto"
+          >
+            {isProcessing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <buttonAction.Icon className="mr-2 h-4 w-4" />
+            )}
+            {buttonAction.text}
+          </Button>
+        )}
+
+        {/* Show current payout method if set */}
+        {user.payoutMethod === 'global_payout' && user.globalPayoutRecipientId && (
+          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center gap-2 text-sm">
+            <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+            <div>
+              <p className="font-medium text-blue-600 dark:text-blue-400">Global Payouts Active</p>
+              <p className="text-xs text-muted-foreground">Recipient ID: {user.globalPayoutRecipientId}</p>
+            </div>
+          </div>
+        )}
 
         {/* Transfer Billing Rights — Owner only */}
         {isAgencyOwner && agency && eligibleDelegates.length > 0 && (

@@ -1132,6 +1132,66 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   }
 });
 
+// Creates a Stripe Global Payouts recipient for creators in unsupported Connect countries.
+// Uses the dahlia API version which supports Global Payouts and stablecoin treasury.
+export const createGlobalPayoutRecipient = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const {bankAccountToken, currency} = request.data as {
+    bankAccountToken: string;
+    currency?: string;
+  };
+
+  if (!bankAccountToken) {
+    throw new HttpsError("invalid-argument", "bankAccountToken is required.");
+  }
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  const userDocRef = db.collection("users").doc(userId);
+
+  try {
+    const userSnap = await userDocRef.get();
+    if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
+    const userData = userSnap.data() as UserProfileFirestoreData;
+
+    // Create a Global Payouts recipient via the dahlia Stripe API
+    const recipient = await (stripe as any).v2.moneyManagement.recipients.create({
+      name: userData.displayName || userData.email || userId,
+      email: userData.email,
+      metadata: {userId},
+    });
+
+    // Attach the bank account to the recipient
+    await (stripe as any).v2.moneyManagement.recipientBankAccounts.create(recipient.id, {
+      bank_account_token: bankAccountToken,
+      currency: currency || "usd",
+    });
+
+    await userDocRef.update({
+      payoutMethod: "global_payout",
+      globalPayoutRecipientId: recipient.id,
+    });
+
+    logger.info(`Created Global Payout recipient ${recipient.id} for user ${userId}`);
+    return {success: true, recipientId: recipient.id};
+  } catch (error: any) {
+    logger.error(`Error creating Global Payout recipient for user ${userId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Could not create payout recipient.");
+  }
+});
+
 export const initiateCreatorPayout = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -1140,28 +1200,12 @@ export const initiateCreatorPayout = onCall(async (request) => {
   const userId = request.auth.uid;
   const userDocRef = db.collection("users").doc(userId);
 
-  let stripe: Stripe;
-  try {
-    const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
-  } catch (e) {
-    logger.error("Stripe not configured", e);
-    throw new HttpsError("failed-precondition", "Stripe is not configured.");
-  }
-
   try {
     const userSnap = await userDocRef.get();
     if (!userSnap.exists) {
       throw new HttpsError("not-found", "User not found.");
     }
     const userData = userSnap.data() as UserProfileFirestoreData;
-
-    if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
-      throw new HttpsError(
-        "failed-precondition",
-        "You must connect a bank account before initiating a payout. Go to Settings to get set up."
-      );
-    }
 
     const walletBalance = userData.walletBalance || 0;
     if (walletBalance < 1) {
@@ -1173,13 +1217,77 @@ export const initiateCreatorPayout = onCall(async (request) => {
 
     const amountInCents = Math.floor(walletBalance * 100);
 
-    await stripe.transfers.create({
-      amount: amountInCents,
-      currency: "usd",
-      destination: userData.stripeAccountId,
-      description: "Verza wallet payout",
-      metadata: {userId},
-    });
+    // Route to the correct payout path based on the user's payoutMethod.
+    // Existing users without the field default to stripe_connect (backward compatible).
+    const payoutMethod = userData.payoutMethod || "stripe_connect";
+
+    if (payoutMethod === "stripe_connect") {
+      if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
+        throw new HttpsError(
+          "failed-precondition",
+          "You must connect a bank account before initiating a payout. Go to Settings to get set up."
+        );
+      }
+
+      let stripe: Stripe;
+      try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+      } catch (e) {
+        logger.error("Stripe not configured", e);
+        throw new HttpsError("failed-precondition", "Stripe is not configured.");
+      }
+
+      await stripe.transfers.create({
+        amount: amountInCents,
+        currency: "usd",
+        destination: userData.stripeAccountId,
+        description: "Verza wallet payout",
+        metadata: {userId},
+      });
+    } else if (payoutMethod === "global_payout") {
+      if (!userData.globalPayoutRecipientId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "No Global Payout recipient found. Please set up your bank account in Settings."
+        );
+      }
+
+      const financialAccountId = params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value();
+      if (!financialAccountId) {
+        // Treasury not yet provisioned — surface a clear error rather than a cryptic Stripe failure
+        throw new HttpsError(
+          "failed-precondition",
+          "Global Payouts are not yet active on this platform. Please contact support@tryverza.com."
+        );
+      }
+
+      let stripe: Stripe;
+      try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+      } catch (e) {
+        logger.error("Stripe not configured", e);
+        throw new HttpsError("failed-precondition", "Stripe is not configured.");
+      }
+
+      // Outbound transfer from platform's Treasury financial account to the recipient
+      await (stripe as any).v2.moneyManagement.outboundTransfers.create({
+        from: {financial_account: financialAccountId},
+        to: {recipient: userData.globalPayoutRecipientId},
+        amount: {value: amountInCents, currency: "usd"},
+        description: "Verza wallet payout",
+        metadata: {userId},
+      });
+    } else if (payoutMethod === "stablecoin") {
+      // Stablecoin path via Bridge (dahlia) — placeholder until Bridge credentials are configured
+      throw new HttpsError(
+        "unimplemented",
+        "Stablecoin payouts are coming soon. Please use a bank account for now."
+      );
+    } else {
+      throw new HttpsError("invalid-argument", "Unknown payout method.");
+    }
 
     await db.runTransaction(async (transaction) => {
       transaction.update(userDocRef, {walletBalance: 0});
@@ -1202,6 +1310,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
         talentName: userData.displayName || "Unknown",
         amount: walletBalance,
         description: "Payout to bank account",
+        payoutMethod,
         status: "paid",
         initiatedAt: now,
         paidAt: now,
@@ -1218,7 +1327,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    logger.info(`Successfully initiated payout of $${walletBalance} for user ${userId}.`);
+    logger.info(`Successfully initiated ${payoutMethod} payout of $${walletBalance} for user ${userId}.`);
     return {success: true, amount: walletBalance};
   } catch (error: any) {
     logger.error(`Error initiating payout for user ${userId}:`, error);

@@ -64,3 +64,9 @@ export const STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_AGE
 
 export const STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID");
 export const STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID");
+
+// Global Payouts (dahlia API) — Treasury financial account ID for outbound transfers
+export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {
+  description: "Stripe Treasury financial account ID used for Global Payouts outbound transfers.",
+  default: "",
+});
