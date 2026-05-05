@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 
@@ -493,7 +494,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
         await payoutDocRef.update({
           status: "paid",
-          paidAt: admin.firestore.Timestamp.now(),
+          paidAt: Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
       } else if (purchaseType === "agencyTopUp" && agencyId) {
@@ -516,14 +517,14 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             await db.runTransaction(async (transaction) => {
               const userDoc = await transaction.get(userRef);
               if (!userDoc.exists) throw new Error(`User with ID ${targetUserId} not found.`);
-              transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
+              transaction.update(userRef, {credits: FieldValue.increment(creditsToAdd)});
               transaction.set(transactionRef, {
                 userId: targetUserId,
                 creditAmount: creditsToAdd,
                 priceId: priceId || "unknown",
                 paymentIntentId: paymentIntent.id,
                 status: "completed",
-                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+                createdAt: FieldValue.serverTimestamp() as any,
               } as Omit<CreditTransaction, "id">);
             });
             logger.info(`Successfully added ${creditsToAdd} credits to user ${targetUserId} via handlePaymentSuccess.`);
@@ -649,9 +650,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractData = contractDoc.data() as Contract;
 
         const updates: { [key: string]: unknown } = {
-          updatedAt: admin.firestore.Timestamp.now(),
-          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          invoiceHistory: FieldValue.arrayUnion({
+            timestamp: Timestamp.now(),
             action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
@@ -723,7 +724,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           amount,
           currency: "usd",
           status: "succeeded",
-          timestamp: admin.firestore.Timestamp.now(),
+          timestamp: Timestamp.now(),
         });
       }
     }
@@ -891,7 +892,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
-    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    createdAt: FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || null,
     requireVerzaScore: requireVerzaScore ?? true,
@@ -1297,7 +1298,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
         .where("status", "==", "pending")
         .get();
 
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      const now = FieldValue.serverTimestamp();
       pendingPayoutsSnap.forEach((doc) => {
         transaction.update(doc.ref, {status: "paid", paidAt: now});
       });
@@ -1324,7 +1325,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
       type: "payout_received",
       read: false,
       link: "/wallet",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     logger.info(`Successfully initiated ${payoutMethod} payout of $${walletBalance} for user ${userId}.`);

@@ -3,6 +3,7 @@ import {onRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 
@@ -96,15 +97,15 @@ export const sendContractNotification = onRequest(async (request, response) => {
       html, // Storing the HTML content
       contractId: contractId || null,
       type: subject.toLowerCase().includes("invoice") ? "invoice" : "generic",
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: Timestamp.now(),
       status: "sent",
     });
 
     // Update contract history with the emailLogId
     if (contractId) {
       await db.collection("contracts").doc(contractId).update({
-        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-          timestamp: admin.firestore.Timestamp.now(),
+        invoiceHistory: FieldValue.arrayUnion({
+          timestamp: Timestamp.now(),
           action: "Invoice Sent to Client",
           details: `To: ${to}`,
           emailLogId: emailLogRef.id, // Link to the log entry
@@ -160,8 +161,8 @@ export const handleSendGridEmailWebhook = onRequest(async (request, response) =>
           if (!alreadyViewed) {
             await contractRef.update({
               invoiceStatus: "viewed",
-              invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-                timestamp: admin.firestore.Timestamp.now(),
+              invoiceHistory: FieldValue.arrayUnion({
+                timestamp: Timestamp.now(),
                 action: "Invoice Viewed by Client",
                 details: `Email opened by ${email}`,
               }),
@@ -416,7 +417,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
       subject,
       html,
       type: "onboarding",
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: Timestamp.now(),
       status: "sent",
     });
   } catch (error) {
@@ -578,7 +579,7 @@ export async function sendSubscriptionReceiptEmail(
       subject,
       html,
       type: "subscription_receipt",
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: Timestamp.now(),
       status: "sent",
     });
   } catch (error) {
@@ -788,7 +789,7 @@ export async function sendDeploymentEmailSequence(
       subject,
       html,
       type: "deployment_onboarding",
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: Timestamp.now(),
       status: "sent",
     });
   } catch (error) {
@@ -1007,7 +1008,7 @@ export async function sendAgencyEmailSequence(
       subject,
       html,
       type: "agency_onboarding",
-      timestamp: admin.firestore.Timestamp.now(),
+      timestamp: Timestamp.now(),
       status: "sent",
     });
   } catch (error) {

@@ -2,7 +2,7 @@
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
-import * as admin from "firebase-admin";
+import {Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
@@ -298,14 +298,14 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           trial_end?: number | null;
         };
 
-        let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+        let firestoreSubscriptionEndsAt: Timestamp | null = null;
         if (typeof subscription.current_period_end === "number") {
-          firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
         }
 
-        let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
+        let firestoreTrialEndsAt: Timestamp | null = null;
         if (typeof subscription.trial_end === "number") {
-          firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
+          firestoreTrialEndsAt = Timestamp.fromMillis(subscription.trial_end * 1000);
         }
 
         const planIdFromMeta = session.metadata?.planId as SubscriptionPlanId;
@@ -355,14 +355,14 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         metadata?: { planId?: string };
       };
 
-      let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreSubscriptionEndsAt: Timestamp | null = null;
       if (typeof subscription.current_period_end === "number") {
-        firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+        firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
       }
 
-      let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreTrialEndsAt: Timestamp | null = null;
       if (typeof subscription.trial_end === "number") {
-        firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
+        firestoreTrialEndsAt = Timestamp.fromMillis(subscription.trial_end * 1000);
       }
 
       const priceId = subscription.items.data[0]?.price.id;
@@ -400,11 +400,11 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
         canceled_at?: number | null;
       };
 
-      let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreSubscriptionEndsAt: Timestamp | null = null;
       const endTimestamp = subscription.ended_at || subscription.canceled_at || subscription.current_period_end;
 
       if (typeof endTimestamp === "number") {
-        firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(endTimestamp * 1000);
+        firestoreSubscriptionEndsAt = Timestamp.fromMillis(endTimestamp * 1000);
       }
 
       await userDocRef.update({
@@ -425,9 +425,9 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           current_period_end: number;
         };
 
-        let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+        let firestoreSubscriptionEndsAt: Timestamp | null = null;
         if (typeof subscription.current_period_end === "number") {
-          firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
         }
 
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";

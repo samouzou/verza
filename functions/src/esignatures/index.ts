@@ -2,6 +2,7 @@
 import {onCall, HttpsError, onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import {DocumentApi, DocumentSigner, FormField, SendForSign} from "boldsign";
 import type {Contract, UserProfileFirestoreData} from "./../types";
@@ -326,9 +327,9 @@ export const initiateBoldSignRequest = onCall(
       await contractDocRef.update({
         boldSignDocumentId: documentId,
         signatureStatus: "sent",
-        lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
-        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-          timestamp: admin.firestore.Timestamp.now(),
+        lastSignatureEventAt: FieldValue.serverTimestamp(),
+        invoiceHistory: FieldValue.arrayUnion({
+          timestamp: Timestamp.now(),
           action: "E-Signature Request Sent (BoldSign)",
           details: `To Client: ${finalSignerEmail}, To Creator: ${creatorEmail}. BoldSign Document ID: ${documentId}`,
         }),
@@ -484,9 +485,9 @@ export const boldSignWebhookHandler = onRequest(
 
       const updates: any = {
         signatureStatus: newStatus,
-        lastSignatureEventAt: admin.firestore.FieldValue.serverTimestamp(),
-        invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-          timestamp: admin.firestore.Timestamp.now(),
+        lastSignatureEventAt: FieldValue.serverTimestamp(),
+        invoiceHistory: FieldValue.arrayUnion({
+          timestamp: Timestamp.now(),
           action: historyAction,
           details: historyDetails,
         }),

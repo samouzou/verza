@@ -2,6 +2,7 @@
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 
@@ -242,7 +243,7 @@ async function fetchAndStoreTransactions(userId: string, finicityCustomerId: str
             description: tx.description,
             amount: tx.amount,
             currency: tx.currencySymbol || "USD",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           }, {merge: true});
         }
       }
@@ -313,8 +314,8 @@ async function syncAllAccountsAndTransactions(userId: string, finicityCustomerId
       balance: account.balance,
       provider: "Finicity",
       // Use serverTimestamp for new docs, don't overwrite on updates
-      createdAt: firestoreAccountIds.has(account.id.toString()) ? null : admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: firestoreAccountIds.has(account.id.toString()) ? null : FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
   }
 

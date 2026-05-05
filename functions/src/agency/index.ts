@@ -1,6 +1,7 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import * as logger from "firebase-functions/logger";
 import type {
@@ -38,7 +39,7 @@ export const createAgency = onCall(async (request) => {
       ownerId: userId,
       availableBalance: 0,
       escrowBalance: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+      createdAt: FieldValue.serverTimestamp() as any,
       talent: [],
       team: [], // Initialize team array
     };
@@ -47,7 +48,7 @@ export const createAgency = onCall(async (request) => {
       role: "agency_owner",
       isAgencyOwner: true,
       primaryAgencyId: newAgency.id, // Set primaryAgencyId on creation
-      agencyMemberships: admin.firestore.FieldValue.arrayUnion({
+      agencyMemberships: FieldValue.arrayUnion({
         agencyId: newAgency.id,
         agencyName: newAgency.name,
         role: "owner",
@@ -67,8 +68,8 @@ export const createAgency = onCall(async (request) => {
     const userSnap = await userDocRef.get();
     const userData = userSnap.data();
     if (userData?.email) {
-      const twoDaysFromNow = new admin.firestore.Timestamp(
-        admin.firestore.Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
+      const twoDaysFromNow = new Timestamp(
+        Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
       );
       await userDocRef.update({
         agencyEmailSequence: {step: 1, nextEmailAt: twoDaysFromNow},
@@ -126,7 +127,7 @@ export const inviteTalentToAgency = onCall(async (request) => {
           inviteeEmail: talentEmailCleaned,
           type: "talent",
           status: "pending",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         await sendAgencyInvitationEmail(talentEmailCleaned, agencyData.name, false, "talent");
         logger.info(`Invitation sent to new user ${talentEmailCleaned} for agency ${agencyData.name}.`);
@@ -160,9 +161,9 @@ export const inviteTalentToAgency = onCall(async (request) => {
     };
 
     const batch = db.batch();
-    batch.update(agencyDocRef, {talent: admin.firestore.FieldValue.arrayUnion(newTalentMember)});
+    batch.update(agencyDocRef, {talent: FieldValue.arrayUnion(newTalentMember)});
     batch.update(talentUserDocRef, {
-      agencyMemberships: admin.firestore.FieldValue.arrayUnion(talentAgencyMembership),
+      agencyMemberships: FieldValue.arrayUnion(talentAgencyMembership),
       primaryAgencyId: agencyId, // Set primary agency ID on invite for existing users
     });
 
@@ -228,7 +229,7 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
           type: "team",
           role,
           status: "pending",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         await sendAgencyInvitationEmail(memberEmailCleaned, agencyData.name, false, "team", role);
         return {success: true, message: `Invitation sent to new user ${memberEmailCleaned}.`};
@@ -254,8 +255,8 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
     };
 
     const batch = db.batch();
-    batch.update(agencyDocRef, {team: admin.firestore.FieldValue.arrayUnion(newTeamMember)});
-    batch.update(memberUserDocRef, {agencyMemberships: admin.firestore.FieldValue.arrayUnion(teamAgencyMembership)});
+    batch.update(agencyDocRef, {team: FieldValue.arrayUnion(newTeamMember)});
+    batch.update(memberUserDocRef, {agencyMemberships: FieldValue.arrayUnion(teamAgencyMembership)});
     await batch.commit();
 
     await sendAgencyInvitationEmail(memberEmailCleaned, agencyData.name, true, "team", role);
@@ -326,7 +327,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
             ...updatedTalentArray[talentIndex],
             displayName: userData.displayName || updatedTalentArray[talentIndex].displayName, // Update display name
             status: "active",
-            joinedAt: admin.firestore.Timestamp.now() as any,
+            joinedAt: Timestamp.now() as any,
           };
         }
       } else if (membership.role === "admin" || membership.role === "member") {
@@ -337,7 +338,7 @@ export const acceptAgencyInvitation = onCall(async (request) => {
             ...updatedTeamArray[teamMemberIndex],
             displayName: userData.displayName || updatedTeamArray[teamMemberIndex].displayName, // Update display name
             status: "active",
-            joinedAt: admin.firestore.Timestamp.now() as any,
+            joinedAt: Timestamp.now() as any,
           };
           userRoleUpdate = membership.role === "admin" ? "agency_admin" : "agency_member";
           if (membership.role === "admin") {
@@ -534,8 +535,8 @@ export const createInternalPayout = onCall(async (request) => {
       amount,
       description,
       status: "processing",
-      initiatedAt: admin.firestore.Timestamp.now() as any,
-      paymentDate: admin.firestore.Timestamp.fromDate(new Date(paymentDate)) as any,
+      initiatedAt: Timestamp.now() as any,
+      paymentDate: Timestamp.fromDate(new Date(paymentDate)) as any,
       platformFee: 0,
     };
 
@@ -721,7 +722,7 @@ export const initiateAgencyPayout = onCall(async (request) => {
 
     await db.runTransaction(async (transaction) => {
       transaction.update(agencyDocRef, {
-        availableBalance: admin.firestore.FieldValue.increment(-payoutAmount),
+        availableBalance: FieldValue.increment(-payoutAmount),
       });
 
       const pendingCommissionsSnap = await db.collection("internalPayouts")
@@ -730,7 +731,7 @@ export const initiateAgencyPayout = onCall(async (request) => {
         .where("status", "==", "pending")
         .get();
 
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      const now = FieldValue.serverTimestamp();
       pendingCommissionsSnap.forEach((doc) => {
         transaction.update(doc.ref, {status: "paid", paidAt: now});
       });
@@ -760,7 +761,7 @@ export const initiateAgencyPayout = onCall(async (request) => {
       type: "payout_received",
       read: false,
       link: "/wallet",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     logger.info(`Successfully initiated agency payout of $${payoutAmount} for agency ${agencyId} to user ${receiverId}.`);
@@ -818,17 +819,17 @@ export const initiateInternalTalentPayment = onCall(async (request) => {
     const talentData = talentSnap.data() as UserProfileFirestoreData;
 
     const description = note?.trim() || `Payment from ${agencyData.name}`;
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     await db.runTransaction(async (transaction) => {
       // Deduct from agency available balance
       transaction.update(agencyDocRef, {
-        availableBalance: admin.firestore.FieldValue.increment(-amount),
+        availableBalance: FieldValue.increment(-amount),
       });
 
       // Credit creator wallet
       transaction.update(talentDocRef, {
-        walletBalance: admin.firestore.FieldValue.increment(amount),
+        walletBalance: FieldValue.increment(amount),
       });
 
       // Audit record — agency side
@@ -875,7 +876,7 @@ export const initiateInternalTalentPayment = onCall(async (request) => {
       type: "payout_received",
       read: false,
       link: "/wallet",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     logger.info(`Agency ${agencyId} sent $${amount} to creator ${talentUserId}.`);
