@@ -97,11 +97,6 @@ env:
     availability:
       - RUNTIME
 
-  - variable: STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
-    secret: VERZA_STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
-
   - variable: APP_URL
     secret: VERZA_APP_URL
 
