@@ -21,9 +21,6 @@ import {sendSubscriptionReceiptEmail} from "../notifications";
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: SubscriptionPlanId; talentLimit: number } } = {
-    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 3},
-    [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 3},
-
     [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
     [params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_yearly", talentLimit: 9},
 
@@ -104,12 +101,6 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
 
     let priceId;
     switch (planId) {
-    case "individual_monthly":
-      priceId = params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value();
-      break;
-    case "individual_yearly":
-      priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
-      break;
     case "agency_pilot_monthly":
       priceId = params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value();
       break;
