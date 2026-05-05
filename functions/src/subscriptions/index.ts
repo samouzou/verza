@@ -56,7 +56,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -182,7 +182,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -218,7 +218,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -247,16 +247,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   let event: Stripe.Event;
 
   try {
-    // Get the raw request body as a string
     const rawBody = request.rawBody;
     if (!rawBody) {
       throw new Error("No raw body found in request");
     }
 
-    // Verify the event using the raw body and signature
-    event = stripe.webhooks.constructEvent(
+    // Use the raw Buffer directly — do not toString() as it can alter encoding
+    // and break Stripe's HMAC signature check in the emulator
+    event = await stripe.webhooks.constructEventAsync(
       rawBody,
-      sig,
+      sig as string,
       webhookSecret
     );
   } catch (err) {
@@ -466,6 +466,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       logger.info("Updated user subscription from invoice.payment_failed:", {userId: firebaseUID, status: "past_due"});
       break;
     }
+    default:
+      logger.info(`Unhandled event type: ${event.type}`);
     }
 
     response.json({received: true});

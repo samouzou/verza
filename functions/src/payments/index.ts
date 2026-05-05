@@ -35,7 +35,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -145,7 +145,7 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -192,7 +192,7 @@ export const getStripeAccountBalance = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -238,7 +238,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     // Cannot throw HttpsError in onRequest, so send error response.
@@ -448,7 +448,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -741,7 +741,7 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -807,7 +807,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -970,7 +970,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -1057,7 +1057,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -1233,7 +1233,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
       let stripe: Stripe;
       try {
         const stripeKey = params.STRIPE_SECRET_KEY.value();
-        stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+        stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
       } catch (e) {
         logger.error("Stripe not configured", e);
         throw new HttpsError("failed-precondition", "Stripe is not configured.");

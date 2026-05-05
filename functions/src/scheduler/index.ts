@@ -478,7 +478,7 @@ export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
     logger.error("STRIPE_SECRET_KEY not set. Cannot process affiliate payouts.");
     return;
   }
-  const stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil" as any});
+  const stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any as any});
 
   try {
     const affiliateLinksSnap = await db.collection("affiliateLinks")
