@@ -703,6 +703,11 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
                 const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
                 const talentShareAmount = netForDistribution - agencyCommRaw;
+                const now = FieldValue.serverTimestamp();
+                const contractLabel = contractData.projectName || contractData.brand || contractId;
+                const description = milestoneId ?
+                  `Commission: ${contractLabel} (milestone)` :
+                  `Commission: ${contractLabel}`;
 
                 if (agencyCommRaw > 0) {
                   await stripe.transfers.create({
@@ -711,6 +716,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     destination: agencyOwnerData.stripeAccountId,
                     source_transaction: latestChargeId,
                   });
+                  await db.collection("internalPayouts").add({
+                    type: "agency_commission",
+                    agencyId,
+                    talentId: contractData.userId,
+                    talentName: talentUserData.displayName || contractData.userId,
+                    amount: agencyCommRaw / 100,
+                    description,
+                    status: "paid",
+                    contractId,
+                    milestoneId: milestoneId || null,
+                    paymentIntentId: paymentIntent.id,
+                    initiatedAt: now,
+                    paidAt: now,
+                  });
                 }
                 if (talentShareAmount > 0) {
                   await stripe.transfers.create({
@@ -718,6 +737,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     currency: "usd",
                     destination: talentUserData.stripeAccountId,
                     source_transaction: latestChargeId,
+                  });
+                  await db.collection("internalPayouts").add({
+                    type: "talent_earnings",
+                    agencyId,
+                    talentId: contractData.userId,
+                    talentName: talentUserData.displayName || contractData.userId,
+                    amount: talentShareAmount / 100,
+                    description,
+                    status: "paid",
+                    contractId,
+                    milestoneId: milestoneId || null,
+                    paymentIntentId: paymentIntent.id,
+                    initiatedAt: now,
+                    paidAt: now,
                   });
                 }
               }
