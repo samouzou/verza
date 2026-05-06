@@ -30,8 +30,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 
-const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
-const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
+const CREATE_PAYMENT_INTENT_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_PAYMENT_INTENT_URL!;
+const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = process.env.NEXT_PUBLIC_SEND_CONTRACT_NOTIFICATION_URL!;
 
 const getDefaultLineItem = (): EditableInvoiceLineItem => ({ description: "", quantity: 1, unitPrice: 0 });
 

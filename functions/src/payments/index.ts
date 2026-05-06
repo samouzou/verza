@@ -770,42 +770,10 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
       throw new Error("No raw body found in request");
     }
 
-    // V2 event destinations send thin JSON events — parse directly.
-    const thinEvent = JSON.parse(rawBody.toString());
-    logger.info("Account webhook received:", {type: thinEvent.type, id: thinEvent.id});
+    const event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
 
-    // Ping events are sent when the destination is first tested.
-    if (thinEvent.type === "v2.core.event_destination.ping") {
-      response.status(200).send("Webhook processed");
-      return;
-    }
-
-    // V1 events delivered via V2 destination are prefixed with "v1."
-    const isAccountUpdated = thinEvent.type === "v1.account.updated" ||
-      thinEvent.type === "account.updated";
-
-    if (isAccountUpdated) {
-      // Account ID is in related_object for V2 thin events, or data.object.id for V1 format.
-      const accountId = thinEvent.related_object?.id ||
-        thinEvent.data?.object?.id;
-
-      if (!accountId) {
-        logger.error("Could not extract account ID from event", thinEvent);
-        response.status(200).send("No account ID in event");
-        return;
-      }
-
-      logger.info("Retrieving Stripe account:", accountId);
-
-      // Retrieve the full V1 account object to read charges_enabled, payouts_enabled, etc.
-      const account = await stripe.accounts.retrieve(accountId) as any;
-      logger.info("Account retrieved:", {
-        id: account.id,
-        type: account.type,
-        charges_enabled: account.charges_enabled,
-        payouts_enabled: account.payouts_enabled,
-        details_submitted: account.details_submitted,
-      });
+    if (event.type === "account.updated") {
+      const account = event.data.object as any;
 
       const usersRef = db.collection("users");
       const snapshot = await usersRef

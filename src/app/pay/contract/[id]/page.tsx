@@ -16,10 +16,10 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
 import Image from 'next/image';
 
-const CREATE_PAYMENT_INTENT_FUNCTION_URL = "https://createpaymentintent-cpmccwbluq-uc.a.run.app";
+const CREATE_PAYMENT_INTENT_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_PAYMENT_INTENT_URL;
 
 type PublicContractData = Pick<Contract, 'id' | 'brand' | 'projectName' | 'invoiceStatus' | 'clientEmail' | 'milestones' | 'amount'> & {
-    editableInvoiceDetails?: EditableInvoiceDetails | null;
+  editableInvoiceDetails?: EditableInvoiceDetails | null;
 };
 
 export default function ClientPaymentPage() {
@@ -32,7 +32,7 @@ export default function ClientPaymentPage() {
   const [contract, setContract] = useState<PublicContractData | null>(null);
   const [milestone, setMilestone] = useState<PaymentMilestone | null>(null);
   const [amountToPay, setAmountToPay] = useState<number>(0);
-  
+
   const [isLoadingContract, setIsLoadingContract] = useState(true);
   const [isFetchingClientSecret, setIsFetchingClientSecret] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export default function ClientPaymentPage() {
     if (id) {
       setIsLoadingContract(true);
       const getPublicContractDetailsCallable = httpsCallable(functions, 'getPublicContractDetails');
-      
+
       getPublicContractDetailsCallable({ contractId: id })
         .then((result) => {
           const data = result.data as PublicContractData;
@@ -69,12 +69,12 @@ export default function ClientPaymentPage() {
           if (data.editableInvoiceDetails?.deliverables && data.editableInvoiceDetails.deliverables.length > 0) {
             // If we are invoicing a specific milestone that has additional items, calculate from there
             if (targetMilestone && data.editableInvoiceDetails.deliverables.some(d => d.isMilestone && d.description === targetMilestone?.description)) {
-                finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+              finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
             } else if (!targetMilestone) { // If not a milestone-specific invoice, sum everything
-                finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+              finalAmount = data.editableInvoiceDetails.deliverables.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
             }
           }
-          
+
           // Fallback logic if editable details aren't set or don't apply
           if (finalAmount === 0) {
             if (targetMilestone) {
@@ -83,11 +83,11 @@ export default function ClientPaymentPage() {
               finalAmount = data.amount || 0;
             }
           }
-          
+
           setAmountToPay(finalAmount);
 
           if ((targetMilestone && targetMilestone.status === 'paid') || (!targetMilestone && data.invoiceStatus === 'paid')) {
-              toast({ title: "Already Paid", description: "This invoice or milestone has already been settled.", variant: "default" });
+            toast({ title: "Already Paid", description: "This invoice or milestone has already been settled.", variant: "default" });
           }
 
         })
@@ -125,7 +125,7 @@ export default function ClientPaymentPage() {
           milestoneId: milestone?.id,
           amount: amountToPay,
           currency: 'usd',
-           clientEmail: contract.clientEmail || undefined,
+          clientEmail: contract.clientEmail || undefined,
         }),
       });
 
@@ -182,14 +182,14 @@ export default function ClientPaymentPage() {
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;
 
   const isPaid = (milestone && milestone.status === 'paid') || (!milestone && contract.invoiceStatus === 'paid');
-  const paymentDescription = milestone?.description ? `Payment for: ${milestone.description}` : `For ${contract.brand} - ${contract.projectName || `Contract ID: ${contract.id.substring(0,8)}...`}`;
+  const paymentDescription = milestone?.description ? `Payment for: ${milestone.description}` : `For ${contract.brand} - ${contract.projectName || `Contract ID: ${contract.id.substring(0, 8)}...`}`;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-100 to-sky-100 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 md:p-8">
       <Card className="w-full max-w-lg shadow-2xl rounded-xl overflow-hidden bg-background">
         <CardHeader className="bg-slate-800 text-primary-foreground p-6">
           <div className="flex items-center gap-3">
-             <Image src="/verza-icon.svg" alt="Verza Icon" width={40} height={40} />
+            <Image src="/verza-icon.svg" alt="Verza Icon" width={40} height={40} />
             <div>
               <CardTitle className="text-2xl md:text-3xl text-white">Pay Invoice</CardTitle>
               <CardDescription className="text-slate-300">{paymentDescription}</CardDescription>
@@ -207,7 +207,7 @@ export default function ClientPaymentPage() {
             <>
               <div className="space-y-3 text-center">
                 <p className="text-muted-foreground">Amount Due</p>
-                 <p className="text-5xl font-bold text-slate-800 dark:text-slate-100">
+                <p className="text-5xl font-bold text-slate-800 dark:text-slate-100">
                   ${amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
@@ -242,12 +242,12 @@ export default function ClientPaymentPage() {
               </div>
             )
           )}
-           <p className="text-xs text-muted-foreground text-center pt-4 flex items-center justify-center gap-1.5">
-            <ShieldCheck className="h-4 w-4 text-green-600"/> Securely processed by Stripe.
+          <p className="text-xs text-muted-foreground text-center pt-4 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="h-4 w-4 text-green-600" /> Securely processed by Stripe.
           </p>
         </CardContent>
       </Card>
-       <p className="text-center text-xs text-muted-foreground mt-6">
+      <p className="text-center text-xs text-muted-foreground mt-6">
         Powered by Verza &copy; {new Date().getFullYear()}
       </p>
     </div>

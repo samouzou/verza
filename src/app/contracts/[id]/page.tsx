@@ -48,7 +48,7 @@ if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
 }
 
-const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = "https://sendcontractnotification-cpmccwbluq-uc.a.run.app";
+const SEND_CONTRACT_NOTIFICATION_FUNCTION_URL = process.env.NEXT_PUBLIC_SEND_CONTRACT_NOTIFICATION_URL!;
 
 function DetailItem({ icon: Icon, label, value, valueClassName }: { icon: React.ElementType, label: string, value: React.ReactNode, valueClassName?: string }) {
   return (
