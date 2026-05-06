@@ -247,16 +247,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   let event: Stripe.Event;
 
   try {
+    // Get the raw request body as a string
     const rawBody = request.rawBody;
     if (!rawBody) {
       throw new Error("No raw body found in request");
     }
 
-    // Use the raw Buffer directly — do not toString() as it can alter encoding
-    // and break Stripe's HMAC signature check in the emulator
-    event = await stripe.webhooks.constructEventAsync(
+    // Verify the event using the raw body and signature
+    event = stripe.webhooks.constructEvent(
       rawBody,
-      sig as string,
+      sig,
       webhookSecret
     );
   } catch (err) {
@@ -267,12 +267,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
   try {
     // Get Firebase UID from event metadata
+    // In dahlia, invoice.metadata is empty — UID lives in parent.subscription_details.metadata
     let firebaseUID: string | undefined;
-    // Use type narrowing to access metadata or customer property safely
-    if ("metadata" in event.data.object && (event.data.object as any).metadata?.firebaseUID) {
-      firebaseUID = (event.data.object as any).metadata.firebaseUID;
-    } else if ("customer" in event.data.object && typeof (event.data.object as any).customer === "string") {
-      const customer = await stripe.customers.retrieve((event.data.object as any).customer);
+    const obj = event.data.object as any;
+
+    firebaseUID = obj.metadata?.firebaseUID ||
+      obj.parent?.subscription_details?.metadata?.firebaseUID ||
+      obj.subscription_data?.metadata?.firebaseUID;
+
+    if (!firebaseUID && obj.customer && typeof obj.customer === "string") {
+      const customer = await stripe.customers.retrieve(obj.customer);
       if (!customer.deleted && "metadata" in customer) {
         firebaseUID = (customer.metadata as any).firebaseUID;
       }
@@ -289,38 +293,42 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     // Handle different event types
     switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session &
-      { metadata?: { firebaseUID?: string, planId?: string }};
-      if (session.mode === "subscription" && session.subscription) {
-        const subscriptionResponse = await stripe.subscriptions.retrieve(session.subscription as string);
-        const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
-          current_period_end: number;
-          trial_end?: number | null;
-        };
+      const session = event.data.object as any;
+      if (session.mode === "subscription") {
+        // In dahlia, subscription may be an object or string — normalize to ID
+        const subscriptionId = typeof session.subscription === "object" ?
+          session.subscription?.id :
+          session.subscription;
+        if (!subscriptionId) break;
+
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId) as any;
 
         let firestoreSubscriptionEndsAt: Timestamp | null = null;
-        if (typeof subscription.current_period_end === "number") {
-          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
+        if (typeof subscriptionResponse.current_period_end === "number") {
+          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscriptionResponse.current_period_end * 1000);
         }
 
         let firestoreTrialEndsAt: Timestamp | null = null;
-        if (typeof subscription.trial_end === "number") {
-          firestoreTrialEndsAt = Timestamp.fromMillis(subscription.trial_end * 1000);
+        if (typeof subscriptionResponse.trial_end === "number") {
+          firestoreTrialEndsAt = Timestamp.fromMillis(subscriptionResponse.trial_end * 1000);
         }
 
         const planIdFromMeta = session.metadata?.planId as SubscriptionPlanId;
-        const priceId = subscription.items.data[0]?.price.id;
+        const priceId = subscriptionResponse.items.data[0]?.price.id;
         const {talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
-
-        // Fallback to deriving from planId if price mapping failed
         const talentLimit = limitFromPrice || getTalentLimitFromPlanId(planIdFromMeta);
-        const interval = subscription.items.data[0]?.price?.recurring?.interval ||
-        (planIdFromMeta?.endsWith("yearly") ? "year" : "month");
+        const interval = subscriptionResponse.items.data[0]?.price?.recurring?.interval ||
+          (planIdFromMeta?.endsWith("yearly") ? "year" : "month");
+
+        // customer may be object or string in dahlia
+        const customerId = typeof session.customer === "object" ?
+          session.customer?.id :
+          session.customer;
 
         await userDocRef.update({
-          stripeSubscriptionId: subscription.id,
-          stripeCustomerId: session.customer,
-          subscriptionStatus: subscription.status,
+          stripeSubscriptionId: subscriptionResponse.id,
+          stripeCustomerId: customerId,
+          subscriptionStatus: subscriptionResponse.status,
           subscriptionInterval: interval,
           subscriptionPlanId: planIdFromMeta,
           talentLimit,
@@ -328,9 +336,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           trialEndsAt: firestoreTrialEndsAt,
         });
         logger.info("Updated user subscription from checkout.session.completed:",
-          {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId: planIdFromMeta});
+          {userId: firebaseUID, subId: subscriptionResponse.id, planId: planIdFromMeta});
 
-        // Send new subscription receipt
         const userSnap = await userDocRef.get();
         const userData = userSnap.data() as UserProfileFirestoreData;
         if (userData?.email) {
@@ -338,8 +345,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
             planId: planIdFromMeta,
             interval,
             amountPaid: session.amount_total || 0,
-            nextBillingDate: subscription.current_period_end,
-            transactionId: subscription.id,
+            nextBillingDate: subscriptionResponse.current_period_end,
+            transactionId: subscriptionResponse.id,
             type: "new",
           });
         }
@@ -349,11 +356,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
     case "customer.subscription.created":
     case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription & {
-        current_period_end: number;
-        trial_end?: number | null;
-        metadata?: { planId?: string };
-      };
+      const subscription = event.data.object as any;
 
       let firestoreSubscriptionEndsAt: Timestamp | null = null;
       if (typeof subscription.current_period_end === "number") {
@@ -388,17 +391,15 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       await userDocRef.update(updates);
 
       logger.info(`Updated user subscription from ${event.type}:`,
-        {userId: firebaseUID, subId: subscription.id, status: subscription.status,
-          interval: interval, planId: planId || `(derived from price ${priceId})`});
+        {
+          userId: firebaseUID, subId: subscription.id, status: subscription.status,
+          interval: interval, planId: planId || `(derived from price ${priceId})`,
+        });
       break;
     }
 
     case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription & {
-        current_period_end: number;
-        ended_at?: number | null;
-        canceled_at?: number | null;
-      };
+      const subscription = event.data.object as any;
 
       let firestoreSubscriptionEndsAt: Timestamp | null = null;
       const endTimestamp = subscription.ended_at || subscription.canceled_at || subscription.current_period_end;
@@ -417,10 +418,18 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       break;
     }
 
+    case "invoice.paid":
     case "invoice.payment_succeeded": {
-      const invoice = event.data.object as Stripe.Invoice & {subscription?: string};
-      if (invoice.billing_reason === "subscription_cycle" && invoice.subscription) {
-        const subscriptionResponse = await stripe.subscriptions.retrieve(invoice.subscription);
+      const invoice = event.data.object as any;
+      const isNewSub = invoice.billing_reason === "subscription_create";
+      const isRenewal = invoice.billing_reason === "subscription_cycle";
+
+      // In dahlia, subscription ID moved from invoice.subscription to invoice.parent.subscription_details.subscription
+      const subscriptionId = invoice.subscription ||
+        invoice.parent?.subscription_details?.subscription;
+
+      if ((isNewSub || isRenewal) && subscriptionId) {
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId as string);
         const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
           current_period_end: number;
         };
@@ -432,27 +441,37 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
         const priceId = subscription.items.data[0]?.price.id;
-        const {planId: renewedPlanId} = getPlanDetailsFromPriceId(priceId);
+        const {planId: derivedPlanId, talentLimit} = getPlanDetailsFromPriceId(priceId);
 
-        await userDocRef.update({
+        // For new subscriptions pull planId from invoice parent metadata (dahlia structure)
+        const invoiceObj = invoice as any;
+        const metaPlanId = invoiceObj.parent?.subscription_details?.metadata?.planId ||
+          invoiceObj.metadata?.planId;
+        const resolvedPlanId = derivedPlanId || metaPlanId;
+
+        const updates: any = {
+          stripeSubscriptionId: subscription.id,
           subscriptionStatus: "active",
-          subscriptionInterval: interval as any,
-          subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
-        });
-        logger.info("Updated user subscription from invoice.payment_succeeded:",
-          {userId: firebaseUID, subId: subscription.id, status: "active", interval: interval});
+          subscriptionInterval: interval,
+          subscriptionEndsAt: firestoreSubscriptionEndsAt,
+        };
+        if (resolvedPlanId) updates.subscriptionPlanId = resolvedPlanId;
+        if (talentLimit) updates.talentLimit = talentLimit;
 
-        // Send renewal receipt
+        await userDocRef.update(updates);
+        logger.info(`Updated subscription from invoice.paid (${invoice.billing_reason}):`,
+          {userId: firebaseUID, subId: subscription.id, planId: resolvedPlanId});
+
         const userSnap = await userDocRef.get();
         const userData = userSnap.data() as UserProfileFirestoreData;
         if (userData?.email) {
           await sendSubscriptionReceiptEmail(userData.email, userData.displayName || "there", {
-            planId: renewedPlanId || userData.subscriptionPlanId,
+            planId: resolvedPlanId || userData.subscriptionPlanId,
             interval,
             amountPaid: invoice.amount_paid,
             nextBillingDate: subscription.current_period_end,
             transactionId: invoice.id || subscription.id,
-            type: "renewal",
+            type: isNewSub ? "new" : "renewal",
           });
         }
       }

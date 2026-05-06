@@ -128,6 +128,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       stripeAccountStatus: "onboarding_incomplete",
       stripeChargesEnabled: false,
       stripePayoutsEnabled: false,
+      payoutMethod: "stripe_connect",
     });
 
     response.json({stripeAccountId: account.id});
@@ -476,13 +477,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       const paymentIntent = event.data.object as any;
       let metadata = paymentIntent.metadata || {};
       const amount = paymentIntent.amount;
-      const latestCharge = paymentIntent["latest_charge"];
+      // In dahlia, latest_charge moved from string to object — normalize to ID
+      const latestChargeRaw = paymentIntent["latest_charge"];
+      const latestCharge = typeof latestChargeRaw === "object" && latestChargeRaw !== null ?
+        latestChargeRaw.id :
+        latestChargeRaw;
 
       // Support manual invoices: if payment metadata is empty, check linked invoice
+      // In dahlia, invoice.metadata is empty — also check parent.subscription_details.metadata
       if (paymentIntent.invoice && Object.keys(metadata).length === 0) {
-        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
-        metadata = invoice.metadata || {};
-        logger.info(`Extracted metadata from manual invoice ${invoice.id} for payment ${paymentIntent.id}.`);
+        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string) as any;
+        metadata = invoice.metadata ||
+          invoice.parent?.subscription_details?.metadata ||
+          {};
+        logger.info(`Extracted metadata from invoice ${invoice.id} for payment ${paymentIntent.id}.`);
       }
 
       const {
@@ -762,38 +770,72 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
       throw new Error("No raw body found in request");
     }
 
-    const event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      endpointSecret
-    );
+    // V2 event destinations send thin JSON events — parse directly.
+    const thinEvent = JSON.parse(rawBody.toString());
+    logger.info("Account webhook received:", {type: thinEvent.type, id: thinEvent.id});
 
-    if (event.type === "account.updated") {
-      const account = event.data.object as Stripe.Account;
-      const dbInstance = admin.firestore();
+    // Ping events are sent when the destination is first tested.
+    if (thinEvent.type === "v2.core.event_destination.ping") {
+      response.status(200).send("Webhook processed");
+      return;
+    }
 
-      const usersRef = dbInstance.collection("users");
+    // V1 events delivered via V2 destination are prefixed with "v1."
+    const isAccountUpdated = thinEvent.type === "v1.account.updated" ||
+      thinEvent.type === "account.updated";
+
+    if (isAccountUpdated) {
+      // Account ID is in related_object for V2 thin events, or data.object.id for V1 format.
+      const accountId = thinEvent.related_object?.id ||
+        thinEvent.data?.object?.id;
+
+      if (!accountId) {
+        logger.error("Could not extract account ID from event", thinEvent);
+        response.status(200).send("No account ID in event");
+        return;
+      }
+
+      logger.info("Retrieving Stripe account:", accountId);
+
+      // Retrieve the full V1 account object to read charges_enabled, payouts_enabled, etc.
+      const account = await stripe.accounts.retrieve(accountId) as any;
+      logger.info("Account retrieved:", {
+        id: account.id,
+        type: account.type,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        details_submitted: account.details_submitted,
+      });
+
+      const usersRef = db.collection("users");
       const snapshot = await usersRef
         .where("stripeAccountId", "==", account.id)
         .get();
 
       if (snapshot.empty) {
-        logger.error("No user found with Stripe account ID:", account.id);
+        logger.info("No user found with Stripe account ID:", account.id);
         response.status(200).send("No user found");
         return;
       }
 
       const userDoc = snapshot.docs[0];
-      const updates: Partial<UserProfileFirestoreData> = {
-        stripeChargesEnabled: account.charges_enabled,
-        stripePayoutsEnabled: account.payouts_enabled,
-        stripeAccountStatus: account.details_submitted ?
-          "active" :
-          "onboarding_incomplete",
-        ...(account.country ? {stripeAccountCountry: account.country} : {}),
-      };
 
-      await userDoc.ref.update(updates);
+      // charges_enabled / payouts_enabled exist on v1 Express accounts.
+      // V2 accounts use capabilities instead — skip status update for those.
+      const isV1Express = account.type === "express" || account.type === "custom" || account.type === "standard";
+      const updates: Partial<UserProfileFirestoreData> = {};
+
+      if (isV1Express) {
+        updates.stripeChargesEnabled = account.charges_enabled;
+        updates.stripePayoutsEnabled = account.payouts_enabled;
+        updates.stripeAccountStatus = account.details_submitted ? "active" : "onboarding_incomplete";
+      }
+      if (account.country) updates.stripeAccountCountry = account.country;
+
+      if (Object.keys(updates).length > 0) {
+        await userDoc.ref.update(updates);
+        logger.info(`Updated Stripe account status for user ${userDoc.id}`, updates);
+      }
     }
 
     response.status(200).send("Webhook processed");
@@ -922,9 +964,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
-          bank_transfer: {
-            type: "us_bank_transfer",
-          },
+          bank_transfer: {type: "us_bank_transfer"},
         },
       },
       line_items: [{
@@ -1095,9 +1135,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
-          bank_transfer: {
-            type: "us_bank_transfer",
-          },
+          bank_transfer: {type: "us_bank_transfer"},
         },
       },
       line_items: [{
@@ -1131,6 +1169,51 @@ export const createAgencyTopUpSession = onCall(async (request) => {
     logger.error("Error creating top-up session:", error);
     throw new HttpsError("internal", "Could not create checkout session.");
   }
+});
+
+export const syncStripeAccountStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+  } catch (e) {
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  const userId = request.auth.uid;
+  const userDocRef = db.collection("users").doc(userId);
+  const userSnap = await userDocRef.get();
+  const userData = userSnap.data() as UserProfileFirestoreData;
+
+  if (!userData?.stripeAccountId) {
+    throw new HttpsError("failed-precondition", "No Stripe account connected.");
+  }
+
+  const account = await stripe.accounts.retrieve(userData.stripeAccountId) as any;
+  logger.info(`Syncing Stripe account ${account.id} for user ${userId}`, {
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    details_submitted: account.details_submitted,
+    type: account.type,
+  });
+
+  const updates: Partial<UserProfileFirestoreData> = {
+    stripeChargesEnabled: account.charges_enabled,
+    stripePayoutsEnabled: account.payouts_enabled,
+    stripeAccountStatus: account.details_submitted ? "active" : "onboarding_incomplete",
+  };
+  if (account.country) updates.stripeAccountCountry = account.country;
+
+  await userDocRef.update(updates);
+  return {
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    status: updates.stripeAccountStatus,
+  };
 });
 
 // Creates a Stripe Global Payouts recipient for creators in unsupported Connect countries.

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { Loader2, ExternalLink, CheckCircle, XCircle, AlertTriangle as AlertTriangleIcon, Link as LinkIcon, Building, Lightbulb, RefreshCw, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
@@ -14,9 +15,8 @@ import type { Agency, TeamMember } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
-// URLs for your Firebase Cloud Functions (onRequest type)
-const CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL = "https://createstripeconnectedaccount-cpmccwbluq-uc.a.run.app";
-const CREATE_STRIPE_ACCOUNT_LINK_FUNCTION_URL = "https://createstripeaccountlink-cpmccwbluq-uc.a.run.app";
+const CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_STRIPE_CONNECTED_ACCOUNT_URL!;
+const CREATE_STRIPE_ACCOUNT_LINK_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_STRIPE_ACCOUNT_LINK_URL!;
 
 
 export function StripeConnectCard() {
@@ -98,6 +98,18 @@ export function StripeConnectCard() {
     return () => unsubscribe();
   }, [user?.primaryAgencyId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_connect_return") === "true" && user?.stripeAccountId) {
+      const functions = getFunctions();
+      const syncStatus = httpsCallable(functions, "syncStripeAccountStatus");
+      syncStatus()
+        .catch(() => {/* non-critical */})
+        .finally(() => refreshAuthUser());
+    }
+  }, []);
+
   if (!user) return null;
 
   const isGlobalPayoutCountry = selectedCountry && !STRIPE_CONNECT_COUNTRIES.has(selectedCountry);
@@ -164,6 +176,14 @@ export function StripeConnectCard() {
     setIsProcessing(true);
     toast({ title: "Redirecting to Stripe...", description: "Opening the Stripe portal to manage your account." });
     try {
+      // Sync account status before redirecting so Firestore is up to date on return.
+      if (user.stripeAccountId) {
+        const functions = getFunctions();
+        const syncStatus = httpsCallable(functions, "syncStripeAccountStatus");
+        await syncStatus().catch(() => {/* non-critical */});
+        await refreshAuthUser();
+      }
+
       const idToken = await getUserIdToken();
       if (!idToken) throw new Error("Authentication token not available.");
 
