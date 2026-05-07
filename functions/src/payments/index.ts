@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 
@@ -34,7 +35,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -127,6 +128,7 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       stripeAccountStatus: "onboarding_incomplete",
       stripeChargesEnabled: false,
       stripePayoutsEnabled: false,
+      payoutMethod: "stripe_connect",
     });
 
     response.json({stripeAccountId: account.id});
@@ -144,7 +146,7 @@ export const createStripeAccountLink = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -191,7 +193,7 @@ export const getStripeAccountBalance = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -237,7 +239,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     // Cannot throw HttpsError in onRequest, so send error response.
@@ -447,7 +449,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -475,13 +477,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       const paymentIntent = event.data.object as any;
       let metadata = paymentIntent.metadata || {};
       const amount = paymentIntent.amount;
-      const latestCharge = paymentIntent["latest_charge"];
+      // In dahlia, latest_charge moved from string to object — normalize to ID
+      const latestChargeRaw = paymentIntent["latest_charge"];
+      const latestCharge = typeof latestChargeRaw === "object" && latestChargeRaw !== null ?
+        latestChargeRaw.id :
+        latestChargeRaw;
 
       // Support manual invoices: if payment metadata is empty, check linked invoice
+      // In dahlia, invoice.metadata is empty — also check parent.subscription_details.metadata
       if (paymentIntent.invoice && Object.keys(metadata).length === 0) {
-        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string);
-        metadata = invoice.metadata || {};
-        logger.info(`Extracted metadata from manual invoice ${invoice.id} for payment ${paymentIntent.id}.`);
+        const invoice = await stripe.invoices.retrieve(paymentIntent.invoice as string) as any;
+        metadata = invoice.metadata ||
+          invoice.parent?.subscription_details?.metadata ||
+          {};
+        logger.info(`Extracted metadata from invoice ${invoice.id} for payment ${paymentIntent.id}.`);
       }
 
       const {
@@ -493,7 +502,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
         await payoutDocRef.update({
           status: "paid",
-          paidAt: admin.firestore.Timestamp.now(),
+          paidAt: Timestamp.now(),
         });
         logger.info(`Internal payout ${internalPayoutId} status updated to 'paid'.`);
       } else if (purchaseType === "agencyTopUp" && agencyId) {
@@ -516,14 +525,14 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             await db.runTransaction(async (transaction) => {
               const userDoc = await transaction.get(userRef);
               if (!userDoc.exists) throw new Error(`User with ID ${targetUserId} not found.`);
-              transaction.update(userRef, {credits: admin.firestore.FieldValue.increment(creditsToAdd)});
+              transaction.update(userRef, {credits: FieldValue.increment(creditsToAdd)});
               transaction.set(transactionRef, {
                 userId: targetUserId,
                 creditAmount: creditsToAdd,
                 priceId: priceId || "unknown",
                 paymentIntentId: paymentIntent.id,
                 status: "completed",
-                createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+                createdAt: FieldValue.serverTimestamp() as any,
               } as Omit<CreditTransaction, "id">);
             });
             logger.info(`Successfully added ${creditsToAdd} credits to user ${targetUserId} via handlePaymentSuccess.`);
@@ -649,9 +658,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         const contractData = contractDoc.data() as Contract;
 
         const updates: { [key: string]: unknown } = {
-          updatedAt: admin.firestore.Timestamp.now(),
-          invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-            timestamp: admin.firestore.Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          invoiceHistory: FieldValue.arrayUnion({
+            timestamp: Timestamp.now(),
             action: `Payment Received for ${milestoneId ? "Milestone" : "Invoice"}`,
             details: `PaymentIntent ID: ${paymentIntent.id}`,
           }),
@@ -694,6 +703,11 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
                 const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
                 const talentShareAmount = netForDistribution - agencyCommRaw;
+                const now = FieldValue.serverTimestamp();
+                const contractLabel = contractData.projectName || contractData.brand || contractId;
+                const description = milestoneId ?
+                  `Commission: ${contractLabel} (milestone)` :
+                  `Commission: ${contractLabel}`;
 
                 if (agencyCommRaw > 0) {
                   await stripe.transfers.create({
@@ -702,6 +716,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     destination: agencyOwnerData.stripeAccountId,
                     source_transaction: latestChargeId,
                   });
+                  await db.collection("internalPayouts").add({
+                    type: "agency_commission",
+                    agencyId,
+                    talentId: contractData.userId,
+                    talentName: talentUserData.displayName || contractData.userId,
+                    amount: agencyCommRaw / 100,
+                    description,
+                    status: "paid",
+                    contractId,
+                    milestoneId: milestoneId || null,
+                    paymentIntentId: paymentIntent.id,
+                    initiatedAt: now,
+                    paidAt: now,
+                  });
                 }
                 if (talentShareAmount > 0) {
                   await stripe.transfers.create({
@@ -709,6 +737,20 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     currency: "usd",
                     destination: talentUserData.stripeAccountId,
                     source_transaction: latestChargeId,
+                  });
+                  await db.collection("internalPayouts").add({
+                    type: "talent_earnings",
+                    agencyId,
+                    talentId: contractData.userId,
+                    talentName: talentUserData.displayName || contractData.userId,
+                    amount: talentShareAmount / 100,
+                    description,
+                    status: "paid",
+                    contractId,
+                    milestoneId: milestoneId || null,
+                    paymentIntentId: paymentIntent.id,
+                    initiatedAt: now,
+                    paidAt: now,
                   });
                 }
               }
@@ -723,7 +765,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           amount,
           currency: "usd",
           status: "succeeded",
-          timestamp: admin.firestore.Timestamp.now(),
+          timestamp: Timestamp.now(),
         });
       }
     }
@@ -740,7 +782,7 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -761,38 +803,40 @@ export const handleStripeAccountWebhook = onRequest(async (request, response) =>
       throw new Error("No raw body found in request");
     }
 
-    const event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      endpointSecret
-    );
+    const event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
 
     if (event.type === "account.updated") {
-      const account = event.data.object as Stripe.Account;
-      const dbInstance = admin.firestore();
+      const account = event.data.object as any;
 
-      const usersRef = dbInstance.collection("users");
+      const usersRef = db.collection("users");
       const snapshot = await usersRef
         .where("stripeAccountId", "==", account.id)
         .get();
 
       if (snapshot.empty) {
-        logger.error("No user found with Stripe account ID:", account.id);
+        logger.info("No user found with Stripe account ID:", account.id);
         response.status(200).send("No user found");
         return;
       }
 
       const userDoc = snapshot.docs[0];
-      const updates: Partial<UserProfileFirestoreData> = {
-        stripeChargesEnabled: account.charges_enabled,
-        stripePayoutsEnabled: account.payouts_enabled,
-        stripeAccountStatus: account.details_submitted ?
-          "active" :
-          "onboarding_incomplete",
-        ...(account.country ? {stripeAccountCountry: account.country} : {}),
-      };
 
-      await userDoc.ref.update(updates);
+      // charges_enabled / payouts_enabled exist on v1 Express accounts.
+      // V2 accounts use capabilities instead — skip status update for those.
+      const isV1Express = account.type === "express" || account.type === "custom" || account.type === "standard";
+      const updates: Partial<UserProfileFirestoreData> = {};
+
+      if (isV1Express) {
+        updates.stripeChargesEnabled = account.charges_enabled;
+        updates.stripePayoutsEnabled = account.payouts_enabled;
+        updates.stripeAccountStatus = account.details_submitted ? "active" : "onboarding_incomplete";
+      }
+      if (account.country) updates.stripeAccountCountry = account.country;
+
+      if (Object.keys(updates).length > 0) {
+        await userDoc.ref.update(updates);
+        logger.info(`Updated Stripe account status for user ${userDoc.id}`, updates);
+      }
     }
 
     response.status(200).send("Webhook processed");
@@ -806,7 +850,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -891,7 +935,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     acceptedCreatorIds: [],
     paidCreatorIds: [],
     status: "pending_payment",
-    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    createdAt: FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || null,
     requireVerzaScore: requireVerzaScore ?? true,
@@ -921,9 +965,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
-          bank_transfer: {
-            type: "us_bank_transfer",
-          },
+          bank_transfer: {type: "us_bank_transfer"},
         },
       },
       line_items: [{
@@ -969,7 +1011,7 @@ export const createCreditCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -1056,7 +1098,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -1094,9 +1136,7 @@ export const createAgencyTopUpSession = onCall(async (request) => {
       payment_method_options: {
         customer_balance: {
           funding_type: "bank_transfer",
-          bank_transfer: {
-            type: "us_bank_transfer",
-          },
+          bank_transfer: {type: "us_bank_transfer"},
         },
       },
       line_items: [{
@@ -1132,6 +1172,111 @@ export const createAgencyTopUpSession = onCall(async (request) => {
   }
 });
 
+export const syncStripeAccountStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+  } catch (e) {
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  const userId = request.auth.uid;
+  const userDocRef = db.collection("users").doc(userId);
+  const userSnap = await userDocRef.get();
+  const userData = userSnap.data() as UserProfileFirestoreData;
+
+  if (!userData?.stripeAccountId) {
+    throw new HttpsError("failed-precondition", "No Stripe account connected.");
+  }
+
+  const account = await stripe.accounts.retrieve(userData.stripeAccountId) as any;
+  logger.info(`Syncing Stripe account ${account.id} for user ${userId}`, {
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    details_submitted: account.details_submitted,
+    type: account.type,
+  });
+
+  const updates: Partial<UserProfileFirestoreData> = {
+    stripeChargesEnabled: account.charges_enabled,
+    stripePayoutsEnabled: account.payouts_enabled,
+    stripeAccountStatus: account.details_submitted ? "active" : "onboarding_incomplete",
+  };
+  if (account.country) updates.stripeAccountCountry = account.country;
+
+  await userDocRef.update(updates);
+  return {
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    status: updates.stripeAccountStatus,
+  };
+});
+
+// Creates a Stripe Global Payouts recipient for creators in unsupported Connect countries.
+// Uses the dahlia API version which supports Global Payouts and stablecoin treasury.
+export const createGlobalPayoutRecipient = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const {bankAccountToken, currency} = request.data as {
+    bankAccountToken: string;
+    currency?: string;
+  };
+
+  if (!bankAccountToken) {
+    throw new HttpsError("invalid-argument", "bankAccountToken is required.");
+  }
+
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  const userDocRef = db.collection("users").doc(userId);
+
+  try {
+    const userSnap = await userDocRef.get();
+    if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
+    const userData = userSnap.data() as UserProfileFirestoreData;
+
+    // Create a Global Payouts recipient via the dahlia Stripe API
+    const recipient = await (stripe as any).v2.moneyManagement.recipients.create({
+      name: userData.displayName || userData.email || userId,
+      email: userData.email,
+      metadata: {userId},
+    });
+
+    // Attach the bank account to the recipient
+    await (stripe as any).v2.moneyManagement.recipientBankAccounts.create(recipient.id, {
+      bank_account_token: bankAccountToken,
+      currency: currency || "usd",
+    });
+
+    await userDocRef.update({
+      payoutMethod: "global_payout",
+      globalPayoutRecipientId: recipient.id,
+    });
+
+    logger.info(`Created Global Payout recipient ${recipient.id} for user ${userId}`);
+    return {success: true, recipientId: recipient.id};
+  } catch (error: any) {
+    logger.error(`Error creating Global Payout recipient for user ${userId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "Could not create payout recipient.");
+  }
+});
+
 export const initiateCreatorPayout = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -1140,28 +1285,12 @@ export const initiateCreatorPayout = onCall(async (request) => {
   const userId = request.auth.uid;
   const userDocRef = db.collection("users").doc(userId);
 
-  let stripe: Stripe;
-  try {
-    const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
-  } catch (e) {
-    logger.error("Stripe not configured", e);
-    throw new HttpsError("failed-precondition", "Stripe is not configured.");
-  }
-
   try {
     const userSnap = await userDocRef.get();
     if (!userSnap.exists) {
       throw new HttpsError("not-found", "User not found.");
     }
     const userData = userSnap.data() as UserProfileFirestoreData;
-
-    if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
-      throw new HttpsError(
-        "failed-precondition",
-        "You must connect a bank account before initiating a payout. Go to Settings to get set up."
-      );
-    }
 
     const walletBalance = userData.walletBalance || 0;
     if (walletBalance < 1) {
@@ -1173,13 +1302,77 @@ export const initiateCreatorPayout = onCall(async (request) => {
 
     const amountInCents = Math.floor(walletBalance * 100);
 
-    await stripe.transfers.create({
-      amount: amountInCents,
-      currency: "usd",
-      destination: userData.stripeAccountId,
-      description: "Verza wallet payout",
-      metadata: {userId},
-    });
+    // Route to the correct payout path based on the user's payoutMethod.
+    // Existing users without the field default to stripe_connect (backward compatible).
+    const payoutMethod = userData.payoutMethod || "stripe_connect";
+
+    if (payoutMethod === "stripe_connect") {
+      if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
+        throw new HttpsError(
+          "failed-precondition",
+          "You must connect a bank account before initiating a payout. Go to Settings to get set up."
+        );
+      }
+
+      let stripe: Stripe;
+      try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+      } catch (e) {
+        logger.error("Stripe not configured", e);
+        throw new HttpsError("failed-precondition", "Stripe is not configured.");
+      }
+
+      await stripe.transfers.create({
+        amount: amountInCents,
+        currency: "usd",
+        destination: userData.stripeAccountId,
+        description: "Verza wallet payout",
+        metadata: {userId},
+      });
+    } else if (payoutMethod === "global_payout") {
+      if (!userData.globalPayoutRecipientId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "No Global Payout recipient found. Please set up your bank account in Settings."
+        );
+      }
+
+      const financialAccountId = params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value();
+      if (!financialAccountId) {
+        // Treasury not yet provisioned — surface a clear error rather than a cryptic Stripe failure
+        throw new HttpsError(
+          "failed-precondition",
+          "Global Payouts are not yet active on this platform. Please contact support@tryverza.com."
+        );
+      }
+
+      let stripe: Stripe;
+      try {
+        const stripeKey = params.STRIPE_SECRET_KEY.value();
+        stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+      } catch (e) {
+        logger.error("Stripe not configured", e);
+        throw new HttpsError("failed-precondition", "Stripe is not configured.");
+      }
+
+      // Outbound transfer from platform's Treasury financial account to the recipient
+      await (stripe as any).v2.moneyManagement.outboundTransfers.create({
+        from: {financial_account: financialAccountId},
+        to: {recipient: userData.globalPayoutRecipientId},
+        amount: {value: amountInCents, currency: "usd"},
+        description: "Verza wallet payout",
+        metadata: {userId},
+      });
+    } else if (payoutMethod === "stablecoin") {
+      // Stablecoin path via Bridge (dahlia) — placeholder until Bridge credentials are configured
+      throw new HttpsError(
+        "unimplemented",
+        "Stablecoin payouts are coming soon. Please use a bank account for now."
+      );
+    } else {
+      throw new HttpsError("invalid-argument", "Unknown payout method.");
+    }
 
     await db.runTransaction(async (transaction) => {
       transaction.update(userDocRef, {walletBalance: 0});
@@ -1189,7 +1382,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
         .where("status", "==", "pending")
         .get();
 
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      const now = FieldValue.serverTimestamp();
       pendingPayoutsSnap.forEach((doc) => {
         transaction.update(doc.ref, {status: "paid", paidAt: now});
       });
@@ -1202,6 +1395,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
         talentName: userData.displayName || "Unknown",
         amount: walletBalance,
         description: "Payout to bank account",
+        payoutMethod,
         status: "paid",
         initiatedAt: now,
         paidAt: now,
@@ -1215,10 +1409,10 @@ export const initiateCreatorPayout = onCall(async (request) => {
       type: "payout_received",
       read: false,
       link: "/wallet",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
-    logger.info(`Successfully initiated payout of $${walletBalance} for user ${userId}.`);
+    logger.info(`Successfully initiated ${payoutMethod} payout of $${walletBalance} for user ${userId}.`);
     return {success: true, amount: walletBalance};
   } catch (error: any) {
     logger.error(`Error initiating payout for user ${userId}:`, error);
