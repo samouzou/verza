@@ -516,24 +516,47 @@ export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
       if (!creatorDoc.exists) continue;
       const creator = creatorDoc.data() as UserProfileFirestoreData;
 
-      if (!creator.stripeAccountId || !creator.stripePayoutsEnabled) {
-        logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no ready Stripe account.`);
+      const payoutMethod = creator.payoutMethod || "stripe_connect";
+      const amountInCents = Math.round(totalAmount * 100);
+
+      if (payoutMethod === "stripe_connect") {
+        if (!creator.stripeAccountId || !creator.stripePayoutsEnabled) {
+          logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no ready Stripe account.`);
+          continue;
+        }
+      } else if (payoutMethod === "global_payout") {
+        if (!creator.globalPayoutRecipientId) {
+          logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no Global Payout recipient.`);
+          continue;
+        }
+        const financialAccountId = params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value();
+        if (!financialAccountId) {
+          logger.warn(`Global Payouts not yet active — skipping affiliate payout for ${creatorId}.`);
+          continue;
+        }
+      } else {
+        logger.warn(`Creator ${creatorId} has unknown payoutMethod "${payoutMethod}" — skipping.`);
         continue;
       }
 
-      const amountInCents = Math.round(totalAmount * 100);
-
       try {
-        await stripe.transfers.create({
-          amount: amountInCents,
-          currency: "usd",
-          destination: creator.stripeAccountId,
-          description: "Monthly Affiliate Earnings Payout",
-          metadata: {
-            creatorId: creatorId,
-            type: "affiliate_monthly_payout",
-          },
-        });
+        if (payoutMethod === "global_payout") {
+          await (stripe as any).v2.moneyManagement.outboundTransfers.create({
+            from: {financial_account: params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value()},
+            to: {recipient: creator.globalPayoutRecipientId},
+            amount: {value: amountInCents, currency: "usd"},
+            description: "Monthly Affiliate Earnings Payout",
+            metadata: {creatorId, type: "affiliate_monthly_payout"},
+          });
+        } else {
+          await stripe.transfers.create({
+            amount: amountInCents,
+            currency: "usd",
+            destination: creator.stripeAccountId!,
+            description: "Monthly Affiliate Earnings Payout",
+            metadata: {creatorId, type: "affiliate_monthly_payout"},
+          });
+        }
 
         const batch = db.batch();
         for (const linkDoc of payoutData.linkDocs) {
