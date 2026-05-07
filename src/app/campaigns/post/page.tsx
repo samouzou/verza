@@ -83,6 +83,7 @@ export default function PostGigPage() {
 
   const [creatorsNeeded, setCreatorsNeeded] = useState('10');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
+  const [deliverablesDueDate, setDeliverablesDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Quality Control
@@ -268,6 +269,7 @@ export default function PostGigPage() {
           paidCreatorIds: [],
           createdAt: serverTimestamp(),
           fundedAmount: 0,
+          ...(deliverablesDueDate ? { deliverablesDueDate } : {}),
           affiliateSettings: isAffiliateEnabled ? {
             isEnabled: true,
             rewardType,
@@ -301,6 +303,7 @@ export default function PostGigPage() {
         allowWhitelisting,
         requireVerzaScore,
         verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) : 65,
+        ...(deliverablesDueDate ? { deliverablesDueDate } : {}),
       };
 
       if (isAffiliateEnabled) {
@@ -523,6 +526,18 @@ export default function PostGigPage() {
                     <Label htmlFor="videos">Videos per Creator</Label>
                     <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting} />
                   </div>
+                </div>
+                <div className="pt-4 space-y-2">
+                  <Label htmlFor="deliverablesDueDate">Campaign Deadline (Optional)</Label>
+                  <Input
+                    id="deliverablesDueDate"
+                    type="date"
+                    value={deliverablesDueDate}
+                    onChange={e => setDeliverablesDueDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-xs text-muted-foreground">The date by which all deliverables must be submitted. Creators get 14 days from acceptance; you can extend individual creators anytime.</p>
                 </div>
               </CardContent>
             </Card>

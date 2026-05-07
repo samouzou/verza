@@ -95,9 +95,15 @@ function GigDetailContent() {
   const [selectedTalentId, setSelectedTalentId] = useState<string | null>(null);
   const [isAgencyAcceptance, setIsAgencyAcceptance] = useState(false);
 
+  // Deadline extension state
+  const [extendingCreatorId, setExtendingCreatorId] = useState<string | null>(null);
+  const [extensionDate, setExtensionDate] = useState('');
+  const [isExtending, setIsExtending] = useState(false);
+
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+  const extendCreatorDeadlineCallable = httpsCallable(functions, 'extendCreatorDeadline');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -290,6 +296,7 @@ function GigDetailContent() {
       const newAcceptedIds = [...acceptedIds, targetUserId];
       const gigUpdates: any = {
         acceptedCreatorIds: newAcceptedIds,
+        [`acceptedAt.${targetUserId}`]: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
       if (!isCauseGig && newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
@@ -664,6 +671,21 @@ function GigDetailContent() {
     }
   };
 
+  const handleExtendDeadline = async () => {
+    if (!gig || !extendingCreatorId || !extensionDate) return;
+    setIsExtending(true);
+    try {
+      await extendCreatorDeadlineCallable({ gigId: gig.id, creatorId: extendingCreatorId, newDeadline: extensionDate });
+      toast({ title: "Deadline Extended", description: "The creator's deadline has been updated." });
+      setExtendingCreatorId(null);
+      setExtensionDate('');
+    } catch (error: any) {
+      toast({ title: "Extension Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExtending(false);
+    }
+  };
+
   const handleDeleteGig = async () => {
     if (!gig) return;
     setIsDeleting(true);
@@ -774,6 +796,18 @@ function GigDetailContent() {
 
   const myLink = user ? affiliateLinks[user.uid] : null;
 
+  const getCreatorDeadline = (creatorId: string): Date | null => {
+    const extension = (gig.deliveryExtensions as any)?.[creatorId];
+    if (extension?.toDate) return extension.toDate();
+    if (extension) return new Date(extension);
+    const accepted = (gig.acceptedAt as any)?.[creatorId];
+    if (!accepted) return null;
+    const acceptedDate = accepted?.toDate ? accepted.toDate() : new Date(accepted);
+    return new Date(acceptedDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  };
+
+  const brandDeadlinePast = gig.deliverablesDueDate && new Date(gig.deliverablesDueDate + 'T23:59:59') < new Date();
+
   return (
     <>
       <div className="flex flex-col gap-8 pb-20">
@@ -791,6 +825,16 @@ function GigDetailContent() {
               {canManageGig
                 ? isCauseCampaign ? `All participating creators have finished their work for this cause.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isBrandTeam && brandDeadlinePast && !isCompleted && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="font-bold">Campaign Deadline Passed</AlertTitle>
+            <AlertDescription>
+              The campaign deadline of <strong>{new Date(gig.deliverablesDueDate! + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong> has passed. Review outstanding creators below and extend deadlines if needed.
             </AlertDescription>
           </Alert>
         )}
@@ -958,6 +1002,20 @@ function GigDetailContent() {
                     {(gig.requireVerzaScore ?? true) ? `Required (${gig.verzaScoreThreshold ?? 65}%+)` : 'Not Required'}
                   </p>
                 </div>
+                {gig.deliverablesDueDate && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Campaign Deadline</p>
+                    <p className="text-sm font-medium">
+                      {new Date(gig.deliverablesDueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    {hasAccepted && !canManageGig && (() => {
+                      const myDeadline = getCreatorDeadline(user!.uid);
+                      return myDeadline ? (
+                        <p className="text-xs text-muted-foreground">Your personal deadline: <span className={myDeadline < new Date() ? 'text-destructive font-semibold' : 'font-medium'}>{myDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
                 <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
                   By clicking "Claim Campaign", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                 </div>
@@ -1155,6 +1213,9 @@ function GigDetailContent() {
                         const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
                         const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
                         const creatorLink = affiliateLinks[creator.uid];
+                        const creatorDeadline = getCreatorDeadline(creator.uid);
+                        const deadlineOverdue = creatorDeadline && !isPaid && creatorDeadline < new Date();
+                        const deadlineSoon = creatorDeadline && !isPaid && !deadlineOverdue && creatorDeadline < new Date(Date.now() + 48 * 60 * 60 * 1000);
 
                         return (
                           <Card key={creator.uid} className="border bg-muted/30">
@@ -1278,6 +1339,54 @@ function GigDetailContent() {
                                       )).toLocaleString()}
                                     </span>
                                   </div>
+                                </div>
+                              )}
+
+                              {isBrandTeam && creatorDeadline && !isPaid && (
+                                <div className={cn(
+                                  "mt-3 flex items-center justify-between px-3 py-2 rounded-md text-sm border",
+                                  deadlineOverdue ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400" :
+                                  deadlineSoon ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400" :
+                                  "bg-muted/50 border-border text-muted-foreground"
+                                )}>
+                                  <span className="flex items-center gap-1.5">
+                                    {deadlineOverdue ? <AlertTriangle className="h-3.5 w-3.5" /> : null}
+                                    <span className="text-xs font-medium">
+                                      {deadlineOverdue ? "Deadline passed" : "Deadline"}: {creatorDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </span>
+                                  <Dialog open={extendingCreatorId === creator.uid} onOpenChange={(open) => { if (!open) { setExtendingCreatorId(null); setExtensionDate(''); } }}>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => { setExtendingCreatorId(creator.uid); setExtensionDate(''); }}>
+                                        Extend
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Extend Deadline for {creator.displayName}</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-3 py-2">
+                                        <p className="text-sm text-muted-foreground">Current deadline: {creatorDeadline.toLocaleDateString()}</p>
+                                        <div className="space-y-1.5">
+                                          <Label htmlFor="extension-date">New Deadline</Label>
+                                          <Input
+                                            id="extension-date"
+                                            type="date"
+                                            value={extensionDate}
+                                            onChange={e => setExtensionDate(e.target.value)}
+                                            min={new Date().toISOString().split('T')[0]}
+                                          />
+                                        </div>
+                                      </div>
+                                      <DialogFooter>
+                                        <Button variant="outline" onClick={() => { setExtendingCreatorId(null); setExtensionDate(''); }}>Cancel</Button>
+                                        <Button onClick={handleExtendDeadline} disabled={!extensionDate || isExtending}>
+                                          {isExtending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                          Confirm Extension
+                                        </Button>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
                                 </div>
                               )}
 

@@ -577,3 +577,229 @@ export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
     logger.error("Error in processAffiliatePayouts:", error);
   }
 });
+
+const emailLogoHeader = `
+  <div style="text-align: center; margin-bottom: 30px;">
+    <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+      style="vertical-align: middle; margin-right: 8px;">
+    <span style="font-weight: bold; font-size: 24px; color: #000000;
+      vertical-align: middle; font-family: sans-serif;">Verza</span>
+  </div>
+`;
+
+/**
+ * Computes the effective deadline for a creator on a gig.
+ * If the brand granted an extension, use that. Otherwise, acceptedAt + 14 days.
+ * @param {Gig} gig - The gig document data.
+ * @param {string} creatorId - The creator's user ID.
+ * @return {Date | null} The effective deadline, or null if the creator has no acceptedAt timestamp.
+ */
+function getCreatorDeadline(gig: Gig, creatorId: string): Date | null {
+  const extension = (gig.deliveryExtensions as any)?.[creatorId];
+  if (extension) {
+    return extension instanceof Timestamp ? extension.toDate() : new Date(extension);
+  }
+  const accepted = (gig.acceptedAt as any)?.[creatorId];
+  if (!accepted) return null;
+  const acceptedDate = accepted instanceof Timestamp ? accepted.toDate() : new Date(accepted);
+  return new Date(acceptedDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+}
+
+// Runs daily — warns creators whose effective deadline is exactly 2 days away
+export const warnCreatorsApproachingDeadline = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set. Skipping deadline warning emails.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value() || "https://app.tryverza.com";
+
+  try {
+    const now = new Date();
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    const windowStart = new Date(in48h.getTime() - 12 * 60 * 60 * 1000);
+    const windowEnd = new Date(in48h.getTime() + 12 * 60 * 60 * 1000);
+
+    const gigsSnap = await db.collection("gigs")
+      .where("status", "in", ["open", "in-progress"])
+      .get();
+
+    for (const gigDoc of gigsSnap.docs) {
+      const gig = gigDoc.data() as Gig;
+      if (!gig.acceptedCreatorIds?.length) continue;
+
+      for (const creatorId of gig.acceptedCreatorIds) {
+        if (gig.paidCreatorIds?.includes(creatorId)) continue;
+
+        const deadline = getCreatorDeadline(gig, creatorId);
+        if (!deadline) continue;
+
+        if (deadline >= windowStart && deadline <= windowEnd) {
+          const creatorSnap = await db.collection("users").doc(creatorId).get();
+          const creator = creatorSnap.data() as UserProfileFirestoreData;
+          if (!creator?.email) continue;
+
+          await sgMail.send({
+            to: creator.email,
+            from: "no-reply@tryverza.com",
+            subject: `⏰ 48 hours left to deliver — ${gig.title}`,
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                ${emailLogoHeader}
+                <h2 style="color: #000;">Your deadline is in 48 hours</h2>
+                <p>Hi ${creator.displayName || "there"},</p>
+                <p>You have <strong>48 hours</strong> to submit your deliverables for <strong>${gig.title}</strong>.</p>
+                <p>Your deadline: <strong>${deadline.toLocaleDateString(
+    "en-US", {weekday: "long", month: "long", day: "numeric"}
+  )}</strong></p>
+                <p>Submit before the deadline to secure your payment.
+                  If you need more time, reach out to the brand directly.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${appUrl}/campaigns/${gigDoc.id}"
+                    style="background: #000; color: #fff; padding: 12px 24px;
+                      border-radius: 6px; text-decoration: none; font-weight: bold;">
+                    View Campaign
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 12px;">This is an automated reminder from Verza.</p>
+              </div>
+            `,
+          });
+
+          logger.info(`Sent 48h deadline warning to creator ${creatorId} for gig ${gigDoc.id}`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.error("Error in warnCreatorsApproachingDeadline:", error);
+  }
+});
+
+// Runs daily — evicts creators who missed their effective 14-day delivery deadline
+export const evictOverdueCreators = onSchedule("every 24 hours", async () => {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value() || "https://app.tryverza.com";
+
+  try {
+    const now = new Date();
+
+    const gigsSnap = await db.collection("gigs")
+      .where("status", "in", ["open", "in-progress"])
+      .get();
+
+    for (const gigDoc of gigsSnap.docs) {
+      const gig = gigDoc.data() as Gig;
+      if (!gig.acceptedCreatorIds?.length) continue;
+
+      const creatorsToDrop: string[] = [];
+
+      for (const creatorId of gig.acceptedCreatorIds) {
+        if (gig.paidCreatorIds?.includes(creatorId)) continue;
+
+        const deadline = getCreatorDeadline(gig, creatorId);
+        if (!deadline) continue;
+
+        // Grace period: evict only after deadline has passed by at least 1 hour
+        if (now.getTime() > deadline.getTime() + 60 * 60 * 1000) {
+          creatorsToDrop.push(creatorId);
+        }
+      }
+
+      if (creatorsToDrop.length === 0) continue;
+
+      const newAcceptedIds = gig.acceptedCreatorIds.filter((id) => !creatorsToDrop.includes(id));
+
+      const updates: Record<string, any> = {
+        acceptedCreatorIds: newAcceptedIds,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      // Clear their acceptedAt and extension entries
+      for (const creatorId of creatorsToDrop) {
+        updates[`acceptedAt.${creatorId}`] = FieldValue.delete();
+        updates[`deliveryExtensions.${creatorId}`] = FieldValue.delete();
+      }
+
+      // Reopen slot if gig was in-progress and is now under capacity
+      const isCause = gig.campaignType === "cause_campaign";
+      if (!isCause && gig.status === "in-progress" && newAcceptedIds.length < (gig.creatorsNeeded || 0)) {
+        updates.status = "open";
+      }
+
+      await gigDoc.ref.update(updates);
+      logger.info(`Evicted creators ${creatorsToDrop.join(", ")} from gig ${gigDoc.id}`);
+
+      // Notify evicted creators
+      for (const creatorId of creatorsToDrop) {
+        const creatorSnap = await db.collection("users").doc(creatorId).get();
+        const creator = creatorSnap.data() as UserProfileFirestoreData;
+        if (!creator?.email) continue;
+
+        await sgMail.send({
+          to: creator.email,
+          from: "no-reply@tryverza.com",
+          subject: `Your spot on "${gig.title}" has been released`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              ${emailLogoHeader}
+              <h2 style="color: #000;">Your campaign spot has been released</h2>
+              <p>Hi ${creator.displayName || "there"},</p>
+              <p>Your spot on <strong>${gig.title}</strong> has been released
+                because the delivery deadline passed without a submission.</p>
+              <p>Your slot is now available to other creators.
+                Browse open campaigns to find new opportunities.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${appUrl}/campaigns"
+                  style="background: #000; color: #fff; padding: 12px 24px;
+                    border-radius: 6px; text-decoration: none; font-weight: bold;">
+                  Browse Campaigns
+                </a>
+              </div>
+              <p style="color: #666; font-size: 12px;">This is an automated notification from Verza.</p>
+            </div>
+          `,
+        });
+      }
+
+      // Notify brand
+      const brandOwnerSnap = await db.collection("users").where("primaryAgencyId", "==", gig.brandId).limit(1).get();
+      if (!brandOwnerSnap.empty) {
+        const brandOwner = brandOwnerSnap.docs[0].data() as UserProfileFirestoreData;
+        if (brandOwner.email) {
+          await sgMail.send({
+            to: brandOwner.email,
+            from: "no-reply@tryverza.com",
+            subject: `${creatorsToDrop.length} creator slot(s) reopened — ${gig.title}`,
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                ${emailLogoHeader}
+                <h2 style="color: #000;">${creatorsToDrop.length} slot(s) reopened on your campaign</h2>
+                <p>Hi ${brandOwner.displayName || "there"},</p>
+                <p><strong>${creatorsToDrop.length}</strong> creator(s) missed
+                  their delivery deadline on <strong>${gig.title}</strong>
+                  and their slots have been reopened.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${appUrl}/campaigns/${gigDoc.id}"
+                    style="background: #000; color: #fff; padding: 12px 24px;
+                      border-radius: 6px; text-decoration: none; font-weight: bold;">
+                    View Campaign
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 12px;">This is an automated notification from Verza.</p>
+              </div>
+            `,
+          });
+        }
+      }
+    }
+  } catch (error) {
+    logger.error("Error in evictOverdueCreators:", error);
+  }
+});

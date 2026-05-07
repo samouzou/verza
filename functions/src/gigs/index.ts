@@ -264,3 +264,38 @@ export const onGigStatusOpened = onDocumentUpdated("gigs/{gigId}", async (event)
   if (before.status === "open") return; // was already open (shouldn't happen, but guard)
   await initDeploymentEmailSequence(event.params.gigId, after);
 });
+
+export const extendCreatorDeadline = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const {gigId, creatorId, newDeadline} = request.data;
+  if (!gigId || !creatorId || !newDeadline) {
+    throw new HttpsError("invalid-argument", "gigId, creatorId, and newDeadline are required.");
+  }
+
+  const gigDocRef = db.collection("gigs").doc(gigId);
+  const gigSnap = await gigDocRef.get();
+  if (!gigSnap.exists) throw new HttpsError("not-found", "Campaign not found.");
+
+  const gigData = gigSnap.data() as Gig;
+
+  // Only the brand owner can extend deadlines
+  const userDoc = await db.collection("users").doc(request.auth.uid).get();
+  const userData = userDoc.data() as UserProfileFirestoreData;
+  if (gigData.brandId !== userData?.primaryAgencyId) {
+    throw new HttpsError("permission-denied", "Only the campaign brand can extend deadlines.");
+  }
+
+  if (!gigData.acceptedCreatorIds?.includes(creatorId)) {
+    throw new HttpsError("failed-precondition", "Creator has not accepted this campaign.");
+  }
+
+  const newDeadlineTimestamp = Timestamp.fromDate(new Date(newDeadline));
+  await gigDocRef.update({
+    [`deliveryExtensions.${creatorId}`]: newDeadlineTimestamp,
+  });
+
+  return {success: true};
+});

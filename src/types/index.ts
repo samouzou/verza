@@ -526,6 +526,9 @@ export interface Gig {
     nextEmailAt: ClientTimestamp;
     ownerUserId: string;
   };
+  deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
+  acceptedAt?: { [creatorId: string]: ClientTimestamp }; // when each creator accepted
+  deliveryExtensions?: { [creatorId: string]: ClientTimestamp }; // brand-granted per-creator deadline overrides
 }
 
 export interface CreatorMarketplaceProfile {

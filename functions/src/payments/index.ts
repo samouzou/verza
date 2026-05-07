@@ -874,6 +874,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     affiliateSettings,
     requireVerzaScore,
     verzaScoreThreshold,
+    deliverablesDueDate,
   } = request.data;
 
   if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
@@ -940,6 +941,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     affiliateSettings: affiliateSettings || null,
     requireVerzaScore: requireVerzaScore ?? true,
     verzaScoreThreshold: verzaScoreThreshold ?? 65,
+    ...(deliverablesDueDate ? {deliverablesDueDate} : {}),
   };
 
   if (existingGigId) {

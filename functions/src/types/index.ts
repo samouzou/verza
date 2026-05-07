@@ -504,7 +504,7 @@ export interface Gig {
   fundedAmount?: number; // Total amount paid to fund this gig
   status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
-  campaignType: "standard_sponsorship" | "production_grant";
+  campaignType: "standard_sponsorship" | "production_grant" | "cause_campaign";
   usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting?: boolean;
   requireVerzaScore?: boolean;
@@ -521,6 +521,9 @@ export interface Gig {
     nextEmailAt: ClientTimestamp;
     ownerUserId: string;
   };
+  deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
+  acceptedAt?: { [creatorId: string]: ClientTimestamp }; // when each creator accepted
+  deliveryExtensions?: { [creatorId: string]: ClientTimestamp }; // brand-granted per-creator deadline overrides
 }
 
 export interface CreatorMarketplaceProfile {
