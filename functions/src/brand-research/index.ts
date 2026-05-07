@@ -2,6 +2,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import {analyzeBrandWebsite, type BrandAnalysisOutput} from "../ai/flows/brand-analysis-flow";
@@ -34,7 +35,7 @@ export const analyzeBrand = onCall({
     brandUrl,
     brandName: "Analyzing...",
     status: "pending",
-    createdAt: admin.firestore.FieldValue.serverTimestamp() as any,
+    createdAt: FieldValue.serverTimestamp() as any,
   };
   await researchDocRef.set(initialData);
 

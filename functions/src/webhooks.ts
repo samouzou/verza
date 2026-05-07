@@ -1,7 +1,7 @@
 import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "./config/firebase";
-import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 
 export const conversionWebhook = onRequest(async (req, res) => {
   if (req.method !== "POST") {
@@ -84,7 +84,7 @@ export const conversionWebhook = onRequest(async (req, res) => {
 
     await db.runTransaction(async (transaction) => {
       transaction.update(affiliateLinkRef, {
-        conversions: admin.firestore.FieldValue.increment(1),
+        conversions: FieldValue.increment(1),
       });
 
       if (rewardAmount > 0) {
@@ -93,11 +93,11 @@ export const conversionWebhook = onRequest(async (req, res) => {
 
         if (currentAgencyData && (currentAgencyData.availableBalance || 0) >= rewardAmount) {
           transaction.update(affiliateLinkRef, {
-            earnedRewards: admin.firestore.FieldValue.increment(rewardAmount),
+            earnedRewards: FieldValue.increment(rewardAmount),
           });
 
           transaction.update(agencyRef, {
-            availableBalance: admin.firestore.FieldValue.increment(-rewardAmount),
+            availableBalance: FieldValue.increment(-rewardAmount),
           });
         } else {
           budgetExhausted = true;
@@ -115,7 +115,7 @@ export const conversionWebhook = onRequest(async (req, res) => {
         type: "system",
         read: false,
         link: "/wallet",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
       logger.warn(`Agency ${agencyId} exhausted budget on gig ${gigId} during conversion.`);
       // We still processed the conversion count, but no reward was paid out
@@ -127,7 +127,7 @@ export const conversionWebhook = onRequest(async (req, res) => {
         type: "system",
         read: false,
         link: `/campaigns/${gigId}`,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
 

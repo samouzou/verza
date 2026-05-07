@@ -1,4 +1,3 @@
-
 # Settings for Backend (on Cloud Run).
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
@@ -11,6 +10,30 @@ runConfig:
 
 # Environment variables and secrets.
 env:
+
+  - variable: NEXT_PUBLIC_SEND_CONTRACT_NOTIFICATION_URL
+    secret: VERZA_SEND_CONTRACT_NOTIFICATION_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_CREATE_PAYMENT_INTENT_URL
+    secret: VERZA_CREATE_PAYMENT_INTENT_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_CREATE_STRIPE_CONNECTED_ACCOUNT_URL
+    secret: VERZA_CREATE_STRIPE_CONNECTED_ACCOUNT_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_CREATE_STRIPE_ACCOUNT_LINK_URL
+    secret: VERZA_CREATE_STRIPE_ACCOUNT_LINK_URL
+    availability:
+      - BUILD
+      - RUNTIME
 
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
@@ -27,13 +50,13 @@ env:
     availability:
       - BUILD
       - RUNTIME
-      
+
   # This makes the same secret available to the backend runtime (Cloud Functions) under a non-public name
   - variable: APP_STORAGE_BUCKET
     secret: VERZA_FIREBASE_STORAGE_BUCKET
     availability:
       - RUNTIME
-      
+
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: VERZA_FIREBASE_API_KEY # This is the NAME of the secret in Secret Manager
     availability:
@@ -43,25 +66,15 @@ env:
   # Stripe keys
   - variable: STRIPE_SECRET_KEY
     secret: VERZA_STRIPE_SECRET_KEY
-  
+
   - variable: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
     secret: STRIPE_SUBSCRIPTION_WEBHOOK_SECRET
 
-  - variable: STRIPE_INDIVIDUAL_PRO_PRICE_ID
-    secret: VERZA_STRIPE_INDIVIDUAL_PRO_PRICE_ID
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID
-    secret: VERZA_STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID
-    availability:
-      - RUNTIME
-      
   - variable: STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID
     availability:
       - RUNTIME
-      
+
   - variable: STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID
     availability:
@@ -71,7 +84,7 @@ env:
     secret: VERZA_STRIPE_AGENCY_PRO_MONTHLY_PRICE_ID
     availability:
       - RUNTIME
-  
+
   - variable: STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
     secret: VERZA_STRIPE_AGENCY_PRO_YEARLY_PRICE_ID
     availability:
@@ -107,11 +120,6 @@ env:
     availability:
       - RUNTIME
 
-  - variable: STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
-    secret: VERZA_STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
-
   - variable: APP_URL
     secret: VERZA_APP_URL
 
@@ -130,7 +138,7 @@ env:
 
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     secret: VERZA_STRIPE_PUBLISHABLE_KEY
-  
+
   # HelloSign
   - variable: HELLOSIGN_API_KEY
     secret: VERZA_HELLOSIGN_API_KEY
@@ -140,6 +148,11 @@ env:
   # Syncfusion License Key
   - variable: NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY
     secret: VERZA_SYNCFUSION_LICENSE_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_CONVERSION_WEBHOOK_URL
+    secret: VERZA_CONVERSION_WEBHOOK_URL
     availability:
       - BUILD
       - RUNTIME

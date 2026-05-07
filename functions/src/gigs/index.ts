@@ -4,7 +4,7 @@ import {onDocumentCreated, onDocumentUpdated} from "firebase-functions/v2/firest
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {Gig, UserProfileFirestoreData, Notification, Agency, InternalPayout} from "./../types";
-import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {sendDeploymentEmailSequence} from "../notifications";
 
 export const payoutCreatorForGig = onCall(async (request) => {
@@ -89,7 +89,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       const isGigFullyPaid = newPaidCreatorIds.length === currentGigData.creatorsNeeded;
 
       const gigUpdates: any = {
-        paidCreatorIds: admin.firestore.FieldValue.arrayUnion(creatorId),
+        paidCreatorIds: FieldValue.arrayUnion(creatorId),
       };
       if (isGigFullyPaid) gigUpdates.status = "completed";
       transaction.update(gigDocRef, gigUpdates);
@@ -103,7 +103,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       // 3. Credit creator's Verza wallet and record the transaction
       if (creatorPayoutInCents > 0) {
         transaction.update(creatorDocRef, {
-          walletBalance: admin.firestore.FieldValue.increment(creatorPayoutInCents / 100),
+          walletBalance: FieldValue.increment(creatorPayoutInCents / 100),
         });
 
         const earningsRef = db.collection("internalPayouts").doc();
@@ -118,7 +118,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
           amount: creatorPayoutInCents / 100,
           description: `Payment for deployment: ${gigData.title}`,
           status: "pending",
-          initiatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          initiatedAt: FieldValue.serverTimestamp(),
           paidAt: null,
         } as unknown as InternalPayout);
       }
@@ -136,7 +136,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
 
           transaction.update(talentAgencyDocRef, {
             availableBalance: (talentAgencyData.availableBalance || 0) + commissionAmount,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           const payoutRef = db.collection("internalPayouts").doc();
@@ -151,7 +151,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
             amount: commissionAmount,
             description: `Commission (${assignment.commissionRate}%) for ${gigData.title}`,
             status: "pending",
-            initiatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            initiatedAt: FieldValue.serverTimestamp(),
             paidAt: null,
           } as unknown as InternalPayout);
         }
@@ -167,7 +167,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
       type: "payout_received",
       read: false,
       link: "/wallet",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     } as unknown as Omit<Notification, "id">);
 
     // Notify Brand if the project is now complete
@@ -182,7 +182,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
         type: "system",
         read: false,
         link: `/campaigns/${gigId}`,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       } as unknown as Omit<Notification, "id">);
     }
 
@@ -196,7 +196,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
         type: "payout_received",
         read: false,
         link: "/agency/dashboard",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       } as unknown as Omit<Notification, "id">);
     }
 
@@ -230,8 +230,8 @@ async function initDeploymentEmailSequence(gigId: string, gigData: Gig): Promise
     const ownerData = ownerSnap.data() as UserProfileFirestoreData;
     if (!ownerData.email) return;
 
-    const twoDaysFromNow = new admin.firestore.Timestamp(
-      admin.firestore.Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
+    const twoDaysFromNow = new Timestamp(
+      Timestamp.now().seconds + 2 * 24 * 60 * 60, 0
     );
 
     await db.collection("gigs").doc(gigId).update({

@@ -38,7 +38,9 @@ import {
   or
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { getFunctions } from 'firebase/functions';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { connectFirestoreEmulator } from 'firebase/firestore';
+import { connectStorageEmulator } from 'firebase/storage';
 
 const firebaseConfigValues = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -69,6 +71,12 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 const googleAuthProvider = new GoogleAuthProvider();
+
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+  connectStorageEmulator(storage, 'localhost', 9199);
+}
 
 export {
   app,

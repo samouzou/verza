@@ -3,6 +3,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract, Gig} from "./../types";
@@ -105,14 +106,14 @@ export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async ()
           await sgMail.send(msg);
 
           const updatedMilestones = contract.milestones.map((m) =>
-            m.id === milestone.id ? {...m, lastReminderSentAt: admin.firestore.Timestamp.now()} : m
+            m.id === milestone.id ? {...m, lastReminderSentAt: Timestamp.now()} : m
           );
 
           await doc.ref.update({
             milestones: updatedMilestones,
             invoiceStatus: "overdue",
-            invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-              timestamp: admin.firestore.Timestamp.now(),
+            invoiceHistory: FieldValue.arrayUnion({
+              timestamp: Timestamp.now(),
               action: `Overdue Reminder Sent for Milestone: ${milestone.description}`,
               details: `To: ${contract.clientEmail}`,
             }),
@@ -222,14 +223,14 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
           await sgMail.send(msg);
 
           const updatedMilestones = contract.milestones.map((m) =>
-            m.id === milestone.id ? {...m, lastReminderSentAt: admin.firestore.Timestamp.now()} : m
+            m.id === milestone.id ? {...m, lastReminderSentAt: Timestamp.now()} : m
           );
 
           await doc.ref.update({
             milestones: updatedMilestones,
             invoiceStatus: "overdue",
-            invoiceHistory: admin.firestore.FieldValue.arrayUnion({
-              timestamp: admin.firestore.Timestamp.now(),
+            invoiceHistory: FieldValue.arrayUnion({
+              timestamp: Timestamp.now(),
               action: `Upcoming Reminder Sent for Milestone: ${milestone.description}`,
               details: `To: ${contract.clientEmail}`,
             }),
@@ -317,7 +318,7 @@ export const processRecurringContracts = onSchedule("every 24 hours", async () =
 
 export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
   logger.info("Starting sendDripCampaignEmails function.");
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
 
   try {
     const usersSnapshot = await db.collection("users")
@@ -345,7 +346,7 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
 
       // Prepare user doc for the next step
       const nextStep = currentStep + 1;
-      const twoDaysFromNow = new admin.firestore.Timestamp(now.seconds + 2 * 24 * 60 * 60, now.nanoseconds);
+      const twoDaysFromNow = new Timestamp(now.seconds + 2 * 24 * 60 * 60, now.nanoseconds);
 
       batch.update(userDoc.ref, {
         "emailSequence.step": nextStep,
@@ -362,7 +363,7 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
 
 export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async () => {
   logger.info("Starting sendAgencyDripCampaignEmails function.");
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
 
   try {
     const usersSnapshot = await db.collection("users")
@@ -389,13 +390,13 @@ export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async (
       const nextStep = currentStep + 1;
       // Space emails: steps 1-3 every 2 days, steps 4-5 every 3 days
       const daysUntilNext = currentStep >= 3 ? 3 : 2;
-      const nextEmailAt = new admin.firestore.Timestamp(
+      const nextEmailAt = new Timestamp(
         now.seconds + daysUntilNext * 24 * 60 * 60, 0
       );
 
       if (nextStep > 5) {
         // Sequence complete — remove the field so this user is never picked up again
-        batch.update(userDoc.ref, {agencyEmailSequence: admin.firestore.FieldValue.delete()});
+        batch.update(userDoc.ref, {agencyEmailSequence: FieldValue.delete()});
       } else {
         batch.update(userDoc.ref, {
           "agencyEmailSequence.step": nextStep,
@@ -413,7 +414,7 @@ export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async (
 
 export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", async () => {
   logger.info("Starting sendDeploymentDripCampaignEmails function.");
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
 
   try {
     const gigsSnapshot = await db.collection("gigs")
@@ -436,7 +437,7 @@ export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", asy
 
       const ownerSnap = await db.collection("users").doc(ownerUserId).get();
       if (!ownerSnap.exists) {
-        batch.update(gigDoc.ref, {deploymentEmailSequence: admin.firestore.FieldValue.delete()});
+        batch.update(gigDoc.ref, {deploymentEmailSequence: FieldValue.delete()});
         continue;
       }
       const ownerData = ownerSnap.data() as UserProfileFirestoreData;
@@ -449,12 +450,12 @@ export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", asy
       const nextStep = step + 1;
       // Space emails: steps 1-3 every 2 days, step 4 after 3 days
       const daysUntilNext = step >= 3 ? 3 : 2;
-      const nextEmailAt = new admin.firestore.Timestamp(
+      const nextEmailAt = new Timestamp(
         now.seconds + daysUntilNext * 24 * 60 * 60, 0
       );
 
       if (nextStep > 4) {
-        batch.update(gigDoc.ref, {deploymentEmailSequence: admin.firestore.FieldValue.delete()});
+        batch.update(gigDoc.ref, {deploymentEmailSequence: FieldValue.delete()});
       } else {
         batch.update(gigDoc.ref, {
           "deploymentEmailSequence.step": nextStep,
@@ -477,7 +478,7 @@ export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
     logger.error("STRIPE_SECRET_KEY not set. Cannot process affiliate payouts.");
     return;
   }
-  const stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil" as any});
+  const stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any as any});
 
   try {
     const affiliateLinksSnap = await db.collection("affiliateLinks")
@@ -515,31 +516,54 @@ export const processAffiliatePayouts = onSchedule("0 0 1 * *", async () => {
       if (!creatorDoc.exists) continue;
       const creator = creatorDoc.data() as UserProfileFirestoreData;
 
-      if (!creator.stripeAccountId || !creator.stripePayoutsEnabled) {
-        logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no ready Stripe account.`);
+      const payoutMethod = creator.payoutMethod || "stripe_connect";
+      const amountInCents = Math.round(totalAmount * 100);
+
+      if (payoutMethod === "stripe_connect") {
+        if (!creator.stripeAccountId || !creator.stripePayoutsEnabled) {
+          logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no ready Stripe account.`);
+          continue;
+        }
+      } else if (payoutMethod === "global_payout") {
+        if (!creator.globalPayoutRecipientId) {
+          logger.warn(`Creator ${creatorId} has $${totalAmount} pending but no Global Payout recipient.`);
+          continue;
+        }
+        const financialAccountId = params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value();
+        if (!financialAccountId) {
+          logger.warn(`Global Payouts not yet active — skipping affiliate payout for ${creatorId}.`);
+          continue;
+        }
+      } else {
+        logger.warn(`Creator ${creatorId} has unknown payoutMethod "${payoutMethod}" — skipping.`);
         continue;
       }
 
-      const amountInCents = Math.round(totalAmount * 100);
-
       try {
-        await stripe.transfers.create({
-          amount: amountInCents,
-          currency: "usd",
-          destination: creator.stripeAccountId,
-          description: "Monthly Affiliate Earnings Payout",
-          metadata: {
-            creatorId: creatorId,
-            type: "affiliate_monthly_payout",
-          },
-        });
+        if (payoutMethod === "global_payout") {
+          await (stripe as any).v2.moneyManagement.outboundTransfers.create({
+            from: {financial_account: params.STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID.value()},
+            to: {recipient: creator.globalPayoutRecipientId},
+            amount: {value: amountInCents, currency: "usd"},
+            description: "Monthly Affiliate Earnings Payout",
+            metadata: {creatorId, type: "affiliate_monthly_payout"},
+          });
+        } else {
+          await stripe.transfers.create({
+            amount: amountInCents,
+            currency: "usd",
+            destination: creator.stripeAccountId!,
+            description: "Monthly Affiliate Earnings Payout",
+            metadata: {creatorId, type: "affiliate_monthly_payout"},
+          });
+        }
 
         const batch = db.batch();
         for (const linkDoc of payoutData.linkDocs) {
           const currentEarned = linkDoc.data().earnedRewards || 0;
           batch.update(linkDoc.ref, {
             earnedRewards: 0,
-            lifetimePaidOut: admin.firestore.FieldValue.increment(currentEarned),
+            lifetimePaidOut: FieldValue.increment(currentEarned),
           });
         }
         await batch.commit();

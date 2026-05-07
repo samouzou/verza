@@ -61,6 +61,10 @@ export interface UserProfile {
   stripeChargesEnabled?: boolean;
   stripePayoutsEnabled?: boolean;
 
+  // Payout Infrastructure
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  globalPayoutRecipientId?: string | null;
+
   // Verza Wallet
   walletBalance?: number;
   
@@ -403,6 +407,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripeAccountStatus: firestoreUserData.stripeAccountStatus,
               stripeChargesEnabled: firestoreUserData.stripeChargesEnabled,
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
+              payoutMethod: firestoreUserData.payoutMethod,
+              globalPayoutRecipientId: firestoreUserData.globalPayoutRecipientId,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,

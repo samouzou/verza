@@ -2,7 +2,7 @@
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
-import * as admin from "firebase-admin";
+import {Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
@@ -21,9 +21,6 @@ import {sendSubscriptionReceiptEmail} from "../notifications";
  */
 function getPlanDetailsFromPriceId(priceId: string): { planId: SubscriptionPlanId | null; talentLimit: number } {
   const priceIdMap: { [key: string]: { planId: SubscriptionPlanId; talentLimit: number } } = {
-    [params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value() || ""]: {planId: "individual_monthly", talentLimit: 3},
-    [params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value() || ""]: {planId: "individual_yearly", talentLimit: 3},
-
     [params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_monthly", talentLimit: 9},
     [params.STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID.value() || ""]: {planId: "agency_pilot_yearly", talentLimit: 9},
 
@@ -59,7 +56,7 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -104,12 +101,6 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
 
     let priceId;
     switch (planId) {
-    case "individual_monthly":
-      priceId = params.STRIPE_INDIVIDUAL_PRO_PRICE_ID.value();
-      break;
-    case "individual_yearly":
-      priceId = params.STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID.value();
-      break;
     case "agency_pilot_monthly":
       priceId = params.STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID.value();
       break;
@@ -191,7 +182,7 @@ export const createStripeCustomerPortalSession = onCall(async (request) => {
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     throw new HttpsError("failed-precondition", "Stripe is not configured.");
@@ -227,7 +218,7 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   let stripe: Stripe;
   try {
     const stripeKey = params.STRIPE_SECRET_KEY.value();
-    stripe = new Stripe(stripeKey, {apiVersion: "2025-05-28.basil"});
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
   } catch (e) {
     logger.error("Stripe not configured", e);
     response.status(500).send("Webhook Error: Stripe service not configured.");
@@ -276,12 +267,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
   try {
     // Get Firebase UID from event metadata
+    // In dahlia, invoice.metadata is empty — UID lives in parent.subscription_details.metadata
     let firebaseUID: string | undefined;
-    // Use type narrowing to access metadata or customer property safely
-    if ("metadata" in event.data.object && (event.data.object as any).metadata?.firebaseUID) {
-      firebaseUID = (event.data.object as any).metadata.firebaseUID;
-    } else if ("customer" in event.data.object && typeof (event.data.object as any).customer === "string") {
-      const customer = await stripe.customers.retrieve((event.data.object as any).customer);
+    const obj = event.data.object as any;
+
+    firebaseUID = obj.metadata?.firebaseUID ||
+      obj.parent?.subscription_details?.metadata?.firebaseUID ||
+      obj.subscription_data?.metadata?.firebaseUID;
+
+    if (!firebaseUID && obj.customer && typeof obj.customer === "string") {
+      const customer = await stripe.customers.retrieve(obj.customer);
       if (!customer.deleted && "metadata" in customer) {
         firebaseUID = (customer.metadata as any).firebaseUID;
       }
@@ -298,38 +293,42 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     // Handle different event types
     switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session &
-      { metadata?: { firebaseUID?: string, planId?: string }};
-      if (session.mode === "subscription" && session.subscription) {
-        const subscriptionResponse = await stripe.subscriptions.retrieve(session.subscription as string);
-        const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
-          current_period_end: number;
-          trial_end?: number | null;
-        };
+      const session = event.data.object as any;
+      if (session.mode === "subscription") {
+        // In dahlia, subscription may be an object or string — normalize to ID
+        const subscriptionId = typeof session.subscription === "object" ?
+          session.subscription?.id :
+          session.subscription;
+        if (!subscriptionId) break;
 
-        let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
-        if (typeof subscription.current_period_end === "number") {
-          firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId) as any;
+
+        let firestoreSubscriptionEndsAt: Timestamp | null = null;
+        if (typeof subscriptionResponse.current_period_end === "number") {
+          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscriptionResponse.current_period_end * 1000);
         }
 
-        let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
-        if (typeof subscription.trial_end === "number") {
-          firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
+        let firestoreTrialEndsAt: Timestamp | null = null;
+        if (typeof subscriptionResponse.trial_end === "number") {
+          firestoreTrialEndsAt = Timestamp.fromMillis(subscriptionResponse.trial_end * 1000);
         }
 
         const planIdFromMeta = session.metadata?.planId as SubscriptionPlanId;
-        const priceId = subscription.items.data[0]?.price.id;
+        const priceId = subscriptionResponse.items.data[0]?.price.id;
         const {talentLimit: limitFromPrice} = getPlanDetailsFromPriceId(priceId);
-
-        // Fallback to deriving from planId if price mapping failed
         const talentLimit = limitFromPrice || getTalentLimitFromPlanId(planIdFromMeta);
-        const interval = subscription.items.data[0]?.price?.recurring?.interval ||
-        (planIdFromMeta?.endsWith("yearly") ? "year" : "month");
+        const interval = subscriptionResponse.items.data[0]?.price?.recurring?.interval ||
+          (planIdFromMeta?.endsWith("yearly") ? "year" : "month");
+
+        // customer may be object or string in dahlia
+        const customerId = typeof session.customer === "object" ?
+          session.customer?.id :
+          session.customer;
 
         await userDocRef.update({
-          stripeSubscriptionId: subscription.id,
-          stripeCustomerId: session.customer,
-          subscriptionStatus: subscription.status,
+          stripeSubscriptionId: subscriptionResponse.id,
+          stripeCustomerId: customerId,
+          subscriptionStatus: subscriptionResponse.status,
           subscriptionInterval: interval,
           subscriptionPlanId: planIdFromMeta,
           talentLimit,
@@ -337,9 +336,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
           trialEndsAt: firestoreTrialEndsAt,
         });
         logger.info("Updated user subscription from checkout.session.completed:",
-          {userId: firebaseUID, subId: subscription.id, status: subscription.status, interval: interval, planId: planIdFromMeta});
+          {userId: firebaseUID, subId: subscriptionResponse.id, planId: planIdFromMeta});
 
-        // Send new subscription receipt
         const userSnap = await userDocRef.get();
         const userData = userSnap.data() as UserProfileFirestoreData;
         if (userData?.email) {
@@ -347,8 +345,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
             planId: planIdFromMeta,
             interval,
             amountPaid: session.amount_total || 0,
-            nextBillingDate: subscription.current_period_end,
-            transactionId: subscription.id,
+            nextBillingDate: subscriptionResponse.current_period_end,
+            transactionId: subscriptionResponse.id,
             type: "new",
           });
         }
@@ -358,20 +356,16 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
 
     case "customer.subscription.created":
     case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription & {
-        current_period_end: number;
-        trial_end?: number | null;
-        metadata?: { planId?: string };
-      };
+      const subscription = event.data.object as any;
 
-      let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreSubscriptionEndsAt: Timestamp | null = null;
       if (typeof subscription.current_period_end === "number") {
-        firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+        firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
       }
 
-      let firestoreTrialEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreTrialEndsAt: Timestamp | null = null;
       if (typeof subscription.trial_end === "number") {
-        firestoreTrialEndsAt = admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000);
+        firestoreTrialEndsAt = Timestamp.fromMillis(subscription.trial_end * 1000);
       }
 
       const priceId = subscription.items.data[0]?.price.id;
@@ -397,23 +391,21 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       await userDocRef.update(updates);
 
       logger.info(`Updated user subscription from ${event.type}:`,
-        {userId: firebaseUID, subId: subscription.id, status: subscription.status,
-          interval: interval, planId: planId || `(derived from price ${priceId})`});
+        {
+          userId: firebaseUID, subId: subscription.id, status: subscription.status,
+          interval: interval, planId: planId || `(derived from price ${priceId})`,
+        });
       break;
     }
 
     case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription & {
-        current_period_end: number;
-        ended_at?: number | null;
-        canceled_at?: number | null;
-      };
+      const subscription = event.data.object as any;
 
-      let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+      let firestoreSubscriptionEndsAt: Timestamp | null = null;
       const endTimestamp = subscription.ended_at || subscription.canceled_at || subscription.current_period_end;
 
       if (typeof endTimestamp === "number") {
-        firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(endTimestamp * 1000);
+        firestoreSubscriptionEndsAt = Timestamp.fromMillis(endTimestamp * 1000);
       }
 
       await userDocRef.update({
@@ -426,42 +418,60 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       break;
     }
 
+    case "invoice.paid":
     case "invoice.payment_succeeded": {
-      const invoice = event.data.object as Stripe.Invoice & {subscription?: string};
-      if (invoice.billing_reason === "subscription_cycle" && invoice.subscription) {
-        const subscriptionResponse = await stripe.subscriptions.retrieve(invoice.subscription);
+      const invoice = event.data.object as any;
+      const isNewSub = invoice.billing_reason === "subscription_create";
+      const isRenewal = invoice.billing_reason === "subscription_cycle";
+
+      // In dahlia, subscription ID moved from invoice.subscription to invoice.parent.subscription_details.subscription
+      const subscriptionId = invoice.subscription ||
+        invoice.parent?.subscription_details?.subscription;
+
+      if ((isNewSub || isRenewal) && subscriptionId) {
+        const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId as string);
         const subscription = subscriptionResponse as unknown as Stripe.Subscription & {
           current_period_end: number;
         };
 
-        let firestoreSubscriptionEndsAt: admin.firestore.Timestamp | null = null;
+        let firestoreSubscriptionEndsAt: Timestamp | null = null;
         if (typeof subscription.current_period_end === "number") {
-          firestoreSubscriptionEndsAt = admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000);
+          firestoreSubscriptionEndsAt = Timestamp.fromMillis(subscription.current_period_end * 1000);
         }
 
         const interval = subscription.items.data[0]?.price?.recurring?.interval || "month";
         const priceId = subscription.items.data[0]?.price.id;
-        const {planId: renewedPlanId} = getPlanDetailsFromPriceId(priceId);
+        const {planId: derivedPlanId, talentLimit} = getPlanDetailsFromPriceId(priceId);
 
-        await userDocRef.update({
+        // For new subscriptions pull planId from invoice parent metadata (dahlia structure)
+        const invoiceObj = invoice as any;
+        const metaPlanId = invoiceObj.parent?.subscription_details?.metadata?.planId ||
+          invoiceObj.metadata?.planId;
+        const resolvedPlanId = derivedPlanId || metaPlanId;
+
+        const updates: any = {
+          stripeSubscriptionId: subscription.id,
           subscriptionStatus: "active",
-          subscriptionInterval: interval as any,
-          subscriptionEndsAt: firestoreSubscriptionEndsAt as any,
-        });
-        logger.info("Updated user subscription from invoice.payment_succeeded:",
-          {userId: firebaseUID, subId: subscription.id, status: "active", interval: interval});
+          subscriptionInterval: interval,
+          subscriptionEndsAt: firestoreSubscriptionEndsAt,
+        };
+        if (resolvedPlanId) updates.subscriptionPlanId = resolvedPlanId;
+        if (talentLimit) updates.talentLimit = talentLimit;
 
-        // Send renewal receipt
+        await userDocRef.update(updates);
+        logger.info(`Updated subscription from invoice.paid (${invoice.billing_reason}):`,
+          {userId: firebaseUID, subId: subscription.id, planId: resolvedPlanId});
+
         const userSnap = await userDocRef.get();
         const userData = userSnap.data() as UserProfileFirestoreData;
         if (userData?.email) {
           await sendSubscriptionReceiptEmail(userData.email, userData.displayName || "there", {
-            planId: renewedPlanId || userData.subscriptionPlanId,
+            planId: resolvedPlanId || userData.subscriptionPlanId,
             interval,
             amountPaid: invoice.amount_paid,
             nextBillingDate: subscription.current_period_end,
             transactionId: invoice.id || subscription.id,
-            type: "renewal",
+            type: isNewSub ? "new" : "renewal",
           });
         }
       }
@@ -475,6 +485,8 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       logger.info("Updated user subscription from invoice.payment_failed:", {userId: firebaseUID, status: "past_due"});
       break;
     }
+    default:
+      logger.info(`Unhandled event type: ${event.type}`);
     }
 
     response.json({received: true});
