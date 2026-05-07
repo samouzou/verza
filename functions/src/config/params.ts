@@ -12,7 +12,6 @@ export const FINICITY_PARTNER_SECRET = defineSecret("FINICITY_PARTNER_SECRET");
 export const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOOK_SECRET");
 export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET");
-export const STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET = defineSecret("STRIPE_CREDIT_PURCHASE_WEBHOOK_SECRET");
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
@@ -47,9 +46,6 @@ export const TIKTOK_CLIENT_KEY = defineString("TIKTOK_CLIENT_KEY", {
 
 
 // --- Stripe Price IDs ---
-export const STRIPE_INDIVIDUAL_PRO_PRICE_ID = defineString("STRIPE_INDIVIDUAL_PRO_PRICE_ID");
-export const STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID = defineString("STRIPE_INDIVIDUAL_PRO_YEARLY_PRICE_ID");
-
 export const STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID = defineString("STRIPE_AGENCY_PILOT_MONTHLY_PRICE_ID");
 export const STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID = defineString("STRIPE_AGENCY_PILOT_YEARLY_PRICE_ID");
 
@@ -64,3 +60,9 @@ export const STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_AGE
 
 export const STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID");
 export const STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID");
+
+// Global Payouts (dahlia API) — Treasury financial account ID for outbound transfers
+export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {
+  description: "Stripe Treasury financial account ID used for Global Payouts outbound transfers.",
+  default: "",
+});

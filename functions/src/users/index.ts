@@ -1,6 +1,6 @@
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "./../types";
@@ -11,9 +11,9 @@ const NEW_USER_BONUS = 50;
 export const processNewUser = functions.auth.user().onCreate(async (user) => {
   const {uid, email, displayName, photoURL, emailVerified} = user;
   const userDocRef = db.collection("users").doc(uid);
-  const createdAt = admin.firestore.Timestamp.now();
-  const trialEndsAt = new admin.firestore.Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
-  const twoDaysFromNow = new admin.firestore.Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
+  const createdAt = Timestamp.now();
+  const trialEndsAt = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
+  const twoDaysFromNow = new Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
 
   let finalRole: UserProfileFirestoreData["role"] = "individual_creator";
   const agencyMemberships: AgencyMembership[] = [];
@@ -56,7 +56,7 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
             displayName: displayName || "New Talent",
             status: "pending",
           };
-          batch.update(agencyDocRef, {talent: admin.firestore.FieldValue.arrayUnion(newTalentMember)});
+          batch.update(agencyDocRef, {talent: FieldValue.arrayUnion(newTalentMember)});
         } else if (type === "team") {
           const newTeamMember: TeamMember = {
             userId: uid,
@@ -65,14 +65,14 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
             role: inviteRole,
             status: "pending",
           };
-          batch.update(agencyDocRef, {team: admin.firestore.FieldValue.arrayUnion(newTeamMember)});
+          batch.update(agencyDocRef, {team: FieldValue.arrayUnion(newTeamMember)});
         }
 
         // Mark the invitation as claimed
         batch.update(invitationRef, {
           status: "claimed",
           claimedBy: uid,
-          claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+          claimedAt: FieldValue.serverTimestamp(),
         });
 
         try {

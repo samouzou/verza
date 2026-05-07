@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
 import * as params from "../config/params";
@@ -71,7 +72,7 @@ export const generateScene = onCall({
         throw new HttpsError("failed-precondition", `Insufficient credits. A scene costs ${VIDEO_COST} credits.`);
       }
       // Deduct credits
-      transaction.update(userDocRef, {credits: admin.firestore.FieldValue.increment(-VIDEO_COST)});
+      transaction.update(userDocRef, {credits: FieldValue.increment(-VIDEO_COST)});
     });
   } catch (error: any) {
     logger.error("Credit transaction failed for user", userId, error);
@@ -190,7 +191,7 @@ export const generateScene = onCall({
       prompt,
       style,
       videoUrl: finalVideoUrl,
-      timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+      timestamp: FieldValue.serverTimestamp() as any,
       orientation: orientation,
       cost: VIDEO_COST, // Add cost to generation record
       sourceImageUrl: sourceImageUrl, // Add source image url if it exists
@@ -215,7 +216,7 @@ export const generateScene = onCall({
     });
     // Refund credit on failure
     try {
-      await userDocRef.update({credits: admin.firestore.FieldValue.increment(VIDEO_COST)});
+      await userDocRef.update({credits: FieldValue.increment(VIDEO_COST)});
       logger.info(`Refunded ${VIDEO_COST} credits to user ${userId} after failure.`);
     } catch (refundError) {
       logger.error(`CRITICAL: Failed to refund credits to user ${userId} after video generation failure.`, refundError);

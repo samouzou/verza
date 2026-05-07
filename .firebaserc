@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "verza-canvas"
+    "default": "verza-canvas",
+    "dev": "verza-canvas-dev"
   }
 }

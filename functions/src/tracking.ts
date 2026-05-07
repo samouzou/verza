@@ -1,7 +1,7 @@
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {db} from "./config/firebase";
-import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 
 export const onAffiliateLinkClick = onDocumentUpdated("affiliateLinks/{linkId}", async (event) => {
   const beforeData = event.data?.before.data();
@@ -46,10 +46,10 @@ export const onAffiliateLinkClick = onDocumentUpdated("affiliateLinks/{linkId}",
           const agencyData = agencySnap.data();
           if (agencyData && (agencyData.availableBalance || 0) >= rewardAmount) {
             transaction.update(linkRef, {
-              earnedRewards: admin.firestore.FieldValue.increment(rewardAmount),
+              earnedRewards: FieldValue.increment(rewardAmount),
             });
             transaction.update(agencyRef, {
-              availableBalance: admin.firestore.FieldValue.increment(-rewardAmount),
+              availableBalance: FieldValue.increment(-rewardAmount),
             });
           } else {
             budgetExhausted = true;
@@ -68,7 +68,7 @@ export const onAffiliateLinkClick = onDocumentUpdated("affiliateLinks/{linkId}",
           type: "system",
           read: false,
           link: "/wallet",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         logger.warn(`Agency ${brandId} exhausted budget on gig ${gigId} during click tracking.`);
       } else {

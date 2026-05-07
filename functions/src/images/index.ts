@@ -2,6 +2,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import {googleAI} from "@genkit-ai/google-genai";
 import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
@@ -64,7 +65,7 @@ export const generateImage = onCall({
       if (userCredits < IMAGE_COST) {
         throw new HttpsError("failed-precondition", `Insufficient credits. Image generation costs ${IMAGE_COST} credit.`);
       }
-      transaction.update(userDocRef, {credits: admin.firestore.FieldValue.increment(-IMAGE_COST)});
+      transaction.update(userDocRef, {credits: FieldValue.increment(-IMAGE_COST)});
     });
   } catch (error: any) {
     logger.error("Credit transaction failed for user", userId, error);
@@ -130,7 +131,7 @@ export const generateImage = onCall({
       prompt,
       style,
       imageUrl: finalImageUrl,
-      timestamp: admin.firestore.FieldValue.serverTimestamp() as any,
+      timestamp: FieldValue.serverTimestamp() as any,
       orientation: orientation,
       cost: IMAGE_COST,
       sourceImageUrl: sourceImageUrl,
@@ -148,7 +149,7 @@ export const generateImage = onCall({
   } catch (error: any) {
     logger.error("Image generation or storage failed for user", userId, {errorMessage: error.message});
     try {
-      await userDocRef.update({credits: admin.firestore.FieldValue.increment(IMAGE_COST)});
+      await userDocRef.update({credits: FieldValue.increment(IMAGE_COST)});
       logger.info(`Refunded ${IMAGE_COST} credit to user ${userId} after failure.`);
     } catch (refundError) {
       logger.error(`CRITICAL: Failed to refund credit to user ${userId}.`, refundError);

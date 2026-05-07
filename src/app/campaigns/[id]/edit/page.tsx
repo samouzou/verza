@@ -10,18 +10,20 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter, useParams } from 'next/navigation';
 import { 
-  Loader2, 
-  AlertTriangle, 
-  ArrowLeft, 
-  Save, 
-  ShieldAlert, 
-  Info, 
-  Scale, 
-  DollarSign, 
-  Link2, 
-  MousePointer2, 
-  Target, 
-  Zap 
+  Loader2,
+  AlertTriangle,
+  ArrowLeft,
+  Save,
+  ShieldAlert,
+  Info,
+  Scale,
+  DollarSign,
+  Link2,
+  MousePointer2,
+  Target,
+  Zap,
+  Heart,
+  Infinity
 } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -61,7 +63,7 @@ export default function EditGigPage() {
   const [gig, setGig] = useState<Gig | null>(null);
   const [isLoadingGig, setIsLoadingGig] = useState(true);
 
-  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant'>('standard_sponsorship');
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant' | 'cause_campaign'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -147,7 +149,7 @@ export default function EditGigPage() {
 
   // Adjust defaults based on campaign type
   useEffect(() => {
-    if (campaignType === 'production_grant') {
+    if (campaignType === 'production_grant' || campaignType === 'cause_campaign') {
       setUsageRights('none');
       setAllowWhitelisting(false);
     }
@@ -165,11 +167,12 @@ export default function EditGigPage() {
     e.preventDefault();
     if (!user || !gig) return;
 
-    const rateNum = isBaseRateEnabled ? parseFloat(ratePerCreator) : 0;
+    const isCause = campaignType === 'cause_campaign';
+    const rateNum = (isBaseRateEnabled && !isCause) ? parseFloat(ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
-    
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
+
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0 || (!isCause && (isNaN(creatorsNum) || creatorsNum <= 0))) {
       toast({ title: 'Missing details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
       return;
     }
@@ -194,7 +197,7 @@ export default function EditGigPage() {
             description: description.trim(),
             platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn")[],
             ratePerCreator: rateNum,
-            creatorsNeeded: creatorsNum,
+            creatorsNeeded: isCause ? 0 : creatorsNum,
             videosPerCreator: videosNum,
             usageRights,
             allowWhitelisting: allowWhitelisting ?? false,
@@ -322,6 +325,18 @@ export default function EditGigPage() {
                     <p className="text-sm text-muted-foreground mt-1">No ad-read required. Funds used to support independent creator content.</p>
                   </Label>
                 </div>
+                <div className={cn(
+                  "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                  campaignType === 'cause_campaign' ? "border-rose-500 bg-rose-500/5" : "border-muted hover:border-rose-400/40"
+                )}>
+                  <RadioGroupItem value="cause_campaign" id="cause" className="mt-1" />
+                  <Label htmlFor="cause" className="flex-1 cursor-pointer">
+                    <p className="font-bold text-base flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-rose-500" /> Cause Campaign
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">For nonprofits and social impact initiatives. Unlimited creator slots — anyone can join and amplify your cause.</p>
+                  </Label>
+                </div>
               </RadioGroup>
             </CardContent>
           </Card>
@@ -367,8 +382,15 @@ export default function EditGigPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                      <Label htmlFor="creators">Creators Needed</Label>
-                      <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isLocked}/>
+                    <Label htmlFor="creators">Creators Needed</Label>
+                    {campaignType === 'cause_campaign' ? (
+                      <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/50 text-muted-foreground text-sm">
+                        <Infinity className="h-4 w-4 text-rose-500" />
+                        <span>Unlimited</span>
+                      </div>
+                    ) : (
+                      <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isLocked} />
+                    )}
                   </div>
                   <div className="space-y-2">
                       <Label htmlFor="videos">Videos per Creator</Label>
@@ -378,28 +400,43 @@ export default function EditGigPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-primary/10">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
-                  <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
-                </div>
-                <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
-              </div>
-            </CardHeader>
-            {isBaseRateEnabled && (
-              <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
-                <div className="space-y-2">
-                  <Label htmlFor="rate">Base Rate per Creator ($)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked}/>
-                  </div>
+          {campaignType === 'cause_campaign' ? (
+            <Card className="border-rose-500/20 bg-rose-50/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Heart className="h-5 w-5 text-rose-500" /> 3. Compensation</CardTitle>
+                <CardDescription>How creators are rewarded for amplifying your cause.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/20 text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Cause campaigns have no fixed base rate.</p>
+                  <p>Creators join voluntarily to support your mission. You can optionally enable Performance Rewards below to incentivize actions like link clicks or sign-ups.</p>
                 </div>
               </CardContent>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            <Card className="border-primary/10">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
+                    <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
+                  </div>
+                  <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
+                </div>
+              </CardHeader>
+              {isBaseRateEnabled && (
+                <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-2">
+                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
           <Card className="border-blue-500/20 bg-blue-50/5">
             <CardHeader>
@@ -524,7 +561,7 @@ export default function EditGigPage() {
               <div className="space-y-3">
                 <Label>Usage Rights Duration</Label>
                 <RadioGroup value={usageRights} onValueChange={(val) => setUsageRights(val as any)} className="flex flex-col sm:flex-row flex-wrap gap-4" disabled={isLocked || isSubmitting}>
-                  {campaignType === 'production_grant' && (
+                  {(campaignType === 'production_grant' || campaignType === 'cause_campaign') && (
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="none" id="none" />
                       <Label htmlFor="none" className="font-normal flex items-center gap-1.5 cursor-pointer">
@@ -566,7 +603,7 @@ export default function EditGigPage() {
                   id="whitelisting" 
                   checked={allowWhitelisting} 
                   onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
-                  disabled={isLocked || isSubmitting || campaignType === 'production_grant'}
+                  disabled={isLocked || isSubmitting || campaignType === 'production_grant' || campaignType === 'cause_campaign'}
                 />
               </div>
             </CardContent>

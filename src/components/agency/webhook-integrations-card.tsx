@@ -28,9 +28,10 @@ export function WebhookIntegrationsCard({ agency, disabled }: WebhookIntegration
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
 
-  const webhookUrl = `https://conversionwebhook-cpmccwbluq-uc.a.run.app?agencyId=${agency.id}`;
+  const webhookUrl = `${process.env.NEXT_PUBLIC_CONVERSION_WEBHOOK_URL}?agencyId=${agency.id}`;
 
   const handleCopyUrl = () => {
+    if (!webhookUrl) return;
     navigator.clipboard.writeText(webhookUrl);
     setCopiedUrl(true);
     toast({ title: "Webhook URL Copied!" });
@@ -85,11 +86,11 @@ export function WebhookIntegrationsCard({ agency, disabled }: WebhookIntegration
         <div className="space-y-2">
           <Label>Webhook Secret</Label>
           <div className="flex items-center gap-2">
-            <Input 
-              type="password" 
-              value={agency.webhookSecret || 'Not generated yet'} 
-              readOnly 
-              className="font-mono text-xs bg-muted/50" 
+            <Input
+              type="password"
+              value={agency.webhookSecret || 'Not generated yet'}
+              readOnly
+              className="font-mono text-xs bg-muted/50"
             />
             {agency.webhookSecret && (
               <Button size="icon" variant="outline" onClick={handleCopySecret}>

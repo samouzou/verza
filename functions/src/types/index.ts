@@ -258,6 +258,10 @@ export interface UserProfileFirestoreData {
   stripePayoutsEnabled?: boolean;
   stripeAccountCountry?: string | null;
 
+  // Payout Infrastructure
+  payoutMethod?: "stripe_connect" | "global_payout" | "stablecoin";
+  globalPayoutRecipientId?: string | null;
+
   // Verza Wallet
   walletBalance?: number;
 
