@@ -56,6 +56,7 @@ import { trackEvent } from '@/lib/analytics';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 
@@ -139,13 +140,10 @@ function GigDetailContent() {
           // Fetch agency data if viewer can manage
           const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
           const isAssignedAgent = Object.values(data.assignments || {}).some(a => a.agentId === user?.uid);
-          const canManage = user && (isAgencyTeam && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId)) || isAssignedAgent);
-          
-          if (canManage) {
-            onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
-              if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
-            });
-          }
+          // Fetch agency data (Brand identity) for all viewers to show the Brand Kit
+          onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
+            if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
+          });
         } else {
           setGig(null);
         }
@@ -1068,6 +1066,28 @@ function GigDetailContent() {
                       </p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {agency?.brandGuide && (
+              <Card className="overflow-hidden border-primary/20 bg-primary/5 shadow-lg mb-6">
+                <CardHeader className="bg-primary/5 border-b border-primary/10">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="flex items-center gap-2">
+                      <Star className="h-5 w-5 text-primary fill-primary" />
+                      Brand Identity Kit
+                    </CardTitle>
+                    <Badge variant="outline" className="bg-white/50 backdrop-blur-sm">Interactive Deck</Badge>
+                  </div>
+                  <CardDescription>Get to know the brand's DNA before you start filming.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 h-[500px]">
+                  <BrandDeckPreview 
+                    guide={agency.brandGuide} 
+                    agencyName={agency.name}
+                    products={agency.products}
+                  />
                 </CardContent>
               </Card>
             )}

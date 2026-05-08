@@ -295,8 +295,8 @@ export function SidebarNav() {
                 const label = isAgencyItem && isBrand ? "Brand" : item.label;
                 const Icon = isAgencyItem && isBrand ? Store : item.icon;
                 
-                // For Brand accounts, we want to show submenus for the Agency/Brand item
-                if (isAgencyItem && isBrand && (item as any).subItems) {
+                // Show submenus for the Agency/Brand item
+                if (isAgencyItem && (item as any).subItems) {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Collapsible

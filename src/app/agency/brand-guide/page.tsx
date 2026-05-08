@@ -108,13 +108,6 @@ export default function BrandGuidePage() {
     );
   }
 
-  if (!user?.isBrandAccount) {
-    return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl font-semibold">Brand Guide is only available for Brand accounts.</h2>
-      </div>
-    );
-  }
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">

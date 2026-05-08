@@ -174,13 +174,6 @@ export default function ProductCatalogPage() {
     );
   }
 
-  if (!user?.isBrandAccount) {
-    return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl font-semibold">Product Catalog is only available for Brand accounts.</h2>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 pb-12">
