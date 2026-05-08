@@ -430,6 +430,10 @@ function GigDetailContent() {
         gigUpdates.appliedCreatorIds = newAppliedIds;
         await updateDoc(gigDocRef, gigUpdates);
         
+        // Update the creator's profile to track who they are working for
+        const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
+        await updateDoc(doc(db, 'users', targetUserId), userUpdates);
+        
         trackEvent({ action: 'apply_deployment', category: 'marketplace', label: gig.title });
 
         // Notify the brand
@@ -531,10 +535,6 @@ function GigDetailContent() {
 
       // Track event
       trackEvent({ action: 'approve_application', category: 'marketplace', label: gig.title });
-
-      // Update the creator's profile to track who they are working for
-      const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
-      await updateDoc(doc(db, 'users', applicantId), userUpdates);
 
       // Send email
       const creatorName = appliedCreators.find(c => c.uid === applicantId)?.displayName || 'Creator';
