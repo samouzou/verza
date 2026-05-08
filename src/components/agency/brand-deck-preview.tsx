@@ -1,15 +1,16 @@
 "use client";
 
-import { BrandGuide } from '@/types';
+import { BrandGuide, BrandProduct } from '@/types';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, XCircle, MessageSquare, Palette, Type } from 'lucide-react';
+import { CheckCircle2, XCircle, MessageSquare, Palette, Type, ShoppingBag } from 'lucide-react';
 
 interface BrandDeckPreviewProps {
   guide: BrandGuide;
   agencyName: string;
+  products?: BrandProduct[];
 }
 
-export function BrandDeckPreview({ guide, agencyName }: BrandDeckPreviewProps) {
+export function BrandDeckPreview({ guide, agencyName, products = [] }: BrandDeckPreviewProps) {
   const {
     primaryColor = '#000000',
     secondaryColor = '#ffffff',
@@ -126,6 +127,59 @@ export function BrandDeckPreview({ guide, agencyName }: BrandDeckPreviewProps) {
               </div>
            </div>
         </div>
+      </div>
+    ),
+    // Slide 4: Products
+    (
+      <div key="products" className="h-full p-8 space-y-6 overflow-y-auto">
+        <div className="flex items-center gap-2 text-primary font-semibold text-sm uppercase tracking-wider">
+           <ShoppingBag className="h-4 w-4" />
+           The Lookbook
+        </div>
+
+        {products.length > 0 ? (
+          <div className="grid grid-cols-2 gap-4">
+             {products.map((product) => (
+               <div key={product.id} className="group relative rounded-xl border bg-muted/20 overflow-hidden flex flex-col">
+                  <div className="aspect-square w-full overflow-hidden bg-white">
+                     {product.imageUrl ? (
+                       <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                     ) : (
+                       <div className="w-full h-full flex items-center justify-center">
+                          <ShoppingBag className="h-8 w-8 text-muted-foreground/20" />
+                       </div>
+                     )}
+                  </div>
+                  <div className="p-3 space-y-1 flex-1 flex flex-col justify-between">
+                     <div>
+                        <h4 className="text-[10px] font-bold truncate uppercase tracking-tight">{product.name}</h4>
+                        <p className="text-[9px] text-muted-foreground line-clamp-1">{product.description}</p>
+                     </div>
+                     <div className="flex items-center justify-between mt-2">
+                        <span className="text-[10px] font-bold text-primary">${product.price.toFixed(2)}</span>
+                        <div className="flex gap-1">
+                           {product.usps?.slice(0, 1).map((usp, i) => (
+                             <div key={i} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold">
+                                {usp}
+                             </div>
+                           ))}
+                        </div>
+                     </div>
+                  </div>
+               </div>
+             ))}
+          </div>
+        ) : (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 pb-12">
+             <div className="p-4 rounded-full bg-muted/50 text-muted-foreground/30">
+                <ShoppingBag className="h-10 w-10" />
+             </div>
+             <div className="space-y-1">
+                <p className="text-sm font-bold">Catalog Empty</p>
+                <p className="text-xs text-muted-foreground">Add products in the catalog page to showcase them here.</p>
+             </div>
+          </div>
+        )}
       </div>
     )
   ];

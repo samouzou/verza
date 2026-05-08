@@ -296,6 +296,7 @@ export default function BrandGuidePage() {
            <BrandDeckPreview 
               guide={guide} 
               agencyName={agency?.name || 'Your Brand'} 
+              products={agency?.products || []}
            />
         </div>
       </div>
