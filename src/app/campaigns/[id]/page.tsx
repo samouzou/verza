@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Infinity as InfinityIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Maximize2, Infinity as InfinityIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -1090,11 +1090,33 @@ function GigDetailContent() {
                         )}
                         Brand Identity Kit
                       </CardTitle>
-                      <Badge variant={isSecured ? "outline" : "secondary"} className={cn(
-                        isSecured ? "bg-white/50 backdrop-blur-sm" : ""
-                      )}>
-                        {isSecured ? "Interactive Deck" : "Briefing Locked"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {isSecured && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10">
+                                  <Maximize2 className="h-4 w-4 text-primary" />
+                               </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent">
+                               <DialogTitle className="sr-only">Brand Identity Kit - Full Screen</DialogTitle>
+                               <DialogDescription className="sr-only">Full screen interactive brand deck and product lookbook.</DialogDescription>
+                               <div className="h-full w-full">
+                                  <BrandDeckPreview 
+                                    guide={agency.brandGuide} 
+                                    agencyName={agency.name}
+                                    products={agency.products}
+                                  />
+                               </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                        <Badge variant={isSecured ? "outline" : "secondary"} className={cn(
+                          isSecured ? "bg-white/50 backdrop-blur-sm" : ""
+                        )}>
+                          {isSecured ? "Interactive Deck" : "Briefing Locked"}
+                        </Badge>
+                      </div>
                     </div>
                     <CardDescription>
                       {isSecured 

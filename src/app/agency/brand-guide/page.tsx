@@ -8,13 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type } from 'lucide-react';
+import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, BrandGuide } from '@/types';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger 
+} from '@/components/ui/dialog';
 
 export default function BrandGuidePage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -285,7 +292,27 @@ export default function BrandGuidePage() {
         </div>
 
         {/* Right Side: Live Deck Preview (Sticky/Fixed in flex container) */}
-        <div className="hidden lg:block w-[450px] shrink-0 pb-8">
+        <div className="hidden lg:block w-[450px] shrink-0 pb-8 relative group">
+           <div className="absolute top-14 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Dialog>
+                 <DialogTrigger asChild>
+                    <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/80 backdrop-blur-sm shadow-sm border border-primary/10">
+                       <Maximize2 className="h-4 w-4 text-primary" />
+                    </Button>
+                 </DialogTrigger>
+                 <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent">
+                    <DialogTitle className="sr-only">Brand Deck Preview - Full Screen</DialogTitle>
+                    <DialogDescription className="sr-only">Full screen live preview of your brand deck.</DialogDescription>
+                    <div className="h-full w-full">
+                       <BrandDeckPreview 
+                         guide={guide} 
+                         agencyName={agency?.name || 'Your Brand'} 
+                         products={agency?.products || []}
+                       />
+                    </div>
+                 </DialogContent>
+              </Dialog>
+           </div>
            <BrandDeckPreview 
               guide={guide} 
               agencyName={agency?.name || 'Your Brand'} 
