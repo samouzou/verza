@@ -465,15 +465,15 @@ export interface BrandResearch {
   status: "pending" | "completed" | "failed";
   report?: {
     decisionMakers: {
-        name?: string;
-        title: string;
-        email?: string;
+      name?: string;
+      title: string;
+      email?: string;
     }[];
     currentVibe: string;
     pitchHooks: string[];
     emailPitches: {
-        subject: string;
-        body: string;
+      subject: string;
+      body: string;
     }[];
   };
   error?: string;
@@ -499,6 +499,8 @@ export interface Gig {
   creatorsNeeded: number;
   videosPerCreator: number;
   acceptedCreatorIds: string[];
+  appliedCreatorIds?: string[];
+  agentIds?: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
@@ -565,7 +567,8 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: "gig_accepted" | "submission_received" | "submission_approved" | "payout_received" | "system";
+  type: "gig_accepted" | "submission_received" | "submission_approved" |
+  "payout_received" | "system" | "creator_applied" | "application_approved";
   read: boolean;
   link?: string;
   createdAt: ClientTimestamp;

@@ -500,6 +500,7 @@ export interface Gig {
   creatorsNeeded: number;
   videosPerCreator: number;
   acceptedCreatorIds: string[];
+  appliedCreatorIds?: string[];
   agentIds?: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
@@ -589,7 +590,7 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system';
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system' | 'creator_applied' | 'application_approved';
   read: boolean;
   link?: string;
   createdAt: ClientTimestamp;

@@ -116,7 +116,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
           talentId: creatorId,
           talentName: creatorData.displayName || "Unknown Creator",
           amount: creatorPayoutInCents / 100,
-          description: `Payment for deployment: ${gigData.title}`,
+          description: `Payment for campaign: ${gigData.title}`,
           status: "pending",
           initiatedAt: FieldValue.serverTimestamp(),
           paidAt: null,

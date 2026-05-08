@@ -106,7 +106,7 @@ service cloud.firestore {
       allow create: if isTeamMemberOf(request.resource.data.brandId);
       allow update: if (isTeamMemberOf(resource.data.brandId)) ||
                        (request.auth != null && resource.data.status == 'open' &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'acceptedAt', 'assignments', 'updatedAt', 'status', 'agentIds']));
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'appliedCreatorIds', 'acceptedAt', 'assignments', 'updatedAt', 'status', 'agentIds']));
       allow delete: if isTeamMemberOf(resource.data.brandId) && 
                       (resource.data.status == 'pending_payment' || 
                        (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
