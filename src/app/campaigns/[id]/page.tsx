@@ -1070,27 +1070,73 @@ function GigDetailContent() {
               </Card>
             )}
 
-            {agency?.brandGuide && (
-              <Card className="overflow-hidden border-primary/20 bg-primary/5 shadow-lg mb-6">
-                <CardHeader className="bg-primary/5 border-b border-primary/10">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2">
-                      <Star className="h-5 w-5 text-primary fill-primary" />
-                      Brand Identity Kit
-                    </CardTitle>
-                    <Badge variant="outline" className="bg-white/50 backdrop-blur-sm">Interactive Deck</Badge>
-                  </div>
-                  <CardDescription>Get to know the brand's DNA before you start filming.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0 h-[500px]">
-                  <BrandDeckPreview 
-                    guide={agency.brandGuide} 
-                    agencyName={agency.name}
-                    products={agency.products}
-                  />
-                </CardContent>
-              </Card>
-            )}
+            {agency?.brandGuide && (() => {
+              const isSecured = hasAccepted || canManageGig;
+              return (
+                <Card className={cn(
+                  "overflow-hidden border-primary/20 shadow-lg mb-6 transition-all duration-500",
+                  isSecured ? "bg-primary/5 border-primary/20" : "bg-muted/10 border-dashed"
+                )}>
+                  <CardHeader className={cn(
+                    "border-b border-primary/10",
+                    isSecured ? "bg-primary/5" : "bg-muted/20"
+                  )}>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="flex items-center gap-2">
+                        {isSecured ? (
+                          <Star className="h-5 w-5 text-primary fill-primary" />
+                        ) : (
+                          <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        Brand Identity Kit
+                      </CardTitle>
+                      <Badge variant={isSecured ? "outline" : "secondary"} className={cn(
+                        isSecured ? "bg-white/50 backdrop-blur-sm" : ""
+                      )}>
+                        {isSecured ? "Interactive Deck" : "Briefing Locked"}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      {isSecured 
+                        ? "Get to know the brand's DNA before you start filming." 
+                        : "Secure your spot on this campaign to unlock the full brand briefing."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0 relative h-[500px]">
+                    {isSecured ? (
+                      <BrandDeckPreview 
+                        guide={agency.brandGuide} 
+                        agencyName={agency.name}
+                        products={agency.products}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-6 bg-gradient-to-b from-transparent to-background/50">
+                         <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10 animate-pulse">
+                            <ShieldCheck className="h-8 w-8 text-primary/40" />
+                         </div>
+                         <div className="space-y-2 max-w-[280px]">
+                            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">The Briefing</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                               Once approved, you'll get instant access to the brand's visual identity, voice guidelines, and product lookbook.
+                            </p>
+                         </div>
+                         {!hasApplied && !hasAccepted && (
+                           <Button variant="outline" className="text-xs h-8 border-primary/20 px-6 rounded-full" onClick={() => {
+                              const element = document.getElementById('legal-agreement');
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                           }}>
+                              Apply to Unlock
+                           </Button>
+                         )}
+                         {hasApplied && !hasAccepted && (
+                           <Badge variant="secondary" className="px-4 py-1">Approval Pending</Badge>
+                         )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             <Card className="overflow-hidden">
               <CardHeader>
