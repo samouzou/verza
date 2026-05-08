@@ -88,5 +88,27 @@ service firebase.storage {
         isTalentInMyAgency(userId)
       );
     }
+
+    // Rules for brand identity assets (logos, brand guide visuals)
+    match /brand_assets/{fileName} {
+      // Public read so creators can see the brand deck
+      allow read: if true;
+      // Allow agency members to upload
+      allow write: if request.auth != null 
+                   && request.auth.token.get('primaryAgencyId', null) != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Rules for product catalog images
+    match /products/{fileName} {
+      // Public read for creator showcase
+      allow read: if true;
+      // Allow agency members to upload
+      allow write: if request.auth != null
+                   && request.auth.token.get('primaryAgencyId', null) != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
   }
 }

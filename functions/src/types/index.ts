@@ -382,6 +382,27 @@ export interface TeamMember {
   joinedAt?: ClientTimestamp;
 }
 
+export interface BrandProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  url: string;
+  imageUrl: string;
+  usps: string[]; // Unique Selling Propositions
+}
+
+export interface BrandGuide {
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+  typography?: string;
+  toneOfVoice?: string;
+  dos?: string[];
+  donts?: string[];
+  assetDriveUrl?: string; // Link to Google Drive / Dropbox for b-roll
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -393,6 +414,9 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
+  brandGuide?: BrandGuide;
+  products?: BrandProduct[];
 }
 
 export interface AgencyMembership {

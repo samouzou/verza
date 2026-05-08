@@ -27,6 +27,7 @@ import {
   Video,
   ExternalLink,
   Store,
+  ChevronRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,7 +41,11 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -69,7 +74,17 @@ const marketplaceNavItems = [
 
 const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
-  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
+  { 
+    id: 'nav-item-agency', 
+    href: "/agency", 
+    label: "Agency", 
+    icon: Building,
+    subItems: [
+      { id: 'sub-item-overview', href: "/agency", label: "Overview" },
+      { id: 'sub-item-brand-guide', href: "/agency/brand-guide", label: "Brand Guide" },
+      { id: 'sub-item-products', href: "/agency/products", label: "Products" },
+    ]
+  },
 ];
 
 const financialsNavItems = [
@@ -280,6 +295,42 @@ export function SidebarNav() {
                 const label = isAgencyItem && isBrand ? "Brand" : item.label;
                 const Icon = isAgencyItem && isBrand ? Store : item.icon;
                 
+                // For Brand accounts, we want to show submenus for the Agency/Brand item
+                if (isAgencyItem && isBrand && (item as any).subItems) {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Collapsible
+                      key={item.id}
+                      asChild
+                      defaultOpen={isActive}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton tooltip={label} isActive={isActive}>
+                            <Icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{label}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {(item as any).subItems.map((subItem: any) => (
+                              <SidebarMenuSubItem key={subItem.id}>
+                                <SidebarMenuSubButton asChild isActive={pathname === subItem.href}>
+                                  <Link href={subItem.href} onClick={() => isMobile && setOpenMobile(false)}>
+                                    <span>{subItem.label}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
                 return (
                 <SidebarMenuItem key={item.id} id={item.id}>
                   <Link href={item.href} legacyBehavior passHref>
@@ -394,7 +445,7 @@ export function SidebarNav() {
          <SidebarMenuButton
             onClick={() => setOpen(!open)}
             className="hidden md:flex justify-start text-muted-foreground"
-            variant="ghost"
+            variant="default"
             tooltip={{
               children: open ? "Collapse Sidebar" : "Expand Sidebar",
               className: "group-data-[collapsible=icon]:block hidden",
