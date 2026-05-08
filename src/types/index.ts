@@ -507,7 +507,7 @@ export interface Gig {
   fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
   createdAt: ClientTimestamp;
-  campaignType: 'standard_sponsorship' | 'production_grant';
+  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
   requireVerzaScore?: boolean;
