@@ -47,12 +47,14 @@ export default function OnboardingPage() {
 
     const role = selectedRole === 'creator' ? 'individual_creator' : 'agency_owner';
     const redirectPath = selectedRole === 'creator' ? '/deployments' : '/agency';
+    const isBrandAccount = selectedRole === 'brand';
 
     try {
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, {
         hasCompletedOnboarding: true,
         role,
+        isBrandAccount,
         referralSource,
       });
 

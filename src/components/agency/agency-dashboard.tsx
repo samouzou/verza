@@ -101,16 +101,16 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit} />
-            <InviteTeamMemberCard agencyId={agency.id} disabled={!canInviteTeam} />
+            <InviteTalentCard agencyId={agency.id} disabled={atTalentLimit} isBrandAccount={!!user?.isBrandAccount} />
+            <InviteTeamMemberCard agencyId={agency.id} disabled={!canInviteTeam} isBrandAccount={!!user?.isBrandAccount} />
           </div>
 
-          <TalentRosterCard agency={agency} liveProfiles={liveProfiles} />
-          <TeamRosterCard agency={agency} liveProfiles={liveProfiles} />
+          <TalentRosterCard agency={agency} liveProfiles={liveProfiles} isBrandAccount={!!user?.isBrandAccount} />
+          <TeamRosterCard agency={agency} liveProfiles={liveProfiles} isBrandAccount={!!user?.isBrandAccount} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AgencyGigsCard agencyId={agency.id} />
-            <WebhookIntegrationsCard agency={agency} disabled={false} />
+            <AgencyGigsCard agencyId={agency.id} isBrandAccount={!!user?.isBrandAccount} />
+            <WebhookIntegrationsCard agency={agency} disabled={false} isBrandAccount={!!user?.isBrandAccount} />
           </div>
         </>
       )}

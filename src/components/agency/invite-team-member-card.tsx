@@ -15,9 +15,10 @@ import { functions } from '@/lib/firebase';
 interface InviteTeamMemberCardProps {
   agencyId: string;
   disabled: boolean;
+  isBrandAccount?: boolean;
 }
 
-export function InviteTeamMemberCard({ agencyId, disabled }: InviteTeamMemberCardProps) {
+export function InviteTeamMemberCard({ agencyId, disabled, isBrandAccount }: InviteTeamMemberCardProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [isInviting, setIsInviting] = useState(false);
@@ -48,7 +49,7 @@ export function InviteTeamMemberCard({ agencyId, disabled }: InviteTeamMemberCar
     <Card id="invite-team-member-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/> Invite Team Member</CardTitle>
-        <CardDescription>Add admins or members to help manage your agency.</CardDescription>
+        <CardDescription>Add admins or members to help manage your {isBrandAccount ? 'brand' : 'agency'}.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

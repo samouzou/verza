@@ -274,21 +274,27 @@ export function SidebarNav() {
                 <span className="group-data-[collapsible=icon]:hidden">Manage</span>
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              {manageNavItems.map((item) => (
-                <SidebarMenuItem key={item.label} id={item.id}>
+              {manageNavItems.map((item) => {
+                const isAgencyItem = item.id === 'nav-item-agency';
+                const isBrand = !!activeUser?.isBrandAccount;
+                const label = isAgencyItem && isBrand ? "Brand" : item.label;
+                const Icon = isAgencyItem && isBrand ? Store : item.icon;
+                
+                return (
+                <SidebarMenuItem key={item.id} id={item.id}>
                   <Link href={item.href} legacyBehavior passHref>
                     <SidebarMenuButton
                       onClick={() => isMobile && setOpenMobile(false)}
                       className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
                       isActive={pathname.startsWith(item.href)}
-                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                      tooltip={{ children: label, className: "group-data-[collapsible=icon]:block hidden"}}
                     >
-                      <item.icon className="h-5 w-5" />
-                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                      <Icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{label}</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
-              ))}
+              )})}
             </SidebarGroupContent>
           </SidebarGroup>
 

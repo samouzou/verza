@@ -21,7 +21,7 @@ import { TalentAgencyView } from '@/components/agency/talent-agency-view';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 
-function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) {
+function CreateAgencyForm({ onAgencyCreated, isBrandAccount }: { onAgencyCreated: () => void, isBrandAccount?: boolean }) {
   const [agencyName, setAgencyName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
@@ -48,23 +48,23 @@ function CreateAgencyForm({ onAgencyCreated }: { onAgencyCreated: () => void }) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create Your Agency</CardTitle>
-        <CardDescription>Give your agency a name to get started. You can manage talent and contracts once it's created.</CardDescription>
+        <CardTitle>Create Your {isBrandAccount ? 'Brand' : 'Agency'}</CardTitle>
+        <CardDescription>{isBrandAccount ? 'Give your brand a name to get started. You can launch campaigns and collaborate with creators once it\'s created.' : 'Give your agency a name to get started. You can manage talent and contracts once it\'s created.'}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label htmlFor="agencyName">Agency Name</Label>
+          <Label htmlFor="agencyName">{isBrandAccount ? 'Brand Name' : 'Agency Name'}</Label>
           <Input 
             id="agencyName" 
             value={agencyName}
             onChange={(e) => setAgencyName(e.target.value)}
-            placeholder="e.g., Creator Collective" 
+            placeholder={isBrandAccount ? 'e.g., Acme Corp' : 'e.g., Creator Collective'} 
             disabled={isCreating}
           />
         </div>
         <Button onClick={handleCreateAgency} disabled={isCreating || !agencyName.trim()}>
           {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Building className="mr-2 h-4 w-4" />}
-          Create Agency
+          Create {isBrandAccount ? 'Brand' : 'Agency'}
         </Button>
       </CardContent>
     </Card>
@@ -166,11 +166,11 @@ export default function AgencyPage() {
         <>
           <PageHeader
             title={agency.name}
-            description={isPending ? "You have been invited to join this agency." : isManager ? "Agency Management Dashboard" : "Your relationship with this agency."}
+            description={isPending ? `You have been invited to join this ${user.isBrandAccount ? 'brand' : 'agency'}.` : isManager ? `${user.isBrandAccount ? 'Brand' : 'Agency'} Management Dashboard` : `Your relationship with this ${user.isBrandAccount ? 'brand' : 'agency'}.`}
             actions={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setSelectedAgencyId(null)}>
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Switch Agency
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Switch {user.isBrandAccount ? 'Brand' : 'Agency'}
                 </Button>
                 {isManager && !isPending && <Button variant="outline" onClick={() => startTour(agencyTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
               </div>
@@ -193,8 +193,8 @@ export default function AgencyPage() {
   return (
     <>
       <PageHeader
-        title="Agency Hub"
-        description="Select an agency to manage or view your representation."
+        title={user.isBrandAccount ? "Brand Hub" : "Agency Hub"}
+        description={user.isBrandAccount ? "Select a brand profile to manage your campaigns." : "Select an agency to manage or view your representation."}
       />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -225,7 +225,7 @@ export default function AgencyPage() {
                 </CardContent>
                 <CardFooter className="pt-0 border-t bg-muted/5 group-hover:bg-muted/20 transition-colors">
                   <Button variant="ghost" className="w-full justify-between mt-2" onClick={(e) => { e.stopPropagation(); setSelectedAgencyId(agency.id); }}>
-                    {isPending ? 'View Invitation' : (isOwner || (membership && membership.role !== 'talent') ? 'Manage Agency' : 'View Representation')}
+                    {isPending ? 'View Invitation' : (isOwner || (membership && membership.role !== 'talent') ? `Manage ${user.isBrandAccount ? 'Brand' : 'Agency'}` : 'View Representation')}
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </CardFooter>
@@ -234,15 +234,15 @@ export default function AgencyPage() {
           })
         ) : (
           <div className="col-span-full">
-            <CreateAgencyForm onAgencyCreated={handleAgencyCreated} />
+            <CreateAgencyForm onAgencyCreated={handleAgencyCreated} isBrandAccount={user.isBrandAccount} />
           </div>
         )}
         
         {agencies.length > 0 && !user.isAgencyOwner && (
           <Card className="border-dashed border-2 flex flex-col items-center justify-center p-6 text-center hover:bg-muted/5 transition-colors cursor-pointer" onClick={() => router.push('/onboarding')}>
             <PlusCircle className="h-10 w-10 text-muted-foreground mb-4" />
-            <CardTitle className="text-base">Start Your Own Agency</CardTitle>
-            <CardDescription className="mt-1">Manage your own roster and brand deals.</CardDescription>
+            <CardTitle className="text-base">Start Your Own {user.isBrandAccount ? 'Brand' : 'Agency'}</CardTitle>
+            <CardDescription className="mt-1">{user.isBrandAccount ? 'Launch campaigns and collaborate with creators.' : 'Manage your own roster and brand deals.'}</CardDescription>
           </Card>
         )}
       </div>

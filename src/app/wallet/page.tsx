@@ -135,9 +135,9 @@ export default function WalletPage() {
         {isAgencyManager && agency && (
           <div id="agency-budget-section" className="space-y-4">
             <h3 className="text-lg font-bold flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" /> Agency Budget
+              <Wallet className="h-5 w-5 text-primary" /> {user?.isBrandAccount ? 'Brand Budget' : 'Agency Budget'}
             </h3>
-            <BudgetSummary agency={agency} />
+            <BudgetSummary agency={agency} isBrandAccount={!!user?.isBrandAccount} />
           </div>
         )}
 
@@ -161,11 +161,11 @@ export default function WalletPage() {
           {isAgencyManager && user.primaryAgencyId && (
             <>
               <div id="agency-commissions-section">
-                <h3 className="text-lg font-semibold mb-4">Commission Earnings</h3>
+                <h3 className="text-lg font-semibold mb-4">{user?.isBrandAccount ? 'Brand Commissions' : 'Commission Earnings'}</h3>
                 <CommissionHistoryCard commissions={commissions} />
               </div>
               <div id="agency-disbursements-section">
-                <h3 className="text-lg font-semibold mb-4">Agency Disbursement History</h3>
+                <h3 className="text-lg font-semibold mb-4">{user?.isBrandAccount ? 'Brand Disbursement History' : 'Agency Disbursement History'}</h3>
                 <PayoutHistoryCard agencyId={user.primaryAgencyId} />
               </div>
             </>

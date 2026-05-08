@@ -41,6 +41,7 @@ export interface UserProfile {
   createdAt?: Timestamp;
   role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
+  isBrandAccount?: boolean;
   agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'admin' | 'member' | 'talent', status: 'pending' | 'active' }>;
   primaryAgencyId?: string | null;
 
@@ -310,6 +311,10 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.isAgencyOwner = false;
       needsUpdate = true;
     }
+    if (existingData.isBrandAccount === undefined) {
+      updates.isBrandAccount = false;
+      needsUpdate = true;
+    }
     if (existingData.credits === undefined) {
       updates.credits = NEW_USER_BONUS;
       needsUpdate = true;
@@ -392,6 +397,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               createdAt: firestoreUserData.createdAt,
               role: firestoreUserData.role || 'individual_creator',
               isAgencyOwner: firestoreUserData.isAgencyOwner || false,
+              isBrandAccount: firestoreUserData.isBrandAccount || false,
               agencyMemberships: firestoreUserData.agencyMemberships || [],
               primaryAgencyId: firestoreUserData.primaryAgencyId || null,
               stripeCustomerId: firestoreUserData.stripeCustomerId,

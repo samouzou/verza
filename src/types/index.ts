@@ -213,6 +213,7 @@ export interface UserProfileFirestoreData {
   createdAt?: ClientTimestamp;
   role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
+  isBrandAccount?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
   giggingForAgencies?: string[];

@@ -11,14 +11,15 @@ import type { Agency, UserProfileFirestoreData } from '@/types';
 interface TeamRosterCardProps {
   agency: Agency;
   liveProfiles: Record<string, UserProfileFirestoreData>;
+  isBrandAccount?: boolean;
 }
 
-export function TeamRosterCard({ agency, liveProfiles }: TeamRosterCardProps) {
+export function TeamRosterCard({ agency, liveProfiles, isBrandAccount }: TeamRosterCardProps) {
   return (
     <Card id="team-roster-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Agency Team</CardTitle>
-        <CardDescription>Your agency's administrative members.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> {isBrandAccount ? 'Brand Team' : 'Agency Team'}</CardTitle>
+        <CardDescription>Your {isBrandAccount ? 'brand' : 'agency'}'s administrative members.</CardDescription>
       </CardHeader>
       <CardContent>
          {(agency.team && agency.team.length > 0) ? (
