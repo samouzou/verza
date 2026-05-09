@@ -389,7 +389,16 @@ export interface BrandProduct {
   price: number;
   url: string;
   imageUrl: string;
+  videoUrl?: string;
   usps: string[]; // Unique Selling Propositions
+}
+
+export interface BRollAsset {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl?: string;
+  createdAt: ClientTimestamp;
 }
 
 export interface BrandGuide {
@@ -401,6 +410,7 @@ export interface BrandGuide {
   dos?: string[];
   donts?: string[];
   assetDriveUrl?: string; // Link to Google Drive / Dropbox for b-roll
+  bRollLibrary?: BRollAsset[];
 }
 
 export interface Agency {

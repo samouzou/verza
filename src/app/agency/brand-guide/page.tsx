@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2 } from 'lucide-react';
+import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, BrandGuide } from '@/types';
-import { ImageUpload } from '@/components/ui/image-upload';
+import { MediaUpload } from '@/components/ui/media-upload';
 import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import { 
   Dialog, 
@@ -39,6 +39,7 @@ export default function BrandGuidePage() {
     dos: [],
     donts: [],
     assetDriveUrl: '',
+    bRollLibrary: [],
   });
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function BrandGuidePage() {
               ...data.brandGuide,
               dos: data.brandGuide.dos || [],
               donts: data.brandGuide.donts || [],
+              bRollLibrary: data.brandGuide.bRollLibrary || [],
             });
           }
         }
@@ -144,11 +146,12 @@ export default function BrandGuidePage() {
               <CardContent className="px-0 space-y-6">
                 <div className="space-y-3">
                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Brand Logo</Label>
-                   <ImageUpload 
+                   <MediaUpload 
                       value={guide.logoUrl} 
                       onChange={(url) => setGuide({ ...guide, logoUrl: url })}
                       onRemove={() => setGuide({ ...guide, logoUrl: '' })}
                       label="Upload Logo"
+                      accept="image/*"
                    />
                 </div>
 
@@ -213,7 +216,7 @@ export default function BrandGuidePage() {
                   <MessageSquare className="h-5 w-5 text-primary" />
                   Brand Voice
                 </CardTitle>
-                <CardDescription>Tone of voice and b-roll assets</CardDescription>
+                <CardDescription>Tone of voice and creative direction</CardDescription>
               </CardHeader>
               <CardContent className="px-0 space-y-6">
                 <div className="space-y-3">
@@ -276,9 +279,57 @@ export default function BrandGuidePage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+           </Card>
+
+           {/* B-Roll Library */}
+           <Card className="border-none shadow-none bg-transparent">
+              <CardHeader className="px-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                  <Video className="h-5 w-5 text-primary" />
+                  B-Roll Library
+                </CardTitle>
+                <CardDescription>Upload high-quality raw clips for creators to use.</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {guide.bRollLibrary?.map((asset, index) => (
+                    <div key={asset.id} className="relative group rounded-xl border bg-muted/20 overflow-hidden aspect-video flex items-center justify-center shadow-md">
+                       <video src={asset.url} className="h-full w-full object-cover opacity-50" />
+                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <PlayCircle className="h-10 w-10 text-white opacity-80" />
+                       </div>
+                       <button 
+                         onClick={() => {
+                           const newList = [...(guide.bRollLibrary || [])];
+                           newList.splice(index, 1);
+                           setGuide({ ...guide, bRollLibrary: newList });
+                         }}
+                         className="absolute top-2 right-2 p-1.5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95 shadow-lg z-20"
+                       >
+                          <Trash2 className="h-3 w-3" />
+                       </button>
+                    </div>
+                  ))}
+                  <MediaUpload 
+                    onChange={(url) => {
+                      const newAsset = {
+                        id: crypto.randomUUID(),
+                        name: 'B-Roll Clip',
+                        url,
+                        createdAt: new Date()
+                      };
+                      setGuide({ ...guide, bRollLibrary: [...(guide.bRollLibrary || []), newAsset as any] });
+                    }}
+                    onRemove={() => {}}
+                    label="Add B-Roll Clip"
+                    accept="video/*"
+                    folder="b-roll"
+                  />
+                </div>
 
                 <div className="space-y-3 pt-6">
-                  <Label htmlFor="assetDriveUrl" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">B-Roll Drive Link (Optional)</Label>
+                  <Label htmlFor="assetDriveUrl" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Legacy Drive Link (Optional)</Label>
                   <Input 
                     id="assetDriveUrl" 
                     value={guide.assetDriveUrl} 
@@ -291,7 +342,7 @@ export default function BrandGuidePage() {
            </Card>
         </div>
 
-        {/* Right Side: Live Deck Preview (Sticky/Fixed in flex container) */}
+        {/* Right Side: Live Deck Preview */}
         <div className="hidden lg:block w-[450px] shrink-0 pb-8 relative group">
            <div className="absolute top-14 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
               <Dialog>
@@ -300,10 +351,10 @@ export default function BrandGuidePage() {
                        <Maximize2 className="h-4 w-4 text-primary" />
                     </Button>
                  </DialogTrigger>
-                 <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent">
+                 <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent flex flex-col">
                     <DialogTitle className="sr-only">Brand Deck Preview - Full Screen</DialogTitle>
                     <DialogDescription className="sr-only">Full screen live preview of your brand deck.</DialogDescription>
-                    <div className="h-full w-full">
+                    <div className="flex-1 w-full min-h-0 flex flex-col">
                        <BrandDeckPreview 
                          guide={guide} 
                          agencyName={agency?.name || 'Your Brand'} 

@@ -1098,10 +1098,10 @@ function GigDetailContent() {
                                   <Maximize2 className="h-4 w-4 text-primary" />
                                </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent">
+                            <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent flex flex-col">
                                <DialogTitle className="sr-only">Brand Identity Kit - Full Screen</DialogTitle>
                                <DialogDescription className="sr-only">Full screen interactive brand deck and product lookbook.</DialogDescription>
-                               <div className="h-full w-full">
+                               <div className="flex-1 w-full min-h-0 flex flex-col">
                                   <BrandDeckPreview 
                                     guide={agency.brandGuide} 
                                     agencyName={agency.name}

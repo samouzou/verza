@@ -13,7 +13,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, BrandProduct } from '@/types';
-import { ImageUpload } from '@/components/ui/image-upload';
+import { MediaUpload } from '@/components/ui/media-upload';
 import { 
   Dialog, 
   DialogContent, 
@@ -40,6 +40,7 @@ export default function ProductCatalogPage() {
     price: 0,
     url: '',
     imageUrl: '',
+    videoUrl: '',
     usps: [],
   });
 
@@ -135,6 +136,7 @@ export default function ProductCatalogPage() {
       price: 0,
       url: '',
       imageUrl: '',
+      videoUrl: '',
       usps: [],
     });
     setEditingProduct(null);
@@ -149,6 +151,7 @@ export default function ProductCatalogPage() {
       price: product.price,
       url: product.url,
       imageUrl: product.imageUrl,
+      videoUrl: product.videoUrl || '',
       usps: product.usps || [],
     });
     setIsDialogOpen(true);
@@ -188,7 +191,7 @@ export default function ProductCatalogPage() {
                 Add Product
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[525px]">
+            <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
                 <DialogDescription>
@@ -235,14 +238,28 @@ export default function ProductCatalogPage() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="imageUrl" className="text-right">Product Image</Label>
+                  <Label className="text-right">Product Image</Label>
                   <div className="col-span-3">
-                    <ImageUpload 
+                    <MediaUpload 
                       value={formData.imageUrl} 
                       onChange={(url) => setFormData({ ...formData, imageUrl: url })}
                       onRemove={() => setFormData({ ...formData, imageUrl: '' })}
-                      label="Upload Product Image"
-                      folder="products"
+                      label="Main Product Shot"
+                      accept="image/*"
+                      folder="products/images"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Product Video</Label>
+                  <div className="col-span-3">
+                    <MediaUpload 
+                      value={formData.videoUrl} 
+                      onChange={(url) => setFormData({ ...formData, videoUrl: url })}
+                      onRemove={() => setFormData({ ...formData, videoUrl: '' })}
+                      label="Motion / B-Roll"
+                      accept="video/*"
+                      folder="products/videos"
                     />
                   </div>
                 </div>
