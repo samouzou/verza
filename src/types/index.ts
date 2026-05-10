@@ -404,6 +404,8 @@ export interface BRollAsset {
 export interface BrandGuide {
   primaryColor?: string;
   secondaryColor?: string;
+  accentColor?: string;
+  neutralColor?: string;
   logoUrl?: string;
   typography?: string;
   toneOfVoice?: string;

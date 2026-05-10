@@ -28,11 +28,14 @@ export default function BrandGuidePage() {
   const [agency, setAgency] = useState<Agency | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const { toast } = useToast();
 
   const [guide, setGuide] = useState<BrandGuide>({
     primaryColor: '#000000',
     secondaryColor: '#ffffff',
+    accentColor: '#6366f1',
+    neutralColor: '#f4f4f5',
     logoUrl: '',
     typography: '',
     toneOfVoice: '',
@@ -62,6 +65,8 @@ export default function BrandGuidePage() {
               dos: data.brandGuide.dos || [],
               donts: data.brandGuide.donts || [],
               bRollLibrary: data.brandGuide.bRollLibrary || [],
+              accentColor: data.brandGuide.accentColor || '#6366f1',
+              neutralColor: data.brandGuide.neutralColor || '#f4f4f5',
             });
           }
         }
@@ -188,6 +193,42 @@ export default function BrandGuidePage() {
                         value={guide.secondaryColor} 
                         onChange={(e) => setGuide({ ...guide, secondaryColor: e.target.value })}
                         placeholder="#ffffff"
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="accentColor" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Accent Color</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        id="accentColor" 
+                        type="color" 
+                        value={guide.accentColor} 
+                        onChange={(e) => setGuide({ ...guide, accentColor: e.target.value })}
+                        className="w-12 p-1 h-10 rounded-lg cursor-pointer border-none shadow-sm"
+                      />
+                      <Input 
+                        value={guide.accentColor} 
+                        onChange={(e) => setGuide({ ...guide, accentColor: e.target.value })}
+                        placeholder="#6366f1"
+                        className="font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="neutralColor" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Neutral Color</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        id="neutralColor" 
+                        type="color" 
+                        value={guide.neutralColor} 
+                        onChange={(e) => setGuide({ ...guide, neutralColor: e.target.value })}
+                        className="w-12 p-1 h-10 rounded-lg cursor-pointer border-none shadow-sm"
+                      />
+                      <Input 
+                        value={guide.neutralColor} 
+                        onChange={(e) => setGuide({ ...guide, neutralColor: e.target.value })}
+                        placeholder="#f4f4f5"
                         className="font-mono"
                       />
                     </div>
@@ -345,7 +386,7 @@ export default function BrandGuidePage() {
         {/* Right Side: Live Deck Preview */}
         <div className="hidden lg:block w-[450px] shrink-0 pb-8 relative group">
            <div className="absolute top-14 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Dialog>
+              <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
                  <DialogTrigger asChild>
                     <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/80 backdrop-blur-sm shadow-sm border border-primary/10">
                        <Maximize2 className="h-4 w-4 text-primary" />
@@ -359,6 +400,7 @@ export default function BrandGuidePage() {
                          guide={guide} 
                          agencyName={agency?.name || 'Your Brand'} 
                          products={agency?.products || []}
+                         onClose={() => setPreviewOpen(false)}
                        />
                     </div>
                  </DialogContent>
