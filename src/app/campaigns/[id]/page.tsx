@@ -101,6 +101,7 @@ function GigDetailContent() {
   const [extendingCreatorId, setExtendingCreatorId] = useState<string | null>(null);
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtending, setIsExtending] = useState(false);
+  const [isDeckOpen, setIsDeckOpen] = useState(false);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
@@ -1092,7 +1093,7 @@ function GigDetailContent() {
                       </CardTitle>
                       <div className="flex items-center gap-2">
                         {isSecured && (
-                          <Dialog>
+                          <Dialog open={isDeckOpen} onOpenChange={setIsDeckOpen}>
                             <DialogTrigger asChild>
                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10">
                                   <Maximize2 className="h-4 w-4 text-primary" />
@@ -1106,6 +1107,7 @@ function GigDetailContent() {
                                     guide={agency.brandGuide} 
                                     agencyName={agency.name}
                                     products={agency.products}
+                                    onClose={() => setIsDeckOpen(false)}
                                   />
                                </div>
                             </DialogContent>
