@@ -357,9 +357,9 @@ function GigDetailContent() {
           const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
 
           if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
-            const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
-            const namePart = (creatorName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            generatedPromoCode = `${prefix}${namePart}`;
+            const suffix = currentGigData.affiliateSettings.promoCodeSuffix || '';
+            const firstName = (creatorName || 'CREATOR').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            generatedPromoCode = `${firstName}${suffix}`;
           }
 
           await addDoc(collection(db, 'affiliateLinks'), {
@@ -503,9 +503,9 @@ function GigDetailContent() {
         const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
 
         if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
-          const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
-          const namePart = creatorName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          generatedPromoCode = `${prefix}${namePart}`;
+          const suffix = currentGigData.affiliateSettings.promoCodeSuffix || '';
+          const firstName = creatorName.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          generatedPromoCode = `${firstName}${suffix}`;
         }
 
         await addDoc(collection(db, 'affiliateLinks'), {
@@ -560,8 +560,9 @@ function GigDetailContent() {
       let promoCode = undefined;
       
       if (gig.affiliateSettings.trackingMethod !== 'link_only') {
-        const prefix = gig.affiliateSettings.promoCodePrefix || '';
-        promoCode = `${prefix}${creatorName?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}`;
+        const suffix = gig.affiliateSettings.promoCodeSuffix || '';
+        const firstName = (creatorName || 'CREATOR').split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        promoCode = `${firstName}${suffix}`;
       }
       
       await addDoc(collection(db, 'affiliateLinks'), {
@@ -994,6 +995,7 @@ function GigDetailContent() {
                   <CardDescription>Share your unique tracking hook to track performance and earn bonuses.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Tracking Link Section */}
                   {(!gig.affiliateSettings?.trackingMethod || gig.affiliateSettings.trackingMethod === 'link_only' || gig.affiliateSettings.trackingMethod === 'both') && (
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Tracking Link</Label>
@@ -1003,7 +1005,7 @@ function GigDetailContent() {
                             `${window.location.origin}/l/${myLink.id}`
                           ) : (
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground italic">Link not yet generated</span>
+                              <span className="text-muted-foreground italic text-xs">Link not yet generated</span>
                               <Button 
                                 size="sm" 
                                 variant="secondary" 
@@ -1024,21 +1026,41 @@ function GigDetailContent() {
                     </div>
                   )}
 
-                  {myLink?.promoCode && (gig.affiliateSettings?.trackingMethod === 'promo_code_only' || gig.affiliateSettings?.trackingMethod === 'both') && (
+                  {/* Promo Code Section */}
+                  {(gig.affiliateSettings?.trackingMethod === 'promo_code_only' || gig.affiliateSettings?.trackingMethod === 'both') && (
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold uppercase text-muted-foreground">Your Promo Code</Label>
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm font-bold text-center tracking-wider text-xl">
-                          {myLink.promoCode}
-                        </div>
-                        <Button size="icon" onClick={() => {
-                          navigator.clipboard.writeText(myLink.promoCode || '');
-                          toast({ title: "Promo Code Copied!" });
-                        }}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        {myLink ? (
+                          <>
+                            <div className="flex-1 p-3 bg-background border rounded-md font-mono text-sm font-bold text-center tracking-wider text-xl uppercase">
+                              {myLink.promoCode || 'PENDING'}
+                            </div>
+                            <Button size="icon" onClick={() => {
+                              if (!myLink.promoCode) return;
+                              navigator.clipboard.writeText(myLink.promoCode);
+                              toast({ title: "Promo Code Copied!" });
+                            }} disabled={!myLink.promoCode}>
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : gig.affiliateSettings.trackingMethod === 'promo_code_only' ? (
+                          <div className="flex-1 p-3 bg-background border rounded-md flex items-center justify-between">
+                            <span className="text-muted-foreground italic text-xs">Code not yet generated</span>
+                            <Button 
+                              size="sm" 
+                              variant="secondary" 
+                              className="h-7 text-[10px]"
+                              onClick={handleGenerateAffiliateLink}
+                              disabled={isAccepting}
+                            >
+                              {isAccepting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+                              Generate My Code
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
-                      {gig.affiliateSettings?.promoCodeDiscountValue && (
+                      {myLink?.promoCode && gig.affiliateSettings?.promoCodeDiscountValue && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Pitch this code to your audience for <strong>{gig.affiliateSettings?.promoCodeDiscountValue}</strong> down!
                         </p>
