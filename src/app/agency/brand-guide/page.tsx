@@ -300,7 +300,7 @@ export default function BrandGuidePage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Label className="text-green-600 font-bold uppercase tracking-wider text-[10px]">Dos</Label>
-                      <Button variant="ghost" size="sm" onClick={() => addItem('dos')} className="h-6 text-[10px] hover:bg-green-50">
+                      <Button variant="ghost" size="sm" onClick={() => addItem('dos')} className="h-6 text-[10px] text-green-700 hover:bg-green-600 hover:text-white transition-colors px-2 rounded-full font-bold">
                         <Plus className="h-3 w-3 mr-1" /> Add
                       </Button>
                     </div>
@@ -324,7 +324,7 @@ export default function BrandGuidePage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Label className="text-red-600 font-bold uppercase tracking-wider text-[10px]">Don'ts</Label>
-                      <Button variant="ghost" size="sm" onClick={() => addItem('donts')} className="h-6 text-[10px] hover:bg-red-50">
+                      <Button variant="ghost" size="sm" onClick={() => addItem('donts')} className="h-6 text-[10px] text-red-700 hover:bg-red-600 hover:text-white transition-colors px-2 rounded-full font-bold">
                         <Plus className="h-3 w-3 mr-1" /> Add
                       </Button>
                     </div>
