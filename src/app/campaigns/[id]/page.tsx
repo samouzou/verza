@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Infinity as InfinityIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Maximize2, Infinity as InfinityIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -56,6 +56,7 @@ import { trackEvent } from '@/lib/analytics';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 
@@ -70,6 +71,7 @@ function GigDetailContent() {
   const [gig, setGig] = useState<Gig | null>(null);
   const [agency, setAgency] = useState<Agency | null>(null);
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
+  const [appliedCreators, setAppliedCreators] = useState<UserProfile[]>([]);
   const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -95,9 +97,16 @@ function GigDetailContent() {
   const [selectedTalentId, setSelectedTalentId] = useState<string | null>(null);
   const [isAgencyAcceptance, setIsAgencyAcceptance] = useState(false);
 
+  // Deadline extension state
+  const [extendingCreatorId, setExtendingCreatorId] = useState<string | null>(null);
+  const [extensionDate, setExtensionDate] = useState('');
+  const [isExtending, setIsExtending] = useState(false);
+  const [isDeckOpen, setIsDeckOpen] = useState(false);
+
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+  const extendCreatorDeadlineCallable = httpsCallable(functions, 'extendCreatorDeadline');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -132,13 +141,10 @@ function GigDetailContent() {
           // Fetch agency data if viewer can manage
           const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
           const isAssignedAgent = Object.values(data.assignments || {}).some(a => a.agentId === user?.uid);
-          const canManage = user && (isAgencyTeam && (data.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === data.brandId)) || isAssignedAgent);
-          
-          if (canManage) {
-            onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
-              if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
-            });
-          }
+          // Fetch agency data (Brand identity) for all viewers to show the Brand Kit
+          onSnapshot(doc(db, 'agencies', data.brandId), (snap) => {
+            if (snap.exists()) setAgency({ id: snap.id, ...snap.data() } as Agency);
+          });
         } else {
           setGig(null);
         }
@@ -251,7 +257,29 @@ function GigDetailContent() {
     }
   }, [gig]);
 
-  const handleAcceptGig = async () => {
+  useEffect(() => {
+    if (gig && gig.appliedCreatorIds && gig.appliedCreatorIds.length > 0) {
+      const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.appliedCreatorIds));
+      const unsubscribe = onSnapshot(creatorsQuery,
+        (snapshot) => {
+          const creatorsData = snapshot.docs.map(d => d.data() as UserProfile);
+          setAppliedCreators(creatorsData);
+        },
+        async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      );
+      return () => unsubscribe();
+    } else {
+      setAppliedCreators([]);
+    }
+  }, [gig]);
+
+  const handleApplyGig = async () => {
     if (!user || !gig) return;
 
     if (!hasAgreedToLegal) {
@@ -281,20 +309,18 @@ function GigDetailContent() {
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Campaign no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
-      const acceptedIds = currentGigData.acceptedCreatorIds || [];
+      const appliedIds = currentGigData.appliedCreatorIds || [];
       const isCauseGig = currentGigData.campaignType === 'cause_campaign';
 
       if (!isCauseGig && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
+      if (!isCauseGig && appliedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already applied.`);
 
-      const newAcceptedIds = [...acceptedIds, targetUserId];
       const gigUpdates: any = {
-        acceptedCreatorIds: newAcceptedIds,
         updatedAt: serverTimestamp()
       };
-      if (!isCauseGig && newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
 
-      // Handle agency assignment metadata
+      // Handle agency assignment metadata (we store this even if just applying, so it's ready upon approval)
       if (isAgencyAcceptance && selectedTalentId) {
         const talentDoc = activeTalent.find(t => t.userId === selectedTalentId);
         const agencyDoc = userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId));
@@ -311,29 +337,180 @@ function GigDetailContent() {
         }
       }
 
+      if (isCauseGig) {
+        // Cause campaigns bypass the "Apply" step
+        const newAcceptedIds = [...acceptedIds, targetUserId];
+        gigUpdates.acceptedCreatorIds = newAcceptedIds;
+        gigUpdates[`acceptedAt.${targetUserId}`] = serverTimestamp();
+        await updateDoc(gigDocRef, gigUpdates);
+
+        // Create affiliate link if enabled
+        if (currentGigData.affiliateSettings?.isEnabled) {
+          let generatedPromoCode = undefined;
+          let creatorName = user.displayName;
+
+          if (isAgencyAcceptance && selectedTalentId) {
+            const talentDoc = activeTalent.find(t => t.userId === selectedTalentId);
+            if (talentDoc) creatorName = talentDoc.displayName;
+          }
+
+          const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
+
+          if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
+            const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
+            const namePart = (creatorName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            generatedPromoCode = `${prefix}${namePart}`;
+          }
+
+          await addDoc(collection(db, 'affiliateLinks'), {
+            gigId: gig.id,
+            creatorId: targetUserId,
+            brandId: gig.brandId,
+            destinationUrl: currentGigData.affiliateSettings.destinationUrl,
+            ...(generatedPromoCode && { promoCode: generatedPromoCode }),
+            clicks: 0,
+            conversions: 0,
+            earnedRewards: 0,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        trackEvent({ action: 'accept_deployment', category: 'marketplace', label: gig.title });
+
+        // Notify the brand
+        const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
+        if (brandAgencySnap.exists()) {
+          const brandAgencyData = brandAgencySnap.data();
+          const creatorName = isAgencyAcceptance
+            ? (activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent')
+            : (user.displayName || 'A creator');
+          await addDoc(collection(db, 'notifications'), {
+            userId: brandAgencyData.ownerId,
+            agencyId: currentGigData.brandId,
+            title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
+            message: isAgencyAcceptance
+              ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your cause campaign "${gig.title}".`
+              : `${creatorName} has joined your cause campaign "${gig.title}".`,
+            type: 'gig_accepted',
+            read: false,
+            link: `/campaigns/${gig.id}`,
+            createdAt: serverTimestamp(),
+          });
+
+          // Send email to brand owner
+          const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
+          notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+            console.error('Failed to send brand notification email:', err);
+          });
+        }
+
+        // Notify the talent if they were assigned by an agency
+        if (isAgencyAcceptance && selectedTalentId) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: selectedTalentId,
+            agencyId: userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.id,
+            title: "New Campaign Assigned!",
+            message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" cause campaign.`,
+            type: 'system',
+            read: false,
+            link: `/campaigns/${gig.id}`,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        // Update the creator's profile to track who they are working for
+        const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
+        await updateDoc(doc(db, 'users', targetUserId), userUpdates);
+
+        toast({ title: "Campaign Claimed!" });
+      } else {
+        // Regular campaigns use the "Apply" step
+        const newAppliedIds = [...appliedIds, targetUserId];
+        gigUpdates.appliedCreatorIds = newAppliedIds;
+        await updateDoc(gigDocRef, gigUpdates);
+        
+        // Update the creator's profile to track who they are working for
+        const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
+        await updateDoc(doc(db, 'users', targetUserId), userUpdates);
+        
+        trackEvent({ action: 'apply_deployment', category: 'marketplace', label: gig.title });
+
+        // Notify the brand
+        const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
+        if (brandAgencySnap.exists()) {
+          const brandAgencyData = brandAgencySnap.data();
+          const creatorName = isAgencyAcceptance
+            ? (activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent')
+            : (user.displayName || 'A creator');
+          await addDoc(collection(db, 'notifications'), {
+            userId: brandAgencyData.ownerId,
+            agencyId: currentGigData.brandId,
+            title: "New Campaign Applicant",
+            message: isAgencyAcceptance
+              ? `An agency has applied on behalf of ${creatorName} for your campaign "${gig.title}".`
+              : `${creatorName} has applied to your campaign "${gig.title}".`,
+            type: 'creator_applied',
+            read: false,
+            link: `/campaigns/${gig.id}`,
+            createdAt: serverTimestamp(),
+          });
+        }
+        
+        toast({ title: "Application Submitted!", description: "The brand has been notified and will review your application." });
+      }
+
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  const handleApproveApplication = async (applicantId: string) => {
+    if (!gig || !user) return;
+    setIsAccepting(true); // Using the same loading state for simplicity
+    try {
+      const gigDocRef = doc(db, 'gigs', gig.id);
+      const currentGigSnap = await getDoc(gigDocRef);
+      if (!currentGigSnap.exists()) throw new Error("Campaign no longer exists.");
+      const currentGigData = currentGigSnap.data() as Gig;
+      
+      const acceptedIds = currentGigData.acceptedCreatorIds || [];
+      const appliedIds = currentGigData.appliedCreatorIds || [];
+      
+      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
+      if (acceptedIds.includes(applicantId)) throw new Error("Already secured this campaign.");
+
+      const newAcceptedIds = [...acceptedIds, applicantId];
+      const newAppliedIds = appliedIds.filter(id => id !== applicantId);
+      
+      const gigUpdates: any = {
+        acceptedCreatorIds: newAcceptedIds,
+        appliedCreatorIds: newAppliedIds,
+        [`acceptedAt.${applicantId}`]: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      
+      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
+      
       await updateDoc(gigDocRef, gigUpdates);
 
       // Create affiliate link if enabled
       if (currentGigData.affiliateSettings?.isEnabled) {
         let generatedPromoCode = undefined;
-        let creatorName = user.displayName;
-
-        if (isAgencyAcceptance && selectedTalentId) {
-          const talentDoc = activeTalent.find(t => t.userId === selectedTalentId);
-          if (talentDoc) creatorName = talentDoc.displayName;
-        }
+        let creatorName = appliedCreators.find(c => c.uid === applicantId)?.displayName || 'Creator';
 
         const trackingMethod = currentGigData.affiliateSettings.trackingMethod || 'link_only';
 
         if (trackingMethod === 'promo_code_only' || trackingMethod === 'both') {
           const prefix = currentGigData.affiliateSettings.promoCodePrefix || '';
-          const namePart = (creatorName || 'CREATOR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const namePart = creatorName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
           generatedPromoCode = `${prefix}${namePart}`;
         }
 
         await addDoc(collection(db, 'affiliateLinks'), {
           gigId: gig.id,
-          creatorId: targetUserId,
+          creatorId: applicantId,
           brandId: gig.brandId,
           destinationUrl: currentGigData.affiliateSettings.destinationUrl,
           ...(generatedPromoCode && { promoCode: generatedPromoCode }),
@@ -344,56 +521,31 @@ function GigDetailContent() {
         });
       }
 
-      trackEvent({ action: 'accept_deployment', category: 'marketplace', label: gig.title });
+      // Notify the creator
+      await addDoc(collection(db, 'notifications'), {
+        userId: applicantId,
+        title: "Application Approved!",
+        message: `Your application for "${gig.title}" has been approved! You can now access your tracking links and submit deliverables.`,
+        type: 'application_approved',
+        read: false,
+        link: `/campaigns/${gig.id}`,
+        createdAt: serverTimestamp(),
+      });
 
-      // Notify the brand
-      const brandAgencySnap = await getDoc(doc(db, 'agencies', currentGigData.brandId));
-      if (brandAgencySnap.exists()) {
-        const brandAgencyData = brandAgencySnap.data();
-        const creatorName = isAgencyAcceptance
-          ? (activeTalent.find(t => t.userId === selectedTalentId)?.displayName || 'talent')
-          : (user.displayName || 'A creator');
-        await addDoc(collection(db, 'notifications'), {
-          userId: brandAgencyData.ownerId,
-          agencyId: currentGigData.brandId,
-          title: isAgencyAcceptance ? "Agency assigned talent!" : "New creator joined!",
-          message: isAgencyAcceptance
-            ? `${user.displayName || 'An agency'} has assigned ${creatorName} to your campaign "${gig.title}".`
-            : `${creatorName} has claimed your campaign "${gig.title}".`,
-          type: 'gig_accepted',
-          read: false,
-          link: `/campaigns/${gig.id}`,
-          createdAt: serverTimestamp(),
-        });
+      // Track event
+      trackEvent({ action: 'approve_application', category: 'marketplace', label: gig.title });
 
-        // Send email to brand owner
-        const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
-        notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
-          console.error('Failed to send brand notification email:', err);
-        });
-      }
+      // Send email
+      const creatorName = appliedCreators.find(c => c.uid === applicantId)?.displayName || 'Creator';
+      const isAgencyAcceptance = !!currentGigData.assignments?.[applicantId];
+      const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
+      notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+        console.error('Failed to send brand notification email:', err);
+      });
 
-      // Notify the talent if they were assigned by an agency
-      if (isAgencyAcceptance && selectedTalentId) {
-        await addDoc(collection(db, 'notifications'), {
-          userId: selectedTalentId,
-          agencyId: userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.id,
-          title: "New Campaign Assigned!",
-          message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" campaign.`,
-          type: 'system',
-          read: false,
-          link: `/campaigns/${gig.id}`,
-          createdAt: serverTimestamp(),
-        });
-      }
-
-      // Update the creator's profile to track who they are working for
-      const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
-      await updateDoc(doc(db, 'users', targetUserId), userUpdates);
-
-      toast({ title: "Campaign Claimed!" });
+      toast({ title: "Application Approved!", description: "The creator has been moved to your active roster." });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Approval Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsAccepting(false);
     }
@@ -664,6 +816,21 @@ function GigDetailContent() {
     }
   };
 
+  const handleExtendDeadline = async () => {
+    if (!gig || !extendingCreatorId || !extensionDate) return;
+    setIsExtending(true);
+    try {
+      await extendCreatorDeadlineCallable({ gigId: gig.id, creatorId: extendingCreatorId, newDeadline: extensionDate });
+      toast({ title: "Deadline Extended", description: "The creator's deadline has been updated." });
+      setExtendingCreatorId(null);
+      setExtensionDate('');
+    } catch (error: any) {
+      toast({ title: "Extension Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExtending(false);
+    }
+  };
+
   const handleDeleteGig = async () => {
     if (!gig) return;
     setIsDeleting(true);
@@ -758,6 +925,7 @@ function GigDetailContent() {
   const isCauseCampaign = gig.campaignType === 'cause_campaign';
   const spotsLeft = isCauseCampaign ? Infinity : (gig.creatorsNeeded || 0) - acceptedIds.length;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
+  const hasApplied = user ? (gig.appliedCreatorIds || []).includes(user.uid) : false;
   const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
   const isBrandTeam = user && gig && isAgencyTeam && (gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
   const isAssignedAgent = user && gig && Object.values(gig.assignments || {}).some(a => a.agentId === user.uid);
@@ -773,6 +941,18 @@ function GigDetailContent() {
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   const myLink = user ? affiliateLinks[user.uid] : null;
+
+  const getCreatorDeadline = (creatorId: string): Date | null => {
+    const extension = (gig.deliveryExtensions as any)?.[creatorId];
+    if (extension?.toDate) return extension.toDate();
+    if (extension) return new Date(extension);
+    const accepted = (gig.acceptedAt as any)?.[creatorId];
+    if (!accepted) return null;
+    const acceptedDate = accepted?.toDate ? accepted.toDate() : new Date(accepted);
+    return new Date(acceptedDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  };
+
+  const brandDeadlinePast = gig.deliverablesDueDate && new Date(gig.deliverablesDueDate + 'T23:59:59') < new Date();
 
   return (
     <>
@@ -791,6 +971,16 @@ function GigDetailContent() {
               {canManageGig
                 ? isCauseCampaign ? `All participating creators have finished their work for this cause.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isBrandTeam && brandDeadlinePast && !isCompleted && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="font-bold">Campaign Deadline Passed</AlertTitle>
+            <AlertDescription>
+              The campaign deadline of <strong>{new Date(gig.deliverablesDueDate! + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong> has passed. Review outstanding creators below and extend deadlines if needed.
             </AlertDescription>
           </Alert>
         )}
@@ -881,6 +1071,97 @@ function GigDetailContent() {
               </Card>
             )}
 
+            {agency?.brandGuide && (() => {
+              const isSecured = hasAccepted || canManageGig;
+              return (
+                <Card className={cn(
+                  "overflow-hidden border-primary/20 shadow-lg mb-6 transition-all duration-500",
+                  isSecured ? "bg-primary/5 border-primary/20" : "bg-muted/10 border-dashed"
+                )}>
+                  <CardHeader className={cn(
+                    "border-b border-primary/10",
+                    isSecured ? "bg-primary/5" : "bg-muted/20"
+                  )}>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="flex items-center gap-2">
+                        {isSecured ? (
+                          <Star className="h-5 w-5 text-primary fill-primary" />
+                        ) : (
+                          <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        Brand Identity Kit
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        {isSecured && (
+                          <Dialog open={isDeckOpen} onOpenChange={setIsDeckOpen}>
+                            <DialogTrigger asChild>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10">
+                                  <Maximize2 className="h-4 w-4 text-primary" />
+                               </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden border-none shadow-2xl bg-transparent flex flex-col">
+                               <DialogTitle className="sr-only">Brand Identity Kit - Full Screen</DialogTitle>
+                               <DialogDescription className="sr-only">Full screen interactive brand deck and product lookbook.</DialogDescription>
+                               <div className="flex-1 w-full min-h-0 flex flex-col">
+                                  <BrandDeckPreview 
+                                    guide={agency.brandGuide} 
+                                    agencyName={agency.name}
+                                    products={agency.products}
+                                    onClose={() => setIsDeckOpen(false)}
+                                  />
+                               </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                        <Badge variant={isSecured ? "outline" : "secondary"} className={cn(
+                          isSecured ? "bg-white/50 backdrop-blur-sm" : ""
+                        )}>
+                          {isSecured ? "Interactive Deck" : "Briefing Locked"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <CardDescription>
+                      {isSecured 
+                        ? "Get to know the brand's DNA before you start filming." 
+                        : "Secure your spot on this campaign to unlock the full brand briefing."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0 relative h-[500px]">
+                    {isSecured ? (
+                      <BrandDeckPreview 
+                        guide={agency.brandGuide} 
+                        agencyName={agency.name}
+                        products={agency.products}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-6 bg-gradient-to-b from-transparent to-background/50">
+                         <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10 animate-pulse">
+                            <ShieldCheck className="h-8 w-8 text-primary/40" />
+                         </div>
+                         <div className="space-y-2 max-w-[280px]">
+                            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">The Briefing</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                               Once approved, you'll get instant access to the brand's visual identity, voice guidelines, and product lookbook.
+                            </p>
+                         </div>
+                         {!hasApplied && !hasAccepted && (
+                           <Button variant="outline" className="text-xs h-8 border-primary/20 px-6 rounded-full" onClick={() => {
+                              const element = document.getElementById('legal-agreement');
+                              element?.scrollIntoView({ behavior: 'smooth' });
+                           }}>
+                              Apply to Unlock
+                           </Button>
+                         )}
+                         {hasApplied && !hasAccepted && (
+                           <Badge variant="secondary" className="px-4 py-1">Approval Pending</Badge>
+                         )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
             <Card className="overflow-hidden">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -958,6 +1239,20 @@ function GigDetailContent() {
                     {(gig.requireVerzaScore ?? true) ? `Required (${gig.verzaScoreThreshold ?? 65}%+)` : 'Not Required'}
                   </p>
                 </div>
+                {gig.deliverablesDueDate && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Campaign Deadline</p>
+                    <p className="text-sm font-medium">
+                      {new Date(gig.deliverablesDueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    {hasAccepted && !canManageGig && (() => {
+                      const myDeadline = getCreatorDeadline(user!.uid);
+                      return myDeadline ? (
+                        <p className="text-xs text-muted-foreground">Your personal deadline: <span className={myDeadline < new Date() ? 'text-destructive font-semibold' : 'font-medium'}>{myDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span></p>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
                 <div className="md:col-span-2 p-3 bg-background rounded border text-[10px] text-muted-foreground italic">
                   By clicking "Claim Campaign", you enter into a binding agreement with {gig.brandName}. Verza holds your payment in trust and releases it only upon verified submission approval. {(gig.requireVerzaScore ?? true) && `Every video must pass the minimum Verza Score threshold of ${gig.verzaScoreThreshold ?? 65}% prior to submission approval. `}You retain ownership of your content, granting {gig.brandName} a non-exclusive license for the duration specified.
                 </div>
@@ -1148,6 +1443,44 @@ function GigDetailContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {!isCompleted && canManageGig && appliedCreators.length > 0 && (
+                    <div className="mb-8 space-y-4">
+                      <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Applicants awaiting approval</h4>
+                      {appliedCreators.map(applicant => (
+                        <Card key={applicant.uid} className="border bg-muted/10">
+                          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <Link href={`/creator/${applicant.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                <Avatar>
+                                  <AvatarImage src={applicant.avatarUrl || ''} />
+                                  <AvatarFallback>{applicant.displayName?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold hover:underline">{applicant.displayName}</p>
+                                    {gig.assignments?.[applicant.uid] && (
+                                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] h-4 px-1.5 flex items-center gap-1">
+                                        <ShieldCheck className="h-2.5 w-2.5" /> Managed
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{applicant.email}</p>
+                                </div>
+                              </Link>
+                            </div>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleApproveApplication(applicant.uid)}
+                              disabled={isAccepting}
+                            >
+                              Approve Application
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
                   {acceptedCreators.length > 0 ? (
                     <div className="space-y-6">
                       {acceptedCreators.map(creator => {
@@ -1155,6 +1488,9 @@ function GigDetailContent() {
                         const creatorSubmissions = submissions.filter(s => s.creatorId === creator.uid);
                         const allVideosSubmitted = creatorSubmissions.length === (gig.videosPerCreator || 1) && creatorSubmissions.every(s => s.status === 'submitted' || s.status === 'approved');
                         const creatorLink = affiliateLinks[creator.uid];
+                        const creatorDeadline = getCreatorDeadline(creator.uid);
+                        const deadlineOverdue = creatorDeadline && !isPaid && creatorDeadline < new Date();
+                        const deadlineSoon = creatorDeadline && !isPaid && !deadlineOverdue && creatorDeadline < new Date(Date.now() + 48 * 60 * 60 * 1000);
 
                         return (
                           <Card key={creator.uid} className="border bg-muted/30">
@@ -1281,6 +1617,54 @@ function GigDetailContent() {
                                 </div>
                               )}
 
+                              {isBrandTeam && creatorDeadline && !isPaid && (
+                                <div className={cn(
+                                  "mt-3 flex items-center justify-between px-3 py-2 rounded-md text-sm border",
+                                  deadlineOverdue ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400" :
+                                  deadlineSoon ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400" :
+                                  "bg-muted/50 border-border text-muted-foreground"
+                                )}>
+                                  <span className="flex items-center gap-1.5">
+                                    {deadlineOverdue ? <AlertTriangle className="h-3.5 w-3.5" /> : null}
+                                    <span className="text-xs font-medium">
+                                      {deadlineOverdue ? "Deadline passed" : "Deadline"}: {creatorDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                  </span>
+                                  <Dialog open={extendingCreatorId === creator.uid} onOpenChange={(open) => { if (!open) { setExtendingCreatorId(null); setExtensionDate(''); } }}>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => { setExtendingCreatorId(creator.uid); setExtensionDate(''); }}>
+                                        Extend
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Extend Deadline for {creator.displayName}</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-3 py-2">
+                                        <p className="text-sm text-muted-foreground">Current deadline: {creatorDeadline.toLocaleDateString()}</p>
+                                        <div className="space-y-1.5">
+                                          <Label htmlFor="extension-date">New Deadline</Label>
+                                          <Input
+                                            id="extension-date"
+                                            type="date"
+                                            value={extensionDate}
+                                            onChange={e => setExtensionDate(e.target.value)}
+                                            min={new Date().toISOString().split('T')[0]}
+                                          />
+                                        </div>
+                                      </div>
+                                      <DialogFooter>
+                                        <Button variant="outline" onClick={() => { setExtendingCreatorId(null); setExtensionDate(''); }}>Cancel</Button>
+                                        <Button onClick={handleExtendDeadline} disabled={!extensionDate || isExtending}>
+                                          {isExtending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                          Confirm Extension
+                                        </Button>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
+                                </div>
+                              )}
+
                               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {Array.from({ length: gig.videosPerCreator || 1 }).map((_, idx) => {
                                   const sub = creatorSubmissions[idx];
@@ -1392,8 +1776,12 @@ function GigDetailContent() {
                       <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" disabled>
                         <CheckCircle className="mr-2 h-4 w-4" /> Campaign Claimed
                       </Button>
-                      
-                      
+                    </div>
+                  ) : hasApplied ? (
+                    <div className="space-y-4 pt-4 border-t">
+                      <Button className="w-full bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20" disabled>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Application Submitted - Pending Approval
+                      </Button>
                     </div>
                   ) : (isCauseCampaign || spotsLeft > 0) && gig.status === 'open' ? (
                     <div className="space-y-4 border-t pt-4">
@@ -1523,11 +1911,11 @@ function GigDetailContent() {
                         )}
                         <Button
                           className="w-full"
-                          onClick={handleAcceptGig}
+                          onClick={handleApplyGig}
                           disabled={isAccepting || !hasAgreedToLegal || (isAgencyAcceptance && !selectedTalentId)}
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Claim Campaign
+                          {isCauseCampaign ? "Claim Campaign" : "Apply for Campaign"}
                         </Button>
                       </div>
                     </div>

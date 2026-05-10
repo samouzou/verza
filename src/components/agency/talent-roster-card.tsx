@@ -18,9 +18,10 @@ import { db } from '@/lib/firebase';
 interface TalentRosterCardProps {
   agency: Agency;
   liveProfiles: Record<string, UserProfileFirestoreData>;
+  isBrandAccount?: boolean;
 }
 
-export function TalentRosterCard({ agency, liveProfiles }: TalentRosterCardProps) {
+export function TalentRosterCard({ agency, liveProfiles, isBrandAccount }: TalentRosterCardProps) {
   const { toast } = useToast();
   const [editingTalent, setEditingTalent] = useState<Talent | null>(null);
   const [newCommissionRate, setNewCommissionRate] = useState<number>(0);
@@ -53,7 +54,7 @@ export function TalentRosterCard({ agency, liveProfiles }: TalentRosterCardProps
   return (
     <Card id="talent-roster-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> Talent Roster</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Users className="text-primary"/> {isBrandAccount ? 'Brand Creators' : 'Talent Roster'}</CardTitle>
         <CardDescription>View your current roster of creators. ({activeTalentCount} active talents)</CardDescription>
       </CardHeader>
       <CardContent>

@@ -15,9 +15,10 @@ import Link from 'next/link';
 
 interface AgencyGigsCardProps {
   agencyId: string;
+  isBrandAccount?: boolean;
 }
 
-export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
+export function AgencyGigsCard({ agencyId, isBrandAccount }: AgencyGigsCardProps) {
   const { toast } = useToast();
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [isLoadingGigs, setIsLoadingGigs] = useState(true);
@@ -47,7 +48,7 @@ export function AgencyGigsCard({ agencyId }: AgencyGigsCardProps) {
     <Card id="agency-gigs-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Active Campaigns</CardTitle>
-        <CardDescription>A history of all campaigns launched by your agency.</CardDescription>
+        <CardDescription>A history of all campaigns launched by your {isBrandAccount ? 'brand' : 'agency'}.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoadingGigs ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>

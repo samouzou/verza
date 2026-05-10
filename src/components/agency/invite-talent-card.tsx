@@ -13,9 +13,10 @@ import { functions } from '@/lib/firebase';
 interface InviteTalentCardProps {
   agencyId: string;
   disabled: boolean;
+  isBrandAccount?: boolean;
 }
 
-export function InviteTalentCard({ agencyId, disabled }: InviteTalentCardProps) {
+export function InviteTalentCard({ agencyId, disabled, isBrandAccount }: InviteTalentCardProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
@@ -43,8 +44,8 @@ export function InviteTalentCard({ agencyId, disabled }: InviteTalentCardProps) 
   return (
     <Card id="invite-talent-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite Talent</CardTitle>
-        <CardDescription>Invite creators to join your agency via email.</CardDescription>
+        <CardTitle className="flex items-center gap-2"><UserPlus className="text-primary"/> Invite {isBrandAccount ? 'Creator' : 'Talent'}</CardTitle>
+        <CardDescription>Invite creators to join your {isBrandAccount ? 'brand\'s network' : 'agency'} via email.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-2">

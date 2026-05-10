@@ -235,9 +235,9 @@ export function StripeConnectCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building className="h-6 w-6 text-primary" />
-            Agency Payments
+            {user.isBrandAccount ? 'Brand Payments' : 'Agency Payments'}
           </CardTitle>
-          <CardDescription>Agency payment settings are managed by {delegateName}.</CardDescription>
+          <CardDescription>{user.isBrandAccount ? 'Brand' : 'Agency'} payment settings are managed by {delegateName}.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="p-4 border rounded-lg bg-muted/50">
@@ -278,7 +278,7 @@ export function StripeConnectCard() {
             <Icon className={`mr-1 h-3 w-3 ${badgeVariant === 'secondary' && user.stripeAccountStatus !== 'pending_verification' ? 'animate-spin' : ''}`} />
             {statusText}
           </Badge>
-          {isCurrentDelegate && <Badge variant="outline" className="text-xs border-primary/40 text-primary">Agency Payment Account</Badge>}
+          {isCurrentDelegate && <Badge variant="outline" className="text-xs border-primary/40 text-primary">{user.isBrandAccount ? 'Brand' : 'Agency'} Payment Account</Badge>}
         </div>
         {user.stripeAccountId && (
           <p className="text-xs text-muted-foreground">Account ID: {user.stripeAccountId}</p>

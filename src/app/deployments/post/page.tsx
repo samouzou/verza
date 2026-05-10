@@ -366,23 +366,23 @@ export default function PostGigPage() {
           <CardHeader>
             <div className="flex items-center gap-2 text-primary font-semibold">
               <Building className="h-5 w-5" />
-              Agency Requirement
+              {user.isBrandAccount ? 'Brand Requirement' : 'Agency Requirement'}
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <Alert variant="default" className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
               <Sparkles className="h-5 w-5" />
-              <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
+              <AlertTitle className="font-semibold text-primary">{user.isBrandAccount ? 'Brand Subscription Required' : 'Agency Subscription Required'}</AlertTitle>
               <AlertDescription className="text-primary/90">
                 {user.isAgencyOwner
-                  ? "You need an active Agency subscription to launch deployments to the network. This plan covers talent management and payout fees."
-                  : "Your agency needs an active Agency subscription to launch deployments. Please contact your agency owner to upgrade the account plan."}
+                  ? `You need an active ${user.isBrandAccount ? 'Brand' : 'Agency'} subscription to launch deployments to the network. This plan covers talent management and payout fees.`
+                  : `Your ${user.isBrandAccount ? 'brand' : 'agency'} needs an active ${user.isBrandAccount ? 'Brand' : 'Agency'} subscription to launch deployments. Please contact your ${user.isBrandAccount ? 'brand' : 'agency'} owner to upgrade the account plan.`}
               </AlertDescription>
               {user.isAgencyOwner && (
                 <div className="mt-4">
                   <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Link href="/settings">
-                      Upgrade to Agency Plan <ExternalLink className="ml-2 h-4 w-4" />
+                      Upgrade to {user.isBrandAccount ? 'Brand' : 'Agency'} Plan <ExternalLink className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
                 </div>
