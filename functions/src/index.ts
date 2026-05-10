@@ -72,7 +72,7 @@ import {
   initiateInternalTalentPayment,
 } from "./agency";
 
-import {payoutCreatorForGig, onGigCreated, onGigStatusOpened} from "./gigs";
+import {payoutCreatorForGig, onGigCreated, onGigStatusOpened, extendCreatorDeadline} from "./gigs";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
@@ -123,6 +123,7 @@ export {
   payoutCreatorForGig,
   onGigCreated,
   onGigStatusOpened,
+  extendCreatorDeadline,
   generateScene,
   generateImage,
   analyzeBrand,

@@ -31,9 +31,10 @@ import { functions } from '@/lib/firebase';
 
 interface BudgetSummaryProps {
   agency: Agency;
+  isBrandAccount?: boolean;
 }
 
-export function BudgetSummary({ agency }: BudgetSummaryProps) {
+export function BudgetSummary({ agency, isBrandAccount }: BudgetSummaryProps) {
   const { toast } = useToast();
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("500");
@@ -157,7 +158,7 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Pay a Creator</DialogTitle>
-                  <DialogDescription>Transfer funds from your agency wallet directly to a creator on your roster.</DialogDescription>
+                  <DialogDescription>Transfer funds from your {isBrandAccount ? 'brand' : 'agency'} wallet directly to a creator you are working with.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -259,8 +260,8 @@ export function BudgetSummary({ agency }: BudgetSummaryProps) {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Top Up Agency Budget</DialogTitle>
-                <DialogDescription>Add funds to your general wallet. These funds can be used to fund new gigs or pay talent instantly.</DialogDescription>
+                <DialogTitle>Top Up {isBrandAccount ? 'Brand' : 'Agency'} Budget</DialogTitle>
+                <DialogDescription>Add funds to your general wallet. These funds can be used to fund new campaigns or pay creators instantly.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">

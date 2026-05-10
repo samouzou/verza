@@ -20,9 +20,10 @@ import {
 interface WebhookIntegrationsCardProps {
   agency: Agency;
   disabled?: boolean;
+  isBrandAccount?: boolean;
 }
 
-export function WebhookIntegrationsCard({ agency, disabled }: WebhookIntegrationsCardProps) {
+export function WebhookIntegrationsCard({ agency, disabled, isBrandAccount }: WebhookIntegrationsCardProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);

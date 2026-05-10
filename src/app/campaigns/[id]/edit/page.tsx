@@ -74,6 +74,7 @@ export default function EditGigPage() {
   
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('');
+  const [deliverablesDueDate, setDeliverablesDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Legal Fields
@@ -133,6 +134,7 @@ export default function EditGigPage() {
 
               setRequireVerzaScore(gigData.requireVerzaScore ?? true);
               setVerzaScoreThreshold(String(gigData.verzaScoreThreshold ?? 65));
+              setDeliverablesDueDate(gigData.deliverablesDueDate || '');
           } else {
               toast({ title: 'Campaign not found', variant: 'destructive' });
               router.push('/campaigns');
@@ -203,6 +205,7 @@ export default function EditGigPage() {
             allowWhitelisting: allowWhitelisting ?? false,
             requireVerzaScore,
             verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) || 65 : 65,
+            ...(deliverablesDueDate ? {deliverablesDueDate} : {deliverablesDueDate: null}),
         };
 
         if (isAffiliateEnabled) {
@@ -379,6 +382,18 @@ export default function EditGigPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="deliverablesDueDate">Campaign Deadline (Optional)</Label>
+                <Input
+                  id="deliverablesDueDate"
+                  type="date"
+                  value={deliverablesDueDate}
+                  onChange={e => setDeliverablesDueDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">The date all deliverables must be submitted. Creators get 14 days from acceptance; you can extend individuals anytime. Clear to remove the deadline.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">

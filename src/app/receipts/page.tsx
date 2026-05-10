@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2, Save, FileText, CalendarDays, Tags, DollarSign, Trash2, AlertTriangle, Wand2 } from 'lucide-react';
 import Image from 'next/image';
-import { db, storage, addDoc, collection, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy } from '@/lib/firebase';
+import { db, storage, addDoc, collection, Timestamp, ref as storageFileRef, uploadBytes, getDownloadURL, query, where, onSnapshot, deleteDoc, doc as firestoreDoc, orderBy, deleteObject } from '@/lib/firebase';
 import type { Receipt, Contract } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';

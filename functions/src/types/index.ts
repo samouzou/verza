@@ -215,6 +215,7 @@ export interface UserProfileFirestoreData {
   createdAt?: ClientTimestamp;
   role: "individual_creator" | "talent" | "agency_owner" | "agency_admin" | "agency_member";
   isAgencyOwner?: boolean;
+  isBrandAccount?: boolean;
   primaryAgencyId?: string | null;
   agencyMemberships?: AgencyMembership[];
   giggingForAgencies?: string[];
@@ -381,6 +382,27 @@ export interface TeamMember {
   joinedAt?: ClientTimestamp;
 }
 
+export interface BrandProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  url: string;
+  imageUrl: string;
+  usps: string[]; // Unique Selling Propositions
+}
+
+export interface BrandGuide {
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+  typography?: string;
+  toneOfVoice?: string;
+  dos?: string[];
+  donts?: string[];
+  assetDriveUrl?: string; // Link to Google Drive / Dropbox for b-roll
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -392,6 +414,9 @@ export interface Agency {
   updatedAt?: ClientTimestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
+  webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
+  brandGuide?: BrandGuide;
+  products?: BrandProduct[];
 }
 
 export interface AgencyMembership {
@@ -465,15 +490,15 @@ export interface BrandResearch {
   status: "pending" | "completed" | "failed";
   report?: {
     decisionMakers: {
-        name?: string;
-        title: string;
-        email?: string;
+      name?: string;
+      title: string;
+      email?: string;
     }[];
     currentVibe: string;
     pitchHooks: string[];
     emailPitches: {
-        subject: string;
-        body: string;
+      subject: string;
+      body: string;
     }[];
   };
   error?: string;
@@ -499,12 +524,14 @@ export interface Gig {
   creatorsNeeded: number;
   videosPerCreator: number;
   acceptedCreatorIds: string[];
+  appliedCreatorIds?: string[];
+  agentIds?: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
   status: "pending_payment" | "open" | "in-progress" | "completed";
   createdAt: ClientTimestamp;
-  campaignType: "standard_sponsorship" | "production_grant";
+  campaignType: "standard_sponsorship" | "production_grant" | "cause_campaign";
   usageRights?: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting?: boolean;
   requireVerzaScore?: boolean;
@@ -521,6 +548,9 @@ export interface Gig {
     nextEmailAt: ClientTimestamp;
     ownerUserId: string;
   };
+  deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
+  acceptedAt?: { [creatorId: string]: ClientTimestamp }; // when each creator accepted
+  deliveryExtensions?: { [creatorId: string]: ClientTimestamp }; // brand-granted per-creator deadline overrides
 }
 
 export interface CreatorMarketplaceProfile {
@@ -562,7 +592,8 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: "gig_accepted" | "submission_received" | "submission_approved" | "payout_received" | "system";
+  type: "gig_accepted" | "submission_received" | "submission_approved" |
+  "payout_received" | "system" | "creator_applied" | "application_approved";
   read: boolean;
   link?: string;
   createdAt: ClientTimestamp;

@@ -183,7 +183,7 @@ export function SubscriptionCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-6 w-6 text-primary" />
-            Agency Subscription
+            {user.isBrandAccount ? 'Brand Subscription' : 'Agency Subscription'}
           </CardTitle>
           <CardDescription>Your plan is managed by your agency.</CardDescription>
         </CardHeader>
@@ -202,7 +202,7 @@ export function SubscriptionCard() {
       <CardHeader>
           <CardTitle className="flex items-center gap-2">
           {user.isAgencyOwner ? <Crown className="h-6 w-6 text-primary" /> : <Zap className="h-6 w-6 text-primary" />}
-          {user.isAgencyOwner ? 'Agency Subscription' : 'Creator Subscription'}
+          {user.isAgencyOwner ? (user.isBrandAccount ? 'Brand Subscription' : 'Agency Subscription') : 'Creator Subscription'}
           </CardTitle>
           <CardDescription>Manage your subscription plan and billing preferences.</CardDescription>
       </CardHeader>

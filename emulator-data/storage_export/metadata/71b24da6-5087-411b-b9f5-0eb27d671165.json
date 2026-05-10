@@ -1,0 +1,19 @@
+{
+  "name": "products/videos/1778286836586_Yuzu App Video.mp4",
+  "bucket": "verza-canvas-dev.firebasestorage.app",
+  "metageneration": 1,
+  "generation": 1778286836786,
+  "contentType": "video/mp4",
+  "storageClass": "STANDARD",
+  "contentDisposition": "inline",
+  "downloadTokens": [
+    "354b6e22-e3b9-4b92-a476-d3c25be62fde"
+  ],
+  "etag": "BLubKZ1Jnb4FI8aGUk6gVpcdxWI",
+  "customMetadata": {},
+  "timeCreated": "2026-05-09T00:33:56.788Z",
+  "updated": "2026-05-09T00:33:56.788Z",
+  "size": 9876921,
+  "md5Hash": "5G2bor5zIBtoPlC/hlorIg==",
+  "crc32c": "1566370183"
+}

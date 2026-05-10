@@ -16,6 +16,7 @@ import {
   UserCircle, 
   Sparkles,
   Building,
+  Store,
   Users
 } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -65,10 +66,15 @@ export function useSetupSteps() {
           ) : null;
           const gigSnapshot = gigQuery ? await getDocs(gigQuery) : null;
 
+          const isBrand = !!user.isBrandAccount;
+          const profileLabel = isBrand ? 'Complete brand profile' : 'Complete agency profile';
+          const talentLabel = isBrand ? 'Invite your first team member' : 'Invite your first talent';
+          const bankLabel = isBrand ? 'Connect brand bank account' : 'Connect agency bank account';
+
           const definedSteps: Step[] = [
-            { id: 'profile', label: 'Complete agency profile', isCompleted: isProfileComplete, href: '/profile', icon: Building },
-            { id: 'talent', label: 'Invite your first talent', isCompleted: hasTalent, href: '/agency', icon: Users },
-            { id: 'bank', label: 'Connect agency bank account', isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
+            { id: 'profile', label: profileLabel, isCompleted: isProfileComplete, href: '/profile', icon: isBrand ? Store : Building },
+            { id: 'talent', label: talentLabel, isCompleted: hasTalent, href: '/agency', icon: Users },
+            { id: 'bank', label: bankLabel, isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
             { id: 'post', label: 'Fund your first campaign', isCompleted: !!(gigSnapshot && !gigSnapshot.empty), href: '/campaigns/post', icon: PlusCircle },
           ];
           setSteps(definedSteps);

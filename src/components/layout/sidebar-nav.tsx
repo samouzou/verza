@@ -27,6 +27,7 @@ import {
   Video,
   ExternalLink,
   Store,
+  ChevronRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,7 +41,11 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -69,7 +74,17 @@ const marketplaceNavItems = [
 
 const manageNavItems = [
   { id: 'nav-item-contracts', href: "/contracts", label: "Contracts", icon: FileText },
-  { id: 'nav-item-agency', href: "/agency", label: "Agency", icon: Building },
+  { 
+    id: 'nav-item-agency', 
+    href: "/agency", 
+    label: "Agency", 
+    icon: Building,
+    subItems: [
+      { id: 'sub-item-overview', href: "/agency", label: "Overview" },
+      { id: 'sub-item-brand-guide', href: "/agency/brand-guide", label: "Brand Guide" },
+      { id: 'sub-item-products', href: "/agency/products", label: "Products" },
+    ]
+  },
 ];
 
 const financialsNavItems = [
@@ -274,21 +289,63 @@ export function SidebarNav() {
                 <span className="group-data-[collapsible=icon]:hidden">Manage</span>
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              {manageNavItems.map((item) => (
-                <SidebarMenuItem key={item.label} id={item.id}>
+              {manageNavItems.map((item) => {
+                const isAgencyItem = item.id === 'nav-item-agency';
+                const isBrand = !!activeUser?.isBrandAccount;
+                const label = isAgencyItem && isBrand ? "Brand" : item.label;
+                const Icon = isAgencyItem && isBrand ? Store : item.icon;
+                
+                // Show submenus for the Agency/Brand item
+                if (isAgencyItem && (item as any).subItems) {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Collapsible
+                      key={item.id}
+                      asChild
+                      defaultOpen={isActive}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton tooltip={label} isActive={isActive}>
+                            <Icon className="h-5 w-5" />
+                            <span className="group-data-[collapsible=icon]:hidden">{label}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {(item as any).subItems.map((subItem: any) => (
+                              <SidebarMenuSubItem key={subItem.id}>
+                                <SidebarMenuSubButton asChild isActive={pathname === subItem.href}>
+                                  <Link href={subItem.href} onClick={() => isMobile && setOpenMobile(false)}>
+                                    <span>{subItem.label}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
+                return (
+                <SidebarMenuItem key={item.id} id={item.id}>
                   <Link href={item.href} legacyBehavior passHref>
                     <SidebarMenuButton
                       onClick={() => isMobile && setOpenMobile(false)}
                       className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
                       isActive={pathname.startsWith(item.href)}
-                      tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                      tooltip={{ children: label, className: "group-data-[collapsible=icon]:block hidden"}}
                     >
-                      <item.icon className="h-5 w-5" />
-                      <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                      <Icon className="h-5 w-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">{label}</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
-              ))}
+              )})}
             </SidebarGroupContent>
           </SidebarGroup>
 
@@ -388,7 +445,7 @@ export function SidebarNav() {
          <SidebarMenuButton
             onClick={() => setOpen(!open)}
             className="hidden md:flex justify-start text-muted-foreground"
-            variant="ghost"
+            variant="default"
             tooltip={{
               children: open ? "Collapse Sidebar" : "Expand Sidebar",
               className: "group-data-[collapsible=icon]:block hidden",
