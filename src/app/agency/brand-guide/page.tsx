@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle } from 'lucide-react';
+import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle, Target } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,7 @@ export default function BrandGuidePage() {
     secondaryColor: '#ffffff',
     accentColor: '#6366f1',
     neutralColor: '#f4f4f5',
+    missionStatement: '',
     logoUrl: '',
     typography: '',
     toneOfVoice: '',
@@ -67,6 +68,7 @@ export default function BrandGuidePage() {
               bRollLibrary: data.brandGuide.bRollLibrary || [],
               accentColor: data.brandGuide.accentColor || '#6366f1',
               neutralColor: data.brandGuide.neutralColor || '#f4f4f5',
+              missionStatement: data.brandGuide.missionStatement || '',
             });
           }
         }
@@ -245,6 +247,29 @@ export default function BrandGuidePage() {
                     value={guide.typography} 
                     onChange={(e) => setGuide({ ...guide, typography: e.target.value })}
                     placeholder="e.g. Inter, Outfit, Montserrat"
+                  />
+                </div>
+              </CardContent>
+           </Card>
+
+           {/* The Mission */}
+           <Card className="border-none shadow-none bg-transparent">
+              <CardHeader className="px-0">
+                <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                  <Target className="h-5 w-5 text-primary" />
+                  The Mission
+                </CardTitle>
+                <CardDescription>The core value proposition. What does the company do and why?</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="missionStatement" className="text-xs font-bold uppercase tracking-wider text-muted-foreground text-primary/60">Core Value Proposition</Label>
+                  <Textarea 
+                    id="missionStatement" 
+                    value={guide.missionStatement} 
+                    onChange={(e) => setGuide({ ...guide, missionStatement: e.target.value })}
+                    placeholder="e.g. We empower creators to build sustainable businesses through high-fidelity tools and AI..."
+                    className="min-h-[100px] rounded-xl shadow-sm border-primary/10 focus:border-primary/30 transition-all"
                   />
                 </div>
               </CardContent>

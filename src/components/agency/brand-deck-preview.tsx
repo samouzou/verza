@@ -18,7 +18,8 @@ import {
   PlayCircle,
   X,
   ExternalLink,
-  Maximize2
+  Maximize2,
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -139,6 +140,26 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
         </div>
       </div>
     );
+
+    // Slide 1.5: The Mission
+    if (guide.missionStatement) {
+      allSlides.push(
+        <div key="mission" className="h-full w-full flex flex-col items-center justify-center p-16 text-center space-y-8 bg-white dark:bg-[#0f1115] relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 dark:bg-primary/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+           <div className="absolute bottom-0 left-0 w-64 h-64 bg-secondary/5 dark:bg-secondary/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+           
+           <div className="relative z-10 space-y-4">
+              <div className="flex items-center justify-center gap-2 text-primary font-bold text-xs uppercase tracking-[0.4em] mb-4">
+                 <Target className="h-4 w-4" /> The Mission
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold leading-tight text-foreground dark:text-white max-w-2xl italic font-serif">
+                 "{guide.missionStatement}"
+              </h2>
+              <div className="w-16 h-1.5 rounded-full bg-primary/20 dark:bg-primary/40 mx-auto mt-8" />
+           </div>
+        </div>
+      );
+    }
 
     // Slide 2: Visuals
     allSlides.push(

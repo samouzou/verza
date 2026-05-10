@@ -406,6 +406,7 @@ export interface BrandGuide {
   secondaryColor?: string;
   accentColor?: string;
   neutralColor?: string;
+  missionStatement?: string;
   logoUrl?: string;
   typography?: string;
   toneOfVoice?: string;
