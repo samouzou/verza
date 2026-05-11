@@ -89,7 +89,7 @@ export default function EditGigPage() {
   
   const [trackingMethod, setTrackingMethod] = useState<'link_only' | 'promo_code_only' | 'both'>('link_only');
   const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
-  const [promoCodePrefix, setPromoCodePrefix] = useState('');
+  const [promoCodeSuffix, setPromoCodeSuffix] = useState('');
 
   // Quality Control
   const [requireVerzaScore, setRequireVerzaScore] = useState(true);
@@ -130,7 +130,7 @@ export default function EditGigPage() {
               setDestinationUrl(gigData.affiliateSettings?.destinationUrl || '');
               setTrackingMethod(gigData.affiliateSettings?.trackingMethod || 'link_only');
               setPromoCodeDiscountValue(gigData.affiliateSettings?.promoCodeDiscountValue || '');
-              setPromoCodePrefix(gigData.affiliateSettings?.promoCodePrefix || '');
+              setPromoCodeSuffix(gigData.affiliateSettings?.promoCodeSuffix || '');
 
               setRequireVerzaScore(gigData.requireVerzaScore ?? true);
               setVerzaScoreThreshold(String(gigData.verzaScoreThreshold ?? 65));
@@ -184,8 +184,8 @@ export default function EditGigPage() {
         toast({ title: 'Performance Details Missing', description: 'Please provide a destination URL and valid reward amount.', variant: 'destructive' });
         return;
       }
-      if ((trackingMethod === 'promo_code_only' || trackingMethod === 'both') && !promoCodePrefix.trim()) {
-        toast({ title: 'Promo Code Prefix Missing', description: 'Please provide a prefix for the promo codes.', variant: 'destructive' });
+      if ((trackingMethod === 'promo_code_only' || trackingMethod === 'both') && !promoCodeSuffix.trim()) {
+        toast({ title: 'Promo Code Suffix Missing', description: 'Please provide a suffix for the promo codes.', variant: 'destructive' });
         return;
       }
     }
@@ -216,7 +216,7 @@ export default function EditGigPage() {
             destinationUrl: destinationUrl.trim(),
             trackingMethod,
             promoCodeDiscountValue: promoCodeDiscountValue.trim(),
-            promoCodePrefix: promoCodePrefix.trim().toUpperCase()
+            promoCodeSuffix: promoCodeSuffix.trim().toUpperCase()
           };
         } else {
           updates.affiliateSettings = {
@@ -513,9 +513,9 @@ export default function EditGigPage() {
                 {(trackingMethod === 'promo_code_only' || trackingMethod === 'both') && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-blue-500/10">
                     <div className="space-y-2">
-                      <Label htmlFor="promoCodePrefix">Promo Code Prefix <span className="text-destructive">*</span></Label>
-                      <Input id="promoCodePrefix" value={promoCodePrefix} onChange={e => setPromoCodePrefix(e.target.value.toUpperCase())} placeholder="e.g. SUMMER" disabled={isLocked || isSubmitting} required={isAffiliateEnabled} />
-                      <p className="text-[10px] text-muted-foreground">Used to generate unique codes per creator (e.g. SUMMER-JULIA30).</p>
+                      <Label htmlFor="promoCodeSuffix">Promo Code Suffix <span className="text-destructive">*</span></Label>
+                      <Input id="promoCodeSuffix" value={promoCodeSuffix} onChange={e => setPromoCodeSuffix(e.target.value.toUpperCase())} placeholder="e.g. 30 or VERZA" disabled={isLocked || isSubmitting} required={isAffiliateEnabled} />
+                      <p className="text-[10px] text-muted-foreground text-blue-600/80 font-medium">Unique codes will be generated as [FirstName][Suffix] (e.g. AMY{promoCodeSuffix || '30'}).</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="promoCodeDiscountValue">Discount Value presented to audience</Label>
