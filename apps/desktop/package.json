@@ -1,0 +1,9 @@
+{
+  "name": "@verza/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Desktop app dev command not yet configured'",
+    "build": "echo 'Desktop app build command not yet configured'"
+  }
+}

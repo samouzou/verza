@@ -1,5 +1,9 @@
 
-import type { Timestamp as ClientTimestamp } from 'firebase/firestore';
+export interface Timestamp {
+  seconds: number;
+  nanoseconds: number;
+  toDate(): Date;
+}
 
 export interface PaymentMilestone {
   id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
@@ -8,7 +12,7 @@ export interface PaymentMilestone {
   dueDate: string; // YYYY-MM-DD
   status: 'pending' | 'invoiced' | 'paid';
   invoiceId?: string; // Link to the generated invoice document ID
-  lastReminderSentAt?: ClientTimestamp;
+  lastReminderSentAt?: Timestamp;
 }
 
 export interface EditableInvoiceLineItem {
@@ -75,8 +79,8 @@ export interface Contract {
   invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
   invoiceHtmlContent?: string;
   invoiceNumber?: string;
-  invoiceHistory?: Array<{ timestamp: ClientTimestamp; action: string; details?: string, emailLogId?: string }>;
-  lastReminderSentAt?: ClientTimestamp | null;
+  invoiceHistory?: Array<{ timestamp: Timestamp; action: string; details?: string, emailLogId?: string }>;
+  lastReminderSentAt?: Timestamp | null;
 
   editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
 
@@ -89,11 +93,11 @@ export interface Contract {
   helloSignRequestId?: string | null; // legacy — kept for existing records
   signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
   signedDocumentUrl?: string | null;
-  lastSignatureEventAt?: ClientTimestamp | null;
+  lastSignatureEventAt?: Timestamp | null;
   lastGeneratedSignatureFilePath?: string | null;
 
-  createdAt: ClientTimestamp;
-  updatedAt?: ClientTimestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
   access: { [key: string]: 'owner' | 'viewer' | 'talent' };
   metadata?: {
     gigId?: string;
@@ -109,7 +113,7 @@ export interface EmailLog {
   text: string;
   html: string;
   type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic' | 'onboarding';
-  timestamp: ClientTimestamp;
+  timestamp: Timestamp;
   status: 'sent' | 'failed';
 }
 
@@ -119,12 +123,12 @@ export interface SharedContractVersion {
   id: string; // Document ID (the unique share token)
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
-  sharedAt: ClientTimestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'negotiationSuggestions' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
+  sharedAt: Timestamp;
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
-  lastViewedByBrandAt?: ClientTimestamp;
+  lastViewedByBrandAt?: Timestamp;
 }
 
 export interface CommentReply {
@@ -132,7 +136,7 @@ export interface CommentReply {
   creatorId: string; // UID of the creator replying
   creatorName: string; // Display name of the creator
   replyText: string;
-  repliedAt: ClientTimestamp;
+  repliedAt: Timestamp;
 }
 
 // Interface for comments made by a brand on a shared contract version
@@ -144,7 +148,7 @@ export interface ContractComment {
   commenterName: string;
   commenterEmail?: string; // Optional
   commentText: string;
-  commentedAt: ClientTimestamp;
+  commentedAt: Timestamp;
   replies?: CommentReply[]; // Array of replies
 }
 
@@ -159,8 +163,8 @@ export interface RedlineProposal {
   proposedText: string; // The suggested replacement text
   comment?: string | null; // Justification or comment for the change
   status: 'proposed' | 'accepted' | 'rejected';
-  proposedAt: ClientTimestamp;
-  reviewedAt?: ClientTimestamp | null;
+  proposedAt: Timestamp;
+  reviewedAt?: Timestamp | null;
 }
 
 
@@ -198,7 +202,6 @@ export type TaxClassification =
   | 'llc';
 
 // For Firestore user document
-export type UserProfile = UserProfileFirestoreData;
 export interface UserProfileFirestoreData {
   uid: string;
   email: string | null;
@@ -211,7 +214,7 @@ export interface UserProfileFirestoreData {
   country?: string | null;
   tin?: string | null;
   taxClassification?: TaxClassification | null;
-  createdAt?: ClientTimestamp;
+  createdAt?: Timestamp;
   role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
   isAgencyOwner?: boolean;
   isBrandAccount?: boolean;
@@ -247,8 +250,8 @@ export interface UserProfileFirestoreData {
   subscriptionPlanId?: SubscriptionPlanId | null;
   talentLimit?: number;
   subscriptionInterval?: 'month' | 'year' | null;
-  trialEndsAt?: ClientTimestamp | null;
-  subscriptionEndsAt?: ClientTimestamp | null;
+  trialEndsAt?: Timestamp | null;
+  subscriptionEndsAt?: Timestamp | null;
   trialExtensionUsed?: boolean;
 
   // Stripe Connected Account Fields
@@ -272,11 +275,11 @@ export interface UserProfileFirestoreData {
   referralSource?: string;
   emailSequence?: {
     step: number;
-    nextEmailAt: ClientTimestamp;
+    nextEmailAt: Timestamp;
   };
   agencyEmailSequence?: {
     step: number;
-    nextEmailAt: ClientTimestamp;
+    nextEmailAt: Timestamp;
   };
 
   // SceneSpawner Credits
@@ -287,6 +290,7 @@ export interface UserProfileFirestoreData {
   niche?: string;
   contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
   hasCompletedCareerPath?: boolean;
+  careerPathResult?: "monetized" | "emerging" | null;
   hasCompletedBrandJourney?: boolean;
 }
 
@@ -298,7 +302,7 @@ export interface CreditTransaction {
   priceId: string;
   paymentIntentId: string;
   status: "completed" | "failed";
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
 
 // Simplified Receipt Feature Types
@@ -319,9 +323,9 @@ export interface Receipt {
 
   status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived';
 
-  uploadedAt: ClientTimestamp;
-  createdAt: ClientTimestamp;
-  updatedAt?: ClientTimestamp;
+  uploadedAt: Timestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 // Banking & Tax Feature Types
@@ -336,8 +340,8 @@ export interface BankAccount {
   subtype: string | null;
   balance: number;
   provider: "Finicity"; // Or other providers in the future
-  createdAt: ClientTimestamp;
-  updatedAt: ClientTimestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface BankTransaction {
@@ -352,8 +356,8 @@ export interface BankTransaction {
   isTaxDeductible?: boolean;
   isBrandSpend?: boolean;
   linkedReceiptId?: string | null;
-  createdAt: ClientTimestamp;
-  updatedAt?: ClientTimestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface TaxEstimation {
@@ -371,7 +375,7 @@ export interface Talent {
   email: string;
   displayName: string | null;
   status: 'pending' | 'active';
-  joinedAt?: ClientTimestamp;
+  joinedAt?: Timestamp;
   commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
 }
 
@@ -381,7 +385,7 @@ export interface TeamMember {
   displayName: string | null;
   role: 'admin' | 'member';
   status: 'pending' | 'active';
-  joinedAt?: ClientTimestamp;
+  joinedAt?: Timestamp;
 }
 
 export interface BrandProduct {
@@ -400,7 +404,7 @@ export interface BRollAsset {
   name: string;
   url: string;
   thumbnailUrl?: string;
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
 
 export interface BrandGuide {
@@ -425,8 +429,8 @@ export interface Agency {
   paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
   availableBalance?: number;
   escrowBalance?: number;
-  createdAt: ClientTimestamp;
-  updatedAt?: ClientTimestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
   talent: Talent[];
   team: TeamMember[]; // Array for team members
   webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
@@ -451,10 +455,10 @@ export interface InternalPayout {
   talentName: string;
   amount: number;
   description: string;
-  paymentDate?: ClientTimestamp;
+  paymentDate?: Timestamp;
   status: 'pending' | 'processing' | 'paid' | 'failed';
-  initiatedAt: ClientTimestamp;
-  paidAt?: ClientTimestamp;
+  initiatedAt: Timestamp;
+  paidAt?: Timestamp;
   stripeChargeId?: string;
   platformFee?: number;
 }
@@ -483,7 +487,7 @@ export interface Generation {
   videoUrl?: string;
   imageUrl?: string;
   sourceImageUrl?: string | null;
-  timestamp: ClientTimestamp;
+  timestamp: Timestamp;
   orientation?: '16:9' | '9:16' | '1:1';
   cost: number;
 }
@@ -493,7 +497,7 @@ export interface Character {
   userId: string;
   name: string;
   description: string;
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
 
 // Brand Research Types
@@ -517,7 +521,7 @@ export interface BrandResearch {
     }[];
   };
   error?: string;
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
 
 export interface GigAssignment {
@@ -525,7 +529,7 @@ export interface GigAssignment {
   agencyName?: string;
   agentId: string; // The specific person who clicked 'Accept'
   commissionRate: number;
-  assignedAt: ClientTimestamp;
+  assignedAt: Timestamp;
 }
 
 export interface Gig {
@@ -546,7 +550,7 @@ export interface Gig {
   fundingPaymentIntentId?: string;
   fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
   campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
@@ -564,12 +568,12 @@ export interface Gig {
   assignments?: { [creatorId: string]: GigAssignment };
   deploymentEmailSequence?: {
     step: number;
-    nextEmailAt: ClientTimestamp;
+    nextEmailAt: Timestamp;
     ownerUserId: string;
   };
   deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
-  acceptedAt?: { [creatorId: string]: ClientTimestamp }; // when each creator accepted
-  deliveryExtensions?: { [creatorId: string]: ClientTimestamp }; // brand-granted per-creator deadline overrides
+  acceptedAt?: { [creatorId: string]: Timestamp }; // when each creator accepted
+  deliveryExtensions?: { [creatorId: string]: Timestamp }; // brand-granted per-creator deadline overrides
 }
 
 export interface CreatorMarketplaceProfile {
@@ -603,7 +607,7 @@ export interface GigSubmission {
   verzaScore: number;
   verzaFeedback: string;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
   affiliateMetrics?: {
     clicks: number;
     conversions: number;
@@ -622,7 +626,7 @@ export interface AffiliateLink {
   conversions: number;
   earnedRewards?: number;
   lifetimePaidOut?: number;
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
 
 export interface Notification {
@@ -633,5 +637,5 @@ export interface Notification {
   type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system' | 'creator_applied' | 'application_approved';
   read: boolean;
   link?: string;
-  createdAt: ClientTimestamp;
+  createdAt: Timestamp;
 }
