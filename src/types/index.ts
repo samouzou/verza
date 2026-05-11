@@ -557,7 +557,7 @@ export interface Gig {
     destinationUrl: string;
     trackingMethod?: 'link_only' | 'promo_code_only' | 'both';
     promoCodeDiscountValue?: string;
-    promoCodePrefix?: string;
+    promoCodeSuffix?: string;
   };
   assignments?: { [creatorId: string]: GigAssignment };
   deploymentEmailSequence?: {
