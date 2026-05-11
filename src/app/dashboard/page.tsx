@@ -37,6 +37,7 @@ import { useTour } from "@/hooks/use-tour";
 import { dashboardTour } from "@/lib/tours";
 import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
 import { trackEvent } from "@/lib/analytics";
+import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 
 interface DashboardStats {
   totalPendingIncome: number;
@@ -77,6 +78,7 @@ export default function DashboardPage() {
   const [availableProjects, setAvailableProjects] = useState<string[]>([]);
   
   const [subscriptionUser, setSubscriptionUser] = useState<UserProfile | null>(null);
+  const [showCareerGuide, setShowCareerGuide] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('subscription_success') === 'true') {
@@ -92,6 +94,17 @@ export default function DashboardPage() {
       router.replace('/dashboard', { scroll: false });
     }
   }, [searchParams, router, user]);
+
+  const isCreator = user?.role === 'individual_creator' || user?.role === 'talent';
+
+  useEffect(() => {
+    if (user && isCreator && user.hasCompletedCareerPath === false) {
+      const timer = setTimeout(() => {
+        setShowCareerGuide(true);
+      }, 1000); // Small delay for better UX
+      return () => clearTimeout(timer);
+    }
+  }, [user, isCreator]);
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -324,6 +337,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6"><AtRiskPayments payments={stats.atRiskPaymentsList} /></div>
+
+      {showCareerGuide && (
+        <CreatorCareerGuide onClose={() => setShowCareerGuide(false)} />
+      )}
     </>
   );
 }

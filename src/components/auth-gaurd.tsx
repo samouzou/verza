@@ -30,6 +30,12 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       if (pathname === '/login') {
           router.replace(user.hasCompletedOnboarding ? '/dashboard' : onboardingPath);
       }
+
+      // If creator has finished onboarding but not career path, force them to dashboard
+      const isCreator = user.role === 'individual_creator' || user.role === 'talent';
+      if (user.hasCompletedOnboarding && !user.hasCompletedCareerPath && isCreator && pathname !== '/dashboard' && pathname !== onboardingPath) {
+        router.replace('/dashboard');
+      }
     } else if (!isAuthenticated) {
       // If user is not authenticated and not on a public path, redirect to login
       const isPublicPath = publicPaths.some(p => pathname.startsWith(p));
@@ -52,6 +58,9 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   if (isAuthenticated && user) {
     if (!user.hasCompletedOnboarding && pathname !== onboardingPath) return null;
     if (user.hasCompletedOnboarding && pathname === onboardingPath) return null;
+
+    const isCreator = user.role === 'individual_creator' || user.role === 'talent';
+    if (user.hasCompletedOnboarding && !user.hasCompletedCareerPath && isCreator && pathname !== '/dashboard' && pathname !== onboardingPath) return null;
   } else if (!isAuthenticated) {
     const isPublicPath = publicPaths.some(p => pathname.startsWith(p));
       if (!isPublicPath && pathname !== onboardingPath) {

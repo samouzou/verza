@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -28,6 +29,7 @@ import {
   ExternalLink,
   Store,
   ChevronRight,
+  Zap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,6 +65,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide";
 import { NotificationBell } from "./notification-bell";
 import { SupportDialog } from "./support-dialog";
+import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -125,6 +128,7 @@ export function SidebarNav() {
   const { user, logout, isLoading: authLoading } = useAuth();
   const { open, setOpen, setOpenMobile, isMobile } = useSidebar();
   const router = useRouter();
+  const [showCareerGuide, setShowCareerGuide] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -429,6 +433,12 @@ export function SidebarNav() {
                   <span>Settings</span>
                 </Link>
               </DropdownMenuItem>
+              {(user?.role === 'individual_creator' || user?.role === 'talent') && (
+                <DropdownMenuItem onClick={() => setShowCareerGuide(true)}>
+                  <Zap className="mr-2 h-4 w-4" />
+                  <span>Career Roadmap</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
@@ -461,6 +471,9 @@ export function SidebarNav() {
             </span>
           </SidebarMenuButton>
       </SidebarFooter>
+      {showCareerGuide && (
+        <CreatorCareerGuide onClose={() => setShowCareerGuide(false)} />
+      )}
     </Sidebar>
   );
 }
