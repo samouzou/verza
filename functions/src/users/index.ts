@@ -117,6 +117,8 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     address: null,
     tin: null,
     hasCompletedOnboarding: false,
+    hasCompletedCareerPath: false,
+    hasCompletedBrandJourney: false,
     emailSequence: {step: 1, nextEmailAt: twoDaysFromNow as any},
     credits: NEW_USER_BONUS,
   };

@@ -103,6 +103,8 @@ export interface UserProfile {
   showInMarketplace?: boolean;
   niche?: string;
   contentType?: CreatorMarketplaceProfile['contentType'] | null;
+  hasCompletedCareerPath?: boolean;
+  hasCompletedBrandJourney?: boolean;
 }
 
 interface AuthContextType {
@@ -307,6 +309,14 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.hasCompletedOnboarding = false;
       needsUpdate = true;
     }
+    if (existingData.hasCompletedCareerPath === undefined) {
+      updates.hasCompletedCareerPath = false;
+      needsUpdate = true;
+    }
+    if (existingData.hasCompletedBrandJourney === undefined) {
+      updates.hasCompletedBrandJourney = false;
+      needsUpdate = true;
+    }
     if (existingData.isAgencyOwner === undefined) {
       updates.isAgencyOwner = false;
       needsUpdate = true;
@@ -416,6 +426,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               payoutMethod: firestoreUserData.payoutMethod,
               globalPayoutRecipientId: firestoreUserData.globalPayoutRecipientId,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
+              hasCompletedCareerPath: firestoreUserData.hasCompletedCareerPath || false,
+              hasCompletedBrandJourney: firestoreUserData.hasCompletedBrandJourney || false,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,
               showInMarketplace: firestoreUserData.showInMarketplace,

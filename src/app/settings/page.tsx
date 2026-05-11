@@ -1,9 +1,9 @@
-
 "use client";
 
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionCard } from "@/components/settings/subscription-card";
 import { StripeConnectCard } from "@/components/settings/stripe-connect-card";
+import { CareerPathCard } from "@/components/settings/career-path-card";
 import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Loader2 } from "lucide-react";
 
@@ -36,6 +36,7 @@ export default function SettingsPage() {
         description="Manage your account, subscription, and payment preferences."
       />
       <div className="space-y-6">
+        <CareerPathCard />
         <SubscriptionCard />
         <StripeConnectCard />
       </div>

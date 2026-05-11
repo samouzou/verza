@@ -286,6 +286,9 @@ export interface UserProfileFirestoreData {
   showInMarketplace?: boolean;
   niche?: string;
   contentType?: "Tech" | "Fashion" | "Comedy" | "Gaming" | "Lifestyle" | "Food" | null;
+  hasCompletedCareerPath?: boolean;
+  careerPathResult?: "monetized" | "emerging" | null;
+  hasCompletedBrandJourney?: boolean;
 }
 
 // Credit transaction

@@ -46,7 +46,7 @@ export default function OnboardingPage() {
     setIsUpdating(true);
 
     const role = selectedRole === 'creator' ? 'individual_creator' : 'agency_owner';
-    const redirectPath = selectedRole === 'creator' ? '/deployments' : '/agency';
+    const redirectPath = selectedRole === 'creator' ? '/dashboard' : '/agency';
     const isBrandAccount = selectedRole === 'brand';
 
     try {
