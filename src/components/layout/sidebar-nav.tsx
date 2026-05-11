@@ -66,6 +66,7 @@ import { SetupGuide } from "./setup-guide";
 import { NotificationBell } from "./notification-bell";
 import { SupportDialog } from "./support-dialog";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
+import { BrandJourneyGuide } from "@/components/onboarding/brand-journey-guide";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -129,6 +130,7 @@ export function SidebarNav() {
   const { open, setOpen, setOpenMobile, isMobile } = useSidebar();
   const router = useRouter();
   const [showCareerGuide, setShowCareerGuide] = useState(false);
+  const [showBrandJourney, setShowBrandJourney] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -439,6 +441,12 @@ export function SidebarNav() {
                   <span>Career Roadmap</span>
                 </DropdownMenuItem>
               )}
+              {user?.role === 'agency_owner' && (
+                <DropdownMenuItem onClick={() => setShowBrandJourney(true)}>
+                  <Zap className="mr-2 h-4 w-4" />
+                  <span>Command Center Tour</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
@@ -473,6 +481,9 @@ export function SidebarNav() {
       </SidebarFooter>
       {showCareerGuide && (
         <CreatorCareerGuide onClose={() => setShowCareerGuide(false)} />
+      )}
+      {showBrandJourney && (
+        <BrandJourneyGuide onClose={() => setShowBrandJourney(false)} />
       )}
     </Sidebar>
   );

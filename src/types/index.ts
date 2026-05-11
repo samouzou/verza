@@ -287,6 +287,7 @@ export interface UserProfileFirestoreData {
   niche?: string;
   contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
   hasCompletedCareerPath?: boolean;
+  hasCompletedBrandJourney?: boolean;
 }
 
 // Credit transaction
