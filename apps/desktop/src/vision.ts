@@ -17,15 +17,21 @@ export interface GeminiAnalysisResult {
 /**
  * Passes a base64 image to Gemini for multimodal analysis.
  * @param imageBase64 The profile screenshot.
+ * @param objectives The user's campaign objectives for personalization.
  */
-export async function analyzeProfileWithGemini(imageBase64: string): Promise<GeminiAnalysisResult> {
-  console.log(`[Optic] Analyzing screenshot with Gemini...`);
+export async function analyzeProfileWithGemini(
+  imageBase64: string, 
+  objectives: string = "general outreach"
+): Promise<GeminiAnalysisResult> {
+  console.log(`[Optic] Analyzing screenshot with Gemini (Context: ${objectives})...`);
   
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
   const prompt = `
     You are an elite marketing agent powering Verza Optic. 
-    Analyze this screenshot of a creator's profile. 
+    Analyze this screenshot of a creator's profile based on the following Campaign Objectives:
+    "${objectives}"
+
     Extract the following information and return it strictly as a JSON object:
     1. creatorName 
     2. niche (e.g., tech, beauty, gaming) 
@@ -34,7 +40,7 @@ export async function analyzeProfileWithGemini(imageBase64: string): Promise<Gem
     
     If an email is found, also generate a draftEmail string: 
     A short, 3-sentence personalized pitch inviting them to join the Verza network. 
-    The pitch should mention their specific niche.
+    The pitch must align with the provided Campaign Objectives and mention their specific niche.
 
     Do not include any markdown formatting outside of the JSON. 
     If you cannot find a piece of information, return null for that field.

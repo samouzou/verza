@@ -639,3 +639,33 @@ export interface Notification {
   link?: string;
   createdAt: Timestamp;
 }
+
+// Verza Optic Agent Interfaces
+export interface OpticCampaign {
+  id: string;
+  userId: string;
+  name: string;
+  objectives: string;
+  status: 'active' | 'paused' | 'completed';
+  targetPlatforms: ('YouTube' | 'Instagram' | 'TikTok')[];
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface OpticLead {
+  id: string;
+  campaignId?: string;
+  userId: string;
+  creatorName: string;
+  niche: string;
+  followerCount: string;
+  email?: string | null;
+  profileUrl: string;
+  screenshotUrl?: string | null; // URL to storage if uploaded
+  draftEmail?: string | null;
+  status: 'discovered' | 'drafted' | 'sent' | 'replied' | 'rejected';
+  platform: 'YouTube' | 'Instagram' | 'TikTok' | 'other';
+  analysisFeedback?: string; // Raw AI reasoning
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}

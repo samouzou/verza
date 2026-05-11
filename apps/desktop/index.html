@@ -1,0 +1,171 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verza Optic</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --card: #141414;
+            --accent: #ffffff;
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --border: #222222;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            padding: 30px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -1px;
+        }
+        .container {
+            padding: 30px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+        input, textarea {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus {
+            border-color: var(--accent);
+        }
+        button {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        #log-container {
+            flex: 1;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: "SF Mono", "Monaco", monospace;
+            font-size: 12px;
+            color: #00ff00;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status-badge {
+            font-size: 10px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #222;
+            color: #eee;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>VERZA OPTIC</h1>
+            <p style="color: var(--text-dim); font-size: 12px; margin: 5px 0 0 0;">Agentic Creator Discovery v2.0</p>
+        </div>
+        <div class="status-badge">READY</div>
+    </header>
+
+    <div class="container">
+        <div class="input-group">
+            <label>Discovery Target (URL)</label>
+            <input type="text" id="target-url" placeholder="https://www.youtube.com/@creator/about">
+        </div>
+        <div class="input-group">
+            <label>Campaign Objectives</label>
+            <textarea id="objectives" rows="3">Finding tech-focused creators for a new high-end mechanical keyboard launch.</textarea>
+        </div>
+        <button id="run-btn">INITIATE DISCOVERY</button>
+        
+        <label>Agent Logs</label>
+        <div id="log-container">Optic waiting for instructions...</div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        const runBtn = document.getElementById('run-btn');
+        const urlInput = document.getElementById('target-url');
+        const objectivesInput = document.getElementById('objectives');
+        const logContainer = document.getElementById('log-container');
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            logContainer.innerHTML += `[${time}] ${msg}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        ipcRenderer.on('log', (event, msg) => {
+            log(msg);
+        });
+
+        runBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            const objectives = objectivesInput.value.trim();
+
+            if (!url) {
+                log('Error: Please enter a target URL.');
+                return;
+            }
+
+            runBtn.disabled = true;
+            runBtn.innerHTML = 'AGENT ACTIVE...';
+            log(`Initiating discovery pipeline for ${url}...`);
+
+            const result = await ipcRenderer.invoke('run-discovery', { url, objectives });
+
+            if (result.success) {
+                log(`SUCCESS: Found ${result.leadData.creatorName}. Lead stored in Firestore.`);
+            } else {
+                log(`FAILED: ${result.error}`);
+            }
+
+            runBtn.disabled = false;
+            runBtn.innerHTML = 'INITIATE DISCOVERY';
+        });
+    </script>
+</body>
+</html>

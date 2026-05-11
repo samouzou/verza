@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 import { scrapeCreatorProfile } from './scraper';
 import { analyzeProfileWithGemini } from './vision';
 import { saveLeadToFirestore } from './storage';
+import { sendSmsNotification } from './notifications';
 
 dotenv.config();
 
@@ -21,11 +22,16 @@ async function main() {
     // 1. Scrape
     const imageBase64 = await scrapeCreatorProfile(testUrl);
 
-    // 2. Analyze
-    const leadData = await analyzeProfileWithGemini(imageBase64);
+    // 2. Analyze with Campaign Objectives
+    const objectives = "Finding tech-focused creators for a new high-end mechanical keyboard launch.";
+    const leadData = await analyzeProfileWithGemini(imageBase64, objectives);
 
     // 3. Save
     await saveLeadToFirestore(leadData, testUrl);
+
+    // 4. Notify via SMS
+    const notificationMsg = `Found creator: ${leadData.creatorName} (${leadData.niche}). Email ${leadData.email ? 'extracted' : 'not found'}. Draft created in Firestore.`;
+    await sendSmsNotification(notificationMsg);
 
     console.log(`\n--- [Pipeline Success] ---\n`);
   } catch (error) {

@@ -2,9 +2,10 @@
   "name": "@verza/desktop",
   "version": "1.0.0",
   "private": true,
+  "main": "dist/main.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsc && electron .",
+    "start": "electron .",
     "build": "tsc"
   },
   "dependencies": {
@@ -14,6 +15,11 @@
     "firebase-admin": "^13.9.0",
     "playwright": "^1.60.0",
     "tsx": "^4.21.0",
+    "twilio": "^6.0.2",
     "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1"
   }
 }
