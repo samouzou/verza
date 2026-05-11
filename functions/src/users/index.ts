@@ -85,6 +85,8 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     }
   }
 
+  const isIndividualCreator = finalRole === "individual_creator";
+
   const newUserDoc: UserProfileFirestoreData = {
     uid: uid,
     email: email || null,
@@ -100,11 +102,11 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     primaryAgencyId: null, // This is only set upon accepting an invitation
     stripeCustomerId: null,
     stripeSubscriptionId: null,
-    subscriptionStatus: "trialing",
-    subscriptionPlanId: null,
+    subscriptionStatus: isIndividualCreator ? "active" : "trialing",
+    subscriptionPlanId: isIndividualCreator ? "individual_free" : null,
     talentLimit: 3,
     subscriptionInterval: null,
-    trialEndsAt: trialEndsAt as any,
+    trialEndsAt: isIndividualCreator ? null : trialEndsAt as any,
     subscriptionEndsAt: null,
     trialExtensionUsed: false,
     stripeAccountId: null,
