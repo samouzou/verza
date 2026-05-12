@@ -11,7 +11,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "sync:functions-types": "node scripts/sync-types-into-functions.cjs"
   },
   "devDependencies": {
     "turbo": "^2.1.2",

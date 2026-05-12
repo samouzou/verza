@@ -7,6 +7,9 @@
     {
       "source": "apps/functions",
       "codebase": "default",
+      "predeploy": [
+        "npm run sync:functions-types"
+      ],
       "ignore": [
         "node_modules",
         ".git",

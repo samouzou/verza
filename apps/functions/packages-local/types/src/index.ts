@@ -1,0 +1,671 @@
+
+export interface Timestamp {
+  seconds: number;
+  nanoseconds: number;
+  toDate(): Date;
+}
+
+export interface PaymentMilestone {
+  id: string; // Unique ID for React keys, e.g., generated with crypto.randomUUID()
+  description: string;
+  amount: number;
+  dueDate: string; // YYYY-MM-DD
+  status: 'pending' | 'invoiced' | 'paid';
+  invoiceId?: string; // Link to the generated invoice document ID
+  lastReminderSentAt?: Timestamp;
+}
+
+export interface EditableInvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  isMilestone?: boolean; // To identify the locked milestone line item
+}
+
+export interface EditableInvoiceDetails {
+  creatorName?: string;
+  creatorAddress?: string;
+  creatorEmail?: string;
+  clientName?: string;
+  clientAddress?: string;
+  clientEmail?: string;
+  invoiceNumber: string;
+  invoiceDate: string; // YYYY-MM-DD
+  dueDate: string;     // YYYY-MM-DD
+  projectName?: string;
+  deliverables?: EditableInvoiceLineItem[];
+  // totalAmount will be calculated from deliverables
+  paymentInstructions?: string;
+  // payInvoiceLink is generated, not edited by user directly here.
+}
+
+export interface Contract {
+  id: string; // Document ID from Firestore
+  userId: string; // Firebase Auth User ID of the creator/talent
+  talentName?: string; // Denormalized talent name for agency view
+  ownerType: 'user' | 'agency'; // To distinguish personal vs agency contracts
+  ownerId: string; // UID of the user or ID of the agency
+  brand: string;
+  amount: number; // This will now be the TOTAL amount of all milestones
+  dueDate: string; // YYYY-MM-DD - Represents the final due date of the contract
+  status: 'pending' | 'paid' | 'overdue' | 'at_risk' | 'invoiced' | 'partially_paid';
+  contractType: 'sponsorship' | 'consulting' | 'affiliate' | 'retainer' | 'other';
+  projectName?: string; // Optional project name
+
+  // Payment Milestones
+  milestones?: PaymentMilestone[];
+
+  // Client details for invoicing
+  clientName?: string;
+  clientEmail?: string;
+  clientAddress?: string;
+  clientTin?: string;
+  paymentInstructions?: string; // Base payment instructions from contract
+
+  extractedTerms?: {
+    paymentMethod?: string;
+    usageRights?: string;
+    terminationClauses?: string;
+    deliverables?: string[]; // AI extracted deliverables list
+    lateFeePenalty?: string;
+  };
+  summary?: string;
+  contractText?: string | null;
+  previousContractText?: string | null;
+  fileName?: string;
+  fileUrl: string | null;
+
+  // Invoice-specific fields (These might be deprecated in favor of a separate Invoices collection)
+  invoiceStatus?: 'none' | 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'partially_paid';
+  invoiceHtmlContent?: string;
+  invoiceNumber?: string;
+  invoiceHistory?: Array<{ timestamp: Timestamp; action: string; details?: string, emailLogId?: string }>;
+  lastReminderSentAt?: Timestamp | null;
+
+  editableInvoiceDetails?: EditableInvoiceDetails | null; // Structured, editable invoice data
+
+  // Recurrence fields
+  isRecurring?: boolean;
+  recurrenceInterval?: 'monthly' | 'quarterly' | 'annually';
+
+  // E-Signature fields (BoldSign)
+  boldSignDocumentId?: string | null;
+  helloSignRequestId?: string | null; // legacy — kept for existing records
+  signatureStatus?: 'none' | 'sent' | 'viewed_by_signer' | 'signed' | 'declined' | 'canceled' | 'error' | null;
+  signedDocumentUrl?: string | null;
+  lastSignatureEventAt?: Timestamp | null;
+  lastGeneratedSignatureFilePath?: string | null;
+
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  access: { [key: string]: 'owner' | 'viewer' | 'talent' };
+  metadata?: {
+    gigId?: string;
+  };
+}
+
+export interface EmailLog {
+  id: string; // Firestore Document ID
+  userId: string;
+  contractId?: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  type: 'invoice' | 'payment_reminder' | 'agency_invitation' | 'generic' | 'onboarding';
+  timestamp: Timestamp;
+  status: 'sent' | 'failed';
+}
+
+
+// Interface for a snapshot of a contract version shared with a brand
+export interface SharedContractVersion {
+  id: string; // Document ID (the unique share token)
+  originalContractId: string; // ID of the parent contract
+  userId: string; // Creator's UID
+  sharedAt: Timestamp;
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
+  notesForBrand: string | null;
+  status: 'active' | 'revoked'; // Status of this share link
+  brandHasViewed?: boolean;
+  lastViewedByBrandAt?: Timestamp;
+}
+
+export interface CommentReply {
+  replyId: string; // Unique ID for the reply (client-generated or Firestore ID if subcollection)
+  creatorId: string; // UID of the creator replying
+  creatorName: string; // Display name of the creator
+  replyText: string;
+  repliedAt: Timestamp;
+}
+
+// Interface for comments made by a brand on a shared contract version
+export interface ContractComment {
+  id: string; // Comment ID, will be Firestore document ID
+  sharedVersionId: string; // Link to the SharedContractVersion
+  originalContractId: string; // ID of the parent contract
+  creatorId: string; // UID of the creator who owns the shared version (for rules/queries)
+  commenterName: string;
+  commenterEmail?: string; // Optional
+  commentText: string;
+  commentedAt: Timestamp;
+  replies?: CommentReply[]; // Array of replies
+}
+
+export interface RedlineProposal {
+  id: string; // Firestore document ID
+  sharedVersionId: string;
+  originalContractId: string;
+  creatorId: string; // The user ID of the contract creator
+  proposerName: string;
+  proposerEmail?: string | null;
+  originalText: string; // The exact text snippet to be replaced
+  proposedText: string; // The suggested replacement text
+  comment?: string | null; // Justification or comment for the change
+  status: 'proposed' | 'accepted' | 'rejected';
+  proposedAt: Timestamp;
+  reviewedAt?: Timestamp | null;
+}
+
+
+export interface EarningsDataPoint {
+  month: string; // e.g., "Jan", "Feb"
+  year: number; // e.g., 2024
+  collected: number;
+  invoiced: number;
+}
+
+export interface UpcomingIncome extends Pick<Contract, 'id' | 'brand' | 'amount' | 'dueDate' | 'projectName'> { }
+
+export interface AtRiskPayment extends Pick<Contract, 'id' | 'brand' | 'amount' | 'dueDate' | 'status' | 'projectName'> {
+  riskReason: string;
+}
+
+export type SubscriptionPlanId =
+  | 'individual_free'
+  | 'individual_monthly' | 'individual_yearly'
+  | 'agency_pilot_monthly' | 'agency_pilot_yearly'
+  | 'agency_pro_monthly' | 'agency_pro_yearly'
+  | 'agency_network_monthly' | 'agency_network_yearly'
+  | 'agency_enterprise_monthly' | 'agency_enterprise_yearly';
+
+export type SubscriptionStatus =
+  | 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
+  | 'unpaid' | 'paused' | 'none' | 'incomplete_expired';
+
+export type TaxClassification =
+  | 'individual'
+  | 'c_corp'
+  | 's_corp'
+  | 'partnership'
+  | 'trust_estate'
+  | 'llc';
+
+// For Firestore user document
+export interface UserProfileFirestoreData {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  legalName?: string | null;
+  avatarUrl: string | null;
+  companyLogoUrl?: string | null;
+  emailVerified: boolean;
+  address?: string | null;
+  country?: string | null;
+  tin?: string | null;
+  taxClassification?: TaxClassification | null;
+  createdAt?: Timestamp;
+  role: 'individual_creator' | 'talent' | 'agency_owner' | 'agency_admin' | 'agency_member';
+  isAgencyOwner?: boolean;
+  isBrandAccount?: boolean;
+  primaryAgencyId?: string | null;
+  agencyMemberships?: AgencyMembership[];
+  giggingForAgencies?: string[];
+
+  // Media Kit / Insights Fields
+  missionStatement?: string | null;
+  brandWishlist?: string[];
+  followers?: number;
+  engagementRate?: number;
+  instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
+  tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
+  youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
+  socialContent?: {
+    instagram?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
+  averageVerzaScore?: number;
+
+  // Subscription Fields
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlanId?: SubscriptionPlanId | null;
+  talentLimit?: number;
+  subscriptionInterval?: 'month' | 'year' | null;
+  trialEndsAt?: Timestamp | null;
+  subscriptionEndsAt?: Timestamp | null;
+  trialExtensionUsed?: boolean;
+
+  // Stripe Connected Account Fields
+  stripeAccountId?: string | null;
+  stripeAccountStatus?: 'none' | 'onboarding_incomplete' | 'pending_verification' | 'active' | 'restricted' | 'restricted_soon';
+  stripeChargesEnabled?: boolean;
+  stripePayoutsEnabled?: boolean;
+  stripeAccountCountry?: string | null;
+
+  // Payout Infrastructure
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  globalPayoutRecipientId?: string | null;
+
+  // Verza Wallet
+  walletBalance?: number;
+
+
+  // Onboarding fields
+  hasCreatedContract?: boolean;
+  hasCompletedOnboarding?: boolean;
+  referralSource?: string;
+  emailSequence?: {
+    step: number;
+    nextEmailAt: Timestamp;
+  };
+  agencyEmailSequence?: {
+    step: number;
+    nextEmailAt: Timestamp;
+  };
+
+  // SceneSpawner Credits
+  credits?: number;
+
+  // Marketplace fields
+  showInMarketplace?: boolean;
+  niche?: string;
+  contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
+  hasCompletedCareerPath?: boolean;
+  careerPathResult?: "monetized" | "emerging" | null;
+  hasCompletedBrandJourney?: boolean;
+}
+
+// Credit transaction
+export interface CreditTransaction {
+  id: string;
+  userId: string;
+  creditAmount: number;
+  priceId: string;
+  paymentIntentId: string;
+  status: "completed" | "failed";
+  createdAt: Timestamp;
+}
+
+// Simplified Receipt Feature Types
+export interface Receipt {
+  id: string; // Firestore Document ID
+  userId: string;
+
+  description?: string;
+  category?: string;
+  amount?: number;
+  receiptDate?: string;
+  vendorName?: string;
+
+  linkedContractId: string | null;
+
+  receiptImageUrl: string;
+  receiptFileName: string;
+
+  status: 'uploaded' | 'linked' | 'submitted_for_reimbursement' | 'reimbursed' | 'archived';
+
+  uploadedAt: Timestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+// Banking & Tax Feature Types
+export interface BankAccount {
+  id: string;
+  userId: string;
+  providerAccountId: string;
+  name: string;
+  officialName: string | null;
+  mask: string;
+  type: string;
+  subtype: string | null;
+  balance: number;
+  provider: "Finicity"; // Or other providers in the future
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface BankTransaction {
+  id: string;
+  userId: string;
+  accountId: string;
+  date: string;
+  description: string;
+  amount: number;
+  currency: string;
+  category?: string;
+  isTaxDeductible?: boolean;
+  isBrandSpend?: boolean;
+  linkedReceiptId?: string | null;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface TaxEstimation {
+  estimatedTaxableIncome: number;
+  estimatedTaxOwed: number;
+  suggestedSetAsidePercentage: number;
+  suggestedSetAsideAmount: number;
+  notes?: string[];
+  calculationDate: string;
+}
+
+// Agency & Talent Types
+export interface Talent {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  status: 'pending' | 'active';
+  joinedAt?: Timestamp;
+  commissionRate?: number; // Agency's commission percentage for this talent (e.g., 20 for 20%)
+}
+
+export interface TeamMember {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: 'admin' | 'member';
+  status: 'pending' | 'active';
+  joinedAt?: Timestamp;
+}
+
+export interface BrandProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  url: string;
+  imageUrl: string;
+  videoUrl?: string;
+  usps: string[]; // Unique Selling Propositions
+}
+
+export interface BRollAsset {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl?: string;
+  createdAt: Timestamp;
+}
+
+export interface BrandGuide {
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  neutralColor?: string;
+  missionStatement?: string;
+  logoUrl?: string;
+  typography?: string;
+  toneOfVoice?: string;
+  dos?: string[];
+  donts?: string[];
+  assetDriveUrl?: string; // Link to Google Drive / Dropbox for b-roll
+  bRollLibrary?: BRollAsset[];
+}
+
+export interface Agency {
+  id: string;
+  name: string;
+  ownerId: string; // UID of the user who owns the agency
+  paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
+  availableBalance?: number;
+  escrowBalance?: number;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  talent: Talent[];
+  team: TeamMember[]; // Array for team members
+  webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
+  brandGuide?: BrandGuide;
+  products?: BrandProduct[];
+}
+
+export interface AgencyMembership {
+  agencyId: string;
+  agencyName: string;
+  role: 'owner' | 'admin' | 'member' | 'talent';
+  status: 'pending' | 'active';
+}
+
+export interface InternalPayout {
+  id: string;
+  type?: 'creator_payment' | 'creator_withdrawal' | 'agency_commission' | 'agency_withdrawal' | 'agency_talent_payment';
+  agencyId?: string;
+  agencyName?: string;
+  agencyOwnerId?: string;
+  talentId: string;
+  talentName: string;
+  amount: number;
+  description: string;
+  paymentDate?: Timestamp;
+  status: 'pending' | 'processing' | 'paid' | 'failed';
+  initiatedAt: Timestamp;
+  paidAt?: Timestamp;
+  stripeChargeId?: string;
+  platformFee?: number;
+}
+
+// Tour Guide Types
+export interface TourStep {
+  selector: string;
+  title: string;
+  content: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'start' | 'center' | 'end';
+}
+
+export type Tour = {
+  id: string;
+  steps: TourStep[];
+  onStop?: () => void;
+};
+
+// AI Studio Types
+export interface Generation {
+  id: string;
+  userId: string;
+  prompt: string;
+  style: string;
+  videoUrl?: string;
+  imageUrl?: string;
+  sourceImageUrl?: string | null;
+  timestamp: Timestamp;
+  orientation?: '16:9' | '9:16' | '1:1';
+  cost: number;
+}
+
+export interface Character {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  createdAt: Timestamp;
+}
+
+// Brand Research Types
+export interface BrandResearch {
+  id: string;
+  uid: string;
+  brandUrl: string;
+  brandName: string;
+  status: "pending" | "completed" | "failed";
+  report?: {
+    decisionMakers: {
+      name?: string;
+      title: string;
+      email?: string;
+    }[];
+    currentVibe: string;
+    pitchHooks: string[];
+    emailPitches: {
+      subject: string;
+      body: string;
+    }[];
+  };
+  error?: string;
+  createdAt: Timestamp;
+}
+
+export interface GigAssignment {
+  agencyId: string;
+  agencyName?: string;
+  agentId: string; // The specific person who clicked 'Accept'
+  commissionRate: number;
+  assignedAt: Timestamp;
+}
+
+export interface Gig {
+  id: string;
+  brandId: string; // The UID of the brand user/agency owner
+  brandName: string;
+  brandLogoUrl?: string | null;
+  title: string;
+  description: string;
+  platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'Twitch' | 'LinkedIn')[];
+  ratePerCreator: number;
+  creatorsNeeded: number;
+  videosPerCreator: number;
+  acceptedCreatorIds: string[];
+  appliedCreatorIds?: string[];
+  agentIds?: string[];
+  paidCreatorIds: string[];
+  fundingPaymentIntentId?: string;
+  fundedAmount?: number; // Total amount paid to fund this gig
+  status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
+  createdAt: Timestamp;
+  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign';
+  usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
+  allowWhitelisting?: boolean;
+  requireVerzaScore?: boolean;
+  verzaScoreThreshold?: number;
+  affiliateSettings?: {
+    isEnabled: boolean;
+    rewardType: 'cpc' | 'cpa';
+    rewardAmount: number;
+    destinationUrl: string;
+    trackingMethod?: 'link_only' | 'promo_code_only' | 'both';
+    promoCodeDiscountValue?: string;
+    promoCodeSuffix?: string;
+  };
+  assignments?: { [creatorId: string]: GigAssignment };
+  deploymentEmailSequence?: {
+    step: number;
+    nextEmailAt: Timestamp;
+    ownerUserId: string;
+  };
+  deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
+  acceptedAt?: { [creatorId: string]: Timestamp }; // when each creator accepted
+  deliveryExtensions?: { [creatorId: string]: Timestamp }; // brand-granted per-creator deadline overrides
+}
+
+export interface CreatorMarketplaceProfile {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  niche: string;
+  contentType: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food';
+  followers: number;
+  engagementRate: number;
+  instagramConnected?: boolean;
+  instagramFollowers?: number;
+  instagramEngagement?: number;
+  tiktokConnected?: boolean;
+  tiktokFollowers?: number;
+  tiktokEngagement?: number;
+  youtubeConnected?: boolean;
+  youtubeFollowers?: number;
+  youtubeEngagement?: number;
+  averageVerzaScore?: number;
+}
+
+export interface GigSubmission {
+  id: string;
+  gigId: string;
+  brandId: string; // Denormalized for security rules
+  creatorId: string;
+  creatorName: string;
+  creatorAvatarUrl?: string | null;
+  videoUrl: string;
+  verzaScore: number;
+  verzaFeedback: string;
+  status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
+  createdAt: Timestamp;
+  affiliateMetrics?: {
+    clicks: number;
+    conversions: number;
+    earned: number;
+  };
+}
+
+export interface AffiliateLink {
+  id: string;
+  gigId: string;
+  creatorId: string;
+  brandId: string;
+  destinationUrl: string;
+  promoCode?: string;
+  clicks: number;
+  conversions: number;
+  earnedRewards?: number;
+  lifetimePaidOut?: number;
+  createdAt: Timestamp;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system' | 'creator_applied' | 'application_approved';
+  read: boolean;
+  link?: string;
+  createdAt: Timestamp;
+}
+
+// Verza Optic Agent Interfaces
+export interface OpticCampaign {
+  id: string;
+  userId: string;
+  name: string;
+  objectives: string;
+  status: 'active' | 'paused' | 'completed';
+  targetPlatforms: ('YouTube' | 'Instagram' | 'TikTok')[];
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface OpticLead {
+  id: string;
+  campaignId?: string;
+  userId: string;
+  creatorName: string;
+  niche: string;
+  followerCount: string;
+  email?: string | null;
+  profileUrl: string;
+  screenshotUrl?: string | null; // URL to storage if uploaded
+  draftEmail?: string | null;
+  status: 'discovered' | 'drafted' | 'sent' | 'replied' | 'rejected';
+  platform: 'YouTube' | 'Instagram' | 'TikTok' | 'other';
+  analysisFeedback?: string; // Raw AI reasoning
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}

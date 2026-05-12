@@ -30,7 +30,7 @@
     "node-fetch": "^3.3.2",
     "stripe": "^18.1.1",
     "uuid": "^10.0.0",
-    "@verza/types": "*"
+    "@verza/types": "file:./packages-local/types"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
