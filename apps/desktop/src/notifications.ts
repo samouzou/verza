@@ -1,6 +1,7 @@
 
 import twilio from 'twilio';
 import * as dotenv from 'dotenv';
+import { logger } from './logger';
 
 dotenv.config();
 
@@ -17,18 +18,18 @@ const client = twilio(accountSid, authToken);
  */
 export async function sendSmsNotification(message: string) {
   if (!accountSid || !authToken || !twilioNumber || !userNumber) {
-    console.warn(`[Optic] Twilio credentials missing. Skipping SMS: "${message}"`);
+    logger.warn(`[Optic] Twilio credentials missing. Skipping SMS.`);
     return;
   }
 
   try {
     const response = await client.messages.create({
-      body: `[Verza Optic] ${message}`,
+      body: `[Optic] ${message}`,
       from: twilioNumber,
       to: userNumber
     });
-    console.log(`[Optic] SMS notification sent: ${response.sid}`);
+    logger.log(`[Optic] SMS sent: ${response.sid}`);
   } catch (error) {
-    console.error(`[Optic] Twilio error:`, error);
+    logger.error(`[Optic] Twilio error:`, error);
   }
 }

@@ -4,6 +4,11 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+// Safe logger — prevents EPIPE crashes when Electron stdout pipe is broken
+function safeLog(...args: any[]) {
+  try { console.log(...args); } catch (_) {}
+}
+
 let db: admin.firestore.Firestore;
 
 /**
@@ -19,11 +24,11 @@ function initFirestore() {
       projectId: process.env.FIREBASE_PROJECT_ID
     });
     db = admin.firestore();
-    console.log(`[Optic] Firestore initialized using ADC.`);
+    safeLog(`[Optic] Firestore initialized using ADC.`);
   } catch (error) {
-    console.warn(`[Optic] Failed to initialize Firestore using ADC.`);
-    console.warn(`[Optic] Run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS.`);
-    console.warn(`[Optic] Error details:`, error instanceof Error ? error.message : error);
+    safeLog(`[Optic] Failed to initialize Firestore using ADC.`);
+    safeLog(`[Optic] Run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS.`);
+    safeLog(`[Optic] Error details:`, error instanceof Error ? error.message : error);
   }
 }
 
@@ -43,15 +48,37 @@ export async function saveLeadToFirestore(leadData: any, profileUrl: string) {
   };
 
   if (!db) {
-    console.log(`[Optic] [MOCK SAVE] Would have saved to Firestore:`, payload);
+    safeLog(`[Optic] [MOCK SAVE] Would have saved to Firestore:`, payload);
     return;
   }
 
   try {
     const docRef = await db.collection('optic_outreach_leads').add(payload);
-    console.log(`[Optic] Lead saved to Firestore with ID: ${docRef.id}`);
+    safeLog(`[Optic] Lead saved to Firestore with ID: ${docRef.id}`);
   } catch (error) {
     console.error(`[Optic] Firestore save error:`, error);
     throw error;
+  }
+}
+
+/**
+ * Fetches recent leads from the optic_outreach_leads collection.
+ */
+export async function getLeads(limit: number = 50): Promise<any[]> {
+  initFirestore();
+  if (!db) {
+    safeLog(`[Optic] Firestore not available for getLeads.`);
+    return [];
+  }
+  try {
+    const snapshot = await db
+      .collection('optic_outreach_leads')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    safeLog(`[Optic] Error fetching leads:`, error);
+    return [];
   }
 }

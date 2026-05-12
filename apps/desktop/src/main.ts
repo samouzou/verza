@@ -3,27 +3,27 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import { scrapeCreatorProfile } from './scraper';
 import { analyzeProfileWithGemini } from './vision';
-import { saveLeadToFirestore } from './storage';
+import { saveLeadToFirestore, getLeads } from './storage';
 import { sendSmsNotification } from './notifications';
+import { findCreators, generateSeedLeads } from './search';
+
+// Suppress EPIPE errors when stdout pipe breaks after Electron window launches
+process.stdout.on('error', (err: any) => { if (err.code === 'EPIPE') return; });
+process.stderr.on('error', (err: any) => { if (err.code === 'EPIPE') return; });
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1000,
+    width: 1100,
     height: 800,
     title: "Optic",
-    backgroundColor: '#000000',
+    backgroundColor: '#f5f2ed',
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false, // For MVP simplicity, we'll use nodeIntegration
+      contextIsolation: false,
     },
   });
 
-  // In production, we would load a built file
-  // For dev, we can load a simple HTML
   win.loadFile(path.join(__dirname, '../index.html'));
-  
-  // Open DevTools in dev mode
-  // win.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
@@ -40,65 +40,73 @@ app.on('activate', () => {
   }
 });
 
-import { findCreators } from './search';
-
-// IPC Handler for Discovery Mission
+// IPC Handler: Full Discovery Mission
 ipcMain.handle('run-discovery', async (event, { platform, objectives }) => {
   try {
-    // 1. Search
-    event.sender.send('log', 'search', `Hunting for ${platform} creators matching your persona...`);
-    const urls = await findCreators(platform, objectives);
-    
-    if (urls.length === 0) {
+    const allUrls = new Set<string>();
+
+    // Phase 1: Knowledge Synthesis — ask Gemini who are the known best fits
+    event.sender.send('log', 'search', `Consulting Gemini knowledge base for top ${platform} creators...`);
+    const seedLeads = await generateSeedLeads(platform, objectives);
+    seedLeads.forEach(lead => allUrls.add(lead.url));
+    event.sender.send('log', 'search', `Knowledge base returned ${seedLeads.length} seed candidates.`);
+
+    // Phase 2: Autonomous Search — visually scout the platform for more
+    event.sender.send('log', 'search', `Launching browser scout on ${platform}...`);
+    const searchedUrls = await findCreators(platform, objectives);
+    searchedUrls.forEach(url => allUrls.add(url));
+    event.sender.send('log', 'search', `Scout returned ${searchedUrls.length} additional leads. ${allUrls.size} unique total.`);
+
+    if (allUrls.size === 0) {
       throw new Error(`No creators found for the given criteria.`);
     }
 
-    event.sender.send('log', 'search', `Found ${urls.length} potential partners. Starting deep vetting...`);
+    const results: any[] = [];
 
-    const results = [];
-
-    // 2. Iterate & Process
-    for (const url of urls) {
-      event.sender.send('log', 'vet', `Evaluating: ${url}`);
-      
+    // Phase 3: Visual Vetting — screenshot + Gemini multimodal analysis on each
+    for (const url of allUrls) {
+      event.sender.send('log', 'vet', `Visiting: ${url}`);
       try {
-        // Scrape
         const imageBase64 = await scrapeCreatorProfile(url);
-        
-        // Analyze
         const leadData = await analyzeProfileWithGemini(imageBase64, objectives);
-        event.sender.send('log', 'vet', `Qualified: ${leadData.creatorName} (${leadData.niche})`);
-
-        // Save
+        event.sender.send('log', 'vet', `✓ Qualified: ${leadData.creatorName} (${leadData.niche})`);
         await saveLeadToFirestore(leadData, url);
-        
         results.push(leadData);
-
-        // Notify (throttled/grouped could be better later, but for now 1 by 1)
-        await sendSmsNotification(`Optic vetted a new lead: ${leadData.creatorName}. Ready for review.`);
+        await sendSmsNotification(`New lead: ${leadData.creatorName}. Ready for review in Verza.`);
       } catch (err: any) {
-        event.sender.send('log', 'vet', `Skipped ${url}: ${err.message}`);
+        event.sender.send('log', 'vet', `✗ Skipped ${url}: ${err.message}`);
       }
     }
 
-    return { success: true, processedCount: results.length };
+    return { success: true, processedCount: results.length, leads: results };
   } catch (error: any) {
     console.error(error);
     return { success: false, error: error.message };
   }
 });
 
-// New: Handler to open a browser for manual authentication
-ipcMain.on('open-auth-browser', async () => {
+// IPC Handler: Fetch leads for the Vault view
+ipcMain.handle('get-leads', async () => {
+  return await getLeads(100);
+});
+
+// IPC Handler: Open persistent browser for platform authentication
+ipcMain.on('open-auth-browser', async (event, platform = 'youtube') => {
   const { chromium } = require('playwright');
   const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
   
-  console.log(`[Optic] Opening auth browser with profile: ${userDataDir}`);
+  const platformUrls: Record<string, string> = {
+    youtube: 'https://www.youtube.com',
+    instagram: 'https://www.instagram.com',
+    tiktok: 'https://www.tiktok.com',
+  };
+
+  console.log(`[Optic] Opening auth browser for ${platform}...`);
   const browser = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     viewport: { width: 1280, height: 800 }
   });
 
   const page = await browser.newPage();
-  await page.goto('https://www.youtube.com'); // Start with YouTube
+  await page.goto(platformUrls[platform] || platformUrls.youtube);
 });

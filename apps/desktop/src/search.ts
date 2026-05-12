@@ -4,10 +4,34 @@ import * as path from 'path';
 import { app } from 'electron';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from 'dotenv';
+import { logger } from './logger';
 
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+/**
+ * Uses Gemini's internal knowledge to generate a seed list of creators.
+ */
+export async function generateSeedLeads(platform: string, objectives: string): Promise<{ name: string, url: string }[]> {
+  logger.log(`[Optic] Generating seed leads from AI knowledge...`);
+  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  
+  const prompt = `
+    Based on these campaign objectives: "${objectives}", 
+    provide a list of 5 real, high-quality creators on ${platform} who would be a perfect fit.
+    Include their full profile URL.
+    Return the result strictly as a JSON array of objects with "name" and "url" keys.
+    Do not include any markdown formatting.
+  `;
+  
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().trim();
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  
+  if (!jsonMatch) return [];
+  return JSON.parse(jsonMatch[0]);
+}
 
 /**
  * Uses Gemini to transform objectives into a search query for a specific platform.
@@ -24,10 +48,10 @@ async function generateSearchQuery(platform: string, objectives: string): Promis
  * Performs an autonomous search on a platform and returns found URLs.
  */
 export async function findCreators(platform: string, objectives: string): Promise<string[]> {
-  console.log(`[Optic] Starting autonomous search on ${platform}...`);
+  logger.log(`[Optic] Starting autonomous search on ${platform}...`);
   
   const query = await generateSearchQuery(platform, objectives);
-  console.log(`[Optic] Generated Search Query: ${query}`);
+  logger.log(`[Optic] Search query: "${query}"`);
 
   const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
   const context = await chromium.launchPersistentContext(userDataDir, {
@@ -60,10 +84,10 @@ export async function findCreators(platform: string, objectives: string): Promis
       urls.push(...postLinks);
     }
 
-    console.log(`[Optic] Found ${urls.length} potential leads.`);
+    logger.log(`[Optic] Found ${urls.length} potential leads.`);
     return urls;
   } catch (error) {
-    console.error(`[Optic] Search error:`, error);
+    logger.error(`[Optic] Search error:`, error);
     return [];
   } finally {
     await context.close();

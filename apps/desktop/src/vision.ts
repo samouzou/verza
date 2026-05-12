@@ -1,6 +1,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from "dotenv";
+import { logger } from './logger';
 
 dotenv.config();
 
@@ -23,7 +24,7 @@ export async function analyzeProfileWithGemini(
   imageBase64: string, 
   objectives: string = "general outreach"
 ): Promise<GeminiAnalysisResult> {
-  console.log(`[Optic] Analyzing screenshot with Gemini (Context: ${objectives})...`);
+  logger.log(`[Optic] Analyzing with Gemini (Objectives: ${objectives.slice(0, 50)}...)...`);
   
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
@@ -67,11 +68,11 @@ export async function analyzeProfileWithGemini(
     }
 
     const parsedData: GeminiAnalysisResult = JSON.parse(jsonMatch[0]);
-    console.log(`[Optic] Analysis complete for: ${parsedData.creatorName}`);
+    logger.log(`[Optic] Analysis complete for: ${parsedData.creatorName}`);
     
     return parsedData;
   } catch (error) {
-    console.error(`[Optic] Vision error:`, error);
+    logger.error(`[Optic] Vision error:`, error);
     throw error;
   }
 }
