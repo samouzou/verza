@@ -9,6 +9,22 @@ service firebase.storage {
       return request.auth != null && request.auth.token.get('primaryAgencyId', null) == agencyId;
     }
 
+    // Agency staff by Firestore profile (matches Firestore isTeamMemberOf for agencies/{id} updates).
+    // JWT primaryAgencyId is often missing for admins/members until token refresh.
+    function isAgencyTeamStaffFromProfile() {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('primaryAgencyId', null) != null &&
+        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_owner' ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_admin' ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_member');
+    }
+
+    function canWriteAgencySharedMedia() {
+      return request.auth != null &&
+        (isAgencyTeamStaffFromProfile() || request.auth.token.get('primaryAgencyId', null) != null);
+    }
+
     // Helper to determine if the target user is a talent in the requester's agency
     function isTalentInMyAgency(targetUserId) {
       let agencyId = request.auth.token.get('primaryAgencyId', null);
@@ -93,9 +109,8 @@ service firebase.storage {
     match /brand_assets/{allPaths=**} {
       // Public read so creators can see the brand deck
       allow read: if true;
-      // Allow agency members to upload
-      allow write: if request.auth != null 
-                   && request.auth.token.get('primaryAgencyId', null) != null
+      // Allow agency team (profile or JWT claim) to upload
+      allow write: if canWriteAgencySharedMedia()
                    && request.resource.size < 50 * 1024 * 1024 // 50MB for brand assets (videos included)
                    && request.resource.contentType.matches('image/.*|video/.*');
     }
@@ -104,9 +119,8 @@ service firebase.storage {
     match /products/{allPaths=**} {
       // Public read for creator showcase
       allow read: if true;
-      // Allow agency members to upload
-      allow write: if request.auth != null
-                   && request.auth.token.get('primaryAgencyId', null) != null
+      // Allow agency team (profile or JWT claim) to upload
+      allow write: if canWriteAgencySharedMedia()
                    && request.resource.size < 50 * 1024 * 1024 // 50MB for products
                    && request.resource.contentType.matches('image/.*|video/.*');
     }
@@ -115,9 +129,8 @@ service firebase.storage {
     match /b-roll/{allPaths=**} {
       // Public read so creators can download
       allow read: if true;
-      // Allow agency members to upload
-      allow write: if request.auth != null
-                   && request.auth.token.get('primaryAgencyId', null) != null
+      // Allow agency team (profile or JWT claim) to upload
+      allow write: if canWriteAgencySharedMedia()
                    && request.resource.size < 100 * 1024 * 1024 // 100MB for high-res b-roll
                    && request.resource.contentType.matches('image/.*|video/.*');
     }

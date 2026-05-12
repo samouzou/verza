@@ -198,7 +198,8 @@ service cloud.firestore {
     match /agencies/{agencyId} {
       allow read: if request.auth != null;
       allow create: if isOwner(request.resource.data.ownerId);
-      allow update: if isMemberOfAgency(agencyId);
+      // Use Firestore profile (isTeamMemberOf), not only JWT claims — admins/members often lack primaryAgencyId on the token until refresh.
+      allow update: if isTeamMemberOf(agencyId) || isMemberOfAgency(agencyId);
       allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
     
