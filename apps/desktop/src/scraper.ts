@@ -1,5 +1,7 @@
 
 import { chromium } from 'playwright';
+import * as path from 'path';
+import { app } from 'electron';
 
 /**
  * Launches a browser, navigates to the creator's profile, and captures a screenshot.
@@ -8,10 +10,15 @@ import { chromium } from 'playwright';
  */
 export async function scrapeCreatorProfile(url: string): Promise<string> {
   console.log(`[Optic] Launching browser for: ${url}`);
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
+  
+  const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
+
+  // Launch persistent context to reuse sessions (login states)
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    headless: true,
     viewport: { width: 1280, height: 1080 }
   });
+
   const page = await context.newPage();
 
   try {
@@ -31,6 +38,6 @@ export async function scrapeCreatorProfile(url: string): Promise<string> {
     console.error(`[Optic] Scraper error:`, error);
     throw error;
   } finally {
-    await browser.close();
+    await context.close();
   }
 }

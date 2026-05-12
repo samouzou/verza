@@ -10,7 +10,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1000,
     height: 800,
-    title: "Verza Optic",
+    title: "Optic",
     backgroundColor: '#000000',
     webPreferences: {
       nodeIntegration: true,
@@ -40,31 +40,65 @@ app.on('activate', () => {
   }
 });
 
-// IPC Handler for Discovery
-ipcMain.handle('run-discovery', async (event, { url, objectives }) => {
+import { findCreators } from './search';
+
+// IPC Handler for Discovery Mission
+ipcMain.handle('run-discovery', async (event, { platform, objectives }) => {
   try {
-    event.sender.send('log', `Starting discovery for: ${url}`);
+    // 1. Search
+    event.sender.send('log', 'search', `Hunting for ${platform} creators matching your persona...`);
+    const urls = await findCreators(platform, objectives);
     
-    // 1. Scrape
-    const imageBase64 = await scrapeCreatorProfile(url);
-    event.sender.send('log', `Screenshot captured.`);
+    if (urls.length === 0) {
+      throw new Error(`No creators found for the given criteria.`);
+    }
 
-    // 2. Analyze
-    const leadData = await analyzeProfileWithGemini(imageBase64, objectives);
-    event.sender.send('log', `Gemini analysis complete: ${leadData.creatorName}`);
+    event.sender.send('log', 'search', `Found ${urls.length} potential partners. Starting deep vetting...`);
 
-    // 3. Save
-    await saveLeadToFirestore(leadData, url);
-    event.sender.send('log', `Lead saved to Firestore.`);
+    const results = [];
 
-    // 4. Notify
-    const notificationMsg = `Found creator: ${leadData.creatorName} (${leadData.niche}). Draft created.`;
-    await sendSmsNotification(notificationMsg);
-    
-    return { success: true, leadData };
+    // 2. Iterate & Process
+    for (const url of urls) {
+      event.sender.send('log', 'vet', `Evaluating: ${url}`);
+      
+      try {
+        // Scrape
+        const imageBase64 = await scrapeCreatorProfile(url);
+        
+        // Analyze
+        const leadData = await analyzeProfileWithGemini(imageBase64, objectives);
+        event.sender.send('log', 'vet', `Qualified: ${leadData.creatorName} (${leadData.niche})`);
+
+        // Save
+        await saveLeadToFirestore(leadData, url);
+        
+        results.push(leadData);
+
+        // Notify (throttled/grouped could be better later, but for now 1 by 1)
+        await sendSmsNotification(`Optic vetted a new lead: ${leadData.creatorName}. Ready for review.`);
+      } catch (err: any) {
+        event.sender.send('log', 'vet', `Skipped ${url}: ${err.message}`);
+      }
+    }
+
+    return { success: true, processedCount: results.length };
   } catch (error: any) {
     console.error(error);
-    event.sender.send('log', `Error: ${error.message}`);
     return { success: false, error: error.message };
   }
+});
+
+// New: Handler to open a browser for manual authentication
+ipcMain.on('open-auth-browser', async () => {
+  const { chromium } = require('playwright');
+  const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
+  
+  console.log(`[Optic] Opening auth browser with profile: ${userDataDir}`);
+  const browser = await chromium.launchPersistentContext(userDataDir, {
+    headless: false,
+    viewport: { width: 1280, height: 800 }
+  });
+
+  const page = await browser.newPage();
+  await page.goto('https://www.youtube.com'); // Start with YouTube
 });

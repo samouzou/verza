@@ -2,169 +2,337 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Verza Optic</title>
+    <title>Optic</title>
     <style>
         :root {
-            --bg: #0a0a0a;
-            --card: #141414;
-            --accent: #ffffff;
-            --text-main: #ffffff;
-            --text-dim: #888888;
-            --border: #222222;
+            --bg: #f5f2ed;
+            --card: #ffffff;
+            --accent: #1a1a1a;
+            --text-main: #1a1a1a;
+            --text-dim: #706b63;
+            --border: #e6e1d6;
+            --nav-bg: #ece9e2;
+            --success: #4a6741;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg);
             color: var(--text-main);
             margin: 0;
             display: flex;
-            flex-direction: column;
             height: 100vh;
             overflow: hidden;
         }
+        
+        /* Navigation Sidebar */
+        nav {
+            width: 80px;
+            background: var(--nav-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 40px;
+            gap: 40px;
+        }
+        .nav-item {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            color: var(--text-dim);
+        }
+        .nav-item.active {
+            background: var(--accent);
+            color: #fff;
+        }
+        .nav-item:hover:not(.active) {
+            background: rgba(0,0,0,0.05);
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
         header {
-            padding: 30px;
+            padding: 30px 40px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         h1 {
-            font-size: 24px;
+            font-size: 14px;
             font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
             margin: 0;
-            letter-spacing: -1px;
         }
-        .container {
-            padding: 30px;
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
             flex: 1;
+            overflow: hidden;
+        }
+        .sidebar {
+            padding: 40px;
+            border-right: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.3);
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 30px;
         }
+        .content {
+            padding: 40px;
+            background: var(--card);
+            overflow-y: auto;
+        }
+        
+        /* Form & UI Elements */
         .input-group {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
         label {
-            font-size: 12px;
+            font-size: 10px;
             text-transform: uppercase;
             color: var(--text-dim);
-            font-weight: 600;
+            font-weight: 700;
+            letter-spacing: 1.5px;
         }
-        input, textarea {
-            background: var(--card);
+        input, textarea, select {
+            background: #fff;
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 14px;
+            border-radius: 4px;
+            font-size: 13px;
             outline: none;
-            transition: border-color 0.2s;
+            transition: all 0.2s;
         }
         input:focus, textarea:focus {
             border-color: var(--accent);
         }
         button {
             background: var(--accent);
-            color: var(--bg);
+            color: #fff;
             border: none;
-            padding: 15px;
-            border-radius: 8px;
-            font-weight: 700;
+            padding: 16px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
             cursor: pointer;
-            transition: opacity 0.2s;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
         button:hover {
             opacity: 0.9;
         }
-        #log-container {
-            flex: 1;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 20px;
-            font-family: "SF Mono", "Monaco", monospace;
-            font-size: 12px;
-            color: #00ff00;
-            overflow-y: auto;
-            white-space: pre-wrap;
+
+        /* Mission Timeline */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
         }
-        .status-badge {
-            font-size: 10px;
-            padding: 4px 8px;
+        .mission-step {
+            display: flex;
+            gap: 24px;
+            opacity: 0.3;
+            transition: all 0.4s;
+        }
+        .mission-step.active { opacity: 1; }
+        .step-marker {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            margin-top: 5px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .step-marker::after {
+            content: '';
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1px;
+            height: 40px;
+            background: var(--border);
+        }
+        .mission-step:last-child .step-marker::after { display: none; }
+        .mission-step.completed .step-marker { background: var(--success); border-color: var(--success); }
+        .step-content h3 { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .step-content p { margin: 6px 0 0 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+        .log-mini {
+            margin-top: 12px;
+            font-family: "SF Mono", monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            background: #fbfaf8;
+            padding: 12px;
             border-radius: 4px;
-            background: #222;
-            color: #eee;
+            border-left: 2px solid var(--accent);
         }
     </style>
 </head>
 <body>
-    <header>
-        <div>
-            <h1>VERZA OPTIC</h1>
-            <p style="color: var(--text-dim); font-size: 12px; margin: 5px 0 0 0;">Agentic Creator Discovery v2.0</p>
+    <!-- Primary Navigation -->
+    <nav>
+        <div class="nav-item active" title="Discovery">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         </div>
-        <div class="status-badge">READY</div>
-    </header>
+        <div class="nav-item" title="Vault">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+        <div class="nav-item" title="Campaigns">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+        </div>
+        <div style="flex: 1;"></div>
+        <div class="nav-item" id="auth-btn-icon" title="Settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </div>
+    </nav>
 
-    <div class="container">
-        <div class="input-group">
-            <label>Discovery Target (URL)</label>
-            <input type="text" id="target-url" placeholder="https://www.youtube.com/@creator/about">
+    <div class="main-container">
+        <header>
+            <h1>Optic</h1>
+            <div style="display: flex; gap: 24px; align-items: center;">
+                <div style="font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 1px;">STATUS: <span style="color: var(--success);">ONLINE</span></div>
+                <button id="auth-btn" style="background: transparent; color: var(--accent); border: 1px solid var(--border); padding: 8px 16px; font-size: 10px;">Auth Platforms</button>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            <div class="sidebar">
+                <div class="input-group">
+                    <label>Mission Focus</label>
+                    <select id="platform-select">
+                        <option value="youtube">YouTube Creators</option>
+                        <option value="instagram">Instagram Influencers</option>
+                        <option value="tiktok">TikTok Talent</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Objectives</label>
+                    <textarea id="objectives" rows="8" placeholder="E.g. High-end lifestyle creators for a luxury timepiece campaign.">Minimalist desk setup creators on Instagram who focus on clean, high-end aesthetics.</textarea>
+                </div>
+                <button id="run-btn">Initiate Mission</button>
+            </div>
+
+            <div class="content">
+                <label style="margin-bottom: 24px; display: block;">Active Discovery Log</label>
+                <div class="timeline" id="mission-timeline">
+                    <div class="mission-step" id="step-prepare">
+                        <div class="step-marker"></div>
+                        <div class="step-content">
+                            <h3>Initialization</h3>
+                            <p>Calibrating multimodal vision and browser context.</p>
+                        </div>
+                    </div>
+                    <div class="mission-step" id="step-search">
+                        <div class="step-marker"></div>
+                        <div class="step-content">
+                            <h3>Search Agent</h3>
+                            <p>Autonomously scouring platforms for matches.</p>
+                            <div class="log-mini" id="log-search" style="display:none;"></div>
+                        </div>
+                    </div>
+                    <div class="mission-step" id="step-vet">
+                        <div class="step-marker"></div>
+                        <div class="step-content">
+                            <h3>Deep Vetting</h3>
+                            <p>Scanning profiles and using Gemini for qualification.</p>
+                            <div class="log-mini" id="log-vet" style="display:none;"></div>
+                        </div>
+                    </div>
+                    <div class="mission-step" id="step-draft">
+                        <div class="step-marker"></div>
+                        <div class="step-content">
+                            <h3>Outreach Sync</h3>
+                            <p>Generating drafts and syncing to Verza dashboard.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="input-group">
-            <label>Campaign Objectives</label>
-            <textarea id="objectives" rows="3">Finding tech-focused creators for a new high-end mechanical keyboard launch.</textarea>
-        </div>
-        <button id="run-btn">INITIATE DISCOVERY</button>
-        
-        <label>Agent Logs</label>
-        <div id="log-container">Optic waiting for instructions...</div>
     </div>
 
     <script>
         const { ipcRenderer } = require('electron');
 
         const runBtn = document.getElementById('run-btn');
-        const urlInput = document.getElementById('target-url');
+        const authBtn = document.getElementById('auth-btn');
+        const authIcon = document.getElementById('auth-btn-icon');
         const objectivesInput = document.getElementById('objectives');
-        const logContainer = document.getElementById('log-container');
+        const platformSelect = document.getElementById('platform-select');
 
-        function log(msg) {
-            const time = new Date().toLocaleTimeString();
-            logContainer.innerHTML += `[${time}] ${msg}\n`;
-            logContainer.scrollTop = logContainer.scrollHeight;
+        function setStep(id, status) {
+            const el = document.getElementById(`step-${id}`);
+            if (!el) return;
+            el.classList.remove('active', 'completed');
+            if (status === 'active') el.classList.add('active');
+            if (status === 'completed') {
+                el.classList.add('active');
+                el.classList.add('completed');
+            }
         }
 
-        ipcRenderer.on('log', (event, msg) => {
-            log(msg);
+        function log(stepId, msg) {
+            const logEl = document.getElementById(`log-${stepId}`);
+            if (logEl) {
+                logEl.style.display = 'block';
+                logEl.innerHTML += `> ${msg}<br>`;
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+        }
+
+        ipcRenderer.on('log', (event, stepId, msg) => {
+            log(stepId, msg);
+            if (stepId === 'search') setStep('search', 'active');
+            if (stepId === 'vet') {
+                setStep('search', 'completed');
+                setStep('vet', 'active');
+            }
         });
 
-        runBtn.addEventListener('click', async () => {
-            const url = urlInput.value.trim();
-            const objectives = objectivesInput.value.trim();
+        authBtn.addEventListener('click', () => ipcRenderer.send('open-auth-browser'));
+        authIcon.addEventListener('click', () => ipcRenderer.send('open-auth-browser'));
 
-            if (!url) {
-                log('Error: Please enter a target URL.');
-                return;
-            }
+        runBtn.addEventListener('click', async () => {
+            const objectives = objectivesInput.value.trim();
+            const platform = platformSelect.value;
 
             runBtn.disabled = true;
-            runBtn.innerHTML = 'AGENT ACTIVE...';
-            log(`Initiating discovery pipeline for ${url}...`);
+            runBtn.innerHTML = 'Active...';
 
-            const result = await ipcRenderer.invoke('run-discovery', { url, objectives });
+            setStep('prepare', 'active');
+            await new Promise(r => setTimeout(r, 500));
+            setStep('prepare', 'completed');
+
+            const result = await ipcRenderer.invoke('run-discovery', { platform, objectives });
 
             if (result.success) {
-                log(`SUCCESS: Found ${result.leadData.creatorName}. Lead stored in Firestore.`);
+                setStep('vet', 'completed');
+                setStep('draft', 'completed');
+                alert(`Mission Success: Vetted ${result.processedCount} creators.`);
             } else {
-                log(`FAILED: ${result.error}`);
+                alert(`Mission Failed: ${result.error}`);
             }
 
             runBtn.disabled = false;
-            runBtn.innerHTML = 'INITIATE DISCOVERY';
+            runBtn.innerHTML = 'Initiate Mission';
         });
     </script>
 </body>
