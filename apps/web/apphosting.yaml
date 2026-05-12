@@ -11,6 +11,11 @@ runConfig:
 # Environment variables and secrets.
 env:
 
+  - variable: TURBO_TELEMETRY_DISABLED
+    value: "1"
+    availability:
+      - BUILD
+
   - variable: NEXT_PUBLIC_SEND_CONTRACT_NOTIFICATION_URL
     secret: VERZA_SEND_CONTRACT_NOTIFICATION_URL
     availability:
