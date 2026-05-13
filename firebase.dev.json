@@ -5,8 +5,11 @@
     },
     "functions": [
         {
-            "source": "functions",
+            "source": "apps/functions",
             "codebase": "default",
+            "predeploy": [
+                "node scripts/sync-types-into-functions.cjs"
+            ],
             "ignore": [
                 "node_modules",
                 ".git",
@@ -21,7 +24,7 @@
     },
     "apphosting": {
         "backendId": "verza",
-        "rootDir": "/",
+        "rootDir": "apps/web",
         "ignore": [
             "node_modules",
             ".git",
@@ -37,7 +40,7 @@
     "emulators": {
         "apphosting": {
             "port": 5002,
-            "rootDirectory": "./",
+            "rootDirectory": "apps/web",
             "startCommand": "npm run dev"
         },
         "functions": {

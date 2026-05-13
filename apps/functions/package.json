@@ -1,5 +1,5 @@
 {
-  "name": "functions",
+  "name": "@verza/functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
@@ -29,7 +29,8 @@
     "genkit": "^1.28.0",
     "node-fetch": "^3.3.2",
     "stripe": "^18.1.1",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "@verza/types": "file:./packages-local/types"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",

@@ -48,6 +48,8 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
     bRollLibrary = [],
   } = guide;
 
+  const hasMissionSlide = Boolean(guide.missionStatement?.trim());
+
   // Helper to chunk products (4 per slide for a premium look)
   const chunkArray = (arr: any[], size: number) => {
     const chunks = [];
@@ -59,10 +61,16 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
 
   const productChunks = chunkArray(products, 4);
   const totalProductSlides = productChunks.length || 1;
-  
-  // Total Slides: Intro(1) + Visuals(1) + Voice(1) + Products(N) + B-Roll(1 if exists)
-  const baseSlidesCount = 3; // Intro, Visuals, Voice
+
+  // Must match renderSlides(): Intro(1) + optional Mission(1) + Visuals(1) + Voice(1) + Products(N) + B-Roll(0|1)
+  const baseSlidesCount = 3 + (hasMissionSlide ? 1 : 0);
   const slidesCount = baseSlidesCount + totalProductSlides + (bRollLibrary.length > 0 ? 1 : 0);
+
+  const isVideoUrl = (url: string) => {
+    if (!url) return false;
+    const u = url.toLowerCase();
+    return /\.(mp4|mov|webm|m4v|ogv)(\?|#|$)/i.test(u) || u.includes("/video") || u.includes("content-type=video");
+  };
 
   const nextSlide = useCallback(() => {
     if (isNavigating || selectedProduct) return;
@@ -141,8 +149,8 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
       </div>
     );
 
-    // Slide 1.5: The Mission
-    if (guide.missionStatement) {
+    // Slide 1.5: The Mission (when hasMissionSlide — keep in sync with baseSlidesCount above)
+    if (hasMissionSlide) {
       allSlides.push(
         <div key="mission" className="h-full w-full flex flex-col items-center justify-center p-16 text-center space-y-8 bg-white dark:bg-[#0f1115] relative overflow-hidden">
            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 dark:bg-primary/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
@@ -297,11 +305,17 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
           <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-2 scrollbar-thin">
              {bRollLibrary.map((asset) => (
                <div key={asset.id} className="group relative rounded-xl border dark:border-white/10 bg-black overflow-hidden aspect-video flex items-center justify-center shadow-md">
-                  <video src={asset.url} className="h-full w-full object-cover opacity-60 dark:opacity-40" />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity"><PlayCircle className="h-10 w-10 text-white opacity-80" /></div>
+                  {isVideoUrl(asset.url) ? (
+                    <video src={asset.url} className="h-full w-full object-cover opacity-60 dark:opacity-40" playsInline muted preload="metadata" />
+                  ) : (
+                    <img src={asset.url} alt={asset.name || "B-roll"} className="h-full w-full object-cover opacity-80 dark:opacity-60" />
+                  )}
+                  {isVideoUrl(asset.url) && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity"><PlayCircle className="h-10 w-10 text-white opacity-80" /></div>
+                  )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                     <Button variant="secondary" size="sm" className="bg-white/90 dark:bg-white hover:bg-white text-primary font-bold text-[10px]" onClick={(e) => { e.stopPropagation(); handleDownload(asset.url, `broll_${asset.id}.mp4`); }}>
-                       <Download className="h-3 w-3 mr-1.5" /> Download Clip
+                     <Button variant="secondary" size="sm" className="bg-white/90 dark:bg-white hover:bg-white text-primary font-bold text-[10px]" onClick={(e) => { e.stopPropagation(); handleDownload(asset.url, isVideoUrl(asset.url) ? `broll_${asset.id}.mp4` : `broll_${asset.id}`); }}>
+                       <Download className="h-3 w-3 mr-1.5" /> Download
                      </Button>
                   </div>
                   <div className="absolute bottom-2 left-2 right-2"><p className="text-[9px] text-white/70 dark:text-white/50 font-mono truncate">{asset.name}</p></div>
