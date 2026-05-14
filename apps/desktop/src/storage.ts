@@ -9,7 +9,7 @@ function safeLog(...args: any[]) {
   try { console.log(...args); } catch (_) {}
 }
 
-let db: admin.firestore.Firestore;
+let db: admin.firestore.Firestore | undefined;
 
 /** Plain objects safe for Electron IPC (Timestamps are not structured-clone friendly). */
 function serializeLeadDoc(doc: admin.firestore.QueryDocumentSnapshot): Record<string, unknown> {
@@ -51,19 +51,34 @@ function initFirestore() {
   }
 }
 
+export function getFirestoreDb(): admin.firestore.Firestore | null {
+  initFirestore();
+  return db ?? null;
+}
+
 /**
  * Saves a lead to the optic_outreach_leads collection.
  * @param leadData The parsed JSON data from Gemini.
  * @param profileUrl The original URL of the creator.
  */
-export async function saveLeadToFirestore(leadData: any, profileUrl: string) {
+export async function saveLeadToFirestore(
+  leadData: any,
+  profileUrl: string,
+  agencyMeta?: { agencyId: string; agencyName: string }
+) {
   initFirestore();
 
   const payload = {
     ...leadData,
     profileUrl,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    source: 'Verza Optic MVP'
+    source: "Verza Optic MVP",
+    ...(agencyMeta
+      ? {
+          agencyId: agencyMeta.agencyId,
+          agencyName: agencyMeta.agencyName,
+        }
+      : {}),
   };
 
   if (!db) {

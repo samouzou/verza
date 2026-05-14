@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss:; frame-src https://accounts.google.com https://*.firebaseapp.com;" />
     <title>Verza Optic</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -103,7 +103,18 @@
         .header-left { min-width: 0; }
         .header-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
         .header-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.3px; line-height: 1.4; }
-        .header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .agency-strip {
+            display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+            max-width: 280px; text-align: right;
+        }
+        .agency-name { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.2px; }
+        .agency-brand { font-size: 10px; color: var(--text-dim); line-height: 1.35; }
+        .agency-auth { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
+        .agency-auth input {
+            width: 112px; padding: 6px 8px; font-size: 11px; border-radius: 6px;
+        }
+        .agency-auth input.wide { width: 160px; }
 
         .status-strip {
             display: flex;
@@ -298,6 +309,11 @@
             <div class="header-sub" id="header-sub">Define your objectives and let Optic find the right talent.</div>
         </div>
         <div class="header-actions">
+            <div class="agency-strip" id="agency-strip">
+                <div class="agency-name" id="agency-name"></div>
+                <div class="agency-brand" id="agency-brand"></div>
+                <div class="agency-auth" id="agency-auth"></div>
+            </div>
             <div class="status-strip" id="status-strip" title="Environment variables present (not a live health check)">
                 <span class="status-pill"><span class="status-dot" id="st-fs"></span> Firestore</span>
                 <span class="status-pill"><span class="status-dot" id="st-gem"></span> Gemini</span>
@@ -323,7 +339,7 @@
             </div>
             <button type="button" class="primary" id="run-btn">Start mission</button>
             <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin:0;">
-                Uses Playwright with a persistent profile under your user data folder. Set <code style="font-size:10px;">GEMINI_API_KEY</code> and optional <code style="font-size:10px;">FIREBASE_PROJECT_ID</code> + ADC for Vault sync.
+                Sign in above with your Verza account so drafts use your agency name and brand guide. Uses Playwright with a persistent profile. Set <code style="font-size:10px;">GEMINI_API_KEY</code> and <code style="font-size:10px;">NEXT_PUBLIC_FIREBASE_*</code> + <code style="font-size:10px;">FIREBASE_PROJECT_ID</code> + ADC for Vault and sign-in.
             </p>
         </div>
 
@@ -377,6 +393,7 @@
                 <thead>
                     <tr>
                         <th>Creator</th>
+                        <th>Agency</th>
                         <th>Niche</th>
                         <th>Followers</th>
                         <th>Email</th>
@@ -386,7 +403,7 @@
                     </tr>
                 </thead>
                 <tbody id="leads-tbody">
-                    <tr><td colspan="7"><div class="empty-state"><p>Loading leads…</p></div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state"><p>Loading leads…</p></div></td></tr>
                 </tbody>
             </table>
         </div>
@@ -394,13 +411,138 @@
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
-(function () {
+(async function () {
     const optic = window.optic;
     if (!optic) {
         document.body.innerHTML = '<div style="padding:40px;font-family:system-ui">Optic could not start securely (preload missing). Rebuild with <code>npm run build</code> in <code>apps/desktop</code>.</div>';
         return;
     }
+
+    let currentIdToken = null;
+
+    async function initVerzaAccount() {
+        const nameEl = document.getElementById('agency-name');
+        const brandEl = document.getElementById('agency-brand');
+        const authHost = document.getElementById('agency-auth');
+        const cfgRes = await optic.getFirebaseWebConfig();
+
+        if (!cfgRes.ok) {
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = cfgRes.error;
+            authHost.innerHTML = '';
+            return;
+        }
+
+        if (typeof firebase === 'undefined') {
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = 'Firebase scripts did not load. Check your network connection.';
+            authHost.innerHTML = '';
+            return;
+        }
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(cfgRes.config);
+        }
+        const auth = firebase.auth();
+
+        function renderSignedOut() {
+            currentIdToken = null;
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = 'Sign in with your Verza credentials for agency-branded drafts.';
+            authHost.innerHTML = '';
+
+            const gBtn = document.createElement('button');
+            gBtn.type = 'button';
+            gBtn.className = 'ghost';
+            gBtn.textContent = 'Google';
+            gBtn.addEventListener('click', async () => {
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await auth.signInWithPopup(provider);
+                } catch (e) {
+                    window.alert(e && e.message ? e.message : String(e));
+                }
+            });
+            authHost.appendChild(gBtn);
+
+            const em = document.createElement('input');
+            em.type = 'email';
+            em.placeholder = 'Email';
+            em.className = 'wide';
+            em.id = 'acc-email';
+            const pw = document.createElement('input');
+            pw.type = 'password';
+            pw.placeholder = 'Password';
+            pw.id = 'acc-password';
+            const sb = document.createElement('button');
+            sb.type = 'button';
+            sb.className = 'ghost';
+            sb.textContent = 'Email sign-in';
+            sb.addEventListener('click', async () => {
+                try {
+                    await auth.signInWithEmailAndPassword(
+                        document.getElementById('acc-email').value.trim(),
+                        document.getElementById('acc-password').value
+                    );
+                } catch (e) {
+                    window.alert(e && e.message ? e.message : String(e));
+                }
+            });
+            authHost.appendChild(em);
+            authHost.appendChild(pw);
+            authHost.appendChild(sb);
+        }
+
+        async function onUser(user) {
+            if (!user) {
+                renderSignedOut();
+                return;
+            }
+            try {
+                const idToken = await user.getIdToken(true);
+                currentIdToken = idToken;
+                const ag = await optic.loadAgencyFromToken(idToken);
+                authHost.innerHTML = '';
+                const out = document.createElement('button');
+                out.type = 'button';
+                out.className = 'ghost';
+                out.textContent = 'Sign out';
+                out.addEventListener('click', () => auth.signOut());
+                authHost.appendChild(out);
+
+                if (!ag.ok) {
+                    nameEl.textContent = user.email || 'Signed in';
+                    brandEl.textContent = ag.error;
+                    return;
+                }
+                nameEl.textContent = ag.agencyName;
+                const bits = [];
+                if (ag.brandSummary) bits.push(ag.brandSummary);
+                if (ag.userDisplayName) bits.push(ag.userDisplayName);
+                else if (ag.userEmail) bits.push(ag.userEmail);
+                brandEl.textContent = bits.join(' · ') || 'Brand guide: add a mission in Verza web to sharpen pitches.';
+            } catch (e) {
+                nameEl.textContent = user.email || 'Signed in';
+                brandEl.textContent = e instanceof Error ? e.message : String(e);
+                authHost.innerHTML = '';
+                const out = document.createElement('button');
+                out.type = 'button';
+                out.className = 'ghost';
+                out.textContent = 'Sign out';
+                out.addEventListener('click', () => auth.signOut());
+                authHost.appendChild(out);
+            }
+        }
+
+        auth.onAuthStateChanged((user) => {
+            void onUser(user);
+        });
+    }
+
+    await initVerzaAccount();
 
     const navItems = document.querySelectorAll('.nav-item[data-view]');
     const views = document.querySelectorAll('.view');
@@ -501,7 +643,11 @@
         setStep('prepare', 'completed');
         setStep('search', 'active');
 
-        const result = await optic.runDiscovery({ platform, objectives });
+        const result = await optic.runDiscovery({
+            platform,
+            objectives,
+            ...(currentIdToken ? { idToken: currentIdToken } : {}),
+        });
 
         if (result.success) {
             setStep('vet', 'completed');
@@ -547,6 +693,13 @@
             td1.appendChild(urlEl);
         }
         tr.appendChild(td1);
+
+        const tdAg = document.createElement('td');
+        tdAg.style.fontSize = '12px';
+        tdAg.style.color = 'var(--text-dim)';
+        tdAg.style.maxWidth = '120px';
+        tdAg.textContent = lead.agencyName ? String(lead.agencyName) : '—';
+        tr.appendChild(tdAg);
 
         const td2 = document.createElement('td');
         const pill = document.createElement('span');
@@ -610,7 +763,7 @@
         tbody.innerHTML = '';
         const loadingRow = document.createElement('tr');
         const loadingCell = document.createElement('td');
-        loadingCell.colSpan = 7;
+        loadingCell.colSpan = 8;
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'empty-state';
         loadingDiv.appendChild(document.createElement('p')).textContent = 'Fetching leads…';
@@ -626,7 +779,7 @@
             tbody.innerHTML = '';
             const errRow = document.createElement('tr');
             const errCell = document.createElement('td');
-            errCell.colSpan = 7;
+            errCell.colSpan = 8;
             const errDiv = document.createElement('div');
             errDiv.className = 'empty-state';
             errDiv.appendChild(document.createElement('p')).textContent =
@@ -643,7 +796,7 @@
         if (leads.length === 0) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
-            cell.colSpan = 7;
+            cell.colSpan = 8;
             const wrap = document.createElement('div');
             wrap.className = 'empty-state';
             const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

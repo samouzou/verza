@@ -13,12 +13,21 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 /**
  * Uses Gemini's internal knowledge to generate a seed list of creators.
  */
-export async function generateSeedLeads(platform: string, objectives: string): Promise<{ name: string, url: string }[]> {
+export async function generateSeedLeads(
+  platform: string,
+  objectives: string,
+  agencyName?: string | null
+): Promise<{ name: string; url: string }[]> {
   logger.log(`[Optic] Generating seed leads from AI knowledge...`);
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-  
+
+  const clientLine = agencyName
+    ? `The outreach is on behalf of the brand/agency "${agencyName}" (via Verza); prefer creators who would realistically work with that kind of partner.`
+    : "";
+
   const prompt = `
-    Based on these campaign objectives: "${objectives}", 
+    Based on these campaign objectives: "${objectives}",
+    ${clientLine}
     provide a list of 5 real, high-quality creators on ${platform} who would be a perfect fit.
     Include their full profile URL.
     Return the result strictly as a JSON array of objects with "name" and "url" keys.

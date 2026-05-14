@@ -1,11 +1,17 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as dotenv from "dotenv";
-import { logger } from './logger';
+import type { AgencyBrandContext } from "./agencyContext";
+import { logger } from "./logger";
 
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+export type DraftBrandContext = Pick<
+  AgencyBrandContext,
+  "agencyName" | "brandSummary" | "userDisplayName"
+>;
 
 export interface GeminiAnalysisResult {
   creatorName: string;
@@ -19,31 +25,46 @@ export interface GeminiAnalysisResult {
  * Passes a base64 image to Gemini for multimodal analysis.
  * @param imageBase64 The profile screenshot.
  * @param objectives The user's campaign objectives for personalization.
+ * @param brand When set (signed-in Verza agency), draftEmail is written on behalf of that agency.
  */
 export async function analyzeProfileWithGemini(
-  imageBase64: string, 
-  objectives: string = "general outreach"
+  imageBase64: string,
+  objectives: string = "general outreach",
+  brand?: DraftBrandContext | null
 ): Promise<GeminiAnalysisResult> {
   logger.log(`[Optic] Analyzing with Gemini (Objectives: ${objectives.slice(0, 50)}...)...`);
-  
+
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
+  const brandBlock = brand
+    ? `
+    Outreach sender context (use this for draftEmail tone and sign-off; do not invent a different company name):
+    - Agency / team name: "${brand.agencyName}"
+    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
+    ${brand.userDisplayName ? `- Sender name to sign naturally (first name is fine in the greeting): ${brand.userDisplayName}` : ""}
+
+    The draftEmail must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where it feels natural, align with Campaign Objectives, and invite the creator to learn more (do not use generic "the Verza network" as the only sender identity).
+    `
+    : `
+    If an email is found, draftEmail is a short, 3-sentence personalized pitch inviting them to explore the Verza network, aligned with Campaign Objectives.
+    `;
+
   const prompt = `
-    You are an elite marketing agent powering Verza Optic. 
+    You are an elite marketing agent powering Verza Optic.
     Analyze this screenshot of a creator's profile based on the following Campaign Objectives:
     "${objectives}"
+    ${brandBlock}
 
     Extract the following information and return it strictly as a JSON object:
-    1. creatorName 
-    2. niche (e.g., tech, beauty, gaming) 
-    3. email (if visible in the bio or description) 
+    1. creatorName
+    2. niche (e.g., tech, beauty, gaming)
+    3. email (if visible in the bio or description)
     4. followerCount (estimate based on visible numbers)
-    
-    If an email is found, also generate a draftEmail string: 
-    A short, 3-sentence personalized pitch inviting them to join the Verza network. 
-    The pitch must align with the provided Campaign Objectives and mention their specific niche.
 
-    Do not include any markdown formatting outside of the JSON. 
+    If an email is found, also generate a draftEmail string:
+    A short, 3-sentence personalized pitch as specified above.
+
+    Do not include any markdown formatting outside of the JSON.
     If you cannot find a piece of information, return null for that field.
   `;
 

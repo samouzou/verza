@@ -7,7 +7,26 @@ export type AppStatus = {
 };
 
 contextBridge.exposeInMainWorld("optic", {
-  runDiscovery: (payload: { platform: string; objectives: string }) =>
+  getFirebaseWebConfig: () =>
+    ipcRenderer.invoke("get-firebase-web-config") as Promise<
+      | { ok: true; config: Record<string, string> }
+      | { ok: false; error: string }
+    >,
+
+  loadAgencyFromToken: (idToken: string) =>
+    ipcRenderer.invoke("load-agency-from-token", { idToken }) as Promise<
+      | ({
+          ok: true;
+          agencyId: string;
+          agencyName: string;
+          brandSummary: string | null;
+          userEmail: string | null;
+          userDisplayName: string | null;
+        })
+      | { ok: false; error: string }
+    >,
+
+  runDiscovery: (payload: { platform: string; objectives: string; idToken?: string }) =>
     ipcRenderer.invoke("run-discovery", payload) as Promise<{
       success: boolean;
       processedCount?: number;
