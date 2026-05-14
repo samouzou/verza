@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsc && electron .",
     "start": "electron .",
-    "build": "tsc"
+    "build": "tsc",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -21,5 +23,28 @@
   "devDependencies": {
     "electron": "^42.0.1",
     "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.verza.optic",
+    "productName": "Verza Optic",
+    "files": [
+      "dist/**/*",
+      "index.html",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "linux": {
+      "target": ["AppImage"]
+    }
   }
 }

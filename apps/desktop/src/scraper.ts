@@ -22,8 +22,8 @@ export async function scrapeCreatorProfile(url: string): Promise<string> {
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto(url, { waitUntil: "networkidle", timeout: 45_000 });
+    await new Promise((r) => setTimeout(r, 2000));
     const screenshotBuffer = await page.screenshot({ fullPage: true });
     logger.log(`[Optic] Screenshot captured for: ${url}`);
     return screenshotBuffer.toString('base64');

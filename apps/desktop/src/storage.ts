@@ -11,6 +11,25 @@ function safeLog(...args: any[]) {
 
 let db: admin.firestore.Firestore;
 
+/** Plain objects safe for Electron IPC (Timestamps are not structured-clone friendly). */
+function serializeLeadDoc(doc: admin.firestore.QueryDocumentSnapshot): Record<string, unknown> {
+  const data = doc.data();
+  const { createdAt, ...rest } = data;
+  let createdAtIso: string | null = null;
+  if (createdAt && typeof (createdAt as admin.firestore.Timestamp).toDate === "function") {
+    try {
+      createdAtIso = (createdAt as admin.firestore.Timestamp).toDate().toISOString();
+    } catch {
+      createdAtIso = null;
+    }
+  }
+  return {
+    id: doc.id,
+    ...rest,
+    createdAtIso,
+  };
+}
+
 /**
  * Initializes Firestore using Application Default Credentials (ADC).
  * Run `gcloud auth application-default login` to authenticate locally.
@@ -76,7 +95,7 @@ export async function getLeads(limit: number = 50): Promise<any[]> {
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => serializeLeadDoc(doc));
   } catch (error) {
     safeLog(`[Optic] Error fetching leads:`, error);
     return [];

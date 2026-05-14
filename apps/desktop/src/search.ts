@@ -63,25 +63,44 @@ export async function findCreators(platform: string, objectives: string): Promis
   const urls: string[] = [];
 
   try {
-    if (platform === 'youtube') {
-      await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
-      await page.waitForTimeout(3000);
+    if (platform === "youtube") {
+      await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
+        timeout: 45_000,
+      });
+      await new Promise((r) => setTimeout(r, 3000));
       
       // Extract top 3 channel URLs
       const channelLinks = await page.$$eval('a#main-link.channel-link', links => 
         links.slice(0, 3).map(a => (a as HTMLAnchorElement).href)
       );
       urls.push(...channelLinks);
-    } else if (platform === 'instagram') {
-      // Instagram search is trickier, we'll try to use the explore/search tags
-      await page.goto(`https://www.instagram.com/explore/tags/${encodeURIComponent(query.replace(/\s+/g, ''))}/`);
-      await page.waitForTimeout(4000);
+    } else if (platform === "instagram") {
+      // Instagram hashtag explore — URLs are post pages, not full profiles; good for seed discovery only.
+      await page.goto(
+        `https://www.instagram.com/explore/tags/${encodeURIComponent(query.replace(/\s+/g, ""))}/`,
+        { timeout: 45_000 }
+      );
+      await new Promise((r) => setTimeout(r, 4000));
       
       // Extract URLs from recent posts
       const postLinks = await page.$$eval('a[href^="/p/"]', links => 
         links.slice(0, 3).map(a => (a as HTMLAnchorElement).href)
       );
       urls.push(...postLinks);
+    } else if (platform === "tiktok") {
+      await page.goto(`https://www.tiktok.com/search?q=${encodeURIComponent(query)}`, {
+        timeout: 45_000,
+      });
+      await new Promise((r) => setTimeout(r, 3500));
+      const tiktokUrls = await page.evaluate(() => {
+        const out: string[] = [];
+        document.querySelectorAll('a[href*="tiktok.com/@"]').forEach((a) => {
+          const href = (a as HTMLAnchorElement).href?.split("?")[0];
+          if (href && !out.includes(href)) out.push(href);
+        });
+        return out.slice(0, 8);
+      });
+      urls.push(...tiktokUrls);
     }
 
     logger.log(`[Optic] Found ${urls.length} potential leads.`);
