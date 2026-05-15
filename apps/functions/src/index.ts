@@ -79,6 +79,14 @@ import {analyzeBrand} from "./brand-research";
 import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
 import {conversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
+import {enqueueOpticDiscoveryJob, cancelOpticDiscoveryJob} from "./optic/jobs";
+import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
+import {
+  beginGmailConnect,
+  completeGmailConnect,
+  disconnectGmail,
+  createOpticGmailDraft,
+} from "./gmail";
 
 // Export v2 functions
 export {
@@ -132,6 +140,13 @@ export {
   syncTikTokStats,
   conversionWebhook,
   onAffiliateLinkClick,
+  enqueueOpticDiscoveryJob,
+  cancelOpticDiscoveryJob,
+  dispatchOpticJobToWorker,
+  beginGmailConnect,
+  completeGmailConnect,
+  disconnectGmail,
+  createOpticGmailDraft,
 };
 
 // Import and export v1 auth trigger using require/exports

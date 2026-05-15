@@ -14,6 +14,7 @@ export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOO
 export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET");
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+export const GMAIL_OAUTH_CLIENT_SECRET = defineSecret("GMAIL_OAUTH_CLIENT_SECRET");
 
 // TikTok Secrets
 export const TIKTOK_CLIENT_SECRET = defineSecret("TIKTOK_CLIENT_SECRET");
@@ -65,4 +66,22 @@ export const STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID = defineString("STRIPE_SCENE_S
 export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {
   description: "Stripe Treasury financial account ID used for Global Payouts outbound transfers.",
   default: "",
+});
+
+/** Base URL of the Cloud Run (or local) Optic worker that runs Playwright discovery. */
+export const OPTIC_WORKER_URL = defineString("OPTIC_WORKER_URL", {
+  default: "",
+  description: "Example: https://enqueueOpticDiscoveryJob-nkgpjk6l4q-uc.a.run.app",
+});
+
+/** Shared secret; worker must reject requests without this header. */
+export const OPTIC_WORKER_SHARED_SECRET = defineString("OPTIC_WORKER_SHARED_SECRET", {
+  default: "",
+  description: "Same value configured on the Optic worker service.",
+});
+
+/** Google OAuth client ID (Web application) for Gmail compose drafts. */
+export const GMAIL_OAUTH_CLIENT_ID = defineString("GMAIL_OAUTH_CLIENT_ID", {
+  default: "",
+  description: "OAuth 2.0 client ID with Gmail API enabled.",
 });

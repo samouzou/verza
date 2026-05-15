@@ -26,11 +26,12 @@ import {
   Building,
   BarChart3,
   Video,
-  ExternalLink,
   Store,
   ChevronRight,
   Zap,
+  ScanSearch,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarHeader,
@@ -98,30 +99,48 @@ const financialsNavItems = [
   { id: 'nav-item-tax-forms', href: "/tax-forms", label: "Tax Forms", icon: FileStack },
 ];
 
-const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M13 19l-4-4-4 4" />
-      <path d="M13 5l-4-4-4-4" />
-      <path d="M7 19V5" />
-      <path d="M21 19V5" />
-    </svg>
-);
+type WorkflowNavSubItem = { id: string; href: string; label: string };
 
-const aiToolsNavItems = [
-    { id: 'nav-item-insights', href: "/insights", label: "Creator Insights", icon: Sparkles },
-    { id: 'nav-item-ai-studio', href: "/ai-studio", label: "AI Studio", icon: Video },
-    { id: 'nav-item-brand-research', href: "/brand-research", label: "Brand Research", icon: BarChart3 },
-    { id: 'nav-item-the-gauntlet', href: "https://gauntlet.tryverza.com/", label: "The Gauntlet", icon: GauntletIcon, external: true }
-]
+type WorkflowNavItem = {
+  id: string;
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  subItems?: WorkflowNavSubItem[];
+};
+
+const creatorWorkflowNavItems: WorkflowNavItem[] = [
+  { id: "nav-item-insights", href: "/insights", label: "Creator Insights", icon: Sparkles },
+  { id: "nav-item-ai-studio", href: "/ai-studio", label: "AI Studio", icon: Video },
+  { id: "nav-item-brand-research", href: "/brand-research", label: "Brand Research", icon: BarChart3 },
+];
+
+const brandOpticNavItem: WorkflowNavItem = {
+  id: "nav-item-optic",
+  href: "/optic",
+  label: "Optic",
+  icon: ScanSearch,
+  subItems: [
+    { id: "sub-item-optic-discovery", href: "/optic", label: "Discovery" },
+    { id: "sub-item-optic-vault", href: "/optic/vault", label: "Vault" },
+  ],
+};
+
+function workflowNavItemsForUser(
+  user: { role?: string; isBrandAccount?: boolean } | null
+): WorkflowNavItem[] {
+  if (!user) return [];
+  const isAgencyTeam =
+    user.role === "agency_owner" ||
+    user.role === "agency_admin" ||
+    user.role === "agency_member";
+  const isCreator = user.role === "individual_creator" || user.role === "talent";
+  const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
+
+  if (showBrandWorkflows) return [brandOpticNavItem];
+  if (isCreator) return creatorWorkflowNavItems;
+  return [];
+}
 
 
 export function SidebarNav() {
@@ -196,7 +215,7 @@ export function SidebarNav() {
   };
   
   const subscriptionBadge = getSubscriptionBadge();
-
+  const workflowNavItems = workflowNavItemsForUser(activeUser);
 
   return (
     <Sidebar collapsible="icon">
@@ -250,45 +269,84 @@ export function SidebarNav() {
                 </SidebarGroupContent>
             </SidebarGroup>
 
+            {workflowNavItems.length > 0 && (
             <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center">
-                    <span className="group-data-[collapsible=icon]:hidden">AI Tools</span>
+                    <span className="group-data-[collapsible=icon]:hidden">Workflows</span>
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
-                    {aiToolsNavItems.map((item) => (
-                        <SidebarMenuItem key={item.label} id={item.id}>
-                        {item.external ? (
-                          <SidebarMenuButton
+                    {workflowNavItems.map((item) => {
+                      if (item.subItems?.length) {
+                        const isActive = pathname.startsWith(item.href);
+                        return (
+                          <Collapsible
+                            key={item.id}
                             asChild
-                            onClick={() => isMobile && setOpenMobile(false)}
-                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                            tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                            defaultOpen={isActive}
+                            className="group/collapsible"
                           >
-                            <a href={item.href} target="_blank" rel="noopener noreferrer">
-                                <item.icon className="h-5 w-5" />
-                                <span className="group-data-[collapsible=icon]:hidden flex-1 flex items-center justify-between">
-                                    <span>{item.label}</span>
-                                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                                </span>
-                            </a>
-                          </SidebarMenuButton>
-                        ) : (
+                            <SidebarMenuItem id={item.id}>
+                              <CollapsibleTrigger asChild>
+                                <SidebarMenuButton
+                                  tooltip={item.label}
+                                  isActive={isActive}
+                                  className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                                >
+                                  <item.icon className="h-5 w-5" />
+                                  <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
+                                </SidebarMenuButton>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  {item.subItems.map((subItem) => (
+                                    <SidebarMenuSubItem key={subItem.id}>
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        isActive={
+                                          subItem.href === "/optic"
+                                            ? pathname === "/optic"
+                                            : pathname.startsWith(subItem.href)
+                                        }
+                                      >
+                                        <Link
+                                          href={subItem.href}
+                                          onClick={() => isMobile && setOpenMobile(false)}
+                                        >
+                                          <span>{subItem.label}</span>
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  ))}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </SidebarMenuItem>
+                          </Collapsible>
+                        );
+                      }
+
+                      return (
+                        <SidebarMenuItem key={item.id} id={item.id}>
                           <Link href={item.href} legacyBehavior passHref>
                             <SidebarMenuButton
                               onClick={() => isMobile && setOpenMobile(false)}
                               className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
                               isActive={pathname.startsWith(item.href)}
-                              tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
+                              tooltip={{
+                                children: item.label,
+                                className: "group-data-[collapsible=icon]:block hidden",
+                              }}
                             >
                               <item.icon className="h-5 w-5" />
                               <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                             </SidebarMenuButton>
                           </Link>
-                        )}
                         </SidebarMenuItem>
-                    ))}
+                      );
+                    })}
                 </SidebarGroupContent>
             </SidebarGroup>
+            )}
 
           <SidebarGroup>
             <SidebarGroupLabel className="flex items-center">
