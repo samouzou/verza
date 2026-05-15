@@ -5,6 +5,7 @@ export function getAppStatusSnapshot(): {
   firestore: boolean;
   gemini: boolean;
   twilio: boolean;
+  firebaseWeb: boolean;
 } {
   const firestore = Boolean(process.env.FIREBASE_PROJECT_ID?.trim());
   const gemini = Boolean(process.env.GEMINI_API_KEY?.trim());
@@ -14,5 +15,9 @@ export function getAppStatusSnapshot(): {
       process.env.TWILIO_PHONE_NUMBER?.trim() &&
       process.env.USER_PHONE_NUMBER?.trim()
   );
-  return { firestore, gemini, twilio };
+  const firebaseWeb = Boolean(
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() &&
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim()
+  );
+  return { firestore, gemini, twilio, firebaseWeb };
 }

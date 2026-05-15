@@ -90,6 +90,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
+        }
+        .main-container > .view.active {
+            flex: 1;
+            min-height: 0;
         }
         header {
             padding: 20px 32px;
@@ -281,9 +286,83 @@
             border-radius: 8px; border-left: 3px solid var(--border); max-height: 120px; overflow-y: auto;
             line-height: 1.45;
         }
+        button.danger {
+            background: #9b2335; color: #fff; border: none;
+            padding: 10px 14px; border-radius: 8px; font-weight: 600;
+            font-size: 11px; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; font-family: inherit;
+        }
+        button.danger:disabled { opacity: 0.45; cursor: not-allowed; }
+        button.danger:not(:disabled):hover { opacity: 0.92; }
+        .vault-toolbar {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+            padding: 0 32px 12px; border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+        .vault-toolbar input[type="search"] { max-width: 220px; padding: 8px 10px; font-size: 12px; }
+        .app-footer {
+            padding: 8px 32px 10px;
+            border-top: 1px solid var(--border);
+            font-size: 10px;
+            color: var(--text-dim);
+            letter-spacing: 0.3px;
+            background: var(--bg);
+            flex-shrink: 0;
+        }
+        #view-system { flex-direction: column; background: var(--card); overflow-y: auto; }
+        .sys-wrap { padding: 28px 32px 48px; max-width: 720px; }
+        .sys-card {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            background: #faf9f7;
+        }
+        .sys-card h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+        .sys-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .sys-row:last-child { border-bottom: none; }
+        .sys-ok { color: var(--success); font-weight: 600; }
+        .sys-warn { color: var(--warn); font-weight: 600; }
+        code.kbd { font-size: 10px; background: var(--pill-bg); padding: 2px 6px; border-radius: 4px; }
+        @keyframes opticToastIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #optic-toast-host {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            max-width: 340px;
+        }
+        .optic-toast {
+            pointer-events: auto;
+            background: var(--accent);
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 10px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+            font-size: 13px;
+            line-height: 1.45;
+            animation: opticToastIn 0.28s ease-out;
+        }
+        .optic-toast strong {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.88;
+        }
     </style>
 </head>
 <body>
+
+<div id="optic-toast-host" aria-live="polite" aria-relevant="additions"></div>
 
 <nav aria-label="Primary">
     <div class="nav-logo" aria-hidden="true">OPTIC</div>
@@ -293,6 +372,9 @@
     </button>
     <button type="button" class="nav-item" data-view="vault" id="nav-vault" title="Vault" aria-label="Vault">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button type="button" class="nav-item" data-view="system" title="System" aria-label="System">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
     </button>
 
     <div class="nav-spacer"></div>
@@ -318,6 +400,7 @@
                 <span class="status-pill"><span class="status-dot" id="st-fs"></span> Firestore</span>
                 <span class="status-pill"><span class="status-dot" id="st-gem"></span> Gemini</span>
                 <span class="status-pill"><span class="status-dot" id="st-tw"></span> SMS</span>
+                <span class="status-pill"><span class="status-dot" id="st-fb"></span> Web auth</span>
             </div>
             <button type="button" class="ghost" id="auth-btn">Auth platforms</button>
         </div>
@@ -337,9 +420,22 @@
                 <label for="objectives">Campaign objectives</label>
                 <textarea id="objectives" rows="8" placeholder="E.g. Educational tech creators with engaged audiences for a productivity app launch."></textarea>
             </div>
-            <button type="button" class="primary" id="run-btn">Start mission</button>
+            <div class="input-group">
+                <label for="outreach-campaign">Outreach campaign (pay + scope in draft)</label>
+                <select id="outreach-campaign" disabled>
+                    <option value="">Sign in to load Verza campaigns…</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="max-profiles">Max profiles to vet</label>
+                <input type="number" id="max-profiles" min="1" max="80" placeholder="Default from env" />
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button type="button" class="primary" id="run-btn">Start mission</button>
+                <button type="button" class="danger" id="cancel-mission-btn" disabled>Stop</button>
+            </div>
             <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin:0;">
-                Sign in above with your Verza account so drafts use your agency name and brand guide. Uses Playwright with a persistent profile. Set <code style="font-size:10px;">GEMINI_API_KEY</code> and <code style="font-size:10px;">NEXT_PUBLIC_FIREBASE_*</code> + <code style="font-size:10px;">FIREBASE_PROJECT_ID</code> + ADC for Vault and sign-in.
+                Sign in above with your Verza account so drafts use your agency name, brand guide, and (optionally) a single live campaign's pay. Uses Playwright with a persistent profile. Set <code style="font-size:10px;">GEMINI_API_KEY</code> and <code style="font-size:10px;">NEXT_PUBLIC_FIREBASE_*</code> + <code style="font-size:10px;">FIREBASE_PROJECT_ID</code> + ADC for Vault and sign-in.
             </p>
         </div>
 
@@ -388,6 +484,14 @@
             </div>
             <button type="button" class="ghost" id="refresh-leads-btn">↻ Refresh</button>
         </div>
+        <div class="vault-toolbar">
+            <input type="search" id="vault-filter" placeholder="Filter by name, URL, niche…" autocomplete="off" />
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); cursor:pointer;">
+                <input type="checkbox" id="vault-agency-only" />
+                This agency only
+            </label>
+            <button type="button" class="ghost" id="export-csv-btn">Export CSV</button>
+        </div>
         <div class="vault-table-wrap">
             <table>
                 <thead>
@@ -409,6 +513,33 @@
         </div>
     </div>
 
+    <div class="view" id="view-system">
+        <div class="sys-wrap">
+            <div class="header-title" style="margin-bottom:6px;">System</div>
+            <p style="font-size:12px;color:var(--text-dim);margin:0 0 22px;line-height:1.5;">Environment checks are local (variables present). ADC and live API calls are validated when you run a mission.</p>
+            <div class="sys-card">
+                <h2>Build</h2>
+                <div class="sys-row"><span>App</span><span id="sys-app-name">—</span></div>
+                <div class="sys-row"><span>Version</span><span id="sys-version">—</span></div>
+            </div>
+            <div class="sys-card">
+                <h2>Integrations</h2>
+                <div class="sys-row"><span><code class="kbd">GEMINI_API_KEY</code></span><span id="sys-gem">—</span></div>
+                <div class="sys-row"><span><code class="kbd">FIREBASE_PROJECT_ID</code> + ADC</span><span id="sys-fs">—</span></div>
+                <div class="sys-row"><span><code class="kbd">NEXT_PUBLIC_FIREBASE_*</code></span><span id="sys-fbweb">—</span></div>
+                <div class="sys-row"><span><code class="kbd">TWILIO_*</code> + user phone</span><span id="sys-tw">—</span></div>
+            </div>
+            <div class="sys-card">
+                <h2>Discovery tuning</h2>
+                <p style="font-size:12px;color:var(--text-dim);margin:0 0 10px;line-height:1.55;">
+                    Optional env: <code class="kbd">OPTIC_MAX_PROFILES</code> (default 12), <code class="kbd">OPTIC_MS_BETWEEN_VETS</code> (default 450),
+                    <code class="kbd">OPTIC_DISABLE_SMS=true</code> to skip per-lead texts.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer" id="app-footer">Verza Optic</footer>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -422,6 +553,74 @@
     }
 
     let currentIdToken = null;
+    let currentAgencyId = null;
+    let vaultLeadsRaw = [];
+    const CAMPAIGN_STORAGE_KEY = 'optic-selected-campaign-id';
+
+    function applyAgencyBrandLine(ag) {
+        const brandEl = document.getElementById('agency-brand');
+        if (!ag || ag.ok === false) return;
+        const bits = [];
+        if (ag.brandSummary) bits.push(ag.brandSummary);
+        if (ag.userDisplayName) bits.push(ag.userDisplayName);
+        else if (ag.userEmail) bits.push(ag.userEmail);
+        let line = bits.join(' · ') || 'Brand guide: add a mission in Verza web to sharpen pitches.';
+        if (ag.paySourceCampaignTitle) {
+            line += ` · Draft pay scoped to: "${ag.paySourceCampaignTitle}"`;
+        } else if (ag.activePaidCampaignCount > 0) {
+            line += ` · ${ag.activePaidCampaignCount} active campaign(s): pooled Verza pay (pick one campaign below to lock)`;
+        }
+        brandEl.textContent = line;
+    }
+
+    function resetOutreachCampaignSelect() {
+        const sel = document.getElementById('outreach-campaign');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = 'Sign in to load Verza campaigns…';
+        sel.appendChild(o);
+        sel.disabled = true;
+    }
+
+    function populateOutreachCampaignSelect(ag) {
+        const sel = document.getElementById('outreach-campaign');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const auto = document.createElement('option');
+        auto.value = '';
+        auto.textContent = 'Auto — pool all active campaigns';
+        sel.appendChild(auto);
+        const list = ag.campaignOptions || [];
+        for (const c of list) {
+            const o = document.createElement('option');
+            o.value = c.id;
+            const st = c.status === 'open' ? 'Open' : c.status === 'in-progress' ? 'Live' : String(c.status || '');
+            const rate = c.ratePerCreator > 0 ? `$${Number(c.ratePerCreator).toLocaleString()} · ` : '';
+            const plat = (c.platforms || []).slice(0, 2).join(', ');
+            const title = (c.title || 'Campaign').slice(0, 52);
+            o.textContent = `${st}: ${title}${(c.title || '').length > 52 ? '…' : ''} · ${rate}${plat}`;
+            sel.appendChild(o);
+        }
+        const stored = sessionStorage.getItem(CAMPAIGN_STORAGE_KEY) || '';
+        if (stored && [...sel.options].some((x) => x.value === stored)) {
+            sel.value = stored;
+        } else {
+            sel.value = '';
+            sessionStorage.removeItem(CAMPAIGN_STORAGE_KEY);
+        }
+        sel.disabled = false;
+    }
+
+    async function copyToClipboard(text) {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            window.prompt('Copy:', text);
+        }
+    }
 
     async function initVerzaAccount() {
         const nameEl = document.getElementById('agency-name');
@@ -433,6 +632,7 @@
             nameEl.textContent = 'Verza account';
             brandEl.textContent = cfgRes.error;
             authHost.innerHTML = '';
+            syncVaultFilterUi();
             return;
         }
 
@@ -440,6 +640,7 @@
             nameEl.textContent = 'Verza account';
             brandEl.textContent = 'Firebase scripts did not load. Check your network connection.';
             authHost.innerHTML = '';
+            syncVaultFilterUi();
             return;
         }
 
@@ -450,6 +651,7 @@
 
         function renderSignedOut() {
             currentIdToken = null;
+            currentAgencyId = null;
             nameEl.textContent = 'Verza account';
             brandEl.textContent = 'Sign in with your Verza credentials for agency-branded drafts.';
             authHost.innerHTML = '';
@@ -494,17 +696,24 @@
             authHost.appendChild(em);
             authHost.appendChild(pw);
             authHost.appendChild(sb);
+            syncVaultFilterUi();
+            resetOutreachCampaignSelect();
         }
 
         async function onUser(user) {
             if (!user) {
                 renderSignedOut();
+                syncVaultFilterUi();
                 return;
             }
             try {
                 const idToken = await user.getIdToken(true);
                 currentIdToken = idToken;
-                const ag = await optic.loadAgencyFromToken(idToken);
+                const storedCampaign = sessionStorage.getItem(CAMPAIGN_STORAGE_KEY) || '';
+                const ag = await optic.loadAgencyFromToken(
+                    idToken,
+                    storedCampaign || undefined
+                );
                 authHost.innerHTML = '';
                 const out = document.createElement('button');
                 out.type = 'button';
@@ -516,25 +725,28 @@
                 if (!ag.ok) {
                     nameEl.textContent = user.email || 'Signed in';
                     brandEl.textContent = ag.error;
+                    currentAgencyId = null;
+                    resetOutreachCampaignSelect();
+                    syncVaultFilterUi();
                     return;
                 }
                 nameEl.textContent = ag.agencyName;
-                const bits = [];
-                if (ag.brandSummary) bits.push(ag.brandSummary);
-                if (ag.userDisplayName) bits.push(ag.userDisplayName);
-                else if (ag.userEmail) bits.push(ag.userEmail);
-                brandEl.textContent = bits.join(' · ') || 'Brand guide: add a mission in Verza web to sharpen pitches.';
+                currentAgencyId = ag.agencyId;
+                applyAgencyBrandLine(ag);
+                populateOutreachCampaignSelect(ag);
             } catch (e) {
                 nameEl.textContent = user.email || 'Signed in';
                 brandEl.textContent = e instanceof Error ? e.message : String(e);
+                currentAgencyId = null;
                 authHost.innerHTML = '';
-                const out = document.createElement('button');
-                out.type = 'button';
-                out.className = 'ghost';
-                out.textContent = 'Sign out';
-                out.addEventListener('click', () => auth.signOut());
-                authHost.appendChild(out);
+                const out2 = document.createElement('button');
+                out2.type = 'button';
+                out2.className = 'ghost';
+                out2.textContent = 'Sign out';
+                out2.addEventListener('click', () => auth.signOut());
+                authHost.appendChild(out2);
             }
+            syncVaultFilterUi();
         }
 
         auth.onAuthStateChanged((user) => {
@@ -544,6 +756,43 @@
 
     await initVerzaAccount();
 
+    function pushOpticToast(title, body) {
+        const host = document.getElementById('optic-toast-host');
+        if (!host) return;
+        const el = document.createElement('div');
+        el.className = 'optic-toast';
+        el.setAttribute('role', 'status');
+        const st = document.createElement('strong');
+        st.textContent = title || 'Verza Optic';
+        el.appendChild(st);
+        const msg = document.createElement('div');
+        msg.textContent = body || '';
+        el.appendChild(msg);
+        host.appendChild(el);
+        window.setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(8px)';
+            el.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+            window.setTimeout(() => el.remove(), 380);
+        }, 6500);
+    }
+
+    optic.onNotify((payload) => {
+        pushOpticToast(payload.title, payload.body);
+    });
+
+    document.getElementById('outreach-campaign').addEventListener('change', async () => {
+        const sel = document.getElementById('outreach-campaign');
+        const v = sel.value;
+        sessionStorage.setItem(CAMPAIGN_STORAGE_KEY, v);
+        if (!currentIdToken) return;
+        const ag = await optic.loadAgencyFromToken(currentIdToken, v || undefined);
+        if (!ag.ok) return;
+        applyAgencyBrandLine(ag);
+        populateOutreachCampaignSelect(ag);
+        sel.value = v;
+    });
+
     const navItems = document.querySelectorAll('.nav-item[data-view]');
     const views = document.querySelectorAll('.view');
     const headerTitle = document.getElementById('header-title');
@@ -552,7 +801,34 @@
     const viewMeta = {
         discovery: { title: 'Discovery', sub: 'Define your objectives and let Optic find the right talent.' },
         vault: { title: 'Vault', sub: 'Review and action your discovered leads.' },
+        system: { title: 'System', sub: 'Health, versions, and discovery tuning.' },
     };
+
+    async function refreshSystemPanel() {
+        try {
+            const s = await optic.getAppStatus();
+            const meta = await optic.getAppMetadata();
+            document.getElementById('sys-app-name').textContent = meta.name || 'Verza Optic';
+            document.getElementById('sys-version').textContent = meta.version || '—';
+            function row(id, ok) {
+                const el = document.getElementById(id);
+                el.textContent = ok ? 'Ready' : 'Not set';
+                el.className = ok ? 'sys-ok' : 'sys-warn';
+            }
+            row('sys-gem', s.gemini);
+            row('sys-fs', s.firestore);
+            row('sys-fbweb', s.firebaseWeb);
+            row('sys-tw', s.twilio);
+        } catch (_) {}
+    }
+
+    async function refreshFooter() {
+        try {
+            const meta = await optic.getAppMetadata();
+            document.getElementById('app-footer').textContent = `${meta.name} · v${meta.version}`;
+        } catch (_) {}
+    }
+    void refreshFooter();
 
     function switchView(target) {
         navItems.forEach((n) => n.classList.toggle('active', n.dataset.view === target));
@@ -560,6 +836,7 @@
         headerTitle.textContent = viewMeta[target].title;
         headerSub.textContent = viewMeta[target].sub;
         if (target === 'vault') loadLeads();
+        if (target === 'system') void refreshSystemPanel();
     }
 
     navItems.forEach((item) => {
@@ -603,9 +880,15 @@
             document.getElementById('st-fs').className = 'status-dot' + (s.firestore ? ' on' : ' warn');
             document.getElementById('st-gem').className = 'status-dot' + (s.gemini ? ' on' : ' warn');
             document.getElementById('st-tw').className = 'status-dot' + (s.twilio ? ' on' : '');
+            document.getElementById('st-fb').className = 'status-dot' + (s.firebaseWeb ? ' on' : ' warn');
         } catch (_) {}
     }
     refreshStatus();
+
+    const cancelMissionBtn = document.getElementById('cancel-mission-btn');
+    cancelMissionBtn.addEventListener('click', () => {
+        optic.cancelDiscovery();
+    });
 
     async function openAuth() {
         const platform = document.getElementById('platform-select').value;
@@ -624,6 +907,13 @@
             return;
         }
 
+        const maxRaw = document.getElementById('max-profiles').value.trim();
+        let maxProfiles;
+        if (maxRaw !== '') {
+            const n = Number.parseInt(maxRaw, 10);
+            if (Number.isFinite(n)) maxProfiles = n;
+        }
+
         if (stopLogListener) stopLogListener();
         stopLogListener = optic.onLog((stepId, msg) => {
             log(stepId, msg);
@@ -636,6 +926,7 @@
 
         runBtn.disabled = true;
         runBtn.textContent = 'Mission active…';
+        cancelMissionBtn.disabled = false;
         resetTimeline();
 
         setStep('prepare', 'active');
@@ -643,16 +934,23 @@
         setStep('prepare', 'completed');
         setStep('search', 'active');
 
+        const outreachCampaignId = document.getElementById('outreach-campaign').value.trim();
         const result = await optic.runDiscovery({
             platform,
             objectives,
+            ...(maxProfiles !== undefined ? { maxProfiles } : {}),
+            ...(outreachCampaignId ? { campaignId: outreachCampaignId } : {}),
             ...(currentIdToken ? { idToken: currentIdToken } : {}),
         });
 
         if (result.success) {
             setStep('vet', 'completed');
             setStep('draft', 'completed');
-            document.getElementById('nav-vault').setAttribute('data-badge', String(result.processedCount));
+            if (result.cancelled) {
+                log('vet', 'Mission stopped before completing the queue.');
+            }
+            const prev = Number(document.getElementById('nav-vault').getAttribute('data-badge') || 0);
+            document.getElementById('nav-vault').setAttribute('data-badge', String(prev + (result.processedCount || 0)));
         } else {
             window.alert('Mission failed: ' + (result.error || 'Unknown error'));
             resetTimeline();
@@ -660,6 +958,7 @@
 
         runBtn.disabled = false;
         runBtn.textContent = 'Start mission';
+        cancelMissionBtn.disabled = true;
         refreshStatus();
     });
 
@@ -714,10 +1013,21 @@
 
         const td4 = document.createElement('td');
         if (email) {
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex';
+            wrap.style.flexDirection = 'column';
+            wrap.style.gap = '6px';
             const p = document.createElement('span');
             p.className = 'pill green';
             p.textContent = '✓ ' + email;
-            td4.appendChild(p);
+            wrap.appendChild(p);
+            const cb = document.createElement('button');
+            cb.type = 'button';
+            cb.className = 'linkish';
+            cb.textContent = 'Copy email';
+            cb.addEventListener('click', () => void copyToClipboard(String(email)));
+            wrap.appendChild(cb);
+            td4.appendChild(wrap);
         } else {
             const s = document.createElement('span');
             s.style.fontSize = '12px';
@@ -728,10 +1038,23 @@
         tr.appendChild(td4);
 
         const td5 = document.createElement('td');
+        const draftWrap = document.createElement('div');
+        draftWrap.style.display = 'flex';
+        draftWrap.style.flexDirection = 'column';
+        draftWrap.style.gap = '6px';
         const draft = document.createElement('div');
         draft.className = 'draft-email';
         draft.textContent = lead.draftEmail || '—';
-        td5.appendChild(draft);
+        draftWrap.appendChild(draft);
+        if (lead.draftEmail) {
+            const cb = document.createElement('button');
+            cb.type = 'button';
+            cb.className = 'linkish';
+            cb.textContent = 'Copy draft';
+            cb.addEventListener('click', () => void copyToClipboard(String(lead.draftEmail)));
+            draftWrap.appendChild(cb);
+        }
+        td5.appendChild(draftWrap);
         tr.appendChild(td5);
 
         const td6 = document.createElement('td');
@@ -757,43 +1080,43 @@
         tbody.appendChild(tr);
     }
 
-    async function loadLeads() {
-        document.getElementById('vault-count').textContent = 'Loading…';
+    function syncVaultFilterUi() {
+        const cb = document.getElementById('vault-agency-only');
+        cb.disabled = !currentAgencyId;
+        if (!currentAgencyId) cb.checked = false;
+    }
+
+    function getFilteredVaultLeads() {
+        const q = (document.getElementById('vault-filter').value || '').trim().toLowerCase();
+        const agencyOnly = document.getElementById('vault-agency-only').checked && currentAgencyId;
+        let list = vaultLeadsRaw.slice();
+        if (agencyOnly) {
+            list = list.filter((l) => String(l.agencyId || '') === String(currentAgencyId));
+        }
+        if (q) {
+            list = list.filter((l) => {
+                const blob = [l.creatorName, l.profileUrl, l.niche, l.email, l.agencyName, l.draftEmail]
+                    .map((x) => String(x || '').toLowerCase())
+                    .join(' ');
+                return blob.includes(q);
+            });
+        }
+        return list;
+    }
+
+    function csvEscape(v) {
+        const t = String(v ?? '');
+        if (/[",\n\r]/.test(t)) return '"' + t.replace(/"/g, '""') + '"';
+        return t;
+    }
+
+    function renderVaultRows() {
         const tbody = document.getElementById('leads-tbody');
         tbody.innerHTML = '';
-        const loadingRow = document.createElement('tr');
-        const loadingCell = document.createElement('td');
-        loadingCell.colSpan = 8;
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'empty-state';
-        loadingDiv.appendChild(document.createElement('p')).textContent = 'Fetching leads…';
-        loadingCell.appendChild(loadingDiv);
-        loadingRow.appendChild(loadingCell);
-        tbody.appendChild(loadingRow);
-
-        let leads = [];
-        try {
-            leads = await optic.getLeads();
-        } catch (e) {
-            document.getElementById('vault-count').textContent = 'Could not load leads';
-            tbody.innerHTML = '';
-            const errRow = document.createElement('tr');
-            const errCell = document.createElement('td');
-            errCell.colSpan = 8;
-            const errDiv = document.createElement('div');
-            errDiv.className = 'empty-state';
-            errDiv.appendChild(document.createElement('p')).textContent =
-                e instanceof Error ? e.message : 'Vault request failed.';
-            errCell.appendChild(errDiv);
-            errRow.appendChild(errCell);
-            tbody.appendChild(errRow);
-            return;
-        }
-
-        tbody.innerHTML = '';
-        document.getElementById('vault-count').textContent = leads.length + ' lead' + (leads.length !== 1 ? 's' : '') + ' found';
-
-        if (leads.length === 0) {
+        const list = getFilteredVaultLeads();
+        const total = vaultLeadsRaw.length;
+        if (total === 0) {
+            document.getElementById('vault-count').textContent = 'No leads yet';
             const row = document.createElement('tr');
             const cell = document.createElement('td');
             cell.colSpan = 8;
@@ -818,9 +1141,93 @@
             tbody.appendChild(row);
             return;
         }
-
-        leads.forEach((lead) => appendLeadRow(tbody, lead));
+        document.getElementById('vault-count').textContent =
+            list.length === total
+                ? `${total} lead${total !== 1 ? 's' : ''} loaded`
+                : `${list.length} shown (${total} total)`;
+        if (list.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 8;
+            const wrap = document.createElement('div');
+            wrap.className = 'empty-state';
+            wrap.appendChild(document.createElement('p')).textContent = 'No leads match this filter.';
+            cell.appendChild(wrap);
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+        }
+        list.forEach((lead) => appendLeadRow(tbody, lead));
     }
+
+    async function loadLeads() {
+        document.getElementById('vault-count').textContent = 'Loading…';
+        const tbody = document.getElementById('leads-tbody');
+        tbody.innerHTML = '';
+        const loadingRow = document.createElement('tr');
+        const loadingCell = document.createElement('td');
+        loadingCell.colSpan = 8;
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'empty-state';
+        loadingDiv.appendChild(document.createElement('p')).textContent = 'Fetching leads…';
+        loadingCell.appendChild(loadingDiv);
+        loadingRow.appendChild(loadingCell);
+        tbody.appendChild(loadingRow);
+
+        try {
+            vaultLeadsRaw = await optic.getLeads();
+        } catch (e) {
+            vaultLeadsRaw = [];
+            document.getElementById('vault-count').textContent = 'Could not load leads';
+            tbody.innerHTML = '';
+            const errRow = document.createElement('tr');
+            const errCell = document.createElement('td');
+            errCell.colSpan = 8;
+            const errDiv = document.createElement('div');
+            errDiv.className = 'empty-state';
+            errDiv.appendChild(document.createElement('p')).textContent =
+                e instanceof Error ? e.message : 'Vault request failed.';
+            errCell.appendChild(errDiv);
+            errRow.appendChild(errCell);
+            tbody.appendChild(errRow);
+            return;
+        }
+
+        renderVaultRows();
+    }
+
+    document.getElementById('vault-filter').addEventListener('input', () => {
+        if (document.getElementById('view-vault').classList.contains('active')) {
+            renderVaultRows();
+        }
+    });
+    document.getElementById('vault-agency-only').addEventListener('change', () => {
+        renderVaultRows();
+    });
+    document.getElementById('export-csv-btn').addEventListener('click', () => {
+        const list = getFilteredVaultLeads();
+        const headers = [
+            'creatorName',
+            'agencyName',
+            'agencyId',
+            'niche',
+            'followerCount',
+            'email',
+            'profileUrl',
+            'draftEmail',
+            'createdAtIso',
+        ];
+        const lines = [headers.join(',')];
+        for (const l of list) {
+            lines.push(headers.map((h) => csvEscape(l[h])).join(','));
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'optic-leads.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
 
     document.getElementById('refresh-leads-btn').addEventListener('click', loadLeads);
 })();

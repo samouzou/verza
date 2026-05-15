@@ -1,6 +1,7 @@
 import twilio from "twilio";
 import * as dotenv from "dotenv";
 import { logger } from "./logger";
+import { isSmsPerLeadDisabled } from "./config";
 
 dotenv.config();
 
@@ -22,6 +23,10 @@ function getTwilioClient(): ReturnType<typeof twilio> | null {
  * @param message The body of the text message.
  */
 export async function sendSmsNotification(message: string) {
+  if (isSmsPerLeadDisabled()) {
+    logger.log(`[Optic] SMS suppressed (OPTIC_DISABLE_SMS).`);
+    return;
+  }
   if (!accountSid || !authToken || !twilioNumber || !userNumber) {
     logger.warn(`[Optic] Twilio credentials missing. Skipping SMS.`);
     return;

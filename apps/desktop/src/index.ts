@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 import { scrapeCreatorProfile } from './scraper';
 import { analyzeProfileWithGemini } from './vision';
 import { saveLeadToFirestore } from './storage';
-import { sendSmsNotification } from './notifications';
 
 dotenv.config();
 
@@ -29,9 +28,9 @@ async function main() {
     // 3. Save
     await saveLeadToFirestore(leadData, testUrl);
 
-    // 4. Notify via SMS
+    // 4. In-app style feedback (CLI has no renderer; log only — SMS disabled)
     const notificationMsg = `Found creator: ${leadData.creatorName} (${leadData.niche}). Email ${leadData.email ? 'extracted' : 'not found'}. Draft created in Firestore.`;
-    await sendSmsNotification(notificationMsg);
+    console.log(`[Optic] ${notificationMsg}`);
 
     console.log(`\n--- [Pipeline Success] ---\n`);
   } catch (error) {

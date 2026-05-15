@@ -62,7 +62,7 @@ export async function findCreators(platform: string, objectives: string): Promis
   const query = await generateSearchQuery(platform, objectives);
   logger.log(`[Optic] Search query: "${query}"`);
 
-  const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
+  const userDataDir = path.join(app.getPath("userData"), "optic-scout-profile");
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: true,
     viewport: { width: 1280, height: 1080 }

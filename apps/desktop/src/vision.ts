@@ -10,7 +10,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export type DraftBrandContext = Pick<
   AgencyBrandContext,
-  "agencyName" | "brandSummary" | "userDisplayName"
+  | "agencyName"
+  | "brandSummary"
+  | "userDisplayName"
+  | "campaignPaySummary"
+  | "paySourceCampaignTitle"
 >;
 
 export interface GeminiAnalysisResult {
@@ -41,7 +45,17 @@ export async function analyzeProfileWithGemini(
     Outreach sender context (use this for draftEmail tone and sign-off; do not invent a different company name):
     - Agency / team name: "${brand.agencyName}"
     ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
-    ${brand.userDisplayName ? `- Sender name to sign naturally (first name is fine in the greeting): ${brand.userDisplayName}` : ""}
+    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    ${
+      brand.campaignPaySummary
+        ? `
+    Pay transparency (from their live Verza campaigns — creators often ignore outreach when budget is unclear):
+    ${brand.campaignPaySummary}
+
+    In draftEmail: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers (survey data shows creators respond more when budget is stated early). If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list.
+    `
+        : ""
+    }
 
     The draftEmail must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where it feels natural, align with Campaign Objectives, and invite the creator to learn more (do not use generic "the Verza network" as the only sender identity).
     `
