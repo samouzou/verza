@@ -15,6 +15,7 @@ export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPT
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 export const GMAIL_OAUTH_CLIENT_SECRET = defineSecret("GMAIL_OAUTH_CLIENT_SECRET");
+export const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
 
 // TikTok Secrets
 export const TIKTOK_CLIENT_SECRET = defineSecret("TIKTOK_CLIENT_SECRET");
@@ -85,3 +86,6 @@ export const GMAIL_OAUTH_CLIENT_ID = defineString("GMAIL_OAUTH_CLIENT_ID", {
   default: "",
   description: "OAuth 2.0 client ID with Gmail API enabled.",
 });
+
+export const TWILIO_ACCOUNT_SID = defineString("TWILIO_ACCOUNT_SID", {default: ""});
+export const TWILIO_PHONE_NUMBER = defineString("TWILIO_PHONE_NUMBER", {default: ""});

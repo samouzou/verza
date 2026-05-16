@@ -24,6 +24,7 @@ export type OpticJobRow = {
   status?: string;
   platform?: string;
   objectives?: string;
+  batchIndex?: number;
   maxProfiles?: number;
   processedCount?: number;
   error?: string | null;

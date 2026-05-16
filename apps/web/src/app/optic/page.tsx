@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { BrandContextStrip } from "@/components/optic/brand-context-strip";
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
+import { OpticSmsCard } from "@/components/optic/optic-sms-card";
 import { DiscoveryTimeline } from "@/components/optic/discovery-timeline";
 import { MissionsList } from "@/components/optic/missions-list";
 import { PageHeader } from "@/components/page-header";
@@ -76,7 +77,8 @@ export default function OpticDiscoveryPage() {
 
   const [platform, setPlatform] = useState("youtube");
   const [objectives, setObjectives] = useState("");
-  const [maxProfiles, setMaxProfiles] = useState(5);
+  const [maxProfiles, setMaxProfiles] = useState(10);
+  const [continuing, setContinuing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -149,6 +151,7 @@ export default function OpticDiscoveryPage() {
         objectives: objectives.trim(),
         maxProfiles,
         campaignId: campaignId || null,
+        smsNotify: Boolean(user.opticSmsEnabled && user.opticSmsPhone),
       });
       const data = res.data as { jobId?: string };
       if (!data?.jobId) throw new Error("No jobId returned");
@@ -164,6 +167,27 @@ export default function OpticDiscoveryPage() {
       setSubmitting(false);
     }
   }, [agencyId, campaignId, canRun, maxProfiles, objectives, platform, selectJob, toast, user]);
+
+  const continueNextBatch = useCallback(async () => {
+    if (!activeJobId) return;
+    setContinuing(true);
+    try {
+      const callable = httpsCallable(functions, "continueOpticDiscoveryJob");
+      const res = await callable({ fromJobId: activeJobId });
+      const data = res.data as { jobId?: string };
+      if (!data?.jobId) throw new Error("No jobId returned");
+      selectJob(data.jobId);
+      toast({
+        title: "Next batch started",
+        description: "We will add more creators to your vault when this batch finishes.",
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "Could not continue", description: msg, variant: "destructive" });
+    } finally {
+      setContinuing(false);
+    }
+  }, [activeJobId, selectJob, toast]);
 
   const cancelJob = useCallback(async () => {
     if (!activeJobId) return;
@@ -215,7 +239,7 @@ export default function OpticDiscoveryPage() {
     <div className="container max-w-6xl space-y-6 py-8">
       <PageHeader
         title="Verza Optic"
-        description="Describe who you want to reach. We scout creators, review profiles, and add vetted leads with draft outreach to your vault."
+        description="Run small batches of creator discovery. When a batch finishes, continue in the app or by text to keep your vault growing."
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/optic/vault">Open vault</Link>
@@ -226,10 +250,16 @@ export default function OpticDiscoveryPage() {
       {brandStrip && <BrandContextStrip strip={brandStrip} payScopeHint={payScopeHint} />}
 
       {canRun && agencyId && (
-        <GmailConnectCard
-          connected={Boolean(user?.opticGmailConnected)}
-          email={user?.opticGmailEmail ?? null}
-        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <GmailConnectCard
+            connected={Boolean(user?.opticGmailConnected)}
+            email={user?.opticGmailEmail ?? null}
+          />
+          <OpticSmsCard
+            enabled={Boolean(user?.opticSmsEnabled)}
+            phone={user?.opticSmsPhone ?? null}
+          />
+        </div>
       )}
 
       {!agencyId && (
@@ -332,22 +362,22 @@ export default function OpticDiscoveryPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="optic-max">How many creators to save this run</Label>
+              <Label htmlFor="optic-max">Creators per batch</Label>
               <Input
                 id="optic-max"
                 type="number"
                 min={1}
-                max={75}
+                max={15}
                 value={maxProfiles}
                 onChange={(e) =>
                   setMaxProfiles(
-                    Math.min(75, Math.max(1, Number.parseInt(e.target.value || "5", 10)))
+                    Math.min(15, Math.max(1, Number.parseInt(e.target.value || "10", 10)))
                   )
                 }
               />
               <p className="text-xs text-muted-foreground">
-                We keep looking until we hit this number or run out of strong matches (up to 75 per
-                mission). Your vault can hold hundreds of leads across runs.
+                Small batches finish faster and keep quality high. Run another batch from here or
+                reply <strong>CONTINUE</strong> by text when you have alerts on.
               </p>
             </div>
 
@@ -445,9 +475,11 @@ export default function OpticDiscoveryPage() {
                   </Alert>
                 )}
                 {jobRow?.status === "completed" && (
-                  <Button type="button" size="sm" onClick={goToVault}>
-                    View leads in vault
-                  </Button>
+                  <CompletedMissionActions
+                    continuing={continuing}
+                    onContinue={() => void continueNextBatch()}
+                    onVault={goToVault}
+                  />
                 )}
                 <DiscoveryTimeline job={jobRow} />
               </div>
@@ -455,6 +487,34 @@ export default function OpticDiscoveryPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function CompletedMissionActions({
+  continuing,
+  onContinue,
+  onVault,
+}: {
+  continuing: boolean;
+  onContinue: () => void;
+  onVault: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" size="sm" variant="default" disabled={continuing} onClick={onContinue}>
+        {continuing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Starting…
+          </>
+        ) : (
+          "Run next batch"
+        )}
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={onVault}>
+        View leads in vault
+      </Button>
     </div>
   );
 }

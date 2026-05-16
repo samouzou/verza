@@ -83,8 +83,12 @@ import {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticSmsSettings,
+  continueOpticDiscoveryJob,
 } from "./optic/jobs";
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
+import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
+import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
 import {
   beginGmailConnect,
   completeGmailConnect,
@@ -147,6 +151,10 @@ export {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticSmsSettings,
+  continueOpticDiscoveryJob,
+  opticJobSmsOnComplete,
+  opticTwilioSmsWebhook,
   dispatchOpticJobToWorker,
   beginGmailConnect,
   completeGmailConnect,

@@ -3,6 +3,9 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {loadAgencyBrandContextForUid, type AgencyBrandContext} from "./agencyContext";
+import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE} from "./constants";
+import {continueMissionForUid} from "./continuation";
+import {normalizeSmsPhone} from "./twilio";
 
 const PLATFORMS = new Set(["youtube", "instagram", "tiktok"]);
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
@@ -60,11 +63,12 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const uid = request.auth.uid;
   await assertAgencyTeam(uid);
 
-  const {platform, objectives, maxProfiles, campaignId} = request.data as {
+  const {platform, objectives, maxProfiles, campaignId, smsNotify} = request.data as {
     platform?: unknown;
     objectives?: unknown;
     maxProfiles?: unknown;
     campaignId?: unknown;
+    smsNotify?: unknown;
   };
 
   if (typeof platform !== "string" || !PLATFORMS.has(platform)) {
@@ -77,10 +81,21 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "objectives is required.");
   }
 
-  let mp = 5;
+  let mp = OPTIC_DEFAULT_BATCH_SIZE;
   if (typeof maxProfiles === "number" && Number.isFinite(maxProfiles)) {
-    // Keep in sync with apps/optic-worker/src/limits.ts OPTIC_MAX_SAVED_PER_RUN
-    mp = Math.max(1, Math.min(75, Math.floor(maxProfiles)));
+    mp = Math.max(1, Math.min(OPTIC_MAX_BATCH_SIZE, Math.floor(maxProfiles)));
+  }
+
+  const wantSms = smsNotify === true;
+  if (wantSms) {
+    const userSnap = await db.collection("users").doc(uid).get();
+    const phone = userSnap.data()?.opticSmsPhone;
+    if (typeof phone !== "string" || !phone.trim()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Add a mobile number under Text updates before enabling SMS."
+      );
+    }
   }
 
   const campaignIdStr =
@@ -110,11 +125,16 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     maxProfiles: mp,
     campaignId: campaignIdStr,
     brandContext,
+    batchIndex: 1,
+    rootJobId: jobId,
+    continuedFromJobId: null,
+    smsNotify: wantSms,
+    smsCompletionSent: false,
     logs: [
       {
         ts: Timestamp.now(),
         phase: "enqueue",
-        message: "Mission queued. Your scout will start as soon as the system is ready.",
+        message: "Your scout is queued and will start shortly.",
       },
     ],
     error: null,
@@ -207,4 +227,54 @@ export const setOpticLeadOutreachStatus = onCall(async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {success: true as const};
+});
+
+/** Saves mobile number and SMS opt-in for batch-complete texts. */
+export const setOpticSmsSettings = onCall(
+  {secrets: []},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to update text settings.");
+    }
+    const uid = request.auth.uid;
+    await assertAgencyTeam(uid);
+    const {phone, enabled} = request.data as {phone?: unknown; enabled?: unknown};
+    if (typeof enabled !== "boolean") {
+      throw new HttpsError("invalid-argument", "enabled must be true or false.");
+    }
+    const updates: Record<string, unknown> = {
+      opticSmsEnabled: enabled,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (typeof phone === "string" && phone.trim()) {
+      const normalized = normalizeSmsPhone(phone);
+      if (!normalized) {
+        throw new HttpsError("invalid-argument", "Enter a valid mobile number.");
+      }
+      updates.opticSmsPhone = normalized;
+    } else if (enabled) {
+      const userSnap = await db.collection("users").doc(uid).get();
+      const existing = userSnap.data()?.opticSmsPhone;
+      if (typeof existing !== "string" || !existing.trim()) {
+        throw new HttpsError("invalid-argument", "Phone is required when enabling texts.");
+      }
+    }
+    await db.collection("users").doc(uid).update(updates);
+    return {success: true as const};
+  }
+);
+
+/** Starts the next batch (same brief) without waiting for SMS. */
+export const continueOpticDiscoveryJob = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to continue a mission.");
+  }
+  const uid = request.auth.uid;
+  await assertAgencyTeam(uid);
+  const {fromJobId} = request.data as {fromJobId?: unknown};
+  const jobId = await continueMissionForUid(
+    uid,
+    typeof fromJobId === "string" ? fromJobId : undefined
+  );
+  return {jobId};
 });
