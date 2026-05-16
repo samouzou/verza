@@ -139,7 +139,7 @@ export function LeadVault({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 flex-1 min-w-[200px] max-w-md">
+          <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
             <Label htmlFor="vault-search" className="sr-only">
               Search
             </Label>
@@ -187,19 +187,19 @@ export function LeadVault({
             : "No leads match this campaign or search."}
         </p>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
+        <div className="rounded-md border overflow-x-auto xl:overflow-visible">
+          <Table className="min-w-[960px] xl:min-w-0 xl:table-fixed xl:w-full">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10 whitespace-nowrap">Contacted</TableHead>
-                <TableHead>Creator</TableHead>
-                <TableHead className="min-w-[120px]">Campaign</TableHead>
-                <TableHead>Niche</TableHead>
-                <TableHead>Followers</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Draft pitch</TableHead>
-                <TableHead>Found</TableHead>
-                <TableHead className="w-[140px] text-right">Actions</TableHead>
+                <TableHead className="w-12 whitespace-nowrap">Contacted</TableHead>
+                <TableHead className="xl:w-[12%]">Creator</TableHead>
+                <TableHead className="xl:w-[11%]">Campaign</TableHead>
+                <TableHead className="xl:w-[9%]">Niche</TableHead>
+                <TableHead className="xl:w-[8%] whitespace-nowrap">Followers</TableHead>
+                <TableHead className="xl:w-[12%]">Email</TableHead>
+                <TableHead className="xl:w-[30%]">Draft pitch</TableHead>
+                <TableHead className="xl:w-[8%] whitespace-nowrap">Found</TableHead>
+                <TableHead className="xl:w-[10%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -242,7 +242,7 @@ export function LeadVault({
                         </a>
                       )}
                     </TableCell>
-                    <TableCell className="align-top text-muted-foreground text-xs max-w-[180px]">
+                    <TableCell className="align-top text-muted-foreground text-xs">
                       <span className="line-clamp-2">{campaignLabel(lead)}</span>
                     </TableCell>
                     <TableCell className="align-top text-muted-foreground">
@@ -254,9 +254,9 @@ export function LeadVault({
                     <TableCell className="align-top text-muted-foreground">
                       {lead.email ?? "—"}
                     </TableCell>
-                    <TableCell className="align-top max-w-xs">
+                    <TableCell className="align-top">
                       {lead.draftEmail ? (
-                        <p className="text-xs leading-relaxed text-muted-foreground line-clamp-4">
+                        <p className="text-sm leading-relaxed text-muted-foreground line-clamp-5 xl:line-clamp-6">
                           {lead.draftEmail}
                         </p>
                       ) : (
