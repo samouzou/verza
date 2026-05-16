@@ -29,13 +29,13 @@ export function GmailConnectCard({ connected, email, disabled }: Props) {
           Gmail
         </CardTitle>
         <CardDescription>
-          Connect Gmail so Optic can save outreach drafts directly in your inbox. We only request
-          permission to create drafts — not to send mail on your behalf.
+          Connect Gmail so Optic can push outreach drafts into your Gmail Drafts folder. We only request
+          permission to create drafts — not to send mail for you.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <motionStatus connected={connected} email={email} />
-        <motionActions
+        <ConnectStatus connected={connected} email={email} />
+        <ConnectActions
           connected={connected}
           disabled={disabled}
           connecting={gmail.connecting}
@@ -48,7 +48,7 @@ export function GmailConnectCard({ connected, email, disabled }: Props) {
   );
 }
 
-function motionStatus({
+function ConnectStatus({
   connected,
   email,
 }: {
@@ -70,7 +70,7 @@ function motionStatus({
   );
 }
 
-function motionActions({
+function ConnectActions({
   connected,
   disabled,
   connecting,

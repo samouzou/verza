@@ -1,25 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
 import { LeadVault } from "@/components/optic/lead-vault";
 import { useOpticGmail } from "@/hooks/use-optic-gmail";
+import { useOpticLeadOutreach } from "@/hooks/use-optic-lead-outreach";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useOpticCampaigns } from "@/hooks/use-optic-campaigns";
 import { useOpticLeads } from "@/hooks/use-optic-leads";
 
 export default function OpticVaultPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const agencyId = user?.primaryAgencyId ?? null;
   const { leads, error, loading } = useOpticLeads(agencyId);
+  const { campaigns, loading: campaignsLoading } = useOpticCampaigns(
+    agencyId,
+    user?.displayName ?? null
+  );
+  const [campaignFilter, setCampaignFilter] = useState("__all__");
   const gmail = useOpticGmail({
     connected: Boolean(user?.opticGmailConnected),
     email: user?.opticGmailEmail ?? null,
   });
+  const outreach = useOpticLeadOutreach();
 
   if (authLoading) {
     return (
@@ -45,7 +54,7 @@ export default function OpticVaultPage() {
     <div className="container max-w-6xl space-y-6 py-8">
       <PageHeader
         title="Optic vault"
-        description="Outreach leads with Gemini draft emails — same collection as desktop Optic."
+        description="Qualified creators land here with a draft note you can send or drop into Gmail."
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/optic">Run discovery</Link>
@@ -91,6 +100,12 @@ export default function OpticVaultPage() {
         gmailConnected={gmail.connected}
         onCreateGmailDraft={isAgencyTeam ? gmail.createDraft : undefined}
         draftingLeadId={gmail.draftingLeadId}
+        campaigns={campaigns}
+        campaignsLoading={campaignsLoading && !!agencyId}
+        campaignFilter={campaignFilter}
+        onCampaignFilterChange={setCampaignFilter}
+        onOutreachToggle={isAgencyTeam ? outreach.setOutreachEmailed : undefined}
+        outreachUpdatingId={outreach.updatingId}
       />
     </div>
   );

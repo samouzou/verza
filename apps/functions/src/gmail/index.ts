@@ -117,13 +117,13 @@ export const createOpticGmailDraft = onCall(
     }
 
     const creatorName =
-      typeof lead.creatorName === "string" && lead.creatorName.trim()
-        ? lead.creatorName.trim()
-        : "there";
+      typeof lead.creatorName === "string" && lead.creatorName.trim() ?
+        lead.creatorName.trim() :
+        "there";
     const brandName =
-      typeof lead.agencyName === "string" && lead.agencyName.trim()
-        ? lead.agencyName.trim()
-        : "our team";
+      typeof lead.agencyName === "string" && lead.agencyName.trim() ?
+        lead.agencyName.trim() :
+        "our team";
     const subject = `Partnership with ${brandName} — ${creatorName}`;
 
     const accessToken = await getGmailAccessTokenForUser(uid);
@@ -132,7 +132,7 @@ export const createOpticGmailDraft = onCall(
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/drafts", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({message: {raw}}),

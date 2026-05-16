@@ -79,7 +79,8 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
 
   let mp = 5;
   if (typeof maxProfiles === "number" && Number.isFinite(maxProfiles)) {
-    mp = Math.max(1, Math.min(20, Math.floor(maxProfiles)));
+    // Keep in sync with apps/optic-worker/src/limits.ts OPTIC_MAX_SAVED_PER_RUN
+    mp = Math.max(1, Math.min(75, Math.floor(maxProfiles)));
   }
 
   const campaignIdStr =
@@ -113,7 +114,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
       {
         ts: Timestamp.now(),
         phase: "enqueue",
-        message: "Job queued. Runs when the dispatch trigger can reach the worker (URL + secret on Functions).",
+        message: "Mission queued. Your scout will start as soon as the system is ready.",
       },
     ],
     error: null,
@@ -162,4 +163,48 @@ export const cancelOpticDiscoveryJob = onCall(async (request) => {
     }),
   });
   return {ok: true as const};
+});
+
+/** Sets whether the team has contacted a vault lead (outreach checkmark). */
+export const setOpticLeadOutreachStatus = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to update outreach status.");
+  }
+  const uid = request.auth.uid;
+  const {leadId, emailed} = request.data as {leadId?: unknown; emailed?: unknown};
+  if (typeof leadId !== "string" || !leadId.trim()) {
+    throw new HttpsError("invalid-argument", "leadId is required.");
+  }
+  if (typeof emailed !== "boolean") {
+    throw new HttpsError("invalid-argument", "emailed must be true or false.");
+  }
+
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("failed-precondition", "User profile not found.");
+  }
+  const u = userSnap.data()!;
+  const primary = u.primaryAgencyId as string | undefined;
+  const role = String(u.role ?? "");
+  if (!primary || !TEAM_ROLES.has(role)) {
+    throw new HttpsError("permission-denied", "You cannot update vault outreach for this brand.");
+  }
+
+  const ref = db.collection("optic_outreach_leads").doc(leadId.trim());
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Lead not found.");
+  }
+  const lead = snap.data()!;
+  if (String(lead.agencyId ?? "") !== primary) {
+    throw new HttpsError("permission-denied", "This lead belongs to another brand.");
+  }
+
+  await ref.update({
+    outreachEmailed: emailed,
+    outreachEmailedAt: emailed ? FieldValue.serverTimestamp() : null,
+    outreachEmailedBy: emailed ? uid : null,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return {success: true as const};
 });

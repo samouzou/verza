@@ -1,10 +1,11 @@
 import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
+import {OPTIC_MAX_SAVED_PER_RUN, urlPoolCap, vetDelayMs} from "./limits";
+import {Log} from "./logCopy";
 import {generateSeedLeads, findCreators} from "./search";
 import {createVetBrowserContext, scrapeCreatorProfileInContext} from "./scraper";
 import {analyzeProfileWithGemini, type DraftBrandContext} from "./vision";
 
-// Match Firebase emulator Firestore (see root firebase.json). Set in apps/optic-worker/.env for local dev.
 if (process.env.FIRESTORE_EMULATOR_HOST) {
   console.log(`[optic-worker] Using Firestore emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`);
 }
@@ -23,10 +24,9 @@ type JobDoc = {
   objectives: string;
   maxProfiles: number;
   brandContext: DraftBrandContext | null;
+  campaignId?: string | null;
   cancelRequested?: boolean;
 };
-
-const VET_DELAY_MS = 2000;
 
 export async function runDiscoveryJob(jobId: string): Promise<void> {
   const ref = db.collection("optic_jobs").doc(jobId);
@@ -40,6 +40,9 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
     return;
   }
 
+  const targetSaved = Math.min(OPTIC_MAX_SAVED_PER_RUN, Math.max(1, job.maxProfiles));
+  const delayMs = vetDelayMs(targetSaved);
+
   await ref.update({
     status: "running",
     updatedAt: FieldValue.serverTimestamp(),
@@ -47,7 +50,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
     logs: FieldValue.arrayUnion({
       ts: Timestamp.now(),
       phase: "worker",
-      message: "Worker started",
+      message: Log.scoutStarted(),
     }),
   });
 
@@ -62,8 +65,13 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
 
   try {
     const allUrls = new Set<string>();
-    await appendLog("search", "Generating seed leads from Gemini knowledge...");
-    const seedLeads = await generateSeedLeads(job.platform, job.objectives, brand?.agencyName ?? null);
+    await appendLog("search", Log.shortlist());
+    const seedLeads = await generateSeedLeads(
+      job.platform,
+      job.objectives,
+      brand?.agencyName ?? null,
+      targetSaved
+    );
     seedLeads.forEach((lead) => allUrls.add(lead.url));
 
     let s0 = await ref.get();
@@ -72,37 +80,43 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
         status: "cancelled",
         updatedAt: FieldValue.serverTimestamp(),
         workerCompletedAt: FieldValue.serverTimestamp(),
+        logs: FieldValue.arrayUnion({
+          ts: Timestamp.now(),
+          phase: "done",
+          message: Log.jobCancelled(),
+        }),
       });
       return;
     }
 
-    await appendLog("search", `Launching scout on ${job.platform}...`);
-    const searchedUrls = await findCreators(job.platform, job.objectives);
+    await appendLog("search", Log.platformSearch(job.platform));
+    const searchedUrls = await findCreators(job.platform, job.objectives, targetSaved);
     searchedUrls.forEach((url) => allUrls.add(url));
 
     if (allUrls.size === 0) {
       throw new Error("No creators found for the given criteria.");
     }
 
+    const poolMax = urlPoolCap(targetSaved);
     const urlList = Array.from(allUrls).sort();
-    const cap = job.maxProfiles;
-    const toVisit = urlList.slice(0, Math.min(cap, urlList.length));
+    const queue = urlList.slice(0, Math.min(poolMax, urlList.length));
 
     const vetContext = await createVetBrowserContext();
     let processed = 0;
 
     try {
-      for (let i = 0; i < toVisit.length; i++) {
+      for (let i = 0; i < queue.length && processed < targetSaved; i++) {
         const s = await ref.get();
         if (s.data()?.cancelRequested) {
-          await appendLog("vet", "Cancelled by user.");
+          await appendLog("vet", Log.cancelled());
           break;
         }
-        const url = toVisit[i];
-        await appendLog("vet", `Visiting: ${url}`);
+        const url = queue[i];
+        await appendLog("vet", Log.vetVisit());
         try {
           const imageBase64 = await scrapeCreatorProfileInContext(vetContext, url);
           const leadData = await analyzeProfileWithGemini(imageBase64, job.objectives, brand ?? null);
+          const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
           await db.collection("optic_outreach_leads").add({
             ...leadData,
             profileUrl: url,
@@ -110,16 +124,17 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
             source: "Verza Optic (web worker)",
             agencyId: job.agencyId,
             agencyName: job.agencyName,
+            campaignId: job.campaignId ?? null,
+            campaignTitle: payTitle,
           });
           processed++;
           await ref.update({processedCount: processed, updatedAt: FieldValue.serverTimestamp()});
-          await appendLog("vet", `Saved lead: ${leadData.creatorName}`);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          await appendLog("vet", `Skipped ${url}: ${msg}`);
+          await appendLog("vet", Log.saved(leadData.creatorName || "Creator"));
+        } catch {
+          await appendLog("vet", Log.skip());
         }
-        if (i < toVisit.length - 1 && VET_DELAY_MS > 0) {
-          await new Promise((r) => setTimeout(r, VET_DELAY_MS));
+        if (i < queue.length - 1 && processed < targetSaved && delayMs > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
         }
       }
     } finally {
@@ -136,7 +151,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
       logs: FieldValue.arrayUnion({
         ts: Timestamp.now(),
         phase: "done",
-        message: cancelled ? "Job cancelled." : `Completed. Saved ${processed} lead(s).`,
+        message: cancelled ? Log.jobCancelled() : Log.done(processed, targetSaved),
       }),
     });
   } catch (e) {

@@ -1,6 +1,13 @@
 import type { Timestamp } from "firebase/firestore";
 
 export const OPTIC_CAMPAIGN_STORAGE_KEY = "optic-selected-campaign-id";
+export const OPTIC_ACTIVE_JOB_STORAGE_KEY = "optic-active-job-id";
+
+const IN_FLIGHT_JOB_STATUSES = new Set(["queued", "running"]);
+
+export function isOpticJobInFlight(status: string | undefined): boolean {
+  return IN_FLIGHT_JOB_STATUSES.has(status ?? "");
+}
 
 export type OpticCampaignOption = {
   id: string;
@@ -17,10 +24,12 @@ export type OpticJobRow = {
   status?: string;
   platform?: string;
   objectives?: string;
+  maxProfiles?: number;
   processedCount?: number;
   error?: string | null;
   createdAt?: Timestamp | null;
   agencyName?: string;
+  brandContext?: { paySourceCampaignTitle?: string | null };
   logs?: Array<{ phase?: string; message?: string; ts?: Timestamp }>;
 };
 
@@ -36,6 +45,13 @@ export type OpticLeadRow = {
   agencyId?: string;
   source?: string;
   createdAt?: Timestamp | null;
+  /** Gig id when the discovery mission was scoped to one campaign. */
+  campaignId?: string | null;
+  /** Pay / scope label from the mission (often the campaign title). */
+  campaignTitle?: string | null;
+  /** User marked they've reached out (draft sent, email sent, etc.). */
+  outreachEmailed?: boolean;
+  outreachEmailedAt?: Timestamp | null;
 };
 
 /** Brand workspace context shown on the discovery page (loaded from Verza agency/brand doc). */

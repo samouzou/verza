@@ -12,11 +12,19 @@ type GmailCredentialDoc = {
   email: string;
 };
 
+/**
+ * OAuth redirect URI registered in Google Cloud Console.
+ * @return {string} Callback URL under APP_URL.
+ */
 export function gmailRedirectUri(): string {
   const base = APP_URL.value().trim().replace(/\/$/, "");
   return `${base}/optic/gmail/callback`;
 }
 
+/**
+ * Loads Gmail OAuth client id and secret from Firebase params.
+ * @return {{clientId: string, clientSecret: string}} OAuth client credentials.
+ */
 function oauthClientConfig(): {clientId: string; clientSecret: string} {
   const clientId = GMAIL_OAUTH_CLIENT_ID.value().trim();
   const clientSecret = GMAIL_OAUTH_CLIENT_SECRET.value().trim();
@@ -29,6 +37,10 @@ function oauthClientConfig(): {clientId: string; clientSecret: string} {
   return {clientId, clientSecret};
 }
 
+/**
+ * Builds the Google OAuth authorization URL for Gmail compose scope.
+ * @return {string} URL to redirect the user to Google consent.
+ */
 export function buildGmailOAuthUrl(): string {
   const {clientId} = oauthClientConfig();
   const params = new URLSearchParams({
@@ -43,6 +55,11 @@ export function buildGmailOAuthUrl(): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+/**
+ * Exchanges an authorization or refresh token with Google.
+ * @param {Record<string, string>} body Token endpoint form fields.
+ * @return {Promise<object>} Token response from Google.
+ */
 async function exchangeToken(body: Record<string, string>): Promise<{
   access_token: string;
   refresh_token?: string;
@@ -63,6 +80,11 @@ async function exchangeToken(body: Record<string, string>): Promise<{
   return JSON.parse(text) as {access_token: string; refresh_token?: string; expires_in: number};
 }
 
+/**
+ * Reads the connected Gmail address from the Gmail API profile.
+ * @param {string} accessToken Valid access token.
+ * @return {Promise<string>} User's Gmail address.
+ */
 async function fetchGmailProfileEmail(accessToken: string): Promise<string> {
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
     headers: {Authorization: `Bearer ${accessToken}`},
@@ -74,6 +96,12 @@ async function fetchGmailProfileEmail(accessToken: string): Promise<string> {
   return data.emailAddress;
 }
 
+/**
+ * Persists Gmail tokens and updates the user's public connection flags.
+ * @param {string} uid Firebase Auth uid.
+ * @param {object} tokens Refresh/access tokens and profile email.
+ * @return {Promise<void>}
+ */
 async function saveGmailConnection(uid: string, tokens: {
   refreshToken: string;
   accessToken: string;
@@ -145,13 +173,16 @@ export async function completeGmailOAuthForUser(uid: string, code: string): Prom
  * @param {string} uid Firebase Auth uid.
  */
 export async function disconnectGmailForUser(uid: string): Promise<void> {
-  await db
-    .collection("users")
-    .doc(uid)
-    .collection("private_credentials")
-    .doc(GMAIL_CREDENTIAL_DOC_ID)
-    .delete()
-    .catch(() => {});
+  try {
+    await db
+      .collection("users")
+      .doc(uid)
+      .collection("private_credentials")
+      .doc(GMAIL_CREDENTIAL_DOC_ID)
+      .delete();
+  } catch (err) {
+    logger.debug("[Gmail] Credential doc delete skipped", {err});
+  }
   await db.collection("users").doc(uid).update({
     opticGmailConnected: false,
     opticGmailEmail: null,
@@ -159,6 +190,11 @@ export async function disconnectGmailForUser(uid: string): Promise<void> {
   });
 }
 
+/**
+ * Refreshes a Gmail access token using the stored refresh token.
+ * @param {string} refreshToken OAuth refresh token.
+ * @return {Promise<object>} New access token and expiry duration.
+ */
 async function refreshAccessToken(refreshToken: string): Promise<{
   accessToken: string;
   expiresIn: number;

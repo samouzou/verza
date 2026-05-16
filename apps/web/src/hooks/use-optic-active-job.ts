@@ -58,22 +58,22 @@ export function useOpticActiveJob(activeJobId: string | null) {
     if (prev && status === "completed") {
       const count = jobRow?.processedCount ?? 0;
       toast({
-        title: "Verza Optic — mission complete",
-        description: `Saved ${count} lead${count === 1 ? "" : "s"} to your vault.`,
+        title: "Mission complete",
+        description: `${count} creator${count === 1 ? "" : "s"} added to your vault.`,
       });
       notifyBrowser(
         "Verza Optic",
-        `Mission complete — ${count} new lead${count === 1 ? "" : "s"} in the vault.`
+        `Mission complete — ${count} new creator${count === 1 ? "" : "s"} in your vault.`
       );
     } else if (prev && status === "failed") {
       toast({
-        title: "Verza Optic — mission failed",
-        description: jobRow?.error ?? "See job logs for details.",
+        title: "Mission couldn’t finish",
+        description: jobRow?.error ?? "Try again, or adjust your objectives.",
         variant: "destructive",
       });
-      notifyBrowser("Verza Optic", "Discovery mission failed.");
+      notifyBrowser("Verza Optic", "Something went wrong with this mission.");
     } else if (prev && status === "cancelled") {
-      toast({ title: "Mission cancelled" });
+      toast({ title: "Mission stopped" });
     }
 
     prevStatusRef.current = status;

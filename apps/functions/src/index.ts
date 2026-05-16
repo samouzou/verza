@@ -79,7 +79,11 @@ import {analyzeBrand} from "./brand-research";
 import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
 import {conversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
-import {enqueueOpticDiscoveryJob, cancelOpticDiscoveryJob} from "./optic/jobs";
+import {
+  enqueueOpticDiscoveryJob,
+  cancelOpticDiscoveryJob,
+  setOpticLeadOutreachStatus,
+} from "./optic/jobs";
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
 import {
   beginGmailConnect,
@@ -142,6 +146,7 @@ export {
   onAffiliateLinkClick,
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
+  setOpticLeadOutreachStatus,
   dispatchOpticJobToWorker,
   beginGmailConnect,
   completeGmailConnect,

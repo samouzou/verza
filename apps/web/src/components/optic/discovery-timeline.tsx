@@ -5,11 +5,56 @@ import type { OpticJobRow } from "@/lib/optic/types";
 import type { Timestamp } from "firebase/firestore";
 
 const STEPS = [
-  { id: "prepare", label: "Initialization", hint: "Job queued and worker starting." },
-  { id: "search", label: "Search agent", hint: "Gemini seeds + platform scout." },
-  { id: "vet", label: "Deep vetting", hint: "Profile screenshots and analysis." },
-  { id: "done", label: "Outreach sync", hint: "Leads saved to the vault." },
+  {
+    id: "prepare",
+    label: "Starting your mission",
+    hint: "We’re getting your brief and opening the scout.",
+  },
+  {
+    id: "search",
+    label: "Finding the right people",
+    hint: "Shortlist and public search on the platform you chose.",
+  },
+  {
+    id: "vet",
+    label: "Reviewing profiles",
+    hint: "We visit each profile and draft a tailored outreach note when it’s a fit.",
+  },
+  {
+    id: "done",
+    label: "Saving to your vault",
+    hint: "Qualified creators appear in Optic vault with a draft you can send.",
+  },
 ] as const;
+
+/** Softens older status lines that used internal wording. */
+function humanizeLogMessage(message: string): string {
+  let m = message;
+  if (/Worker started/i.test(m)) return "Scout is running.";
+  if (/Generating seed leads/i.test(m)) return "Finding creators who fit your brief…";
+  if (/Launching scout on/i.test(m)) {
+    const plat = m.match(/on (\w+)/i)?.[1]?.toLowerCase() ?? "";
+    const label =
+      plat === "youtube"
+        ? "YouTube"
+        : plat === "instagram"
+          ? "Instagram"
+          : plat === "tiktok"
+            ? "TikTok"
+            : plat || "the platform";
+    return `Searching ${label} for people who match your goals…`;
+  }
+  if (/^Saved lead:/i.test(m)) {
+    const name = m.replace(/^Saved lead:\s*/i, "").trim();
+    return name ? `Added ${name} to your vault.` : "Added a creator to your vault.";
+  }
+  if (/Completed\.\s*Saved/i.test(m)) {
+    const n = m.match(/(\d+)/)?.[1];
+    return n ? `All set — ${n} creator${n === "1" ? "" : "s"} are ready in your vault.` : m;
+  }
+  if (/^Skipped\s+https?:\/\//i.test(m)) return "Skipping a profile that didn’t work out — trying the next one.";
+  return m;
+}
 
 function tsToDate(ts: Timestamp | undefined): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -79,13 +124,13 @@ export function DiscoveryTimeline({ job }: Props) {
               </p>
               <p className="text-xs text-muted-foreground">{step.hint}</p>
               {mini.length > 0 && (
-                <div className="mt-2 max-h-28 overflow-y-auto rounded border bg-muted/30 p-2 font-mono text-[11px] leading-relaxed">
+                <div className="mt-2 max-h-28 overflow-y-auto rounded border bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground">
                   {mini.slice(-12).map((line, i) => {
                     const t = tsToDate(line.ts);
                     return (
-                      <div key={i} className="text-muted-foreground">
-                        {t ? `[${t.toISOString().slice(11, 19)}] ` : ""}
-                        {line.message}
+                      <div key={i}>
+                        {t ? `${t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · ` : ""}
+                        {humanizeLogMessage(line.message ?? "")}
                       </div>
                     );
                   })}

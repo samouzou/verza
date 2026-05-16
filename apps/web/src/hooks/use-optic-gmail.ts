@@ -52,7 +52,7 @@ export function useOpticGmail(opts: {
         toast({
           variant: "destructive",
           title: "Connect Gmail first",
-          description: "Link Gmail on the discovery page to save drafts in your inbox.",
+          description: "Link Gmail on the discovery page to send drafts into Gmail.",
         });
         return;
       }
@@ -62,15 +62,15 @@ export function useOpticGmail(opts: {
         const res = await callable({ leadId });
         const data = res.data as { to?: string };
         toast({
-          title: "Draft saved in Gmail",
+          title: "Sent to Gmail drafts",
           description: data.to
-            ? `Open Gmail to review the draft to ${data.to}.`
-            : "Open Gmail to review your new draft.",
+            ? `Open Gmail → Drafts, review, and send when ready — To: ${data.to}.`
+            : "Open Gmail → Drafts to review and send when you're ready.",
         });
       } catch (e) {
         const message =
           e instanceof Error ? e.message : "Could not create a Gmail draft.";
-        toast({ variant: "destructive", title: "Gmail draft", description: message });
+        toast({ variant: "destructive", title: "Gmail drafts", description: message });
       } finally {
         setDraftingLeadId(null);
       }

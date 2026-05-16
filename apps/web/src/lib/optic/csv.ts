@@ -18,6 +18,9 @@ export function downloadLeadsCsv(leads: OpticLeadRow[], filename = "optic-leads.
     "draftEmail",
     "brandName",
     "source",
+    "campaignId",
+    "campaignTitle",
+    "outreachEmailed",
   ];
   const rows = leads.map((l) =>
     [
@@ -27,8 +30,11 @@ export function downloadLeadsCsv(leads: OpticLeadRow[], filename = "optic-leads.
       l.followerCount ?? "",
       l.profileUrl ?? "",
       l.draftEmail ?? "",
-      l.agencyName ?? "", // Firestore field; value is the brand name
+      l.agencyName ?? "",
       l.source ?? "",
+      l.campaignId ?? "",
+      l.campaignTitle ?? "",
+      l.outreachEmailed ? "yes" : "no",
     ]
       .map((c) => csvEscape(String(c)))
       .join(",")

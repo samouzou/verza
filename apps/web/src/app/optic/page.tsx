@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { BrandContextStrip } from "@/components/optic/brand-context-strip";
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
 import { DiscoveryTimeline } from "@/components/optic/discovery-timeline";
+import { MissionsList } from "@/components/optic/missions-list";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +39,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useOpticActiveJob } from "@/hooks/use-optic-active-job";
 import { useOpticCampaigns } from "@/hooks/use-optic-campaigns";
+import { useOpticJobs } from "@/hooks/use-optic-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
+import {
+  isOpticJobInFlight,
+  OPTIC_ACTIVE_JOB_STORAGE_KEY,
+} from "@/lib/optic/types";
 import type { Timestamp } from "firebase/firestore";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
@@ -72,10 +78,32 @@ export default function OpticDiscoveryPage() {
   const [objectives, setObjectives] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(5);
   const [submitting, setSubmitting] = useState(false);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem(OPTIC_ACTIVE_JOB_STORAGE_KEY);
+  });
+
+  const { jobs, loading: jobsLoading, error: jobsError } = useOpticJobs(agencyId);
 
   const { jobRow, listenError, requestNotificationPermission, goToVault } =
     useOpticActiveJob(activeJobId);
+
+  const selectJob = useCallback((jobId: string) => {
+    setActiveJobId(jobId);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(OPTIC_ACTIVE_JOB_STORAGE_KEY, jobId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (jobsLoading || jobs.length === 0) return;
+    const stillValid = activeJobId && jobs.some((j) => j.id === activeJobId);
+    if (stillValid) return;
+    const inFlight = jobs.find((j) => isOpticJobInFlight(j.status));
+    selectJob(inFlight?.id ?? jobs[0].id);
+  }, [jobs, jobsLoading, activeJobId, selectJob]);
+
+  const inFlightCount = jobs.filter((j) => isOpticJobInFlight(j.status)).length;
 
   useEffect(() => {
     requestNotificationPermission();
@@ -124,10 +152,10 @@ export default function OpticDiscoveryPage() {
       });
       const data = res.data as { jobId?: string };
       if (!data?.jobId) throw new Error("No jobId returned");
-      setActiveJobId(data.jobId);
+      selectJob(data.jobId);
       toast({
         title: "Mission started",
-        description: "Watch progress below. You will be notified when leads are in the vault.",
+        description: "Track progress here — we’ll add creators to your vault as we go.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -135,7 +163,7 @@ export default function OpticDiscoveryPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [agencyId, campaignId, canRun, maxProfiles, objectives, platform, toast, user]);
+  }, [agencyId, campaignId, canRun, maxProfiles, objectives, platform, selectJob, toast, user]);
 
   const cancelJob = useCallback(async () => {
     if (!activeJobId) return;
@@ -187,7 +215,7 @@ export default function OpticDiscoveryPage() {
     <div className="container max-w-6xl space-y-6 py-8">
       <PageHeader
         title="Verza Optic"
-        description="Define objectives, scout creators in the cloud, and save vetted leads with personalized draft emails."
+        description="Describe who you want to reach. We scout creators, review profiles, and add vetted leads with draft outreach to your vault."
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/optic/vault">Open vault</Link>
@@ -232,7 +260,7 @@ export default function OpticDiscoveryPage() {
               New mission
             </CardTitle>
             <CardDescription>
-              Drafts use your brand guide and live campaign pay when scoped below.
+              Drafts use your brand guide and campaign pay when you pick a campaign below.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -304,20 +332,31 @@ export default function OpticDiscoveryPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="optic-max">Max profiles to vet</Label>
+              <Label htmlFor="optic-max">How many creators to save this run</Label>
               <Input
                 id="optic-max"
                 type="number"
                 min={1}
-                max={20}
+                max={75}
                 value={maxProfiles}
                 onChange={(e) =>
                   setMaxProfiles(
-                    Math.min(20, Math.max(1, Number.parseInt(e.target.value || "5", 10)))
+                    Math.min(75, Math.max(1, Number.parseInt(e.target.value || "5", 10)))
                   )
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                We keep looking until we hit this number or run out of strong matches (up to 75 per
+                mission). Your vault can hold hundreds of leads across runs.
+              </p>
             </div>
+
+            {inFlightCount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {inFlightCount} mission{inFlightCount === 1 ? "" : "s"} in progress — pick one on the
+                right to watch the log.
+              </p>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <Button
@@ -333,7 +372,7 @@ export default function OpticDiscoveryPage() {
                   "Start mission"
                 )}
               </Button>
-              {activeJobId && (
+              {activeJobId && jobRow && isOpticJobInFlight(jobRow.status) && (
                 <Button type="button" variant="outline" onClick={() => void cancelJob()}>
                   Stop
                 </Button>
@@ -355,9 +394,9 @@ export default function OpticDiscoveryPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Active discovery log</CardTitle>
+            <CardTitle className="text-base">Missions</CardTitle>
             <CardDescription>
-              Live job updates from Firestore. Completed leads appear in{" "}
+              Recent discovery runs for your brand — select one to see live progress. Leads land in{" "}
               <Link href="/optic/vault" className="text-primary underline">
                 Optic vault
               </Link>
@@ -365,12 +404,24 @@ export default function OpticDiscoveryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {jobsError && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-xs">{jobsError}</AlertDescription>
+              </Alert>
+            )}
+            <MissionsList
+              jobs={jobs}
+              loading={jobsLoading && !!agencyId}
+              selectedId={activeJobId}
+              onSelect={selectJob}
+            />
+
             {!activeJobId ? (
-              <p className="text-sm text-muted-foreground">
-                Start a mission to see the timeline and worker logs.
+              <p className="text-sm text-muted-foreground border-t pt-4">
+                Select a mission above, or start a new one on the left.
               </p>
             ) : (
-              <>
+              <div className="space-y-4 border-t pt-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-mono text-xs">{activeJobId}</span>
                   {jobStatusBadge}
@@ -399,7 +450,7 @@ export default function OpticDiscoveryPage() {
                   </Button>
                 )}
                 <DiscoveryTimeline job={jobRow} />
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
