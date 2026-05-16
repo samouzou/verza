@@ -124,7 +124,10 @@ export interface SharedContractVersion {
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
   sharedAt: Timestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' |
+    'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' |
+    'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>;
+  // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
@@ -634,7 +637,8 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system' | 'creator_applied' | 'application_approved';
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' |
+  'payout_received' | 'system' | 'creator_applied' | 'application_approved';
   read: boolean;
   link?: string;
   createdAt: Timestamp;

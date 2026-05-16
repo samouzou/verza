@@ -44,6 +44,10 @@ import { useOpticJobs } from "@/hooks/use-optic-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import {
+  firstOpticPlatformFromCampaign,
+  OPTIC_PLATFORMS,
+} from "@/lib/optic/platforms";
+import {
   isOpticJobInFlight,
   OPTIC_ACTIVE_JOB_STORAGE_KEY,
 } from "@/lib/optic/types";
@@ -111,6 +115,11 @@ export default function OpticDiscoveryPage() {
     requestNotificationPermission();
   }, [requestNotificationPermission]);
 
+  useEffect(() => {
+    if (!selectedCampaign?.platforms?.length) return;
+    setPlatform(firstOpticPlatformFromCampaign(selectedCampaign.platforms));
+  }, [campaignId, selectedCampaign]);
+
   const fillFromCampaign = () => {
     if (!selectedCampaign?.description?.trim()) {
       toast({
@@ -124,6 +133,9 @@ export default function OpticDiscoveryPage() {
       ? `Campaign: ${selectedCampaign.title}\n\n`
       : "";
     setObjectives((head + selectedCampaign.description).trim().slice(0, 4000));
+    if (selectedCampaign.platforms?.length) {
+      setPlatform(firstOpticPlatformFromCampaign(selectedCampaign.platforms));
+    }
   };
 
   const startDiscovery = useCallback(async () => {
@@ -301,11 +313,16 @@ export default function OpticDiscoveryPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="youtube">YouTube</SelectItem>
-                  <SelectItem value="instagram">Instagram</SelectItem>
-                  <SelectItem value="tiktok">TikTok</SelectItem>
+                  {OPTIC_PLATFORMS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Same platforms as campaign launch, except LinkedIn (no automated scout yet).
+              </p>
             </div>
 
             <div className="space-y-2">

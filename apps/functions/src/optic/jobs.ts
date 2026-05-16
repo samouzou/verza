@@ -3,11 +3,10 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {loadAgencyBrandContextForUid, type AgencyBrandContext} from "./agencyContext";
-import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE} from "./constants";
+import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE, OPTIC_PLATFORMS} from "./constants";
 import {continueMissionForUid} from "./continuation";
 import {normalizeSmsPhone} from "./twilio";
 
-const PLATFORMS = new Set(["youtube", "instagram", "tiktok"]);
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
 export type OpticJobBrandContext = Pick<
@@ -71,10 +70,10 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     smsNotify?: unknown;
   };
 
-  if (typeof platform !== "string" || !PLATFORMS.has(platform)) {
+  if (typeof platform !== "string" || !OPTIC_PLATFORMS.has(platform)) {
     throw new HttpsError(
       "invalid-argument",
-      "platform must be one of: youtube, instagram, tiktok."
+      "platform must be one of: youtube, instagram, tiktok, facebook, twitch."
     );
   }
   if (typeof objectives !== "string" || !objectives.trim()) {

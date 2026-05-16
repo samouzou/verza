@@ -32,7 +32,7 @@ export default function OpticVaultPage() {
 
   if (authLoading) {
     return (
-      <div className="w-full py-8">
+      <div className="container max-w-6xl py-8">
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
@@ -51,7 +51,7 @@ export default function OpticVaultPage() {
   }
 
   return (
-    <div className="w-full space-y-6 py-8">
+    <div className="container max-w-6xl space-y-6 py-8">
       <PageHeader
         title="Optic vault"
         description="Qualified creators land here with a draft note you can send or drop into Gmail."

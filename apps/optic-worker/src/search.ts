@@ -16,6 +16,8 @@ function searchBudget(targetSaved: number) {
     youtubeChannels: Math.min(48, Math.max(12, Math.ceil(t * 2))),
     igPosts: Math.min(36, Math.max(12, Math.ceil(t * 2))),
     tiktokProfiles: Math.min(64, Math.max(16, Math.ceil(t * 3))),
+    facebookPages: Math.min(36, Math.max(12, Math.ceil(t * 2))),
+    twitchChannels: Math.min(48, Math.max(12, Math.ceil(t * 2))),
   };
 }
 
@@ -114,6 +116,72 @@ export async function findCreators(
         return out.slice(0, cap);
       }, budget.tiktokProfiles);
       urls.push(...tiktokUrls);
+    } else if (platform === "facebook") {
+      await page.goto(
+        `https://www.facebook.com/search/pages/?q=${encodeURIComponent(query)}`,
+        {timeout: 45_000}
+      );
+      await new Promise((r) => setTimeout(r, 4000));
+
+      const pageUrls = await page.evaluate((cap: number) => {
+        const out: string[] = [];
+        const skip = new Set([
+          "pages",
+          "watch",
+          "groups",
+          "events",
+          "marketplace",
+          "gaming",
+          "search",
+          "login",
+        ]);
+        document.querySelectorAll('a[href*="facebook.com"]').forEach((a) => {
+          try {
+            const u = new URL((a as HTMLAnchorElement).href);
+            const seg = u.pathname.split("/").filter(Boolean)[0];
+            if (!seg || skip.has(seg.toLowerCase())) return;
+            const url = `https://www.facebook.com/${seg}`;
+            if (!out.includes(url)) out.push(url);
+          } catch {
+            /* ignore bad URLs */
+          }
+        });
+        return out.slice(0, cap);
+      }, budget.facebookPages);
+      urls.push(...pageUrls);
+    } else if (platform === "twitch") {
+      await page.goto(`https://www.twitch.tv/search?term=${encodeURIComponent(query)}`, {
+        timeout: 45_000,
+      });
+      await new Promise((r) => setTimeout(r, 3500));
+
+      const channelUrls = await page.evaluate((cap: number) => {
+        const out: string[] = [];
+        const skip = new Set([
+          "search",
+          "directory",
+          "downloads",
+          "settings",
+          "login",
+          "signup",
+          "p",
+          "videos",
+          "clips",
+        ]);
+        document.querySelectorAll('a[href*="twitch.tv"]').forEach((a) => {
+          try {
+            const u = new URL((a as HTMLAnchorElement).href);
+            const seg = u.pathname.split("/").filter(Boolean)[0];
+            if (!seg || skip.has(seg.toLowerCase())) return;
+            const url = `https://www.twitch.tv/${seg}`;
+            if (!out.includes(url)) out.push(url);
+          } catch {
+            /* ignore bad URLs */
+          }
+        });
+        return out.slice(0, cap);
+      }, budget.twitchChannels);
+      urls.push(...channelUrls);
     }
 
     return urls;

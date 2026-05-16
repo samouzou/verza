@@ -3,14 +3,14 @@ export const Log = {
   scoutStarted: () => "Scout is running.",
   shortlist: () => "Finding creators who fit your brief…",
   platformSearch: (platform: string) => {
-    const label =
-      platform === "youtube"
-        ? "YouTube"
-        : platform === "instagram"
-          ? "Instagram"
-          : platform === "tiktok"
-            ? "TikTok"
-            : platform;
+    const labels: Record<string, string> = {
+      youtube: "YouTube",
+      instagram: "Instagram",
+      tiktok: "TikTok",
+      facebook: "Facebook",
+      twitch: "Twitch",
+    };
+    const label = labels[platform] ?? platform;
     return `Searching ${label} for people who match your goals…`;
   },
   vetVisit: () => "Reviewing a creator profile…",

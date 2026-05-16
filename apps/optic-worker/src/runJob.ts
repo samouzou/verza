@@ -115,10 +115,16 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
         await appendLog("vet", Log.vetVisit());
         try {
           const imageBase64 = await scrapeCreatorProfileInContext(vetContext, url);
-          const leadData = await analyzeProfileWithGemini(imageBase64, job.objectives, brand ?? null);
+          const leadData = await analyzeProfileWithGemini(
+            imageBase64,
+            job.objectives,
+            brand ?? null,
+            job.platform
+          );
           const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
           await db.collection("optic_outreach_leads").add({
             ...leadData,
+            discoveryPlatform: job.platform,
             profileUrl: url,
             createdAt: FieldValue.serverTimestamp(),
             source: "Verza Optic (web worker)",

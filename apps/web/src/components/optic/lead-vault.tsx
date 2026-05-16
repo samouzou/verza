@@ -25,7 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OutreachDraftCard } from "@/components/optic/outreach-draft-card";
 import { downloadLeadsCsv } from "@/lib/optic/csv";
+import { getLeadOutreachDraft, outreachCopyText } from "@/lib/optic/outreach-draft";
 import type { OpticCampaignOption, OpticLeadRow } from "@/lib/optic/types";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
@@ -139,7 +141,7 @@ export function LeadVault({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
+          <div className="space-y-2 flex-1 min-w-[200px] max-w-md">
             <Label htmlFor="vault-search" className="sr-only">
               Search
             </Label>
@@ -187,19 +189,19 @@ export function LeadVault({
             : "No leads match this campaign or search."}
         </p>
       ) : (
-        <div className="rounded-md border overflow-x-auto xl:overflow-visible">
-          <Table className="min-w-[960px] xl:min-w-0 xl:table-fixed xl:w-full">
+        <div className="rounded-md border overflow-x-auto">
+          <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 whitespace-nowrap">Contacted</TableHead>
-                <TableHead className="xl:w-[12%]">Creator</TableHead>
-                <TableHead className="xl:w-[11%]">Campaign</TableHead>
-                <TableHead className="xl:w-[9%]">Niche</TableHead>
-                <TableHead className="xl:w-[8%] whitespace-nowrap">Followers</TableHead>
-                <TableHead className="xl:w-[12%]">Email</TableHead>
-                <TableHead className="xl:w-[30%]">Draft pitch</TableHead>
-                <TableHead className="xl:w-[8%] whitespace-nowrap">Found</TableHead>
-                <TableHead className="xl:w-[10%] text-right">Actions</TableHead>
+                <TableHead className="w-10 whitespace-nowrap">Contacted</TableHead>
+                <TableHead>Creator</TableHead>
+                <TableHead className="min-w-[120px]">Campaign</TableHead>
+                <TableHead>Niche</TableHead>
+                <TableHead>Followers</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead className="min-w-[200px]">Outreach draft</TableHead>
+                <TableHead>Found</TableHead>
+                <TableHead className="w-[140px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -207,6 +209,7 @@ export function LeadVault({
                 const created = tsToDate(lead.createdAt);
                 const contacted = Boolean(lead.outreachEmailed);
                 const busy = outreachUpdatingId === lead.id;
+                const outreach = getLeadOutreachDraft(lead);
                 return (
                   <TableRow key={lead.id}>
                     <TableCell className="align-top py-2">
@@ -242,7 +245,7 @@ export function LeadVault({
                         </a>
                       )}
                     </TableCell>
-                    <TableCell className="align-top text-muted-foreground text-xs">
+                    <TableCell className="align-top text-muted-foreground text-xs max-w-[180px]">
                       <span className="line-clamp-2">{campaignLabel(lead)}</span>
                     </TableCell>
                     <TableCell className="align-top text-muted-foreground">
@@ -254,11 +257,9 @@ export function LeadVault({
                     <TableCell className="align-top text-muted-foreground">
                       {lead.email ?? "—"}
                     </TableCell>
-                    <TableCell className="align-top">
-                      {lead.draftEmail ? (
-                        <p className="text-sm leading-relaxed text-muted-foreground line-clamp-5 xl:line-clamp-6">
-                          {lead.draftEmail}
-                        </p>
+                    <TableCell className="align-top min-w-[220px] max-w-md">
+                      {outreach ? (
+                        <OutreachDraftCard draft={outreach} compact />
                       ) : (
                         "—"
                       )}
@@ -269,15 +270,19 @@ export function LeadVault({
                         : "—"}
                     </TableCell>
                     <TableCell className="align-top text-right">
-                      {lead.draftEmail && (
+                      {outreach && (
                         <div className="flex flex-wrap items-center justify-end gap-1">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => copyDraft(lead.draftEmail!, lead.id)}
-                            title="Copy draft"
+                            onClick={() => copyDraft(lead)}
+                            title={
+                              outreach.channel === "email"
+                                ? "Copy email draft"
+                                : `Copy ${outreach.platformLabel} DM`
+                            }
                           >
                             {copiedId === lead.id ? (
                               <Check className="h-4 w-4" />
@@ -285,7 +290,7 @@ export function LeadVault({
                               <Copy className="h-4 w-4" />
                             )}
                           </Button>
-                          {onCreateGmailDraft && (
+                          {onCreateGmailDraft && outreach.channel === "email" && (
                             <Button
                               type="button"
                               variant="outline"
@@ -301,7 +306,7 @@ export function LeadVault({
                                 gmailConnected
                                   ? lead.email
                                     ? "Create a draft in Gmail — review there, then send"
-                                    : "No email on profile"
+                                    : "No email — use Copy for platform DM"
                                   : "Connect Gmail on Discovery first"
                               }
                             >

@@ -42,6 +42,11 @@ export type OpticLeadRow = {
   followerCount?: string;
   profileUrl?: string;
   draftEmail?: string;
+  draftEmailSubject?: string;
+  /** Platform DM copy when no email is on the profile. */
+  draftDm?: string;
+  /** Platform slug from the discovery mission (youtube, instagram, …). */
+  discoveryPlatform?: string;
   agencyName?: string;
   agencyId?: string;
   source?: string;

@@ -6,6 +6,7 @@ import type { Timestamp } from "firebase/firestore";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { opticPlatformLabel } from "@/lib/optic/platforms";
 import { isOpticJobInFlight, type OpticJobRow } from "@/lib/optic/types";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
@@ -22,13 +23,6 @@ function statusVariant(status: string | undefined) {
   if (status === "completed") return "default" as const;
   if (status === "cancelled") return "outline" as const;
   return "secondary" as const;
-}
-
-function platformLabel(platform: string | undefined) {
-  if (platform === "instagram") return "Instagram";
-  if (platform === "tiktok") return "TikTok";
-  if (platform === "youtube") return "YouTube";
-  return platform ?? "Unknown";
 }
 
 type Props = {
@@ -115,7 +109,7 @@ function MissionSummary({
     <>
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">
-          {platformLabel(platform)}
+          {opticPlatformLabel(platform)}
           {inFlight && (
             <Loader2 className="ml-1.5 inline h-3 w-3 animate-spin text-muted-foreground" />
           )}

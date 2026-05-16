@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { opticPlatformLabel } from "@/lib/optic/platforms";
 import type { OpticJobRow } from "@/lib/optic/types";
 import type { Timestamp } from "firebase/firestore";
 
@@ -34,14 +35,7 @@ function humanizeLogMessage(message: string): string {
   if (/Generating seed leads/i.test(m)) return "Finding creators who fit your brief…";
   if (/Launching scout on/i.test(m)) {
     const plat = m.match(/on (\w+)/i)?.[1]?.toLowerCase() ?? "";
-    const label =
-      plat === "youtube"
-        ? "YouTube"
-        : plat === "instagram"
-          ? "Instagram"
-          : plat === "tiktok"
-            ? "TikTok"
-            : plat || "the platform";
+    const label = plat ? opticPlatformLabel(plat) : "the platform";
     return `Searching ${label} for people who match your goals…`;
   }
   if (/^Saved lead:/i.test(m)) {

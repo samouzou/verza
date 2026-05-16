@@ -110,12 +110,17 @@ export const createOpticGmailDraft = onCall(
     const toEmail = typeof lead.email === "string" ? lead.email.trim() : "";
     const draftBody = typeof lead.draftEmail === "string" ? lead.draftEmail.trim() : "";
     if (!toEmail) {
-      throw new HttpsError("failed-precondition", "This lead has no email on their profile. Copy the draft manually.");
+      throw new HttpsError(
+        "failed-precondition",
+        "This lead has no email on their profile. Copy the platform DM from the vault instead."
+      );
     }
     if (!draftBody) {
       throw new HttpsError("failed-precondition", "This lead has no draft email yet.");
     }
 
+    const storedSubject =
+      typeof lead.draftEmailSubject === "string" ? lead.draftEmailSubject.trim() : "";
     const creatorName =
       typeof lead.creatorName === "string" && lead.creatorName.trim() ?
         lead.creatorName.trim() :
@@ -124,7 +129,8 @@ export const createOpticGmailDraft = onCall(
       typeof lead.agencyName === "string" && lead.agencyName.trim() ?
         lead.agencyName.trim() :
         "our team";
-    const subject = `Partnership with ${brandName} — ${creatorName}`;
+    const subject =
+      storedSubject || `Partnership with ${brandName} — ${creatorName}`;
 
     const accessToken = await getGmailAccessTokenForUser(uid);
     const raw = buildGmailRawMessage({to: toEmail, subject, body: draftBody});

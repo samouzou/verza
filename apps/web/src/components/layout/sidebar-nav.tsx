@@ -142,6 +142,108 @@ function workflowNavItemsForUser(
   return [];
 }
 
+type NavSubItem = { id: string; href: string; label: string };
+
+function subNavItemIsActive(pathname: string, parentHref: string, subHref: string): boolean {
+  if (subHref === "/optic") return pathname === "/optic";
+  if (subHref === parentHref) return pathname === subHref;
+  return pathname.startsWith(subHref);
+}
+
+type SidebarNavCollapsibleProps = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  subItems: NavSubItem[];
+  pathname: string;
+  isMobile: boolean;
+  onNavigate: () => void;
+};
+
+function SidebarNavCollapsible({
+  id,
+  label,
+  icon: Icon,
+  href,
+  subItems,
+  pathname,
+  isMobile,
+  onNavigate,
+}: SidebarNavCollapsibleProps) {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
+  const isActive = pathname.startsWith(href);
+
+  if (isCollapsed) {
+    return (
+      <SidebarMenuItem id={id}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              isActive={isActive}
+              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+            >
+              <Icon className="h-5 w-5" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-48">
+            <DropdownMenuLabel>{label}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {subItems.map((subItem) => (
+              <DropdownMenuItem key={subItem.id} asChild>
+                <Link
+                  href={subItem.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    "w-full cursor-pointer",
+                    subNavItemIsActive(pathname, href, subItem.href) && "font-medium"
+                  )}
+                >
+                  {subItem.label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
+      <SidebarMenuItem id={id}>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            tooltip={label}
+            isActive={isActive}
+            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+          >
+            <Icon className="h-5 w-5" />
+            <span className="group-data-[collapsible=icon]:hidden">{label}</span>
+            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {subItems.map((subItem) => (
+              <SidebarMenuSubItem key={subItem.id}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={subNavItemIsActive(pathname, href, subItem.href)}
+                >
+                  <Link href={subItem.href} onClick={onNavigate}>
+                    <span>{subItem.label}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+}
 
 export function SidebarNav() {
   const pathname = usePathname();
@@ -277,51 +379,18 @@ export function SidebarNav() {
                 <SidebarGroupContent>
                     {workflowNavItems.map((item) => {
                       if (item.subItems?.length) {
-                        const isActive = pathname.startsWith(item.href);
                         return (
-                          <Collapsible
+                          <SidebarNavCollapsible
                             key={item.id}
-                            asChild
-                            defaultOpen={isActive}
-                            className="group/collapsible"
-                          >
-                            <SidebarMenuItem id={item.id}>
-                              <CollapsibleTrigger asChild>
-                                <SidebarMenuButton
-                                  tooltip={item.label}
-                                  isActive={isActive}
-                                  className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
-                                >
-                                  <item.icon className="h-5 w-5" />
-                                  <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
-                                  <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
-                                </SidebarMenuButton>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent>
-                                <SidebarMenuSub>
-                                  {item.subItems.map((subItem) => (
-                                    <SidebarMenuSubItem key={subItem.id}>
-                                      <SidebarMenuSubButton
-                                        asChild
-                                        isActive={
-                                          subItem.href === "/optic"
-                                            ? pathname === "/optic"
-                                            : pathname.startsWith(subItem.href)
-                                        }
-                                      >
-                                        <Link
-                                          href={subItem.href}
-                                          onClick={() => isMobile && setOpenMobile(false)}
-                                        >
-                                          <span>{subItem.label}</span>
-                                        </Link>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  ))}
-                                </SidebarMenuSub>
-                              </CollapsibleContent>
-                            </SidebarMenuItem>
-                          </Collapsible>
+                            id={item.id}
+                            label={item.label}
+                            icon={item.icon}
+                            href={item.href}
+                            subItems={item.subItems}
+                            pathname={pathname}
+                            isMobile={isMobile}
+                            onNavigate={() => isMobile && setOpenMobile(false)}
+                          />
                         );
                       }
 
@@ -360,38 +429,19 @@ export function SidebarNav() {
                 const Icon = isAgencyItem && isBrand ? Store : item.icon;
                 
                 // Show submenus for the Agency/Brand item
-                if (isAgencyItem && (item as any).subItems) {
-                  const isActive = pathname.startsWith(item.href);
+                if (isAgencyItem && item.subItems?.length) {
                   return (
-                    <Collapsible
+                    <SidebarNavCollapsible
                       key={item.id}
-                      asChild
-                      defaultOpen={isActive}
-                      className="group/collapsible"
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton tooltip={label} isActive={isActive}>
-                            <Icon className="h-5 w-5" />
-                            <span className="group-data-[collapsible=icon]:hidden">{label}</span>
-                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {(item as any).subItems.map((subItem: any) => (
-                              <SidebarMenuSubItem key={subItem.id}>
-                                <SidebarMenuSubButton asChild isActive={pathname === subItem.href}>
-                                  <Link href={subItem.href} onClick={() => isMobile && setOpenMobile(false)}>
-                                    <span>{subItem.label}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
+                      id={item.id}
+                      label={label}
+                      icon={Icon}
+                      href={item.href}
+                      subItems={item.subItems}
+                      pathname={pathname}
+                      isMobile={isMobile}
+                      onNavigate={() => isMobile && setOpenMobile(false)}
+                    />
                   );
                 }
 

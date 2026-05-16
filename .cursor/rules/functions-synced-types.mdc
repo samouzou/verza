@@ -1,0 +1,14 @@
+---
+description: Do not edit synced @verza/types copy under apps/functions
+globs: apps/functions/packages-local/**
+alwaysApply: false
+---
+
+# Synced types copy (read-only for agents)
+
+`apps/functions/packages-local/types/` is **generated**, not source of truth.
+
+- It is overwritten by `scripts/sync-types-into-functions.cjs` on every `firebase deploy` functions predeploy and `npm run sync:functions-types`.
+- **Never edit** files under `packages-local/types/` (including `src/index.ts`).
+- To change shared types, edit **`packages/types/src/`** only, then run `npm run sync:functions-types` if needed locally.
+- Do not “fix” lint in the copy; fix or ignore at the source/sync boundary.
