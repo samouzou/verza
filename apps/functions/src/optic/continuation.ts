@@ -1,6 +1,7 @@
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
+import {assertSufficientOpticCredits} from "./credits";
 import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE} from "./constants";
 type OpticJobBrandContext = {
   agencyName: string;
@@ -71,6 +72,8 @@ export async function enqueueOpticContinuationJob(
     OPTIC_MAX_BATCH_SIZE,
     Math.max(1, source.maxProfiles || OPTIC_DEFAULT_BATCH_SIZE)
   );
+
+  await assertSufficientOpticCredits(source.agencyId, maxProfiles);
 
   const jobRef = db.collection("optic_jobs").doc();
   await jobRef.set({

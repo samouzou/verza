@@ -63,6 +63,15 @@ export const STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_AGE
 export const STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID");
 export const STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID");
 
+/** Optic Studio (1k leads/mo) — $1,499/mo list */
+export const STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID");
+/** Optic Studio annual (~17% off) */
+export const STRIPE_OPTIC_PILOT_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_PILOT_YEARLY_PRICE_ID");
+/** Optic Enterprise (3.5k leads/mo) — $4,200/mo list */
+export const STRIPE_OPTIC_ENTERPRISE_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_ENTERPRISE_MONTHLY_PRICE_ID");
+/** Optic Enterprise annual (~17% off, $3,500/mo effective) */
+export const STRIPE_OPTIC_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_ENTERPRISE_YEARLY_PRICE_ID");
+
 // Global Payouts (dahlia API) — Treasury financial account ID for outbound transfers
 export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {
   description: "Stripe Treasury financial account ID used for Global Payouts outbound transfers.",

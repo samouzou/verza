@@ -13,6 +13,8 @@ import { formatDistanceToNow } from "date-fns";
 
 import { BrandContextStrip } from "@/components/optic/brand-context-strip";
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
+import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
+import { OpticNoCreditsCard } from "@/components/optic/optic-no-credits-card";
 import { OpticSmsCard } from "@/components/optic/optic-sms-card";
 import { DiscoveryTimeline } from "@/components/optic/discovery-timeline";
 import { MissionsList } from "@/components/optic/missions-list";
@@ -40,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useOpticActiveJob } from "@/hooks/use-optic-active-job";
 import { useOpticCampaigns } from "@/hooks/use-optic-campaigns";
+import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { useOpticJobs } from "@/hooks/use-optic-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
@@ -88,6 +91,22 @@ export default function OpticDiscoveryPage() {
     if (typeof window === "undefined") return null;
     return sessionStorage.getItem(OPTIC_ACTIVE_JOB_STORAGE_KEY);
   });
+
+  const opticBilling = useOpticCredits(agencyId);
+  const {
+    balance: opticCredits,
+    loading: creditsLoading,
+    hasActiveSubscription,
+    plan: opticPlan,
+  } = opticBilling;
+  const canAffordBatch =
+    hasActiveSubscription || opticCredits >= maxProfiles;
+  const showNoCreditsCard =
+    canRun &&
+    agencyId &&
+    !creditsLoading &&
+    !canAffordBatch &&
+    !(hasActiveSubscription && opticPlan === "pilot" && opticCredits === 0);
 
   const { jobs, loading: jobsLoading, error: jobsError } = useOpticJobs(agencyId);
 
@@ -253,9 +272,14 @@ export default function OpticDiscoveryPage() {
         title="Verza Optic"
         description="Run small batches of creator discovery. When a batch finishes, continue in the app or by text to keep your vault growing."
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/optic/vault">Open vault</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {agencyId && canRun && (
+              <OpticCreditsBadge balance={opticCredits} loading={creditsLoading} />
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/optic/vault">Open vault</Link>
+            </Button>
+          </div>
         }
       />
 
@@ -405,10 +429,33 @@ export default function OpticDiscoveryPage() {
               </p>
             )}
 
+            {showNoCreditsCard && (
+              <OpticNoCreditsCard
+                batchSize={maxProfiles}
+                balance={opticCredits}
+                hasActiveSubscription={hasActiveSubscription}
+                plan={opticPlan}
+              />
+            )}
+            {canRun && agencyId && hasActiveSubscription && opticPlan === "pilot" && opticCredits === 0 && (
+              <OpticNoCreditsCard
+                balance={0}
+                hasActiveSubscription
+                plan="pilot"
+              />
+            )}
+
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => void startDiscovery()}
-                disabled={submitting || !canRun || !agencyId || !objectives.trim()}
+                disabled={
+                  submitting ||
+                  !canRun ||
+                  !agencyId ||
+                  !objectives.trim() ||
+                  creditsLoading ||
+                  !canAffordBatch
+                }
               >
                 {submitting ? (
                   <>
@@ -494,6 +541,7 @@ export default function OpticDiscoveryPage() {
                 {jobRow?.status === "completed" && (
                   <CompletedMissionActions
                     continuing={continuing}
+                    canContinue={canAffordBatch && !creditsLoading}
                     onContinue={() => void continueNextBatch()}
                     onVault={goToVault}
                   />
@@ -510,16 +558,24 @@ export default function OpticDiscoveryPage() {
 
 function CompletedMissionActions({
   continuing,
+  canContinue,
   onContinue,
   onVault,
 }: {
   continuing: boolean;
+  canContinue: boolean;
   onContinue: () => void;
   onVault: () => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="default" disabled={continuing} onClick={onContinue}>
+      <Button
+        type="button"
+        size="sm"
+        variant="default"
+        disabled={continuing || !canContinue}
+        onClick={onContinue}
+      >
         {continuing ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

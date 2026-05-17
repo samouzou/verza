@@ -432,6 +432,22 @@ export interface Agency {
   paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
   availableBalance?: number;
   escrowBalance?: number;
+  /** Optic discovery: 1 credit = 1 scraped profile + AI draft saved to vault. */
+  opticCreditsBalance?: number;
+  /** Optic SaaS tier (separate from Verza agency subscription on the owner user). */
+  opticPlan?: 'none' | 'pilot' | 'enterprise';
+  opticSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
+  opticStripeSubscriptionId?: string | null;
+  opticBillingInterval?: 'month' | 'year' | null;
+  opticPeriodEnd?: Timestamp | null;
+  /** Included leads per billing period for the current Optic plan. */
+  opticMonthlyAllowance?: number;
+  /** Enterprise: leads saved beyond included balance this period (quarterly true-up). */
+  opticOverageLeadsThisPeriod?: number;
+  /** Pilot: auto top-up blocks charged this period (250 leads @ $500 each). */
+  opticTopUpBlocksThisPeriod?: number;
+  /** Server-only: dedupe key for 80% low-credit warning email per billing period. */
+  opticLowCreditWarningPeriodKey?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   talent: Talent[];

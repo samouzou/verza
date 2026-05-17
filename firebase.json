@@ -30,7 +30,14 @@
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log",
-      "functions"
+      "functions",
+      ".next",
+      ".turbo",
+      "dist",
+      "out",
+      "coverage",
+      ".env",
+      ".env.*"
     ],
     "alwaysDeployFromSource": true
   },

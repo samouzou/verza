@@ -46,8 +46,57 @@ function humanizeLogMessage(message: string): string {
     const n = m.match(/(\d+)/)?.[1];
     return n ? `All set — ${n} creator${n === "1" ? "" : "s"} are ready in your vault.` : m;
   }
-  if (/^Skipped\s+https?:\/\//i.test(m)) return "Skipping a profile that didn’t work out — trying the next one.";
   return m;
+}
+
+function profileDisplayLabel(profileUrl: string): string {
+  try {
+    const u = new URL(profileUrl);
+    const host = u.hostname.replace(/^www\./, "");
+    const path = u.pathname.replace(/\/$/, "");
+    if (!path || path === "/") return host;
+    const combined = `${host}${path}`;
+    return combined.length > 48 ? `${combined.slice(0, 45)}…` : combined;
+  } catch {
+    return profileUrl.length > 48 ? `${profileUrl.slice(0, 45)}…` : profileUrl;
+  }
+}
+
+function parseProfileLog(
+  message: string
+): { kind: "opening" | "skipped" | "known"; url: string } | null {
+  const open = message.match(/^Opening\s+(https?:\/\/\S+)/i);
+  if (open?.[1]) return { kind: "opening", url: open[1] };
+  const skip = message.match(/^Skipped\s+(https?:\/\/\S+)/i);
+  if (skip?.[1]) return { kind: "skipped", url: skip[1] };
+  const known = message.match(/^Already in vault:\s*(https?:\/\/\S+)/i);
+  if (known?.[1]) return { kind: "known", url: known[1] };
+  return null;
+}
+
+function LogLineContent({ message }: { message: string }) {
+  const text = humanizeLogMessage(message);
+  const parsed = parseProfileLog(message);
+
+  if (parsed) {
+    const label = profileDisplayLabel(parsed.url);
+    const prefix =
+      parsed.kind === "opening"
+        ? "Opening "
+        : parsed.kind === "known"
+          ? "Already in vault: "
+          : "Skipped ";
+    const suffix = parsed.kind === "skipped" ? " — trying the next one" : "";
+    return (
+      <span>
+        {prefix}
+        <span className="font-mono text-foreground/80">{label}</span>
+        {suffix}
+      </span>
+    );
+  }
+
+  return <>{text}</>;
 }
 
 function tsToDate(ts: Timestamp | undefined): Date | null {
@@ -124,7 +173,7 @@ export function DiscoveryTimeline({ job }: Props) {
                     return (
                       <div key={i}>
                         {t ? `${t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · ` : ""}
-                        {humanizeLogMessage(line.message ?? "")}
+                        <LogLineContent message={line.message ?? ""} />
                       </div>
                     );
                   })}

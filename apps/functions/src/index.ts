@@ -86,6 +86,12 @@ import {
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
+import {
+  createOpticSubscriptionCheckoutSession,
+  createOpticBillingPortalSession,
+  opticInternalTopUp,
+  opticInternalLowCreditCheck,
+} from "./optic/billing";
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
 import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
 import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
@@ -153,6 +159,10 @@ export {
   setOpticLeadOutreachStatus,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
+  createOpticSubscriptionCheckoutSession,
+  createOpticBillingPortalSession,
+  opticInternalTopUp,
+  opticInternalLowCreditCheck,
   opticJobSmsOnComplete,
   opticTwilioSmsWebhook,
   dispatchOpticJobToWorker,

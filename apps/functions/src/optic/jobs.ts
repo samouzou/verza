@@ -5,6 +5,7 @@ import {db} from "../config/firebase";
 import {loadAgencyBrandContextForUid, type AgencyBrandContext} from "./agencyContext";
 import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE, OPTIC_PLATFORMS} from "./constants";
 import {continueMissionForUid} from "./continuation";
+import {assertSufficientOpticCredits} from "./credits";
 import {normalizeSmsPhone} from "./twilio";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
@@ -107,6 +108,8 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     const msg = e instanceof Error ? e.message : String(e);
     throw new HttpsError("failed-precondition", msg);
   }
+
+  await assertSufficientOpticCredits(fullBrand.agencyId, mp);
 
   const jobRef = db.collection("optic_jobs").doc();
   const jobId = jobRef.id;

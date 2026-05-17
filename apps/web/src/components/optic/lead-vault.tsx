@@ -141,7 +141,7 @@ export function LeadVault({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 flex-1 min-w-[200px] max-w-md">
+          <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
             <Label htmlFor="vault-search" className="sr-only">
               Search
             </Label>
@@ -190,18 +190,18 @@ export function LeadVault({
         </p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
-          <Table>
+          <Table className="min-w-[960px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10 whitespace-nowrap">Contacted</TableHead>
+                <TableHead className="w-12 whitespace-nowrap">Contacted</TableHead>
                 <TableHead>Creator</TableHead>
-                <TableHead className="min-w-[120px]">Campaign</TableHead>
+                <TableHead>Campaign</TableHead>
                 <TableHead>Niche</TableHead>
-                <TableHead>Followers</TableHead>
+                <TableHead className="whitespace-nowrap">Followers</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead className="min-w-[200px]">Outreach draft</TableHead>
-                <TableHead>Found</TableHead>
-                <TableHead className="w-[140px] text-right">Actions</TableHead>
+                <TableHead>Outreach draft</TableHead>
+                <TableHead className="whitespace-nowrap">Found</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -245,7 +245,7 @@ export function LeadVault({
                         </a>
                       )}
                     </TableCell>
-                    <TableCell className="align-top text-muted-foreground text-xs max-w-[180px]">
+                    <TableCell className="align-top text-muted-foreground text-xs">
                       <span className="line-clamp-2">{campaignLabel(lead)}</span>
                     </TableCell>
                     <TableCell className="align-top text-muted-foreground">
@@ -257,7 +257,7 @@ export function LeadVault({
                     <TableCell className="align-top text-muted-foreground">
                       {lead.email ?? "—"}
                     </TableCell>
-                    <TableCell className="align-top min-w-[220px] max-w-md">
+                    <TableCell className="align-top">
                       {outreach ? (
                         <OutreachDraftCard draft={outreach} compact />
                       ) : (

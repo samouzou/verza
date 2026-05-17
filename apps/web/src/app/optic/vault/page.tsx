@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
 import { LeadVault } from "@/components/optic/lead-vault";
+import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
 import { useOpticGmail } from "@/hooks/use-optic-gmail";
 import { useOpticLeadOutreach } from "@/hooks/use-optic-lead-outreach";
 import { PageHeader } from "@/components/page-header";
@@ -13,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useOpticCampaigns } from "@/hooks/use-optic-campaigns";
+import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { useOpticLeads } from "@/hooks/use-optic-leads";
 
 export default function OpticVaultPage() {
@@ -29,6 +31,7 @@ export default function OpticVaultPage() {
     email: user?.opticGmailEmail ?? null,
   });
   const outreach = useOpticLeadOutreach();
+  const { balance: opticCredits, loading: creditsLoading } = useOpticCredits(agencyId);
 
   if (authLoading) {
     return (
@@ -56,9 +59,14 @@ export default function OpticVaultPage() {
         title="Optic vault"
         description="Qualified creators land here with a draft note you can send or drop into Gmail."
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/optic">Run discovery</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {agencyId && isAgencyTeam && (
+              <OpticCreditsBadge balance={opticCredits} loading={creditsLoading} />
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/optic">Run discovery</Link>
+            </Button>
+          </div>
         }
       />
 

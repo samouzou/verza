@@ -1,5 +1,8 @@
 import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
+import {loadAgencyOpticBilling, requestLowCreditCheck, requestPilotTopUp} from "./billing";
+import {loadExistingProfileUrlKeys, normalizeProfileUrl} from "./dedup";
+import {saveLeadWithOpticCreditCharge} from "./credits";
 import {OPTIC_MAX_SAVED_PER_RUN, urlPoolCap, vetDelayMs} from "./limits";
 import {Log} from "./logCopy";
 import {generateSeedLeads, findCreators} from "./search";
@@ -99,10 +102,18 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
 
     const poolMax = urlPoolCap(targetSaved);
     const urlList = Array.from(allUrls).sort();
-    const queue = urlList.slice(0, Math.min(poolMax, urlList.length));
+    const campaignId = job.campaignId?.trim() || null;
+    const knownUrls = await loadExistingProfileUrlKeys(db, job.agencyId, campaignId);
+    const freshUrls = urlList.filter((u) => !knownUrls.has(normalizeProfileUrl(u)));
+    const skippedKnown = urlList.length - freshUrls.length;
+    if (skippedKnown > 0) {
+      await appendLog("search", Log.skippingKnown(skippedKnown));
+    }
+    const queue = freshUrls.slice(0, Math.min(poolMax, freshUrls.length));
 
     const vetContext = await createVetBrowserContext();
     let processed = 0;
+    let billing = await loadAgencyOpticBilling(db, job.agencyId);
 
     try {
       for (let i = 0; i < queue.length && processed < targetSaved; i++) {
@@ -112,7 +123,11 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
           break;
         }
         const url = queue[i];
-        await appendLog("vet", Log.vetVisit());
+        if (knownUrls.has(normalizeProfileUrl(url))) {
+          await appendLog("vet", Log.alreadyKnown(url));
+          continue;
+        }
+        await appendLog("vet", Log.vetVisit(url));
         try {
           const imageBase64 = await scrapeCreatorProfileInContext(vetContext, url);
           const leadData = await analyzeProfileWithGemini(
@@ -122,7 +137,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
             job.platform
           );
           const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
-          await db.collection("optic_outreach_leads").add({
+          const leadPayload = {
             ...leadData,
             discoveryPlatform: job.platform,
             profileUrl: url,
@@ -132,12 +147,48 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
             agencyName: job.agencyName,
             campaignId: job.campaignId ?? null,
             campaignTitle: payTitle,
+          };
+
+          let saveResult = await saveLeadWithOpticCreditCharge({
+            db,
+            jobId,
+            agencyId: job.agencyId,
+            profileUrl: url,
+            leadData: leadPayload,
+            billing,
           });
+
+          if (!saveResult.ok && saveResult.reason === "needs_top_up") {
+            const topUp = await requestPilotTopUp(job.agencyId);
+            if (topUp.ok) {
+              billing = await loadAgencyOpticBilling(db, job.agencyId);
+              await appendLog("vet", Log.topUpApplied());
+              saveResult = await saveLeadWithOpticCreditCharge({
+                db,
+                jobId,
+                agencyId: job.agencyId,
+                profileUrl: url,
+                leadData: leadPayload,
+                billing,
+              });
+            } else {
+              await appendLog("vet", Log.topUpFailed(topUp.reason));
+            }
+          }
+
+          if (!saveResult.ok) {
+            await appendLog("vet", Log.insufficientCredits());
+            break;
+          }
+          if (saveResult.charged) {
+            void requestLowCreditCheck(job.agencyId);
+          }
           processed++;
+          knownUrls.add(normalizeProfileUrl(url));
           await ref.update({processedCount: processed, updatedAt: FieldValue.serverTimestamp()});
           await appendLog("vet", Log.saved(leadData.creatorName || "Creator"));
         } catch {
-          await appendLog("vet", Log.skip());
+          await appendLog("vet", Log.skip(url));
         }
         if (i < queue.length - 1 && processed < targetSaved && delayMs > 0) {
           await new Promise((r) => setTimeout(r, delayMs));

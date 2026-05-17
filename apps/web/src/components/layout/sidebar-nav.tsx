@@ -62,6 +62,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SetupGuide } from "./setup-guide";
 import { NotificationBell } from "./notification-bell";
@@ -123,8 +124,27 @@ const brandOpticNavItem: WorkflowNavItem = {
   subItems: [
     { id: "sub-item-optic-discovery", href: "/optic", label: "Discovery" },
     { id: "sub-item-optic-vault", href: "/optic/vault", label: "Vault" },
+    { id: "sub-item-optic-pricing", href: "/optic/pricing", label: "Pricing" },
   ],
 };
+
+function SidebarOpticCreditsBlock({ agencyId }: { agencyId: string }) {
+  const { balance, loading } = useOpticCredits(agencyId);
+  return (
+    <div className="p-2">
+      <Link
+        href="/optic"
+        className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
+      >
+        <Zap className="h-5 w-5 shrink-0 text-amber-500" />
+        <div className="group-data-[collapsible=icon]:hidden">
+          <p className="text-sm font-semibold tabular-nums">{loading ? "…" : balance}</p>
+          <p className="text-xs text-muted-foreground -mt-1">Optic credits</p>
+        </div>
+      </Link>
+    </div>
+  );
+}
 
 function workflowNavItemsForUser(
   user: { role?: string; isBrandAccount?: boolean } | null
@@ -318,6 +338,12 @@ export function SidebarNav() {
   
   const subscriptionBadge = getSubscriptionBadge();
   const workflowNavItems = workflowNavItemsForUser(activeUser);
+  const showOpticCredits =
+    !!activeUser?.primaryAgencyId &&
+    (activeUser.role === "agency_owner" ||
+      activeUser.role === "agency_admin" ||
+      activeUser.role === "agency_member" ||
+      !!activeUser.isBrandAccount);
 
   return (
     <Sidebar collapsible="icon">
@@ -489,6 +515,9 @@ export function SidebarNav() {
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
          <SetupGuide />
+          {showOpticCredits && activeUser?.primaryAgencyId && (
+            <SidebarOpticCreditsBlock agencyId={activeUser.primaryAgencyId} />
+          )}
           {activeUser && (
             <div className="p-2">
               <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent">
