@@ -37,7 +37,10 @@
       "out",
       "coverage",
       ".env",
-      ".env.*"
+      ".env.*",
+      "emulator-data",
+      "apps/desktop",
+      "apps/optic-worker/dist"
     ],
     "alwaysDeployFromSource": true
   },
