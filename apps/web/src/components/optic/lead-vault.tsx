@@ -200,7 +200,7 @@ export function LeadVault({
                 <TableHead className="xl:w-[9%]">Campaign</TableHead>
                 <TableHead className="xl:w-[7%]">Niche</TableHead>
                 <TableHead className="xl:w-[7%] whitespace-nowrap">Followers</TableHead>
-                <TableHead className="xl:w-[14%]">Email</TableHead>
+                <TableHead className="xl:w-[11%]">Email</TableHead>
                 <TableHead className="xl:w-[35%]">Outreach draft</TableHead>
                 <TableHead className="xl:w-[7%] whitespace-nowrap">Found</TableHead>
                 <TableHead className="xl:w-[11%] text-right">Actions</TableHead>
