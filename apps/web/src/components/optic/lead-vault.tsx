@@ -189,19 +189,21 @@ export function LeadVault({
             : "No leads match this campaign or search."}
         </p>
       ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <Table className="min-w-[960px]">
+        <div className="rounded-md border overflow-x-auto xl:overflow-visible">
+          <Table className="min-w-[960px] xl:min-w-0 xl:w-full xl:table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 whitespace-nowrap">Contacted</TableHead>
-                <TableHead>Creator</TableHead>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Niche</TableHead>
-                <TableHead className="whitespace-nowrap">Followers</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Outreach draft</TableHead>
-                <TableHead className="whitespace-nowrap">Found</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-24 min-w-24 shrink-0 xl:w-[6%] whitespace-nowrap px-2">
+                  Contacted
+                </TableHead>
+                <TableHead className="xl:w-[10%]">Creator</TableHead>
+                <TableHead className="xl:w-[9%]">Campaign</TableHead>
+                <TableHead className="xl:w-[7%]">Niche</TableHead>
+                <TableHead className="xl:w-[7%] whitespace-nowrap">Followers</TableHead>
+                <TableHead className="xl:w-[14%]">Email</TableHead>
+                <TableHead className="xl:w-[35%]">Outreach draft</TableHead>
+                <TableHead className="xl:w-[7%] whitespace-nowrap">Found</TableHead>
+                <TableHead className="xl:w-[11%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -212,7 +214,7 @@ export function LeadVault({
                 const outreach = getLeadOutreachDraft(lead);
                 return (
                   <TableRow key={lead.id}>
-                    <TableCell className="align-top py-2">
+                    <TableCell className="align-top py-2 w-24 min-w-24 shrink-0 xl:w-[6%] px-2">
                       {onOutreachToggle ? (
                         <div className="flex items-center pt-1">
                           <Checkbox
@@ -254,8 +256,14 @@ export function LeadVault({
                     <TableCell className="align-top text-muted-foreground">
                       {lead.followerCount ?? "—"}
                     </TableCell>
-                    <TableCell className="align-top text-muted-foreground">
-                      {lead.email ?? "—"}
+                    <TableCell className="align-top text-muted-foreground text-xs">
+                      {lead.email ? (
+                        <span className="break-all leading-snug" title={lead.email}>
+                          {lead.email}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="align-top">
                       {outreach ? (
@@ -277,7 +285,7 @@ export function LeadVault({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => copyDraft(lead)}
+                            onClick={() => copyDraft(outreachCopyText(outreach), lead.id)}
                             title={
                               outreach.channel === "email"
                                 ? "Copy email draft"
