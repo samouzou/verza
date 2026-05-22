@@ -321,6 +321,12 @@ export default function BrandOverviewDeck() {
 
         <div className="flex items-center gap-3">
           <Link
+            href="/overview/agencies"
+            className="text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors hidden md:inline"
+          >
+            Agency deck
+          </Link>
+          <Link
             href="/login"
             className="text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors hidden sm:inline"
           >
