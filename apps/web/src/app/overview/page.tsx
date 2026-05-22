@@ -1930,7 +1930,7 @@ function SlideCTA() {
 
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-center pt-2">
           <a
-            href="https://tryverza.com/signup"
+            href="https://app.tryverza.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full sm:w-auto bg-white hover:bg-slate-100 text-indigo-950 font-black text-sm px-8 py-3.5 rounded-lg flex items-center justify-center gap-1.5 shadow-lg transition-transform hover:-translate-y-0.5"
