@@ -124,7 +124,10 @@ export interface SharedContractVersion {
   originalContractId: string; // ID of the parent contract
   userId: string; // Creator's UID
   sharedAt: Timestamp;
-  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' | 'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>; // Snapshot of relevant contract data at time of sharing
+  contractData: Omit<Contract, 'id' | 'userId' | 'createdAt' | 'updatedAt' |
+    'invoiceHistory' | 'lastReminderSentAt' | 'boldSignDocumentId' | 'helloSignRequestId' |
+    'signatureStatus' | 'signedDocumentUrl' | 'lastSignatureEventAt' | 'access'>;
+  // Snapshot of relevant contract data at time of sharing
   notesForBrand: string | null;
   status: 'active' | 'revoked'; // Status of this share link
   brandHasViewed?: boolean;
@@ -429,6 +432,22 @@ export interface Agency {
   paymentDelegateId?: string | null; // UID of the team member responsible for receiving payments (defaults to ownerId if unset)
   availableBalance?: number;
   escrowBalance?: number;
+  /** Optic discovery: 1 credit = 1 scraped profile + AI draft saved to vault. */
+  opticCreditsBalance?: number;
+  /** Optic SaaS tier (separate from Verza agency subscription on the owner user). */
+  opticPlan?: 'none' | 'pilot' | 'enterprise';
+  opticSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
+  opticStripeSubscriptionId?: string | null;
+  opticBillingInterval?: 'month' | 'year' | null;
+  opticPeriodEnd?: Timestamp | null;
+  /** Included leads per billing period for the current Optic plan. */
+  opticMonthlyAllowance?: number;
+  /** Enterprise: leads saved beyond included balance this period (quarterly true-up). */
+  opticOverageLeadsThisPeriod?: number;
+  /** Pilot: auto top-up blocks charged this period (250 leads @ $500 each). */
+  opticTopUpBlocksThisPeriod?: number;
+  /** Server-only: dedupe key for 80% low-credit warning email per billing period. */
+  opticLowCreditWarningPeriodKey?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   talent: Talent[];
@@ -634,7 +653,8 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'gig_accepted' | 'submission_received' | 'submission_approved' | 'payout_received' | 'system' | 'creator_applied' | 'application_approved';
+  type: 'gig_accepted' | 'submission_received' | 'submission_approved' |
+  'payout_received' | 'system' | 'creator_applied' | 'application_approved';
   read: boolean;
   link?: string;
   createdAt: Timestamp;

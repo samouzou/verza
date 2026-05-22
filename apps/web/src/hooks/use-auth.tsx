@@ -105,6 +105,12 @@ export interface UserProfile {
   contentType?: CreatorMarketplaceProfile['contentType'] | null;
   hasCompletedCareerPath?: boolean;
   hasCompletedBrandJourney?: boolean;
+
+  /** Optic: Gmail connected for saving outreach drafts (tokens stored server-side). */
+  opticGmailConnected?: boolean;
+  opticGmailEmail?: string | null;
+  opticSmsEnabled?: boolean;
+  opticSmsPhone?: string | null;
 }
 
 interface AuthContextType {
@@ -449,6 +455,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               engagementRate: firestoreUserData.engagementRate,
               averageVerzaScore: firestoreUserData.averageVerzaScore,
               walletBalance: firestoreUserData.walletBalance,
+              opticGmailConnected: firestoreUserData.opticGmailConnected ?? false,
+              opticGmailEmail: firestoreUserData.opticGmailEmail ?? null,
+              opticSmsEnabled: firestoreUserData.opticSmsEnabled ?? false,
+              opticSmsPhone: firestoreUserData.opticSmsPhone ?? null,
             });
           } else {
              setUser(null);

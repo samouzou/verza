@@ -199,7 +199,19 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if isOwner(request.resource.data.ownerId);
       // Use Firestore profile (isTeamMemberOf), not only JWT claims — admins/members often lack primaryAgencyId on the token until refresh.
-      allow update: if isTeamMemberOf(agencyId) || isMemberOfAgency(agencyId);
+      allow update: if (isTeamMemberOf(agencyId) || isMemberOfAgency(agencyId))
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'opticCreditsBalance',
+          'opticPlan',
+          'opticSubscriptionStatus',
+          'opticStripeSubscriptionId',
+          'opticBillingInterval',
+          'opticPeriodEnd',
+          'opticMonthlyAllowance',
+          'opticOverageLeadsThisPeriod',
+          'opticTopUpBlocksThisPeriod',
+          'opticLowCreditWarningPeriodKey'
+        ]);
       allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
     
@@ -218,5 +230,28 @@ service cloud.firestore {
         allow read: if request.auth.uid != null;
         allow write: if false;
      }
+
+    // Optic cloud discovery jobs (written by Cloud Functions; clients read for status)
+    match /optic_jobs/{jobId} {
+      allow read: if request.auth != null && isTeamMemberOf(resource.data.agencyId);
+      allow write: if false;
+    }
+
+    // Optic outreach leads vault (written by Optic desktop or worker; team reads)
+    match /optic_outreach_leads/{leadId} {
+      allow read: if request.auth != null &&
+        resource.data.get('agencyId', null) != null &&
+        isTeamMemberOf(resource.data.agencyId);
+      allow write: if false;
+    }
+
+    // Optic credit charge ledger (Admin SDK only; prevents double-charge on retries)
+    match /optic_credit_charges/{chargeId} {
+      allow read, write: if false;
+    }
+
+    match /optic_top_up_events/{eventId} {
+      allow read, write: if false;
+    }
   }
 }

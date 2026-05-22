@@ -7,6 +7,7 @@ import {db} from "../config/firebase";
 import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
 import {sendSubscriptionReceiptEmail} from "../notifications";
+import {handleOpticStripeSubscriptionEvent} from "../optic/billing";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
@@ -266,6 +267,12 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   }
 
   try {
+    const opticHandled = await handleOpticStripeSubscriptionEvent(stripe, event);
+    if (opticHandled) {
+      response.json({received: true});
+      return;
+    }
+
     // Get Firebase UID from event metadata
     // In dahlia, invoice.metadata is empty — UID lives in parent.subscription_details.metadata
     let firebaseUID: string | undefined;
@@ -486,7 +493,12 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
       break;
     }
     default:
-      logger.info(`Unhandled event type: ${event.type}`);
+      if (
+        !event.type.startsWith("payment_intent.") &&
+        !event.type.startsWith("charge.")
+      ) {
+        logger.info(`Unhandled event type: ${event.type}`);
+      }
     }
 
     response.json({received: true});

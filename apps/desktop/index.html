@@ -1,8 +1,13 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Optic</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss:; frame-src https://accounts.google.com https://*.firebaseapp.com;" />
+    <title>Verza Optic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
         :root {
             --bg: #f5f2ed;
@@ -12,7 +17,8 @@
             --text-dim: #706b63;
             --border: #e6e1d6;
             --nav-bg: #ece9e2;
-            --success: #4a6741;
+            --success: #2d6a4f;
+            --warn: #bc6c25;
             --pill-bg: #f0ede8;
         }
         * { box-sizing: border-box; }
@@ -24,9 +30,9 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Navigation ── */
         nav {
             width: 72px;
             background: var(--nav-bg);
@@ -34,15 +40,15 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 32px 0;
+            padding: 28px 0;
             gap: 8px;
         }
         .nav-logo {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 800;
             letter-spacing: 2px;
             color: var(--accent);
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             writing-mode: vertical-lr;
             transform: rotate(180deg);
         }
@@ -53,17 +59,21 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.15s;
+            border-radius: 10px;
+            transition: background 0.15s, color 0.15s;
             color: var(--text-dim);
             position: relative;
+            border: none;
+            background: transparent;
+            padding: 0;
         }
+        .nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .nav-item.active { background: var(--accent); color: #fff; }
         .nav-item:hover:not(.active) { background: rgba(0,0,0,0.06); color: var(--accent); }
         .nav-item[data-badge]::after {
             content: attr(data-badge);
             position: absolute;
-            top: 6px; right: 6px;
+            top: 4px; right: 4px;
             background: var(--success);
             color: #fff;
             font-size: 9px;
@@ -75,58 +85,96 @@
         }
         .nav-spacer { flex: 1; }
 
-        /* ── Main container ── */
         .main-container {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
+        }
+        .main-container > .view.active {
+            flex: 1;
+            min-height: 0;
         }
         header {
-            padding: 24px 36px;
+            padding: 20px 32px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
             background: var(--bg);
         }
-        .header-title { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
-        .header-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.5px; }
+        .header-left { min-width: 0; }
+        .header-title { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+        .header-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.3px; line-height: 1.4; }
+        .header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .agency-strip {
+            display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+            max-width: 280px; text-align: right;
+        }
+        .agency-name { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.2px; }
+        .agency-brand { font-size: 10px; color: var(--text-dim); line-height: 1.35; }
+        .agency-auth { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
+        .agency-auth input {
+            width: 112px; padding: 6px 8px; font-size: 11px; border-radius: 6px;
+        }
+        .agency-auth input.wide { width: 160px; }
 
-        /* ── Views ── */
+        .status-strip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--pill-bg);
+            border: 1px solid var(--border);
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); opacity: 0.45; }
+        .status-dot.on { background: var(--success); opacity: 1; }
+        .status-dot.warn { background: var(--warn); opacity: 1; }
+
         .view { display: none; flex: 1; overflow: hidden; }
         .view.active { display: flex; }
 
-        /* ── Discovery View ── */
-        #view-discovery {
-            flex-direction: row;
-        }
+        #view-discovery { flex-direction: row; }
         .sidebar {
             width: 320px;
-            padding: 36px;
+            padding: 28px 28px 36px;
             border-right: 1px solid var(--border);
-            background: rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.45);
             display: flex;
             flex-direction: column;
-            gap: 28px;
+            gap: 24px;
             overflow-y: auto;
         }
-        .content { flex: 1; padding: 36px; background: var(--card); overflow-y: auto; }
+        .content { flex: 1; padding: 28px 32px 40px; background: var(--card); overflow-y: auto; }
 
-        /* ── Vault View ── */
         #view-vault { flex-direction: column; }
         .vault-header {
-            padding: 28px 36px 16px;
+            padding: 22px 32px 14px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 12px;
         }
-        .vault-table-wrap { flex: 1; overflow-y: auto; padding: 0 36px 36px; }
+        .vault-table-wrap { flex: 1; overflow-y: auto; padding: 0 32px 36px; }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin-top: 16px;
             font-size: 13px;
         }
         th {
@@ -136,17 +184,17 @@
             letter-spacing: 1px;
             text-transform: uppercase;
             color: var(--text-dim);
-            padding: 0 16px 12px;
+            padding: 0 14px 10px;
             border-bottom: 1px solid var(--border);
         }
         td {
-            padding: 16px;
+            padding: 14px;
             border-bottom: 1px solid var(--border);
             vertical-align: top;
         }
         tr:hover td { background: #faf9f7; }
         .creator-name { font-weight: 600; font-size: 13px; }
-        .creator-url { font-size: 11px; color: var(--text-dim); margin-top: 3px; word-break: break-all; }
+        .creator-url { font-size: 11px; color: var(--text-dim); margin-top: 4px; word-break: break-all; }
         .pill {
             display: inline-block;
             padding: 3px 10px;
@@ -161,53 +209,61 @@
             font-size: 11px;
             color: var(--text-dim);
             line-height: 1.5;
-            max-width: 340px;
+            max-width: 360px;
+            white-space: pre-wrap;
         }
         .empty-state {
             text-align: center;
-            padding: 80px 0;
+            padding: 72px 16px;
             color: var(--text-dim);
         }
-        .empty-state svg { opacity: 0.3; margin-bottom: 16px; }
-        .empty-state p { font-size: 13px; margin: 0; }
+        .empty-state svg { opacity: 0.28; margin-bottom: 14px; }
+        .empty-state p { font-size: 13px; margin: 0; max-width: 360px; margin-left: auto; margin-right: auto; line-height: 1.5; }
 
-        /* ── Form Elements ── */
-        .input-group { display: flex; flex-direction: column; gap: 10px; }
-        label { font-size: 10px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 1.5px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 10px; text-transform: uppercase; color: var(--text-dim); font-weight: 700; letter-spacing: 1.2px; }
         input, textarea, select {
             background: #fff;
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 13px;
-            border-radius: 4px;
+            padding: 12px 13px;
+            border-radius: 8px;
             font-size: 13px;
             outline: none;
-            transition: border-color 0.15s;
+            transition: border-color 0.15s, box-shadow 0.15s;
             font-family: inherit;
         }
-        input:focus, textarea:focus { border-color: var(--accent); }
+        input:focus, textarea:focus, select:focus {
+            border-color: rgba(26,26,26,0.45);
+            box-shadow: 0 0 0 3px rgba(26,26,26,0.06);
+        }
         button.primary {
             background: var(--accent); color: #fff; border: none;
-            padding: 14px; border-radius: 4px; font-weight: 600;
-            font-size: 12px; cursor: pointer; transition: opacity 0.15s;
-            letter-spacing: 1px; text-transform: uppercase; font-family: inherit;
+            padding: 13px 14px; border-radius: 8px; font-weight: 600;
+            font-size: 12px; cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+            letter-spacing: 0.8px; text-transform: uppercase; font-family: inherit;
         }
-        button.primary:hover { opacity: 0.85; }
-        button.primary:disabled { background: var(--border); cursor: not-allowed; }
+        button.primary:hover { opacity: 0.9; }
+        button.primary:active { transform: scale(0.99); }
+        button.primary:disabled { background: #c9c4bc; cursor: not-allowed; opacity: 0.85; }
         button.ghost {
             background: transparent; color: var(--accent);
-            border: 1px solid var(--border); padding: 8px 16px;
-            border-radius: 4px; font-size: 11px; font-weight: 600;
-            cursor: pointer; letter-spacing: 0.5px; font-family: inherit;
-            transition: border-color 0.15s;
+            border: 1px solid var(--border); padding: 8px 14px;
+            border-radius: 8px; font-size: 11px; font-weight: 600;
+            cursor: pointer; letter-spacing: 0.4px; font-family: inherit;
+            transition: border-color 0.15s, background 0.15s;
         }
-        button.ghost:hover { border-color: var(--accent); }
+        button.ghost:hover { border-color: rgba(26,26,26,0.35); background: rgba(0,0,0,0.03); }
+        button.linkish {
+            font-size: 11px; font-weight: 600; color: var(--accent);
+            background: none; border: none; cursor: pointer; padding: 0;
+            text-decoration: underline; text-underline-offset: 2px;
+        }
 
-        /* ── Mission Timeline ── */
-        .timeline { display: flex; flex-direction: column; gap: 28px; }
+        .timeline { display: flex; flex-direction: column; gap: 26px; }
         .mission-step {
-            display: flex; gap: 20px;
-            opacity: 0.3; transition: opacity 0.3s;
+            display: flex; gap: 18px;
+            opacity: 0.32; transition: opacity 0.35s;
         }
         .mission-step.active { opacity: 1; }
         .step-marker {
@@ -218,53 +274,142 @@
         .step-marker::after {
             content: ''; position: absolute;
             top: 14px; left: 50%; transform: translateX(-50%);
-            width: 1px; height: 36px; background: var(--border);
+            width: 1px; height: 34px; background: var(--border);
         }
         .mission-step:last-child .step-marker::after { display: none; }
         .mission-step.completed .step-marker { background: var(--success); border-color: var(--success); }
-        .step-content h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .step-content p { margin: 5px 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+        .step-content h3 { margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+        .step-content p { margin: 6px 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.55; }
         .log-mini {
-            margin-top: 10px; font-family: "SF Mono", monospace; font-size: 11px;
-            color: var(--text-dim); background: #faf9f7; padding: 10px;
-            border-radius: 4px; border-left: 2px solid var(--border); max-height: 90px; overflow-y: auto;
+            margin-top: 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+            color: var(--text-dim); background: #faf9f7; padding: 10px 12px;
+            border-radius: 8px; border-left: 3px solid var(--border); max-height: 120px; overflow-y: auto;
+            line-height: 1.45;
+        }
+        button.danger {
+            background: #9b2335; color: #fff; border: none;
+            padding: 10px 14px; border-radius: 8px; font-weight: 600;
+            font-size: 11px; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; font-family: inherit;
+        }
+        button.danger:disabled { opacity: 0.45; cursor: not-allowed; }
+        button.danger:not(:disabled):hover { opacity: 0.92; }
+        .vault-toolbar {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+            padding: 0 32px 12px; border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+        .vault-toolbar input[type="search"] { max-width: 220px; padding: 8px 10px; font-size: 12px; }
+        .app-footer {
+            padding: 8px 32px 10px;
+            border-top: 1px solid var(--border);
+            font-size: 10px;
+            color: var(--text-dim);
+            letter-spacing: 0.3px;
+            background: var(--bg);
+            flex-shrink: 0;
+        }
+        #view-system { flex-direction: column; background: var(--card); overflow-y: auto; }
+        .sys-wrap { padding: 28px 32px 48px; max-width: 720px; }
+        .sys-card {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            background: #faf9f7;
+        }
+        .sys-card h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+        .sys-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .sys-row:last-child { border-bottom: none; }
+        .sys-ok { color: var(--success); font-weight: 600; }
+        .sys-warn { color: var(--warn); font-weight: 600; }
+        code.kbd { font-size: 10px; background: var(--pill-bg); padding: 2px 6px; border-radius: 4px; }
+        @keyframes opticToastIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #optic-toast-host {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            max-width: 340px;
+        }
+        .optic-toast {
+            pointer-events: auto;
+            background: var(--accent);
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 10px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+            font-size: 13px;
+            line-height: 1.45;
+            animation: opticToastIn 0.28s ease-out;
+        }
+        .optic-toast strong {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.88;
         }
     </style>
 </head>
 <body>
 
-<!-- ── Primary Nav ── -->
-<nav>
-    <div class="nav-logo">OPTIC</div>
+<div id="optic-toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <div class="nav-item active" data-view="discovery" title="Discovery">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    </div>
-    <div class="nav-item" data-view="vault" id="nav-vault" title="Vault">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-    </div>
+<nav aria-label="Primary">
+    <div class="nav-logo" aria-hidden="true">OPTIC</div>
+
+    <button type="button" class="nav-item active" data-view="discovery" title="Discovery" aria-label="Discovery">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+    <button type="button" class="nav-item" data-view="vault" id="nav-vault" title="Vault" aria-label="Vault">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button type="button" class="nav-item" data-view="system" title="System" aria-label="System">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </button>
 
     <div class="nav-spacer"></div>
 
-    <div class="nav-item" id="auth-btn-icon" title="Authenticate Platforms">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    </div>
+    <button type="button" class="nav-item" id="auth-btn-icon" title="Authenticate platforms" aria-label="Authenticate platforms">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
 </nav>
 
 <div class="main-container">
     <header>
-        <div>
+        <div class="header-left">
             <div class="header-title" id="header-title">Discovery</div>
-            <div class="header-sub" id="header-sub">Define your objectives and let Optic find the right talent</div>
+            <div class="header-sub" id="header-sub">Define your objectives and let Optic find the right talent.</div>
         </div>
-        <button class="ghost" id="auth-btn">Auth Platforms</button>
+        <div class="header-actions">
+            <div class="agency-strip" id="agency-strip">
+                <div class="agency-name" id="agency-name"></div>
+                <div class="agency-brand" id="agency-brand"></div>
+                <div class="agency-auth" id="agency-auth"></div>
+            </div>
+            <div class="status-strip" id="status-strip" title="Environment variables present (not a live health check)">
+                <span class="status-pill"><span class="status-dot" id="st-fs"></span> Firestore</span>
+                <span class="status-pill"><span class="status-dot" id="st-gem"></span> Gemini</span>
+                <span class="status-pill"><span class="status-dot" id="st-tw"></span> SMS</span>
+                <span class="status-pill"><span class="status-dot" id="st-fb"></span> Web auth</span>
+            </div>
+            <button type="button" class="ghost" id="auth-btn">Auth platforms</button>
+        </div>
     </header>
 
-    <!-- ── Discovery View ── -->
     <div class="view active" id="view-discovery">
         <div class="sidebar">
             <div class="input-group">
-                <label>Platform</label>
+                <label for="platform-select">Platform</label>
                 <select id="platform-select">
                     <option value="youtube">YouTube</option>
                     <option value="instagram">Instagram</option>
@@ -272,14 +417,30 @@
                 </select>
             </div>
             <div class="input-group">
-                <label>Campaign Objectives</label>
+                <label for="objectives">Campaign objectives</label>
                 <textarea id="objectives" rows="8" placeholder="E.g. Educational tech creators with engaged audiences for a productivity app launch."></textarea>
             </div>
-            <button class="primary" id="run-btn">Start Mission</button>
+            <div class="input-group">
+                <label for="outreach-campaign">Outreach campaign (pay + scope in draft)</label>
+                <select id="outreach-campaign" disabled>
+                    <option value="">Sign in to load Verza campaigns…</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="max-profiles">Max profiles to vet</label>
+                <input type="number" id="max-profiles" min="1" max="80" placeholder="Default from env" />
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <button type="button" class="primary" id="run-btn">Start mission</button>
+                <button type="button" class="danger" id="cancel-mission-btn" disabled>Stop</button>
+            </div>
+            <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin:0;">
+                Sign in above with your Verza account so drafts use your agency name, brand guide, and (optionally) a single live campaign's pay. Uses Playwright with a persistent profile. Set <code style="font-size:10px;">GEMINI_API_KEY</code> and <code style="font-size:10px;">NEXT_PUBLIC_FIREBASE_*</code> + <code style="font-size:10px;">FIREBASE_PROJECT_ID</code> + ADC for Vault and sign-in.
+            </p>
         </div>
 
         <div class="content">
-            <label style="display:block; margin-bottom:24px;">Active Discovery Log</label>
+            <label style="display:block; margin-bottom:18px;">Active discovery log</label>
             <div class="timeline">
                 <div class="mission-step" id="step-prepare">
                     <div class="step-marker"></div>
@@ -291,180 +452,785 @@
                 <div class="mission-step" id="step-search">
                     <div class="step-marker"></div>
                     <div class="step-content">
-                        <h3>Search Agent</h3>
-                        <p>Querying Gemini knowledge base, then scouring platforms.</p>
-                        <div class="log-mini" id="log-search" style="display:none;"></div>
+                        <h3>Search agent</h3>
+                        <p>Querying Gemini, then scouting the platform.</p>
+                        <div class="log-mini" id="log-search" style="display:none;" aria-live="polite"></div>
                     </div>
                 </div>
                 <div class="mission-step" id="step-vet">
                     <div class="step-marker"></div>
                     <div class="step-content">
-                        <h3>Deep Vetting</h3>
+                        <h3>Deep vetting</h3>
                         <p>Visiting each profile and running multimodal analysis.</p>
-                        <div class="log-mini" id="log-vet" style="display:none;"></div>
+                        <div class="log-mini" id="log-vet" style="display:none;" aria-live="polite"></div>
                     </div>
                 </div>
                 <div class="mission-step" id="step-draft">
                     <div class="step-marker"></div>
                     <div class="step-content">
-                        <h3>Outreach Sync</h3>
-                        <p>Leads saved. Head to Vault to review and take action.</p>
+                        <h3>Outreach sync</h3>
+                        <p>Leads saved to Firestore when configured. Review them in Vault.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ── Vault View ── -->
     <div class="view" id="view-vault">
         <div class="vault-header">
             <div>
-                <label>Leads Vault</label>
-                <div style="font-size:12px; color:var(--text-dim); margin-top:4px;" id="vault-count">Loading...</div>
+                <label>Leads vault</label>
+                <div style="font-size:12px; color:var(--text-dim); margin-top:4px;" id="vault-count">Loading…</div>
             </div>
-            <button class="ghost" id="refresh-leads-btn">↻ Refresh</button>
+            <button type="button" class="ghost" id="refresh-leads-btn">↻ Refresh</button>
+        </div>
+        <div class="vault-toolbar">
+            <input type="search" id="vault-filter" placeholder="Filter by name, URL, niche…" autocomplete="off" />
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-dim); cursor:pointer;">
+                <input type="checkbox" id="vault-agency-only" />
+                This agency only
+            </label>
+            <button type="button" class="ghost" id="export-csv-btn">Export CSV</button>
         </div>
         <div class="vault-table-wrap">
-            <table id="leads-table">
+            <table>
                 <thead>
                     <tr>
                         <th>Creator</th>
+                        <th>Agency</th>
                         <th>Niche</th>
                         <th>Followers</th>
                         <th>Email</th>
-                        <th>Draft Pitch</th>
-                        <th>Date Found</th>
+                        <th>Draft pitch</th>
+                        <th>Found</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody id="leads-tbody">
-                    <tr><td colspan="6"><div class="empty-state"><p>Loading leads...</p></div></td></tr>
+                    <tr><td colspan="8"><div class="empty-state"><p>Loading leads…</p></div></td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+    <div class="view" id="view-system">
+        <div class="sys-wrap">
+            <div class="header-title" style="margin-bottom:6px;">System</div>
+            <p style="font-size:12px;color:var(--text-dim);margin:0 0 22px;line-height:1.5;">Environment checks are local (variables present). ADC and live API calls are validated when you run a mission.</p>
+            <div class="sys-card">
+                <h2>Build</h2>
+                <div class="sys-row"><span>App</span><span id="sys-app-name">—</span></div>
+                <div class="sys-row"><span>Version</span><span id="sys-version">—</span></div>
+            </div>
+            <div class="sys-card">
+                <h2>Integrations</h2>
+                <div class="sys-row"><span><code class="kbd">GEMINI_API_KEY</code></span><span id="sys-gem">—</span></div>
+                <div class="sys-row"><span><code class="kbd">FIREBASE_PROJECT_ID</code> + ADC</span><span id="sys-fs">—</span></div>
+                <div class="sys-row"><span><code class="kbd">NEXT_PUBLIC_FIREBASE_*</code></span><span id="sys-fbweb">—</span></div>
+                <div class="sys-row"><span><code class="kbd">TWILIO_*</code> + user phone</span><span id="sys-tw">—</span></div>
+            </div>
+            <div class="sys-card">
+                <h2>Discovery tuning</h2>
+                <p style="font-size:12px;color:var(--text-dim);margin:0 0 10px;line-height:1.55;">
+                    Optional env: <code class="kbd">OPTIC_MAX_PROFILES</code> (default 12), <code class="kbd">OPTIC_MS_BETWEEN_VETS</code> (default 450),
+                    <code class="kbd">OPTIC_DISABLE_SMS=true</code> to skip per-lead texts.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer" id="app-footer">Verza Optic</footer>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
-    const { ipcRenderer } = require('electron');
+(async function () {
+    const optic = window.optic;
+    if (!optic) {
+        document.body.innerHTML = '<div style="padding:40px;font-family:system-ui">Optic could not start securely (preload missing). Rebuild with <code>npm run build</code> in <code>apps/desktop</code>.</div>';
+        return;
+    }
 
-    // ── Navigation ──
+    let currentIdToken = null;
+    let currentAgencyId = null;
+    let vaultLeadsRaw = [];
+    const CAMPAIGN_STORAGE_KEY = 'optic-selected-campaign-id';
+
+    function applyAgencyBrandLine(ag) {
+        const brandEl = document.getElementById('agency-brand');
+        if (!ag || ag.ok === false) return;
+        const bits = [];
+        if (ag.brandSummary) bits.push(ag.brandSummary);
+        if (ag.userDisplayName) bits.push(ag.userDisplayName);
+        else if (ag.userEmail) bits.push(ag.userEmail);
+        let line = bits.join(' · ') || 'Brand guide: add a mission in Verza web to sharpen pitches.';
+        if (ag.paySourceCampaignTitle) {
+            line += ` · Draft pay scoped to: "${ag.paySourceCampaignTitle}"`;
+        } else if (ag.activePaidCampaignCount > 0) {
+            line += ` · ${ag.activePaidCampaignCount} active campaign(s): pooled Verza pay (pick one campaign below to lock)`;
+        }
+        brandEl.textContent = line;
+    }
+
+    function resetOutreachCampaignSelect() {
+        const sel = document.getElementById('outreach-campaign');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = 'Sign in to load Verza campaigns…';
+        sel.appendChild(o);
+        sel.disabled = true;
+    }
+
+    function populateOutreachCampaignSelect(ag) {
+        const sel = document.getElementById('outreach-campaign');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const auto = document.createElement('option');
+        auto.value = '';
+        auto.textContent = 'Auto — pool all active campaigns';
+        sel.appendChild(auto);
+        const list = ag.campaignOptions || [];
+        for (const c of list) {
+            const o = document.createElement('option');
+            o.value = c.id;
+            const st = c.status === 'open' ? 'Open' : c.status === 'in-progress' ? 'Live' : String(c.status || '');
+            const rate = c.ratePerCreator > 0 ? `$${Number(c.ratePerCreator).toLocaleString()} · ` : '';
+            const plat = (c.platforms || []).slice(0, 2).join(', ');
+            const title = (c.title || 'Campaign').slice(0, 52);
+            o.textContent = `${st}: ${title}${(c.title || '').length > 52 ? '…' : ''} · ${rate}${plat}`;
+            sel.appendChild(o);
+        }
+        const stored = sessionStorage.getItem(CAMPAIGN_STORAGE_KEY) || '';
+        if (stored && [...sel.options].some((x) => x.value === stored)) {
+            sel.value = stored;
+        } else {
+            sel.value = '';
+            sessionStorage.removeItem(CAMPAIGN_STORAGE_KEY);
+        }
+        sel.disabled = false;
+    }
+
+    async function copyToClipboard(text) {
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            window.prompt('Copy:', text);
+        }
+    }
+
+    async function initVerzaAccount() {
+        const nameEl = document.getElementById('agency-name');
+        const brandEl = document.getElementById('agency-brand');
+        const authHost = document.getElementById('agency-auth');
+        const cfgRes = await optic.getFirebaseWebConfig();
+
+        if (!cfgRes.ok) {
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = cfgRes.error;
+            authHost.innerHTML = '';
+            syncVaultFilterUi();
+            return;
+        }
+
+        if (typeof firebase === 'undefined') {
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = 'Firebase scripts did not load. Check your network connection.';
+            authHost.innerHTML = '';
+            syncVaultFilterUi();
+            return;
+        }
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(cfgRes.config);
+        }
+        const auth = firebase.auth();
+
+        function renderSignedOut() {
+            currentIdToken = null;
+            currentAgencyId = null;
+            nameEl.textContent = 'Verza account';
+            brandEl.textContent = 'Sign in with your Verza credentials for agency-branded drafts.';
+            authHost.innerHTML = '';
+
+            const gBtn = document.createElement('button');
+            gBtn.type = 'button';
+            gBtn.className = 'ghost';
+            gBtn.textContent = 'Google';
+            gBtn.addEventListener('click', async () => {
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await auth.signInWithPopup(provider);
+                } catch (e) {
+                    window.alert(e && e.message ? e.message : String(e));
+                }
+            });
+            authHost.appendChild(gBtn);
+
+            const em = document.createElement('input');
+            em.type = 'email';
+            em.placeholder = 'Email';
+            em.className = 'wide';
+            em.id = 'acc-email';
+            const pw = document.createElement('input');
+            pw.type = 'password';
+            pw.placeholder = 'Password';
+            pw.id = 'acc-password';
+            const sb = document.createElement('button');
+            sb.type = 'button';
+            sb.className = 'ghost';
+            sb.textContent = 'Email sign-in';
+            sb.addEventListener('click', async () => {
+                try {
+                    await auth.signInWithEmailAndPassword(
+                        document.getElementById('acc-email').value.trim(),
+                        document.getElementById('acc-password').value
+                    );
+                } catch (e) {
+                    window.alert(e && e.message ? e.message : String(e));
+                }
+            });
+            authHost.appendChild(em);
+            authHost.appendChild(pw);
+            authHost.appendChild(sb);
+            syncVaultFilterUi();
+            resetOutreachCampaignSelect();
+        }
+
+        async function onUser(user) {
+            if (!user) {
+                renderSignedOut();
+                syncVaultFilterUi();
+                return;
+            }
+            try {
+                const idToken = await user.getIdToken(true);
+                currentIdToken = idToken;
+                const storedCampaign = sessionStorage.getItem(CAMPAIGN_STORAGE_KEY) || '';
+                const ag = await optic.loadAgencyFromToken(
+                    idToken,
+                    storedCampaign || undefined
+                );
+                authHost.innerHTML = '';
+                const out = document.createElement('button');
+                out.type = 'button';
+                out.className = 'ghost';
+                out.textContent = 'Sign out';
+                out.addEventListener('click', () => auth.signOut());
+                authHost.appendChild(out);
+
+                if (!ag.ok) {
+                    nameEl.textContent = user.email || 'Signed in';
+                    brandEl.textContent = ag.error;
+                    currentAgencyId = null;
+                    resetOutreachCampaignSelect();
+                    syncVaultFilterUi();
+                    return;
+                }
+                nameEl.textContent = ag.agencyName;
+                currentAgencyId = ag.agencyId;
+                applyAgencyBrandLine(ag);
+                populateOutreachCampaignSelect(ag);
+            } catch (e) {
+                nameEl.textContent = user.email || 'Signed in';
+                brandEl.textContent = e instanceof Error ? e.message : String(e);
+                currentAgencyId = null;
+                authHost.innerHTML = '';
+                const out2 = document.createElement('button');
+                out2.type = 'button';
+                out2.className = 'ghost';
+                out2.textContent = 'Sign out';
+                out2.addEventListener('click', () => auth.signOut());
+                authHost.appendChild(out2);
+            }
+            syncVaultFilterUi();
+        }
+
+        auth.onAuthStateChanged((user) => {
+            void onUser(user);
+        });
+    }
+
+    await initVerzaAccount();
+
+    function pushOpticToast(title, body) {
+        const host = document.getElementById('optic-toast-host');
+        if (!host) return;
+        const el = document.createElement('div');
+        el.className = 'optic-toast';
+        el.setAttribute('role', 'status');
+        const st = document.createElement('strong');
+        st.textContent = title || 'Verza Optic';
+        el.appendChild(st);
+        const msg = document.createElement('div');
+        msg.textContent = body || '';
+        el.appendChild(msg);
+        host.appendChild(el);
+        window.setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(8px)';
+            el.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+            window.setTimeout(() => el.remove(), 380);
+        }, 6500);
+    }
+
+    optic.onNotify((payload) => {
+        pushOpticToast(payload.title, payload.body);
+    });
+
+    document.getElementById('outreach-campaign').addEventListener('change', async () => {
+        const sel = document.getElementById('outreach-campaign');
+        const v = sel.value;
+        sessionStorage.setItem(CAMPAIGN_STORAGE_KEY, v);
+        if (!currentIdToken) return;
+        const ag = await optic.loadAgencyFromToken(currentIdToken, v || undefined);
+        if (!ag.ok) return;
+        applyAgencyBrandLine(ag);
+        populateOutreachCampaignSelect(ag);
+        sel.value = v;
+    });
+
     const navItems = document.querySelectorAll('.nav-item[data-view]');
     const views = document.querySelectorAll('.view');
     const headerTitle = document.getElementById('header-title');
     const headerSub = document.getElementById('header-sub');
 
     const viewMeta = {
-        discovery: { title: 'Discovery', sub: 'Define your objectives and let Optic find the right talent' },
-        vault: { title: 'Vault', sub: 'Review and action your discovered leads' },
+        discovery: { title: 'Discovery', sub: 'Define your objectives and let Optic find the right talent.' },
+        vault: { title: 'Vault', sub: 'Review and action your discovered leads.' },
+        system: { title: 'System', sub: 'Health, versions, and discovery tuning.' },
     };
 
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const target = item.dataset.view;
-            navItems.forEach(n => n.classList.remove('active'));
-            item.classList.add('active');
-            views.forEach(v => v.classList.remove('active'));
-            document.getElementById(`view-${target}`).classList.add('active');
-            headerTitle.textContent = viewMeta[target].title;
-            headerSub.textContent = viewMeta[target].sub;
-            if (target === 'vault') loadLeads();
-        });
+    async function refreshSystemPanel() {
+        try {
+            const s = await optic.getAppStatus();
+            const meta = await optic.getAppMetadata();
+            document.getElementById('sys-app-name').textContent = meta.name || 'Verza Optic';
+            document.getElementById('sys-version').textContent = meta.version || '—';
+            function row(id, ok) {
+                const el = document.getElementById(id);
+                el.textContent = ok ? 'Ready' : 'Not set';
+                el.className = ok ? 'sys-ok' : 'sys-warn';
+            }
+            row('sys-gem', s.gemini);
+            row('sys-fs', s.firestore);
+            row('sys-fbweb', s.firebaseWeb);
+            row('sys-tw', s.twilio);
+        } catch (_) {}
+    }
+
+    async function refreshFooter() {
+        try {
+            const meta = await optic.getAppMetadata();
+            document.getElementById('app-footer').textContent = `${meta.name} · v${meta.version}`;
+        } catch (_) {}
+    }
+    void refreshFooter();
+
+    function switchView(target) {
+        navItems.forEach((n) => n.classList.toggle('active', n.dataset.view === target));
+        views.forEach((v) => v.classList.toggle('active', v.id === 'view-' + target));
+        headerTitle.textContent = viewMeta[target].title;
+        headerSub.textContent = viewMeta[target].sub;
+        if (target === 'vault') loadLeads();
+        if (target === 'system') void refreshSystemPanel();
+    }
+
+    navItems.forEach((item) => {
+        item.addEventListener('click', () => switchView(item.dataset.view));
     });
 
-    // ── Timeline helpers ──
     function setStep(id, status) {
-        const el = document.getElementById(`step-${id}`);
+        const el = document.getElementById('step-' + id);
         if (!el) return;
         el.classList.remove('active', 'completed');
         if (status === 'active') el.classList.add('active');
-        if (status === 'completed') { el.classList.add('active', 'completed'); }
-    }
-    function log(stepId, msg) {
-        const el = document.getElementById(`log-${stepId}`);
-        if (el) { el.style.display = 'block'; el.innerHTML += `> ${msg}<br>`; el.scrollTop = el.scrollHeight; }
+        if (status === 'completed') el.classList.add('active', 'completed');
     }
 
-    ipcRenderer.on('log', (event, stepId, msg) => {
-        log(stepId, msg);
-        if (stepId === 'search') setStep('search', 'active');
-        if (stepId === 'vet') { setStep('search', 'completed'); setStep('vet', 'active'); }
+    function resetTimeline() {
+        ['prepare', 'search', 'vet', 'draft'].forEach((id) => {
+            const el = document.getElementById('step-' + id);
+            if (el) el.classList.remove('active', 'completed');
+        });
+        ['search', 'vet'].forEach((id) => {
+            const log = document.getElementById('log-' + id);
+            if (log) { log.innerHTML = ''; log.style.display = 'none'; }
+        });
+    }
+
+    function log(stepId, msg) {
+        const el = document.getElementById('log-' + stepId);
+        if (el) {
+            el.style.display = 'block';
+            el.appendChild(document.createTextNode('> ' + msg));
+            el.appendChild(document.createElement('br'));
+            el.scrollTop = el.scrollHeight;
+        }
+    }
+
+    let stopLogListener = null;
+
+    async function refreshStatus() {
+        try {
+            const s = await optic.getAppStatus();
+            document.getElementById('st-fs').className = 'status-dot' + (s.firestore ? ' on' : ' warn');
+            document.getElementById('st-gem').className = 'status-dot' + (s.gemini ? ' on' : ' warn');
+            document.getElementById('st-tw').className = 'status-dot' + (s.twilio ? ' on' : '');
+            document.getElementById('st-fb').className = 'status-dot' + (s.firebaseWeb ? ' on' : ' warn');
+        } catch (_) {}
+    }
+    refreshStatus();
+
+    const cancelMissionBtn = document.getElementById('cancel-mission-btn');
+    cancelMissionBtn.addEventListener('click', () => {
+        optic.cancelDiscovery();
     });
 
-    // ── Auth ──
-    const authBtn = document.getElementById('auth-btn');
-    const authIcon = document.getElementById('auth-btn-icon');
-    authBtn.addEventListener('click', () => ipcRenderer.send('open-auth-browser', document.getElementById('platform-select').value));
-    authIcon.addEventListener('click', () => ipcRenderer.send('open-auth-browser', document.getElementById('platform-select').value));
+    async function openAuth() {
+        const platform = document.getElementById('platform-select').value;
+        const res = await optic.openAuthBrowser(platform);
+        if (!res.ok) window.alert('Could not open browser: ' + (res.error || 'Unknown error'));
+    }
+    document.getElementById('auth-btn').addEventListener('click', openAuth);
+    document.getElementById('auth-btn-icon').addEventListener('click', openAuth);
 
-    // ── Discovery ──
     const runBtn = document.getElementById('run-btn');
     runBtn.addEventListener('click', async () => {
         const objectives = document.getElementById('objectives').value.trim();
         const platform = document.getElementById('platform-select').value;
-        if (!objectives) { alert('Please describe your campaign objectives.'); return; }
+        if (!objectives) {
+            window.alert('Please describe your campaign objectives.');
+            return;
+        }
 
-        runBtn.disabled = true;
-        runBtn.textContent = 'Mission Active...';
-        ['search', 'vet', 'draft'].forEach(s => {
-            document.getElementById(`log-${s}`) && (document.getElementById(`log-${s}`).innerHTML = '');
+        const maxRaw = document.getElementById('max-profiles').value.trim();
+        let maxProfiles;
+        if (maxRaw !== '') {
+            const n = Number.parseInt(maxRaw, 10);
+            if (Number.isFinite(n)) maxProfiles = n;
+        }
+
+        if (stopLogListener) stopLogListener();
+        stopLogListener = optic.onLog((stepId, msg) => {
+            log(stepId, msg);
+            if (stepId === 'search') setStep('search', 'active');
+            if (stepId === 'vet') {
+                setStep('search', 'completed');
+                setStep('vet', 'active');
+            }
         });
 
+        runBtn.disabled = true;
+        runBtn.textContent = 'Mission active…';
+        cancelMissionBtn.disabled = false;
+        resetTimeline();
+
         setStep('prepare', 'active');
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 350));
         setStep('prepare', 'completed');
         setStep('search', 'active');
 
-        const result = await ipcRenderer.invoke('run-discovery', { platform, objectives });
+        const outreachCampaignId = document.getElementById('outreach-campaign').value.trim();
+        const result = await optic.runDiscovery({
+            platform,
+            objectives,
+            ...(maxProfiles !== undefined ? { maxProfiles } : {}),
+            ...(outreachCampaignId ? { campaignId: outreachCampaignId } : {}),
+            ...(currentIdToken ? { idToken: currentIdToken } : {}),
+        });
 
         if (result.success) {
             setStep('vet', 'completed');
             setStep('draft', 'completed');
-            // Update vault badge
-            document.getElementById('nav-vault').setAttribute('data-badge', result.processedCount);
+            if (result.cancelled) {
+                log('vet', 'Mission stopped before completing the queue.');
+            }
+            const prev = Number(document.getElementById('nav-vault').getAttribute('data-badge') || 0);
+            document.getElementById('nav-vault').setAttribute('data-badge', String(prev + (result.processedCount || 0)));
         } else {
-            alert(`Mission failed: ${result.error}`);
+            window.alert('Mission failed: ' + (result.error || 'Unknown error'));
+            resetTimeline();
         }
 
         runBtn.disabled = false;
-        runBtn.textContent = 'Start Mission';
+        runBtn.textContent = 'Start mission';
+        cancelMissionBtn.disabled = true;
+        refreshStatus();
     });
 
-    // ── Vault ──
-    async function loadLeads() {
-        document.getElementById('vault-count').textContent = 'Loading...';
-        document.getElementById('leads-tbody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>Fetching leads...</p></div></td></tr>';
+    function formatLeadDate(lead) {
+        const iso = lead.createdAtIso;
+        if (!iso) return '—';
+        try {
+            return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return '—';
+        }
+    }
 
-        const leads = await ipcRenderer.invoke('get-leads');
+    function appendLeadRow(tbody, lead) {
+        const tr = document.createElement('tr');
+        const name = lead.creatorName || '—';
+        const url = lead.profileUrl || '';
+        const niche = lead.niche || '—';
+        const followers = lead.followerCount || '—';
+        const email = lead.email || lead.Email;
+
+        const td1 = document.createElement('td');
+        const nameEl = document.createElement('div');
+        nameEl.className = 'creator-name';
+        nameEl.textContent = name;
+        td1.appendChild(nameEl);
+        if (url) {
+            const urlEl = document.createElement('div');
+            urlEl.className = 'creator-url';
+            urlEl.textContent = url;
+            td1.appendChild(urlEl);
+        }
+        tr.appendChild(td1);
+
+        const tdAg = document.createElement('td');
+        tdAg.style.fontSize = '12px';
+        tdAg.style.color = 'var(--text-dim)';
+        tdAg.style.maxWidth = '120px';
+        tdAg.textContent = lead.agencyName ? String(lead.agencyName) : '—';
+        tr.appendChild(tdAg);
+
+        const td2 = document.createElement('td');
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = niche;
+        td2.appendChild(pill);
+        tr.appendChild(td2);
+
+        const td3 = document.createElement('td');
+        td3.textContent = String(followers);
+        tr.appendChild(td3);
+
+        const td4 = document.createElement('td');
+        if (email) {
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex';
+            wrap.style.flexDirection = 'column';
+            wrap.style.gap = '6px';
+            const p = document.createElement('span');
+            p.className = 'pill green';
+            p.textContent = '✓ ' + email;
+            wrap.appendChild(p);
+            const cb = document.createElement('button');
+            cb.type = 'button';
+            cb.className = 'linkish';
+            cb.textContent = 'Copy email';
+            cb.addEventListener('click', () => void copyToClipboard(String(email)));
+            wrap.appendChild(cb);
+            td4.appendChild(wrap);
+        } else {
+            const s = document.createElement('span');
+            s.style.fontSize = '12px';
+            s.style.color = 'var(--text-dim)';
+            s.textContent = 'Not found';
+            td4.appendChild(s);
+        }
+        tr.appendChild(td4);
+
+        const td5 = document.createElement('td');
+        const draftWrap = document.createElement('div');
+        draftWrap.style.display = 'flex';
+        draftWrap.style.flexDirection = 'column';
+        draftWrap.style.gap = '6px';
+        const draft = document.createElement('div');
+        draft.className = 'draft-email';
+        draft.textContent = lead.draftEmail || '—';
+        draftWrap.appendChild(draft);
+        if (lead.draftEmail) {
+            const cb = document.createElement('button');
+            cb.type = 'button';
+            cb.className = 'linkish';
+            cb.textContent = 'Copy draft';
+            cb.addEventListener('click', () => void copyToClipboard(String(lead.draftEmail)));
+            draftWrap.appendChild(cb);
+        }
+        td5.appendChild(draftWrap);
+        tr.appendChild(td5);
+
+        const td6 = document.createElement('td');
+        td6.style.fontSize = '12px';
+        td6.style.color = 'var(--text-dim)';
+        td6.style.whiteSpace = 'nowrap';
+        td6.textContent = formatLeadDate(lead);
+        tr.appendChild(td6);
+
+        const td7 = document.createElement('td');
+        if (url) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'linkish';
+            b.textContent = 'Open';
+            b.addEventListener('click', () => {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            });
+            td7.appendChild(b);
+        }
+        tr.appendChild(td7);
+
+        tbody.appendChild(tr);
+    }
+
+    function syncVaultFilterUi() {
+        const cb = document.getElementById('vault-agency-only');
+        cb.disabled = !currentAgencyId;
+        if (!currentAgencyId) cb.checked = false;
+    }
+
+    function getFilteredVaultLeads() {
+        const q = (document.getElementById('vault-filter').value || '').trim().toLowerCase();
+        const agencyOnly = document.getElementById('vault-agency-only').checked && currentAgencyId;
+        let list = vaultLeadsRaw.slice();
+        if (agencyOnly) {
+            list = list.filter((l) => String(l.agencyId || '') === String(currentAgencyId));
+        }
+        if (q) {
+            list = list.filter((l) => {
+                const blob = [l.creatorName, l.profileUrl, l.niche, l.email, l.agencyName, l.draftEmail]
+                    .map((x) => String(x || '').toLowerCase())
+                    .join(' ');
+                return blob.includes(q);
+            });
+        }
+        return list;
+    }
+
+    function csvEscape(v) {
+        const t = String(v ?? '');
+        if (/[",\n\r]/.test(t)) return '"' + t.replace(/"/g, '""') + '"';
+        return t;
+    }
+
+    function renderVaultRows() {
         const tbody = document.getElementById('leads-tbody');
-        document.getElementById('vault-count').textContent = `${leads.length} lead${leads.length !== 1 ? 's' : ''} found`;
+        tbody.innerHTML = '';
+        const list = getFilteredVaultLeads();
+        const total = vaultLeadsRaw.length;
+        if (total === 0) {
+            document.getElementById('vault-count').textContent = 'No leads yet';
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 8;
+            const wrap = document.createElement('div');
+            wrap.className = 'empty-state';
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '40');
+            svg.setAttribute('height', '40');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '1.5');
+            const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            p.setAttribute('d', 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z');
+            svg.appendChild(p);
+            wrap.appendChild(svg);
+            const msg = document.createElement('p');
+            msg.textContent = 'No leads yet. Run a discovery mission to populate the vault.';
+            wrap.appendChild(msg);
+            cell.appendChild(wrap);
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+        }
+        document.getElementById('vault-count').textContent =
+            list.length === total
+                ? `${total} lead${total !== 1 ? 's' : ''} loaded`
+                : `${list.length} shown (${total} total)`;
+        if (list.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 8;
+            const wrap = document.createElement('div');
+            wrap.className = 'empty-state';
+            wrap.appendChild(document.createElement('p')).textContent = 'No leads match this filter.';
+            cell.appendChild(wrap);
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+        }
+        list.forEach((lead) => appendLeadRow(tbody, lead));
+    }
 
-        if (leads.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <p>No leads yet. Run a Discovery mission to populate the vault.</p>
-            </div></td></tr>`;
+    async function loadLeads() {
+        document.getElementById('vault-count').textContent = 'Loading…';
+        const tbody = document.getElementById('leads-tbody');
+        tbody.innerHTML = '';
+        const loadingRow = document.createElement('tr');
+        const loadingCell = document.createElement('td');
+        loadingCell.colSpan = 8;
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'empty-state';
+        loadingDiv.appendChild(document.createElement('p')).textContent = 'Fetching leads…';
+        loadingCell.appendChild(loadingDiv);
+        loadingRow.appendChild(loadingCell);
+        tbody.appendChild(loadingRow);
+
+        try {
+            vaultLeadsRaw = await optic.getLeads();
+        } catch (e) {
+            vaultLeadsRaw = [];
+            document.getElementById('vault-count').textContent = 'Could not load leads';
+            tbody.innerHTML = '';
+            const errRow = document.createElement('tr');
+            const errCell = document.createElement('td');
+            errCell.colSpan = 8;
+            const errDiv = document.createElement('div');
+            errDiv.className = 'empty-state';
+            errDiv.appendChild(document.createElement('p')).textContent =
+                e instanceof Error ? e.message : 'Vault request failed.';
+            errCell.appendChild(errDiv);
+            errRow.appendChild(errCell);
+            tbody.appendChild(errRow);
             return;
         }
 
-        tbody.innerHTML = leads.map(lead => {
-            const date = lead.createdAt ? new Date(lead.createdAt._seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-            const email = lead.email || lead.Email;
-            return `<tr>
-                <td>
-                    <div class="creator-name">${lead.creatorName || '—'}</div>
-                    <div class="creator-url"><a href="${lead.profileUrl}" style="color:var(--text-dim); text-decoration:none;">${lead.profileUrl || ''}</a></div>
-                </td>
-                <td><span class="pill">${lead.niche || '—'}</span></td>
-                <td>${lead.followerCount || '—'}</td>
-                <td>${email ? `<span class="pill green">✓ ${email}</span>` : '<span style="color:var(--text-dim); font-size:12px;">Not found</span>'}</td>
-                <td><div class="draft-email">${lead.draftEmail || '<span style="color:var(--text-dim);">—</span>'}</div></td>
-                <td style="font-size:12px; color:var(--text-dim); white-space:nowrap;">${date}</td>
-            </tr>`;
-        }).join('');
+        renderVaultRows();
     }
 
+    document.getElementById('vault-filter').addEventListener('input', () => {
+        if (document.getElementById('view-vault').classList.contains('active')) {
+            renderVaultRows();
+        }
+    });
+    document.getElementById('vault-agency-only').addEventListener('change', () => {
+        renderVaultRows();
+    });
+    document.getElementById('export-csv-btn').addEventListener('click', () => {
+        const list = getFilteredVaultLeads();
+        const headers = [
+            'creatorName',
+            'agencyName',
+            'agencyId',
+            'niche',
+            'followerCount',
+            'email',
+            'profileUrl',
+            'draftEmail',
+            'createdAtIso',
+        ];
+        const lines = [headers.join(',')];
+        for (const l of list) {
+            lines.push(headers.map((h) => csvEscape(l[h])).join(','));
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'optic-leads.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
     document.getElementById('refresh-leads-btn').addEventListener('click', loadLeads);
+})();
 </script>
 </body>
 </html>

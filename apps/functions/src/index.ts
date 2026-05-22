@@ -79,6 +79,28 @@ import {analyzeBrand} from "./brand-research";
 import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
 import {conversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
+import {
+  enqueueOpticDiscoveryJob,
+  cancelOpticDiscoveryJob,
+  setOpticLeadOutreachStatus,
+  setOpticSmsSettings,
+  continueOpticDiscoveryJob,
+} from "./optic/jobs";
+import {
+  createOpticSubscriptionCheckoutSession,
+  createOpticBillingPortalSession,
+  opticInternalTopUp,
+  opticInternalLowCreditCheck,
+} from "./optic/billing";
+import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
+import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
+import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
+import {
+  beginGmailConnect,
+  completeGmailConnect,
+  disconnectGmail,
+  createOpticGmailDraft,
+} from "./gmail";
 
 // Export v2 functions
 export {
@@ -132,6 +154,22 @@ export {
   syncTikTokStats,
   conversionWebhook,
   onAffiliateLinkClick,
+  enqueueOpticDiscoveryJob,
+  cancelOpticDiscoveryJob,
+  setOpticLeadOutreachStatus,
+  setOpticSmsSettings,
+  continueOpticDiscoveryJob,
+  createOpticSubscriptionCheckoutSession,
+  createOpticBillingPortalSession,
+  opticInternalTopUp,
+  opticInternalLowCreditCheck,
+  opticJobSmsOnComplete,
+  opticTwilioSmsWebhook,
+  dispatchOpticJobToWorker,
+  beginGmailConnect,
+  completeGmailConnect,
+  disconnectGmail,
+  createOpticGmailDraft,
 };
 
 // Import and export v1 auth trigger using require/exports

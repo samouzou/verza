@@ -8,6 +8,7 @@ import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
+import {fulfillOpticTopUp} from "../optic/billing";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -515,6 +516,9 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           transaction.update(agencyRef, {availableBalance: currentBalance + topUpAmount});
         });
         logger.info(`Agency ${agencyId} wallet topped up with $${amount / 100}.`);
+      } else if (purchaseType === "opticTopUp" && agencyId) {
+        await fulfillOpticTopUp(agencyId, paymentIntent.id);
+        logger.info(`Optic top-up fulfilled for agency ${agencyId}.`);
       } else if (purchaseType === "creditPurchase" && firebaseUID && creditAmount) {
         const targetUserId = firebaseUID;
         const creditsToAdd = parseInt(creditAmount, 10);

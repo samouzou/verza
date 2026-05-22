@@ -39,6 +39,7 @@ export const createAgency = onCall(async (request) => {
       ownerId: userId,
       availableBalance: 0,
       escrowBalance: 0,
+      opticCreditsBalance: 0,
       createdAt: FieldValue.serverTimestamp() as any,
       talent: [],
       team: [], // Initialize team array

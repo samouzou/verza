@@ -15,7 +15,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   // Added /data-deletion to public paths for Facebook compliance
-  const publicPaths = ['/login', '/pay/contract', '/share/contract', '/data-deletion', '/l/'];
+  const publicPaths = ['/login', '/pay/contract', '/share/contract', '/data-deletion', '/sms-opt-in', '/l/', '/overview'];
   const onboardingPath = '/onboarding';
 
   useEffect(() => {

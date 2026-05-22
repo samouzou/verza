@@ -303,7 +303,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
   `;
 
   const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
   case 0: // Welcome & Deployment Network
@@ -588,6 +588,292 @@ export async function sendSubscriptionReceiptEmail(
 }
 
 /**
+ * Readable Optic plan label for transactional emails.
+ * @param {string | null | undefined} opticPlanId Internal plan id.
+ * @return {string} Display name.
+ */
+function getOpticPlanDisplayName(opticPlanId: string | null | undefined): string {
+  if (!opticPlanId) return "Optic";
+  if (opticPlanId.includes("enterprise")) return "Optic Enterprise";
+  if (opticPlanId.includes("pilot")) return "Optic Studio";
+  return "Optic";
+}
+
+/**
+ * Sends an Optic subscription receipt (new or renewal).
+ * @param {string} toEmail Recipient email.
+ * @param {string} name Recipient display name.
+ * @param {object} details Receipt fields.
+ * @return {Promise<void>}
+ */
+export async function sendOpticSubscriptionReceiptEmail(
+  toEmail: string,
+  name: string,
+  details: {
+    opticPlanId: string;
+    interval: string;
+    amountPaid: number;
+    nextBillingDate: number;
+    transactionId: string;
+    type: "new" | "renewal";
+    monthlyAllowance: number;
+  }
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping Optic subscription receipt email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const planName = getOpticPlanDisplayName(details.opticPlanId);
+  const intervalLabel = details.interval === "year" ? "Annual" : "Monthly";
+  const amountFormatted = "$" + (details.amountPaid / 100)
+    .toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const nextDate = details.nextBillingDate && details.nextBillingDate > 0 ?
+    new Date(details.nextBillingDate * 1000)
+      .toLocaleDateString("en-US", {year: "numeric", month: "long", day: "numeric"}) :
+    "—";
+  const leadsLabel = details.monthlyAllowance.toLocaleString("en-US");
+
+  const isNew = details.type === "new";
+  const subject = isNew ?
+    "You're subscribed to Optic — receipt inside" :
+    "Your Optic subscription has renewed";
+  const headline = isNew ? "Optic Subscription Confirmed" : "Optic Renewal Confirmed";
+  const subheadline = isNew ?
+    `Welcome to ${planName}. Your lead credits are ready.` :
+    `Your ${planName} plan has renewed and your credits have been refreshed.`;
+  const vaultNote = isNew ?
+    `You have ${leadsLabel} included leads this period. Run a discovery mission from Optic to start sourcing creators.` :
+    `Your balance has been reset to ${leadsLabel} included leads for this billing period.`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="background-color: #f4f4f7; padding: 40px 20px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0;
+        border-radius: 16px; background-color: #ffffff;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+
+        <div style="text-align: center; margin-bottom: 30px;">
+          <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+            style="vertical-align: middle; margin-right: 8px;">
+          <span style="font-weight: bold; font-size: 24px; color: #000000;
+            vertical-align: middle; font-family: sans-serif;">Verza Optic</span>
+        </div>
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800;
+            letter-spacing: -0.025em;">${headline}</h1>
+          <p style="color: #718096; margin-top: 8px; font-size: 16px;">${subheadline}</p>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px;
+          border: 1px solid #edf2f7; margin-bottom: 32px;">
+          <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase;
+            color: #a0aec0; margin: 0 0 16px 0;">Subscription Breakdown</h2>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Plan</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">${planName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Billing Interval</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px;
+                font-weight: 600; text-align: right;">${intervalLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Included Leads</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 
+              15px; font-weight: 600; text-align: right;">${leadsLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Next Billing Date</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; text-align: right;">${nextDate}</td>
+            </tr>
+            <tr style="border-top: 2px solid #edf2f7;">
+              <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Amount Paid</td>
+              <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800;
+                text-align: right; font-size: 24px;">${amountFormatted}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0;
+          border: 1px solid #feebc8; margin-bottom: 32px;">
+          <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
+            <strong>Hi ${name} —</strong> ${vaultNote}
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${appUrl}/optic" style="background-color: #6B37FF; color: white;
+            padding: 12px 28px; text-decoration: none; border-radius: 8px;
+            font-weight: bold; font-size: 15px; display: inline-block;">Open Optic</a>
+        </div>
+
+        <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
+          <p style="color: #a0aec0; font-size: 12px; margin: 0;">Transaction ID: ${details.transactionId}</p>
+          <p style="color: #a0aec0; font-size: 12px; margin-top: 4px;">
+            Powered by Verza Optic</p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `;
+
+  const msg = {
+    to: toEmail,
+    from: {name: "Verza Optic", email: params.SENDGRID_FROM_EMAIL.value()},
+    subject,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Optic subscription receipt (${details.type}) sent to ${toEmail}.`);
+    await db.collection("emailLogs").add({
+      to: toEmail,
+      subject,
+      html,
+      type: "optic_subscription_receipt",
+      timestamp: Timestamp.now(),
+      status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send Optic subscription receipt to ${toEmail}:`, error);
+  }
+}
+
+/**
+ * Warns when included Optic credits are at or below 20% remaining (80% used).
+ * @param {string} toEmail Recipient email.
+ * @param {string} name Recipient display name.
+ * @param {object} details Balance context.
+ * @return {Promise<void>}
+ */
+export async function sendOpticLowCreditsEmail(
+  toEmail: string,
+  name: string,
+  details: {
+    balance: number;
+    allowance: number;
+    planName: string;
+    planTier: "pilot" | "enterprise";
+  }
+): Promise<void> {
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping Optic low-credit email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const used = Math.max(0, details.allowance - details.balance);
+  const usedPct = details.allowance > 0 ?
+    Math.min(100, Math.round((used / details.allowance) * 100)) :
+    0;
+  const balanceLabel = details.balance.toLocaleString("en-US");
+  const allowanceLabel = details.allowance.toLocaleString("en-US");
+  const pilotNote = details.planTier === "pilot" ?
+    " Studio will auto-purchase a 250-lead block ($500) when you run out, if a card is on file." :
+    " Enterprise can continue past your included balance; overage is reviewed quarterly.";
+
+  const subject = `Optic: ${usedPct}% of your included leads used this period`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="background-color: #f4f4f7; padding: 40px 20px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0;
+        border-radius: 16px; background-color: #ffffff;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+
+        <div style="text-align: center; margin-bottom: 30px;">
+          <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+            style="vertical-align: middle; margin-right: 8px;">
+          <span style="font-weight: bold; font-size: 24px; color: #000000;
+            vertical-align: middle; font-family: sans-serif;">Verza Optic</span>
+        </div>
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800;
+            letter-spacing: -0.025em;">Credits Running Low</h1>
+          <p style="color: #718096; margin-top: 8px; font-size: 16px;">
+            You've used about ${usedPct}% of your ${details.planName} included leads.
+          </p>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 24px; border-radius: 12px;
+          border: 1px solid #edf2f7; margin-bottom: 32px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Remaining</td>
+              <td style="padding: 12px 0; color: #6B37FF; font-size: 22px;
+              font-weight: 800; text-align: right;">${balanceLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Included this period</td>
+              <td style="padding: 12px 0; color: #1a202c; font-size: 15px; 
+              font-weight: 600; text-align: right;">${allowanceLabel}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="padding: 20px; border-radius: 12px; background-color: #fffaf0;
+          border: 1px solid #feebc8; margin-bottom: 32px;">
+          <p style="margin: 0; font-size: 13px; color: #7b341e; line-height: 1.6;">
+            <strong>Hi ${name} —</strong> You have ${balanceLabel} included leads left on ${details.planName}.${pilotNote}
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${appUrl}/optic" style="background-color: #6B37FF; color: white;
+            padding: 12px 28px; text-decoration: none; border-radius: 8px;
+            font-weight: bold; font-size: 15px; display: inline-block;">Open Optic</a>
+          <p style="margin-top: 16px; font-size: 13px;">
+            <a href="${appUrl}/optic/pricing" style="color: #6B37FF;">Manage billing</a>
+          </p>
+        </div>
+
+        <div style="text-align: center; border-top: 1px solid #edf2f7; padding-top: 32px;">
+          <p style="color: #a0aec0; font-size: 12px; margin: 0;">Powered by Verza Optic</p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `;
+
+  const msg = {
+    to: toEmail,
+    from: {name: "Verza Optic", email: params.SENDGRID_FROM_EMAIL.value()},
+    subject,
+    html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    logger.info(`Optic low-credit warning sent to ${toEmail} (${balanceLabel}/${allowanceLabel}).`);
+    await db.collection("emailLogs").add({
+      to: toEmail,
+      subject,
+      html,
+      type: "optic_low_credits",
+      timestamp: Timestamp.now(),
+      status: "sent",
+    });
+  } catch (error) {
+    logger.error(`Failed to send Optic low-credit email to ${toEmail}:`, error);
+  }
+}
+
+/**
  * Sends an email from the deployment onboarding sequence to the brand who posted it.
  * Step 0 is sent immediately when the deployment goes live. Steps 1–4 are drip emails.
  * @param {string} toEmail The recipient's email address.
@@ -621,7 +907,7 @@ export async function sendDeploymentEmailSequence(
   `;
 
   const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
   case 0: // Immediate — campaign is live
@@ -829,7 +1115,7 @@ export async function sendAgencyEmailSequence(
   `;
 
   const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-                   "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
   switch (step) {
   case 0: // Immediate — agency is live
@@ -1136,15 +1422,15 @@ export const notifyBrandCreatorJoined = onCall(async (request) => {
     if (!gigSnap.exists) {
       throw new HttpsError("not-found", "Campaign not found.");
     }
-    const gigData = gigSnap.data() as {title: string; brandId: string};
+    const gigData = gigSnap.data() as { title: string; brandId: string };
 
     const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
     if (!agencySnap.exists) return {success: true};
-    const agencyData = agencySnap.data() as {ownerId: string; name: string};
+    const agencyData = agencySnap.data() as { ownerId: string; name: string };
 
     const ownerSnap = await db.collection("users").doc(agencyData.ownerId).get();
     if (!ownerSnap.exists) return {success: true};
-    const ownerData = ownerSnap.data() as {email: string | null; displayName: string | null};
+    const ownerData = ownerSnap.data() as { email: string | null; displayName: string | null };
 
     if (!ownerData.email) return {success: true};
 
