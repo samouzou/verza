@@ -9,7 +9,26 @@ function safeLog(...args: any[]) {
   try { console.log(...args); } catch (_) {}
 }
 
-let db: admin.firestore.Firestore;
+let db: admin.firestore.Firestore | undefined;
+
+/** Plain objects safe for Electron IPC (Timestamps are not structured-clone friendly). */
+function serializeLeadDoc(doc: admin.firestore.QueryDocumentSnapshot): Record<string, unknown> {
+  const data = doc.data();
+  const { createdAt, ...rest } = data;
+  let createdAtIso: string | null = null;
+  if (createdAt && typeof (createdAt as admin.firestore.Timestamp).toDate === "function") {
+    try {
+      createdAtIso = (createdAt as admin.firestore.Timestamp).toDate().toISOString();
+    } catch {
+      createdAtIso = null;
+    }
+  }
+  return {
+    id: doc.id,
+    ...rest,
+    createdAtIso,
+  };
+}
 
 /**
  * Initializes Firestore using Application Default Credentials (ADC).
@@ -32,19 +51,34 @@ function initFirestore() {
   }
 }
 
+export function getFirestoreDb(): admin.firestore.Firestore | null {
+  initFirestore();
+  return db ?? null;
+}
+
 /**
  * Saves a lead to the optic_outreach_leads collection.
  * @param leadData The parsed JSON data from Gemini.
  * @param profileUrl The original URL of the creator.
  */
-export async function saveLeadToFirestore(leadData: any, profileUrl: string) {
+export async function saveLeadToFirestore(
+  leadData: any,
+  profileUrl: string,
+  agencyMeta?: { agencyId: string; agencyName: string }
+) {
   initFirestore();
 
   const payload = {
     ...leadData,
     profileUrl,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    source: 'Verza Optic MVP'
+    source: "Verza Optic MVP",
+    ...(agencyMeta
+      ? {
+          agencyId: agencyMeta.agencyId,
+          agencyName: agencyMeta.agencyName,
+        }
+      : {}),
   };
 
   if (!db) {
@@ -76,7 +110,7 @@ export async function getLeads(limit: number = 50): Promise<any[]> {
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => serializeLeadDoc(doc));
   } catch (error) {
     safeLog(`[Optic] Error fetching leads:`, error);
     return [];

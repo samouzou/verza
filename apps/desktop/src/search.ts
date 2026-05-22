@@ -13,12 +13,21 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 /**
  * Uses Gemini's internal knowledge to generate a seed list of creators.
  */
-export async function generateSeedLeads(platform: string, objectives: string): Promise<{ name: string, url: string }[]> {
+export async function generateSeedLeads(
+  platform: string,
+  objectives: string,
+  agencyName?: string | null
+): Promise<{ name: string; url: string }[]> {
   logger.log(`[Optic] Generating seed leads from AI knowledge...`);
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-  
+
+  const clientLine = agencyName
+    ? `The outreach is on behalf of the brand/agency "${agencyName}" (via Verza); prefer creators who would realistically work with that kind of partner.`
+    : "";
+
   const prompt = `
-    Based on these campaign objectives: "${objectives}", 
+    Based on these campaign objectives: "${objectives}",
+    ${clientLine}
     provide a list of 5 real, high-quality creators on ${platform} who would be a perfect fit.
     Include their full profile URL.
     Return the result strictly as a JSON array of objects with "name" and "url" keys.
@@ -53,7 +62,7 @@ export async function findCreators(platform: string, objectives: string): Promis
   const query = await generateSearchQuery(platform, objectives);
   logger.log(`[Optic] Search query: "${query}"`);
 
-  const userDataDir = path.join(app.getPath('userData'), 'optic-browser-profile');
+  const userDataDir = path.join(app.getPath("userData"), "optic-scout-profile");
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: true,
     viewport: { width: 1280, height: 1080 }
@@ -63,25 +72,44 @@ export async function findCreators(platform: string, objectives: string): Promis
   const urls: string[] = [];
 
   try {
-    if (platform === 'youtube') {
-      await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
-      await page.waitForTimeout(3000);
+    if (platform === "youtube") {
+      await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
+        timeout: 45_000,
+      });
+      await new Promise((r) => setTimeout(r, 3000));
       
       // Extract top 3 channel URLs
       const channelLinks = await page.$$eval('a#main-link.channel-link', links => 
         links.slice(0, 3).map(a => (a as HTMLAnchorElement).href)
       );
       urls.push(...channelLinks);
-    } else if (platform === 'instagram') {
-      // Instagram search is trickier, we'll try to use the explore/search tags
-      await page.goto(`https://www.instagram.com/explore/tags/${encodeURIComponent(query.replace(/\s+/g, ''))}/`);
-      await page.waitForTimeout(4000);
+    } else if (platform === "instagram") {
+      // Instagram hashtag explore — URLs are post pages, not full profiles; good for seed discovery only.
+      await page.goto(
+        `https://www.instagram.com/explore/tags/${encodeURIComponent(query.replace(/\s+/g, ""))}/`,
+        { timeout: 45_000 }
+      );
+      await new Promise((r) => setTimeout(r, 4000));
       
       // Extract URLs from recent posts
       const postLinks = await page.$$eval('a[href^="/p/"]', links => 
         links.slice(0, 3).map(a => (a as HTMLAnchorElement).href)
       );
       urls.push(...postLinks);
+    } else if (platform === "tiktok") {
+      await page.goto(`https://www.tiktok.com/search?q=${encodeURIComponent(query)}`, {
+        timeout: 45_000,
+      });
+      await new Promise((r) => setTimeout(r, 3500));
+      const tiktokUrls = await page.evaluate(() => {
+        const out: string[] = [];
+        document.querySelectorAll('a[href*="tiktok.com/@"]').forEach((a) => {
+          const href = (a as HTMLAnchorElement).href?.split("?")[0];
+          if (href && !out.includes(href)) out.push(href);
+        });
+        return out.slice(0, 8);
+      });
+      urls.push(...tiktokUrls);
     }
 
     logger.log(`[Optic] Found ${urls.length} potential leads.`);

@@ -30,7 +30,17 @@
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log",
-      "functions"
+      "functions",
+      ".next",
+      ".turbo",
+      "dist",
+      "out",
+      "coverage",
+      ".env",
+      ".env.*",
+      "emulator-data",
+      "apps/desktop",
+      "apps/optic-worker/dist"
     ],
     "alwaysDeployFromSource": true
   },
@@ -47,7 +57,8 @@
       "port": 5001
     },
     "firestore": {
-      "port": 8080
+      "host": "127.0.0.1",
+      "port": 8090
     },
     "storage": {
       "port": 9199

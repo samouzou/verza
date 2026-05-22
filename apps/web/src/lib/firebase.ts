@@ -72,8 +72,14 @@ const storage = getStorage(app);
 const functions = getFunctions(app);
 const googleAuthProvider = new GoogleAuthProvider();
 
+/** Must match `emulators.firestore.port` in root `firebase.json` (default 8090 — 8080 is often busy). */
+const FIRESTORE_EMULATOR_PORT = parseInt(
+  process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || "8090",
+  10
+);
+
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFirestoreEmulator(db, 'localhost', FIRESTORE_EMULATOR_PORT);
   connectFunctionsEmulator(functions, 'localhost', 5001);
   connectStorageEmulator(storage, 'localhost', 9199);
 }
