@@ -12,10 +12,9 @@ import {
 import { formatDistanceToNow } from "date-fns";
 
 import { BrandContextStrip } from "@/components/optic/brand-context-strip";
-import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
+import { OpticIntegrationsSection } from "@/components/optic/optic-integrations-section";
 import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
 import { OpticNoCreditsCard } from "@/components/optic/optic-no-credits-card";
-import { OpticSmsCard } from "@/components/optic/optic-sms-card";
 import { DiscoveryTimeline } from "@/components/optic/discovery-timeline";
 import { MissionsList } from "@/components/optic/missions-list";
 import { PageHeader } from "@/components/page-header";
@@ -286,16 +285,12 @@ export default function OpticDiscoveryPage() {
       {brandStrip && <BrandContextStrip strip={brandStrip} payScopeHint={payScopeHint} />}
 
       {canRun && agencyId && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <GmailConnectCard
-            connected={Boolean(user?.opticGmailConnected)}
-            email={user?.opticGmailEmail ?? null}
-          />
-          <OpticSmsCard
-            enabled={Boolean(user?.opticSmsEnabled)}
-            phone={user?.opticSmsPhone ?? null}
-          />
-        </div>
+        <OpticIntegrationsSection
+          gmailConnected={Boolean(user?.opticGmailConnected)}
+          gmailEmail={user?.opticGmailEmail ?? null}
+          smsEnabled={Boolean(user?.opticSmsEnabled)}
+          smsPhone={user?.opticSmsPhone ?? null}
+        />
       )}
 
       {!agencyId && (
