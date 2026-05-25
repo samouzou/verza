@@ -35,6 +35,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { trackEvent } from "@/lib/analytics";
 import mammoth from 'mammoth';
 import { generateContractFromPrompt } from "@/ai/flows/generate-contract-from-prompt-flow";
+import { invoiceVerzaFeeFootnoteForNewContract } from "@/lib/invoice-platform-fee";
 
 if (process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY) {
   registerLicense(process.env.NEXT_PUBLIC_SYNCFUSION_LICENSE_KEY);
@@ -642,7 +643,9 @@ export function UploadContractDialog({ isOpen: controlledIsOpen, onOpenChange: c
               ))}
               <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
               <div className="text-right font-semibold">Total Amount: ${currentTotalAmount.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground text-right">A 15% Verza fee + payment processing fees apply on invoice payments.</p>
+              <p className="text-xs text-muted-foreground text-right">
+                {invoiceVerzaFeeFootnoteForNewContract(Boolean(isAgencyManager && agency))}
+              </p>
             </CardContent></Card>
             
             <Card><CardHeader><CardTitle className="text-lg">Contract Recurrence (Optional)</CardTitle></CardHeader><CardContent className="space-y-4">

@@ -31,6 +31,15 @@ async function verifyAuthToken(authHeader: string | undefined): Promise<string> 
   }
 }
 
+/**
+ * Verza platform fee on contract invoice payments (card processing is added separately in application_fee).
+ * @param {'user'|'agency'} ownerType Contract workspace: agency pays 1%, user (creator) pays 15%.
+ * @return {number} Fee fraction applied to amount in cents (e.g. 0.01 or 0.15).
+ */
+function invoicePlatformFeeFraction(ownerType: Contract["ownerType"]): number {
+  return ownerType === "agency" ? 0.01 : 0.15;
+}
+
 // Create Stripe Connected Account
 export const createStripeConnectedAccount = onRequest(async (request, response) => {
   let stripe: Stripe;
@@ -363,7 +372,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
       const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
 
-      const platformFee = Math.round(amountInCents * 0.15);
+      const platformFee = Math.round(amountInCents * invoicePlatformFeeFraction(contractData.ownerType));
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
@@ -406,7 +415,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         throw new Error("Creator does not have a valid Stripe account");
       }
 
-      const platformFee = Math.round(amountInCents * 0.15);
+      const platformFee = Math.round(amountInCents * invoicePlatformFeeFraction(contractData.ownerType));
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
@@ -703,7 +712,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
                 const stripeFeeRaw = Math.round(amount * 0.029) + 30;
-                const platformFeeRaw = Math.round(amount * 0.15);
+                const platformFeeRaw = Math.round(amount * invoicePlatformFeeFraction(contractData.ownerType));
                 const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
                 const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
                 const talentShareAmount = netForDistribution - agencyCommRaw;

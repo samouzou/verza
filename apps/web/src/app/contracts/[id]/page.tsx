@@ -4,6 +4,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent, useRef } from 'react';
 import { PageHeader } from '@/components/page-header';
+import { invoiceVerzaFeeFootnoteForOwnerType } from "@/lib/invoice-platform-fee";
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit3, Trash2, FileText, DollarSign, CalendarDays, Briefcase, Info, CheckCircle, AlertTriangle, Loader2, Lightbulb, FileSpreadsheet, History, Printer, Share2, MessageCircle, Send as SendIconComponent, CornerDownRight, User, Mail, Trash, FilePenLine, Check, X, Menu, Eye, Wand2, Save, UploadCloud, PlusCircle } from 'lucide-react'; // Renamed Send icon
 import Link from 'next/link';
@@ -583,7 +584,7 @@ export default function ContractDetailPage() {
                           </Card>
                         ))}
                       </div>
-                      <p className="text-xs text-muted-foreground">A 15% Verza fee + payment processing fees apply on invoice payments.</p>
+                      <p className="text-xs text-muted-foreground">{invoiceVerzaFeeFootnoteForOwnerType(contract.ownerType)}</p>
                     </div>
 
                      {contract.extractedTerms && (Object.values(contract.extractedTerms).some(v => v)) && (
@@ -703,7 +704,7 @@ export default function ContractDetailPage() {
                                 ))}
                                 <Button type="button" variant="outline" size="sm" onClick={addMilestone}><PlusCircle className="mr-2 h-4 w-4"/>Add Milestone</Button>
                                 <div className="text-right font-semibold text-sm pt-2 border-t">Total: ${milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0).toLocaleString()}</div>
-                                <p className="text-xs text-muted-foreground text-right">A 15% Verza fee + payment processing fees apply on invoice payments.</p>
+                                <p className="text-xs text-muted-foreground text-right">{invoiceVerzaFeeFootnoteForOwnerType(contract.ownerType)}</p>
                              </div>
 
                             <div><Label htmlFor="contractType">Contract Type</Label><Select value={contractType} onValueChange={(value) => setContractType(value as Contract['contractType'])}><SelectTrigger className="w-full mt-1"><SelectValue placeholder="Select contract type" /></SelectTrigger><SelectContent><SelectItem value="sponsorship">Sponsorship</SelectItem><SelectItem value="consulting">Consulting</SelectItem><SelectItem value="affiliate">Affiliate</SelectItem><SelectItem value="retainer">Retainer</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
