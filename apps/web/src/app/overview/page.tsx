@@ -327,6 +327,12 @@ export default function BrandOverviewDeck() {
             Agency deck
           </Link>
           <Link
+            href="/overview/sponsorship"
+            className="text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors hidden lg:inline"
+          >
+            Sponsorship
+          </Link>
+          <Link
             href="/login"
             className="text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors hidden sm:inline"
           >
