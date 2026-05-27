@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Maximize2, Infinity as InfinityIcon } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -59,6 +59,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
+import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 
 function GigDetailContent() {
   const params = useParams();
@@ -107,6 +108,8 @@ function GigDetailContent() {
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
   const extendCreatorDeadlineCallable = httpsCallable(functions, 'extendCreatorDeadline');
+  const notifyBrandVideoSubmittedCallable = httpsCallable(functions, 'notifyBrandVideoSubmitted');
+  const notifyBrandCampaignApplicantCallable = httpsCallable(functions, 'notifyBrandCampaignApplicant');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -309,6 +312,7 @@ function GigDetailContent() {
       const currentGigSnap = await getDoc(gigDocRef);
       if (!currentGigSnap.exists()) throw new Error("Campaign no longer exists.");
       const currentGigData = currentGigSnap.data() as Gig;
+      const acceptedIds = currentGigData.acceptedCreatorIds || [];
       const appliedIds = currentGigData.appliedCreatorIds || [];
       const isCauseGig = currentGigData.campaignType === 'cause_campaign';
 
@@ -399,7 +403,12 @@ function GigDetailContent() {
 
           // Send email to brand owner
           const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
-          notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+          notifyBrandCreatorJoined({
+            gigId: gig.id,
+            creatorName,
+            isAgencyAcceptance,
+            fromApplicationApproval: false,
+          }).catch(err => {
             console.error('Failed to send brand notification email:', err);
           });
         }
@@ -454,6 +463,12 @@ function GigDetailContent() {
             link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           });
+
+          notifyBrandCampaignApplicantCallable({
+            gigId: gig.id,
+            applicantUserId: targetUserId,
+            isAgencyAcceptance,
+          }).catch((err) => console.error('Failed to send brand applicant email:', err));
         }
         
         toast({ title: "Application Submitted!", description: "The brand has been notified and will review your application." });
@@ -539,7 +554,12 @@ function GigDetailContent() {
       const creatorName = appliedCreators.find(c => c.uid === applicantId)?.displayName || 'Creator';
       const isAgencyAcceptance = !!currentGigData.assignments?.[applicantId];
       const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
-      notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+      notifyBrandCreatorJoined({
+        gigId: gig.id,
+        creatorName,
+        isAgencyAcceptance,
+        fromApplicationApproval: true,
+      }).catch(err => {
         console.error('Failed to send brand notification email:', err);
       });
 
@@ -643,6 +663,10 @@ function GigDetailContent() {
             link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Your submission has been sent to the brand." });
       } else {
@@ -702,6 +726,10 @@ function GigDetailContent() {
             link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'link',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Your submission has been sent to the brand." });
       } else {
@@ -749,6 +777,10 @@ function GigDetailContent() {
             link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: isYouTube ? 'link' : 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
@@ -800,10 +832,13 @@ function GigDetailContent() {
       for (const sub of batch) {
         await updateDoc(doc(db, 'submissions', sub.id), { status: 'approved' });
       }
+      const isBarter = isBarterCampaignType(gig.campaignType);
       await addDoc(collection(db, 'notifications'), {
         userId: creator.uid,
-        title: "Contribution Approved!",
-        message: `Your content for "${gig.title}" has been approved. Thank you for supporting this cause!`,
+        title: isBarter ? "Deliverable Approved!" : "Contribution Approved!",
+        message: isBarter
+          ? `Your content for "${gig.title}" has been approved. Any in-kind compensation follows the campaign brief.`
+          : `Your content for "${gig.title}" has been approved. Thank you for supporting this cause!`,
         type: 'payout_received',
         read: false,
         link: `/campaigns/${gig.id}`,
@@ -910,7 +945,16 @@ function GigDetailContent() {
 
   const getStatusLabel = (status: string) => {
     if (status === 'open') {
-      if (gig?.campaignType === 'cause_campaign') return 'Open for Creators';
+      if (isCauseCampaignType(gig?.campaignType)) return 'Open for Creators';
+      const hasPerf =
+        gig?.affiliateSettings?.isEnabled && (gig?.affiliateSettings?.rewardAmount || 0) > 0;
+      if (
+        isBarterCampaignType(gig?.campaignType) &&
+        (gig?.ratePerCreator || 0) <= 0 &&
+        !hasPerf
+      ) {
+        return 'Barter · In-Kind';
+      }
       return (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
     }
     if (status === 'pending_payment') return 'Funding Pending';
@@ -923,7 +967,10 @@ function GigDetailContent() {
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Campaign Not Found</h3></div>;
 
   const acceptedIds = gig.acceptedCreatorIds || [];
-  const isCauseCampaign = gig.campaignType === 'cause_campaign';
+  const isCauseCampaign = isCauseCampaignType(gig.campaignType);
+  const isBarterCampaign = isBarterCampaignType(gig.campaignType);
+  const usesContributionApprovalOnly =
+    isCauseCampaign || (isBarterCampaign && (gig.ratePerCreator || 0) <= 0);
   const spotsLeft = isCauseCampaign ? Infinity : (gig.creatorsNeeded || 0) - acceptedIds.length;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const hasApplied = user ? (gig.appliedCreatorIds || []).includes(user.uid) : false;
@@ -936,7 +983,7 @@ function GigDetailContent() {
   const isCompleted = gig.status === 'completed';
 
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
-  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : gig.campaignType === 'cause_campaign' ? 'Cause Campaign' : 'Standard Sponsorship';
+  const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : isCauseCampaign ? 'Cause Campaign' : isBarterCampaign ? 'Barter' : 'Standard Sponsorship';
 
   const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
@@ -970,7 +1017,11 @@ function GigDetailContent() {
             <AlertTitle className="font-bold">Campaign Complete!</AlertTitle>
             <AlertDescription>
               {canManageGig
-                ? isCauseCampaign ? `All participating creators have finished their work for this cause.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                ? isCauseCampaign
+                  ? `All participating creators have finished their work for this cause.`
+                  : isBarterCampaign
+                    ? `All ${gig.creatorsNeeded} creators have finished their deliverables for this barter campaign.`
+                    : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
             </AlertDescription>
           </Alert>
@@ -1188,8 +1239,9 @@ function GigDetailContent() {
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle>Campaign Objective</CardTitle>
-                  <Badge variant="secondary" className={isCauseCampaign ? "bg-rose-500/10 text-rose-600 border-rose-500/20" : "bg-primary/10 text-primary border-primary/20"}>
+                  <Badge variant="secondary" className={isCauseCampaign ? "bg-rose-500/10 text-rose-600 border-rose-500/20" : isBarterCampaign ? "bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/25" : "bg-primary/10 text-primary border-primary/20"}>
                     {isCauseCampaign && <Heart className="h-3 w-3 mr-1 inline" />}
+                    {isBarterCampaign && <Handshake className="h-3 w-3 mr-1 inline" />}
                     {campaignTypeLabel}
                   </Badge>
                 </div>
@@ -1460,7 +1512,11 @@ function GigDetailContent() {
                   <CardTitle className="flex items-center gap-2"><Users className="text-primary" /> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
                   <CardDescription>
                     {isCompleted
-                      ? isCauseCampaign ? `All participating creators have finished their work.` : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                      ? isCauseCampaign
+                        ? `All participating creators have finished their work.`
+                        : isBarterCampaign
+                          ? `All ${gig.creatorsNeeded} creators have finished their deliverables for this barter campaign.`
+                          : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                       : `Manage secured creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
                   </CardDescription>
                 </CardHeader>
@@ -1547,7 +1603,7 @@ function GigDetailContent() {
                                   </Link>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  {isCauseCampaign ? (
+                                  {usesContributionApprovalOnly ? (
                                     (() => {
                                       const isApproved = creatorSubmissions.length > 0 && creatorSubmissions.every(s => s.status === 'approved');
                                       return isApproved ? (
@@ -1555,21 +1611,25 @@ function GigDetailContent() {
                                       ) : isBrandTeam ? (
                                         <AlertDialog>
                                           <AlertDialogTrigger asChild>
-                                            <Button size="sm" variant="outline" disabled={isPaying === creator.uid || !allVideosSubmitted} className="border-rose-300 text-rose-600 hover:bg-rose-50">
-                                              {isPaying === creator.uid ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Heart className="h-3.5 w-3.5 mr-1" />} Approve
+                                            <Button size="sm" variant="outline" disabled={isPaying === creator.uid || !allVideosSubmitted} className={isCauseCampaign ? "border-rose-300 text-rose-600 hover:bg-rose-50 hover:text-rose-800 dark:hover:bg-rose-950/40 dark:hover:text-rose-50" : "border-amber-400 text-amber-800 hover:bg-amber-50 hover:text-amber-950 dark:text-amber-200 dark:hover:bg-amber-950/50 dark:hover:text-amber-50"}>
+                                              {isPaying === creator.uid ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : isCauseCampaign ? <Heart className="h-3.5 w-3.5 mr-1" /> : <Handshake className="h-3.5 w-3.5 mr-1" />} Approve
                                             </Button>
                                           </AlertDialogTrigger>
                                           <AlertDialogContent>
                                             <AlertDialogHeader>
-                                              <AlertDialogTitle>Approve this contribution?</AlertDialogTitle>
+                                              <AlertDialogTitle>{isCauseCampaign ? "Approve this contribution?" : "Approve this deliverable?"}</AlertDialogTitle>
                                               <AlertDialogDescription>
-                                                You're acknowledging <span className="font-bold text-foreground">{creator.displayName}</span>'s content for your cause. Their work will be marked as approved and they'll receive a thank-you notification. This cannot be undone.
+                                                {isCauseCampaign ? (
+                                                  <>You&apos;re acknowledging <span className="font-bold text-foreground">{creator.displayName}</span>&apos;s content for your cause. Their work will be marked as approved and they&apos;ll receive a thank-you notification. This cannot be undone.</>
+                                                ) : (
+                                                  <>You&apos;re acknowledging <span className="font-bold text-foreground">{creator.displayName}</span>&apos;s work for this barter campaign. Their submission will be marked as approved. Any product or in-kind compensation is handled outside Verza per your brief. This cannot be undone.</>
+                                                )}
                                               </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                              <AlertDialogAction onClick={() => handleApproveContribution(creator)} className="bg-rose-500 hover:bg-rose-600 text-white">
-                                                Approve Contribution
+                                              <AlertDialogAction onClick={() => handleApproveContribution(creator)} className={isCauseCampaign ? "bg-rose-500 hover:bg-rose-600 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}>
+                                                {isCauseCampaign ? "Approve Contribution" : "Approve Deliverable"}
                                               </AlertDialogAction>
                                             </AlertDialogFooter>
                                           </AlertDialogContent>
@@ -1750,6 +1810,16 @@ function GigDetailContent() {
                       <Badge variant="secondary" className="border-rose-500/30 bg-rose-500/5 text-rose-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight">
                         <Heart className="h-3 w-3 mr-1 fill-rose-500" /> Volunteer
                       </Badge>
+                    ) : isBarterCampaign ? (
+                      gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 ? (
+                        <Badge variant="secondary" className="border-amber-500/30 bg-amber-500/5 text-amber-800 dark:text-amber-200 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight">
+                          <Handshake className="h-3 w-3 mr-1" /> Barter + performance
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="border-amber-500/30 bg-amber-500/5 text-amber-800 dark:text-amber-200 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight">
+                          <Handshake className="h-3 w-3 mr-1" /> Barter (in-kind)
+                        </Badge>
+                      )
                     ) : (
                       <Badge variant="secondary" className="border-blue-500/30 bg-blue-500/5 text-blue-600 font-bold px-2 py-0.5 uppercase text-[10px] tracking-tight animate-pulse">
                         <Zap className="h-3.5 w-3.5 mr-1 fill-blue-600" /> Performance Only
@@ -1845,6 +1915,13 @@ function GigDetailContent() {
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
                                   {(gig.ratePerCreator || 0) > 0 ? (
                                     <p>The Client has pre-funded the base rate for this campaign ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
+                                  ) : isBarterCampaign ? (
+                                    <p>
+                                      This campaign is a <strong>barter</strong> arrangement. Any cash, product, gifting, or other in-kind compensation is described in this brief and agreed between the parties. Verza does not escrow in-kind consideration.
+                                      {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0
+                                        ? " Optional performance rewards may still be tracked and paid through Verza as defined in this brief."
+                                        : ""}
+                                    </p>
                                   ) : (
                                     <p>This is a performance-based campaign. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 15% platform service fee.</p>
                                   )}
@@ -1948,7 +2025,7 @@ function GigDetailContent() {
 
                 {isBrandTeam && (
                   <div className="space-y-2">
-                    {gig.status === 'pending_payment' && (
+                    {gig.status === 'pending_payment' && totalCost > 0 && (
                       <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Campaign Funding: ${totalCost.toLocaleString()}</p>
                         <Button className="w-full" onClick={handleResumeFunding} disabled={isResumingFunding || isWalletFunding}>

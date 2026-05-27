@@ -98,6 +98,7 @@ function GigDetailContent() {
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+  const notifyBrandVideoSubmittedCallable = httpsCallable(functions, 'notifyBrandVideoSubmitted');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -112,7 +113,7 @@ function GigDetailContent() {
         value: totalValue
       });
 
-      router.replace(`/deployments/${gigId}`, { scroll: false });
+      router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
 
@@ -361,13 +362,18 @@ function GigDetailContent() {
             : `${creatorName} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
 
         // Send email to brand owner
         const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
-        notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+        notifyBrandCreatorJoined({
+          gigId: gig.id,
+          creatorName,
+          isAgencyAcceptance,
+          fromApplicationApproval: false,
+        }).catch(err => {
           console.error('Failed to send brand notification email:', err);
         });
       }
@@ -381,7 +387,7 @@ function GigDetailContent() {
           message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" deployment.`,
           type: 'system',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
       }
@@ -486,9 +492,13 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Your submission has been sent to the brand." });
       } else {
@@ -545,9 +555,13 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a link for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'link',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Your submission has been sent to the brand." });
       } else {
@@ -592,9 +606,13 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: isYouTube ? 'link' : 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
@@ -644,7 +662,7 @@ function GigDetailContent() {
     try {
       await deleteDoc(doc(db, 'gigs', gig.id));
       toast({ title: "Deployment Deleted", description: "The deployment has been removed." });
-      router.push('/deployments');
+      router.push('/campaigns');
     } catch (error: any) {
       console.error(error);
       toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
@@ -752,7 +770,7 @@ function GigDetailContent() {
         <PageHeader
           title={gig.title}
           description={`Campaign by ${gig.brandName}`}
-          actions={<Button asChild variant="outline"><Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
+          actions={<Button asChild variant="outline"><Link href="/campaigns"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
         />
 
         {isCompleted && (
@@ -1509,7 +1527,7 @@ function GigDetailContent() {
                       <div className="space-y-2">
                         {!isCompleted && (
                           <Button asChild className="w-full" variant="outline">
-                            <Link href={`/deployments/${gig.id}/edit`}>
+                            <Link href={`/campaigns/${gig.id}/edit`}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Deployment
                             </Link>
                           </Button>

@@ -890,8 +890,29 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     deliverablesDueDate,
   } = request.data;
 
-  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
+  if (!title || !description || !platforms || !videosPerCreator || !campaignType) {
     throw new HttpsError("invalid-argument", "Missing required campaign details.");
+  }
+
+  const rateNum = Number(ratePerCreator);
+  const creatorsNum = Number(creatorsNeeded);
+  if (!Number.isFinite(rateNum) || rateNum < 0) {
+    throw new HttpsError("invalid-argument", "Invalid base rate per creator.");
+  }
+  if (campaignType === "cause_campaign") {
+    if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
+      throw new HttpsError("invalid-argument", "Invalid creators count.");
+    }
+  } else if (!Number.isFinite(creatorsNum) || creatorsNum <= 0) {
+    throw new HttpsError("invalid-argument", "A positive number of creators is required to fund this campaign.");
+  }
+
+  const totalBudget = rateNum * creatorsNum;
+  if (!Number.isFinite(totalBudget) || totalBudget <= 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Checkout requires a positive campaign budget (base rate × creators).",
+    );
   }
 
   const userDoc = await db.collection("users").doc(userId).get();
@@ -940,8 +961,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     title,
     description,
     platforms,
-    ratePerCreator: Number(ratePerCreator),
-    creatorsNeeded: Number(creatorsNeeded),
+    ratePerCreator: rateNum,
+    creatorsNeeded: creatorsNum,
     videosPerCreator: Number(videosPerCreator),
     campaignType,
     usageRights: usageRights || null,
@@ -968,7 +989,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
 
   await gigRef.set(gigDataToSet, {merge: true});
 
-  const totalAmount = ratePerCreator * creatorsNeeded;
+  const totalAmount = rateNum * creatorsNum;
   const totalAmountInCents = Math.round(totalAmount * 100);
 
   try {
@@ -988,7 +1009,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
           currency: "usd",
           product_data: {
             name: `Campaign Budget: ${title}`,
-            description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
+            description: `Funding for ${creatorsNum} creators at $${rateNum} each.`,
           },
           unit_amount: totalAmountInCents,
         },

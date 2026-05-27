@@ -570,7 +570,7 @@ export interface Gig {
   fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
   createdAt: Timestamp;
-  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign';
+  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign' | 'barter_campaign';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
   requireVerzaScore?: boolean;

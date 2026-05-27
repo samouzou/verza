@@ -30,6 +30,8 @@ import {
   handleSendGridEmailWebhook,
   submitFeedback,
   notifyBrandCreatorJoined,
+  notifyBrandVideoSubmitted,
+  notifyBrandCampaignApplicant,
 } from "./notifications";
 
 import {
@@ -118,6 +120,8 @@ export {
   handleSendGridEmailWebhook,
   submitFeedback,
   notifyBrandCreatorJoined,
+  notifyBrandVideoSubmitted,
+  notifyBrandCampaignApplicant,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,

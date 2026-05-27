@@ -11,11 +11,25 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
-import { db, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, or } from "@/lib/firebase";
+import { db, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, or, Timestamp } from "@/lib/firebase";
 import type { Notification } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+
+/** Firestore may return `null` for `serverTimestamp()` until the write settles; older docs may omit the field. */
+function notificationCreatedAtToDate(createdAt: unknown): Date {
+  if (createdAt == null) return new Date();
+  if (createdAt instanceof Timestamp) return createdAt.toDate();
+  if (typeof (createdAt as Timestamp).toDate === "function") {
+    return (createdAt as Timestamp).toDate();
+  }
+  const plain = createdAt as { seconds?: number; nanoseconds?: number };
+  if (typeof plain?.seconds === "number") {
+    return new Timestamp(plain.seconds, plain.nanoseconds ?? 0).toDate();
+  }
+  return new Date();
+}
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -137,7 +151,7 @@ export function NotificationBell() {
                       <p className={cn("text-sm font-medium", !n.read && "text-primary")}>{n.title}</p>
                       <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
                       <p className="text-[10px] text-muted-foreground pt-1">
-                        {formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true })}
+                        {formatDistanceToNow(notificationCreatedAtToDate(n.createdAt), { addSuffix: true })}
                       </p>
                     </div>
                     <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
