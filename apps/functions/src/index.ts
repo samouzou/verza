@@ -97,6 +97,8 @@ import {
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
 import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
 import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
+import {enqueueLinkedInOsDraftJob} from "./linkedinOs/jobs";
+import {dispatchLinkedInOsJobToWorker} from "./linkedinOs/onJobCreated";
 import {
   beginGmailConnect,
   completeGmailConnect,
@@ -170,6 +172,8 @@ export {
   opticJobSmsOnComplete,
   opticTwilioSmsWebhook,
   dispatchOpticJobToWorker,
+  enqueueLinkedInOsDraftJob,
+  dispatchLinkedInOsJobToWorker,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

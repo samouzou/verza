@@ -1,0 +1,33 @@
+{
+  "weekLabel": "2026-W07",
+  "reviewer": "Serge",
+  "items": [
+    {
+      "id": "tue-playbooks",
+      "pillar": "playbooks",
+      "format": "short_post",
+      "hook": "Replace with your first-line hook (shows before “see more”).",
+      "productTruth": "Paste one sentence you will stand behind—ideally copied from docs/BRAND_SIDE_TECHNICAL_BRIEF.md.",
+      "cta": "comment",
+      "notes": "Optional: audience nuance, thread you are reacting to, etc."
+    },
+    {
+      "id": "wed-build-in-public",
+      "pillar": "build_in_public",
+      "format": "short_post",
+      "hook": "",
+      "productTruth": "",
+      "cta": "follow",
+      "notes": ""
+    },
+    {
+      "id": "thu-product-receipts",
+      "pillar": "product_receipts",
+      "format": "carousel_outline",
+      "hook": "",
+      "productTruth": "",
+      "cta": "soft_product",
+      "notes": "Carousel = slide titles + bullets; you add screenshots in design."
+    }
+  ]
+}

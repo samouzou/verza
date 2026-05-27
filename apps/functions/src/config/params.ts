@@ -90,6 +90,18 @@ export const OPTIC_WORKER_SHARED_SECRET = defineString("OPTIC_WORKER_SHARED_SECR
   description: "Same value configured on the Optic worker service.",
 });
 
+/** Base URL of the LinkedIn OS worker (separate from Optic). */
+export const LINKEDIN_OS_WORKER_URL = defineString("LINKEDIN_OS_WORKER_URL", {
+  default: "",
+  description: "Example: https://linkedin-os-worker-xxx.run.app",
+});
+
+/** Shared secret for LinkedIn OS worker HTTP `/internal/run-job`. */
+export const LINKEDIN_OS_WORKER_SHARED_SECRET = defineString("LINKEDIN_OS_WORKER_SHARED_SECRET", {
+  default: "",
+  description: "Same value configured on the LinkedIn OS worker service.",
+});
+
 /** Google OAuth client ID (Web application) for Gmail compose drafts. */
 export const GMAIL_OAUTH_CLIENT_ID = defineString("GMAIL_OAUTH_CLIENT_ID", {
   default: "",

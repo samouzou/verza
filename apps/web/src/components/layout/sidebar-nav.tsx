@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Zap,
   ScanSearch,
+  Linkedin,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -116,6 +117,13 @@ const creatorWorkflowNavItems: WorkflowNavItem[] = [
   { id: "nav-item-brand-research", href: "/brand-research", label: "Brand Research", icon: BarChart3 },
 ];
 
+const brandLinkedInOsNavItem: WorkflowNavItem = {
+  id: "nav-item-linkedin-os",
+  href: "/linkedin-os",
+  label: "LinkedIn OS",
+  icon: Linkedin,
+};
+
 const brandOpticNavItem: WorkflowNavItem = {
   id: "nav-item-optic",
   href: "/optic",
@@ -157,7 +165,7 @@ function workflowNavItemsForUser(
   const isCreator = user.role === "individual_creator" || user.role === "talent";
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
-  if (showBrandWorkflows) return [brandOpticNavItem];
+  if (showBrandWorkflows) return [brandLinkedInOsNavItem, brandOpticNavItem];
   if (isCreator) return creatorWorkflowNavItems;
   return [];
 }
@@ -166,6 +174,7 @@ type NavSubItem = { id: string; href: string; label: string };
 
 function subNavItemIsActive(pathname: string, parentHref: string, subHref: string): boolean {
   if (subHref === "/optic") return pathname === "/optic";
+  if (subHref === "/linkedin-os") return pathname === "/linkedin-os";
   if (subHref === parentHref) return pathname === subHref;
   return pathname.startsWith(subHref);
 }
