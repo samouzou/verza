@@ -9,9 +9,12 @@ import {
   Check,
   Copy,
   Download,
+  Lightbulb,
   Linkedin,
   Loader2,
+  Mail,
   Sparkles,
+  Video,
 } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
@@ -41,13 +44,21 @@ import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions, getDownloadURL, ref, storage } from "@/lib/firebase";
 import {
+  applyInspirationPreset,
+  LINKEDIN_OS_INSPIRATION_PRESETS,
+} from "@/lib/linkedin-os/inspiration";
+import {
   DEFAULT_QUEUE_ITEMS,
   isLinkedInOsJobInFlight,
   LINKEDIN_OS_CTAS,
   LINKEDIN_OS_PILLARS,
-  type LinkedInOsCarouselAssets,
+  LINKEDIN_OS_VIDEO_PLATFORMS,
+  PRODUCT_RECEIPTS_OUTPUT_ID,
+  type LinkedInOsBeehiivNewsletter,
   type LinkedInOsJobItem,
   type LinkedInOsJobRow,
+  type LinkedInOsVideoPlatform,
+  type LinkedInOsVideoScript,
 } from "@/lib/linkedin-os/types";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
@@ -176,6 +187,243 @@ function CarouselAssetsPanel({
   );
 }
 
+function VideoRepurposePanel({
+  jobId,
+  videoScripts,
+}: {
+  jobId: string;
+  videoScripts?: LinkedInOsVideoScript[];
+}) {
+  const { toast } = useToast();
+  const [platform, setPlatform] = useState<LinkedInOsVideoPlatform>("tiktok");
+  const [generating, setGenerating] = useState(false);
+  const [copiedPlatform, setCopiedPlatform] = useState<LinkedInOsVideoPlatform | null>(null);
+
+  const platformMeta = LINKEDIN_OS_VIDEO_PLATFORMS.find((p) => p.value === platform);
+  const activeScript = videoScripts?.find((s) => s.platform === platform);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const generate = httpsCallable(functions, "generateLinkedInOsVideoScript");
+      await generate({ jobId, platform });
+      toast({
+        title: "Video script ready",
+        description: `${platformMeta?.label ?? platform} script saved on this job.`,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not generate video script.";
+      toast({ title: "Generation failed", description: msg, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyScript = async (script: LinkedInOsVideoScript) => {
+    await navigator.clipboard.writeText(script.markdown);
+    setCopiedPlatform(script.platform);
+    toast({ title: "Script copied" });
+    setTimeout(() => setCopiedPlatform(null), 2000);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Video className="h-5 w-5 text-primary" />
+          Repurpose for video
+        </CardTitle>
+        <CardDescription>
+          Turn this week&apos;s LinkedIn drafts into one platform-specific script. Edit before you
+          film.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Platform</Label>
+          <Select
+            value={platform}
+            onValueChange={(v) => setPlatform(v as LinkedInOsVideoPlatform)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LINKEDIN_OS_VIDEO_PLATFORMS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label} — {p.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          className="w-full"
+          variant="secondary"
+          disabled={generating}
+          onClick={() => void handleGenerate()}
+        >
+          {generating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Writing script…
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate {platformMeta?.label ?? "video"} script
+            </>
+          )}
+        </Button>
+
+        {activeScript ? (
+          <div className="rounded-lg border p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{platformMeta?.label} script</p>
+              <Button size="sm" variant="outline" onClick={() => void copyScript(activeScript)}>
+                {copiedPlatform === activeScript.platform ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-80 overflow-y-auto">
+              {activeScript.markdown}
+            </pre>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No {platformMeta?.label} script yet—generate one from the LinkedIn drafts above.
+          </p>
+        )}
+
+        {(videoScripts?.length ?? 0) > 1 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {videoScripts!.map((script) => {
+              const label =
+                LINKEDIN_OS_VIDEO_PLATFORMS.find((p) => p.value === script.platform)?.label ??
+                script.platform;
+              return (
+                <Badge
+                  key={script.platform}
+                  variant={script.platform === platform ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setPlatform(script.platform)}
+                >
+                  {label}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BeehiivNewsletterPanel({
+  jobId,
+  weekLabel,
+  carouselSlideCount,
+  beehiivNewsletter,
+}: {
+  jobId: string;
+  weekLabel?: string;
+  carouselSlideCount: number;
+  beehiivNewsletter?: LinkedInOsBeehiivNewsletter;
+}) {
+  const { toast } = useToast();
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const generate = httpsCallable(functions, "generateLinkedInOsBeehiivNewsletter");
+      await generate({ jobId });
+      toast({
+        title: "Beehiiv draft ready",
+        description: "Newsletter saved on this job—copy into Beehiiv and add slide images.",
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not generate newsletter.";
+      toast({ title: "Generation failed", description: msg, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyNewsletter = async () => {
+    if (!beehiivNewsletter?.markdown) return;
+    await navigator.clipboard.writeText(beehiivNewsletter.markdown);
+    setCopied(true);
+    toast({ title: "Newsletter copied" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Mail className="h-5 w-5 text-primary" />
+          Beehiiv newsletter
+        </CardTitle>
+        <CardDescription>
+          Repurpose <span className="font-medium">{PRODUCT_RECEIPTS_OUTPUT_ID}</span>
+          {weekLabel ? ` (${weekLabel})` : ""} — one section per carousel slide
+          {carouselSlideCount > 0 ? ` (${carouselSlideCount} slides)` : ""}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button
+          className="w-full"
+          variant="secondary"
+          disabled={generating}
+          onClick={() => void handleGenerate()}
+        >
+          {generating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Writing newsletter…
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate Beehiiv draft
+            </>
+          )}
+        </Button>
+
+        {beehiivNewsletter ? (
+          <div className="rounded-lg border p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">Newsletter markdown</p>
+              <Button size="sm" variant="outline" onClick={() => void copyNewsletter()}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            {(beehiivNewsletter.slideImageUrls?.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Includes signed image URLs for each slide—paste into Beehiiv between sections (URLs
+                expire in ~7 days).
+              </p>
+            )}
+            <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-96 overflow-y-auto">
+              {beehiivNewsletter.markdown}
+            </pre>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Uses the carousel outline and PNG slides from your Thursday product-receipts slot.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LinkedInOsPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const { toast } = useToast();
@@ -192,6 +440,7 @@ export default function LinkedInOsPage() {
     DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x }))
   );
   const [submitting, setSubmitting] = useState(false);
+  const [inspirationId, setInspirationId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -200,11 +449,41 @@ export default function LinkedInOsPage() {
     [jobs, selectedJobId]
   );
 
+  const productReceiptsOutput = useMemo(() => {
+    if (!selectedJob?.outputs?.length) return null;
+    return (
+      selectedJob.outputs.find(
+        (o) => o.id === PRODUCT_RECEIPTS_OUTPUT_ID && o.format === "carousel_outline"
+      ) ??
+      selectedJob.outputs.find((o) => o.format === "carousel_outline") ??
+      null
+    );
+  }, [selectedJob]);
+
   const inFlight = jobs.some((j) => isLinkedInOsJobInFlight(j.status));
 
   const updateItem = useCallback((index: number, patch: Partial<LinkedInOsJobItem>) => {
     setItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }, []);
+
+  const selectedInspiration = useMemo(
+    () => LINKEDIN_OS_INSPIRATION_PRESETS.find((p) => p.id === inspirationId) ?? null,
+    [inspirationId]
+  );
+
+  const handleApplyInspiration = () => {
+    if (!selectedInspiration) return;
+    setItems(applyInspirationPreset(selectedInspiration));
+    toast({
+      title: "Queue pre-filled",
+      description: `${selectedInspiration.label} — edit hooks and truths before generating.`,
+    });
+  };
+
+  const handleResetQueue = () => {
+    setInspirationId("");
+    setItems(DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x })));
+  };
 
   const handleGenerate = async () => {
     if (!user) return;
@@ -301,6 +580,7 @@ export default function LinkedInOsPage() {
       </Alert>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -312,6 +592,47 @@ export default function LinkedInOsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="rounded-lg border border-dashed p-4 space-y-3 bg-muted/10">
+              <div className="flex items-start gap-2">
+                <Lightbulb className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Inspiration</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pick a Verza feature to pre-fill hooks and product truths for all three posts.
+                  </p>
+                </div>
+              </div>
+              <Select value={inspirationId || undefined} onValueChange={setInspirationId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a feature angle…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LINKEDIN_OS_INSPIRATION_PRESETS.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedInspiration && (
+                <p className="text-xs text-muted-foreground">{selectedInspiration.description}</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!selectedInspiration}
+                  onClick={handleApplyInspiration}
+                >
+                  Apply to queue
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={handleResetQueue}>
+                  Reset queue
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="week-label">Week label</Label>
@@ -431,6 +752,16 @@ export default function LinkedInOsPage() {
           </CardContent>
         </Card>
 
+        {selectedJob?.status === "completed" && productReceiptsOutput && (
+          <BeehiivNewsletterPanel
+            jobId={selectedJob.id}
+            weekLabel={selectedJob.weekLabel}
+            carouselSlideCount={productReceiptsOutput.carouselAssets?.slides.length ?? 0}
+            beehiivNewsletter={selectedJob.beehiivNewsletter}
+          />
+        )}
+        </div>
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -529,6 +860,13 @@ export default function LinkedInOsPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {selectedJob?.status === "completed" && (selectedJob.outputs?.length ?? 0) > 0 && (
+            <VideoRepurposePanel
+              jobId={selectedJob.id}
+              videoScripts={selectedJob.videoScripts}
+            />
           )}
         </div>
       </div>

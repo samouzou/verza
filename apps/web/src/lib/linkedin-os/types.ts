@@ -24,6 +24,31 @@ export type LinkedInOsCarouselAssets = {
   zipStoragePath?: string;
 };
 
+export type LinkedInOsVideoPlatform = "tiktok" | "instagram_reels" | "youtube";
+
+export type LinkedInOsVideoScript = {
+  platform: LinkedInOsVideoPlatform;
+  markdown: string;
+  generatedAt: string;
+  model: string;
+};
+
+export const LINKEDIN_OS_VIDEO_PLATFORMS = [
+  {value: "tiktok" as const, label: "TikTok", description: "30–60s vertical short" },
+  {value: "instagram_reels" as const, label: "Instagram Reels", description: "30–60s + caption" },
+  {value: "youtube" as const, label: "YouTube", description: "3–8 min long-form" },
+] as const;
+
+export type LinkedInOsBeehiivNewsletter = {
+  sourceOutputId: string;
+  markdown: string;
+  generatedAt: string;
+  model: string;
+  slideImageUrls?: { index: number; filename: string; url: string }[];
+};
+
+export const PRODUCT_RECEIPTS_OUTPUT_ID = "thu-product-receipts";
+
 export type LinkedInOsJobOutput = {
   id: string;
   format: string;
@@ -44,6 +69,8 @@ export type LinkedInOsJobRow = {
   reviewer?: string;
   items?: LinkedInOsJobItem[];
   outputs?: LinkedInOsJobOutput[];
+  videoScripts?: LinkedInOsVideoScript[];
+  beehiivNewsletter?: LinkedInOsBeehiivNewsletter;
   error?: string;
 };
 
