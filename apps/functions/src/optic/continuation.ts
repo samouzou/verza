@@ -42,7 +42,7 @@ export async function findUidByOpticSmsPhone(phoneE164: string): Promise<string 
   return snap.docs[0].id;
 }
 
-export type SmsCommand = "continue" | "stop" | "unknown";
+export type SmsCommand = "continue" | "stop" | "help" | "unknown";
 
 /**
  * Parses inbound SMS body for continuation commands.
@@ -51,8 +51,9 @@ export type SmsCommand = "continue" | "stop" | "unknown";
  */
 export function parseSmsCommand(body: string): SmsCommand {
   const t = body.trim().toUpperCase();
-  if (/^(CONTINUE|YES|MORE|NEXT|GO)$/.test(t)) return "continue";
   if (/^(STOP|UNSUBSCRIBE|CANCEL|END)$/.test(t)) return "stop";
+  if (/^(HELP|INFO)$/.test(t)) return "help";
+  if (/^(CONTINUE|YES|MORE|NEXT|GO)$/.test(t)) return "continue";
   return "unknown";
 }
 

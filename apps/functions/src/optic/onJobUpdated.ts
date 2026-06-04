@@ -37,8 +37,8 @@ export const opticJobSmsOnComplete = onDocumentUpdated(
     const batchNum = typeof after.batchIndex === "number" ? after.batchIndex : 1;
 
     const body =
-      `Batch ${batchNum} done — ${saved} creator${saved === 1 ? "" : "s"} in your vault. ` +
-      `Reply CONTINUE for ~${batchSize} more, STOP to pause texts, or open ${vaultUrl}`;
+      `Batch ${batchNum} complete: ${saved} creator${saved === 1 ? "" : "s"} saved. ` +
+      `Reply CONTINUE for ~${batchSize} more, STOP to opt out, HELP for help. ${vaultUrl}`;
 
     const sent = await sendOpticSms(phone, body);
     if (sent) {
