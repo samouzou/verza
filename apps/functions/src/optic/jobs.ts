@@ -231,6 +231,56 @@ export const setOpticLeadOutreachStatus = onCall(async (request) => {
   return {success: true as const};
 });
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Updates a vault lead's contact email (manual entry when discovery did not find one). */
+export const setOpticLeadEmail = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to update lead email.");
+  }
+  const uid = request.auth.uid;
+  const {leadId, email} = request.data as {leadId?: unknown; email?: unknown};
+  if (typeof leadId !== "string" || !leadId.trim()) {
+    throw new HttpsError("invalid-argument", "leadId is required.");
+  }
+  if (typeof email !== "string") {
+    throw new HttpsError("invalid-argument", "email must be a string.");
+  }
+  const trimmed = email.trim();
+  if (trimmed && !EMAIL_RE.test(trimmed)) {
+    throw new HttpsError("invalid-argument", "Enter a valid email address.");
+  }
+
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("failed-precondition", "User profile not found.");
+  }
+  const u = userSnap.data()!;
+  const primary = u.primaryAgencyId as string | undefined;
+  const role = String(u.role ?? "");
+  if (!primary || !TEAM_ROLES.has(role)) {
+    throw new HttpsError("permission-denied", "You cannot update vault leads for this brand.");
+  }
+
+  const ref = db.collection("optic_outreach_leads").doc(leadId.trim());
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Lead not found.");
+  }
+  const lead = snap.data()!;
+  if (String(lead.agencyId ?? "") !== primary) {
+    throw new HttpsError("permission-denied", "This lead belongs to another brand.");
+  }
+
+  await ref.update({
+    email: trimmed || null,
+    emailUpdatedAt: FieldValue.serverTimestamp(),
+    emailUpdatedBy: uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return {success: true as const};
+});
+
 /** Saves mobile number and SMS opt-in for batch-complete texts. */
 export const setOpticSmsSettings = onCall(
   {secrets: []},

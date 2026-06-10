@@ -85,6 +85,7 @@ import {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadEmail,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
@@ -165,6 +166,7 @@ export {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadEmail,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
   createOpticSubscriptionCheckoutSession,

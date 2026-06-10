@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Check, Copy, ExternalLink, Loader2, Send } from "lucide-react";
@@ -52,7 +52,59 @@ export type LeadVaultProps = {
   onCampaignFilterChange: (value: string) => void;
   onOutreachToggle?: (leadId: string, emailed: boolean) => void;
   outreachUpdatingId?: string | null;
+  onEmailChange?: (leadId: string, email: string) => void;
+  emailUpdatingId?: string | null;
 };
+
+function LeadEmailCell({
+  leadId,
+  email,
+  onSave,
+  saving,
+}: {
+  leadId: string;
+  email?: string;
+  onSave: (leadId: string, email: string) => void;
+  saving: boolean;
+}) {
+  const [value, setValue] = useState(email ?? "");
+
+  useEffect(() => {
+    setValue(email ?? "");
+  }, [email]);
+
+  const commit = () => {
+    const trimmed = value.trim();
+    const current = (email ?? "").trim();
+    if (trimmed !== current) {
+      onSave(leadId, trimmed);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 min-w-0">
+      <Input
+        type="email"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        placeholder="Add email…"
+        disabled={saving}
+        className="h-8 text-xs min-w-0"
+        aria-label="Lead email"
+      />
+      {saving && (
+        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
+      )}
+    </div>
+  );
+}
 
 export function LeadVault({
   leads,
@@ -66,6 +118,8 @@ export function LeadVault({
   onCampaignFilterChange,
   onOutreachToggle,
   outreachUpdatingId,
+  onEmailChange,
+  emailUpdatingId,
 }: LeadVaultProps) {
   const [filter, setFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -259,7 +313,14 @@ export function LeadVault({
                       {lead.followerCount ?? "—"}
                     </TableCell>
                     <TableCell className="align-top text-muted-foreground text-xs">
-                      {lead.email ? (
+                      {onEmailChange ? (
+                        <LeadEmailCell
+                          leadId={lead.id}
+                          email={lead.email}
+                          onSave={onEmailChange}
+                          saving={emailUpdatingId === lead.id}
+                        />
+                      ) : lead.email ? (
                         <span className="break-all leading-snug" title={lead.email}>
                           {lead.email}
                         </span>

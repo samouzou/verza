@@ -39,6 +39,7 @@ export function IncomeSummaryReport({ payerName, year, creator, contracts, total
     'partnership': 'Partnership',
     'trust_estate': 'Trust/Estate',
     'llc': 'Limited Liability Company',
+    'nonprofit_501c3': '501(c)(3) Nonprofit',
   };
 
   return (

@@ -202,7 +202,8 @@ export type TaxClassification =
   | 's_corp'
   | 'partnership'
   | 'trust_estate'
-  | 'llc';
+  | 'llc'
+  | 'nonprofit_501c3';
 
 // For Firestore user document
 export interface UserProfileFirestoreData {

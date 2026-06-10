@@ -114,6 +114,8 @@ export default function OpticVaultPage() {
         onCampaignFilterChange={setCampaignFilter}
         onOutreachToggle={isAgencyTeam ? outreach.setOutreachEmailed : undefined}
         outreachUpdatingId={outreach.updatingId}
+        onEmailChange={isAgencyTeam ? outreach.setLeadEmail : undefined}
+        emailUpdatingId={outreach.emailUpdatingId}
       />
     </div>
   );
