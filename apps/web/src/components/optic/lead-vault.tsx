@@ -7,6 +7,7 @@ import { Check, Copy, ExternalLink, Loader2, Send } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,7 +117,8 @@ export function LeadVault({
   };
 
   return (
-    <div className="space-y-4">
+    <Card>
+      <CardContent className="space-y-4 p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="space-y-2 min-w-[220px]">
@@ -336,6 +338,7 @@ export function LeadVault({
           </Table>
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
