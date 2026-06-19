@@ -12,9 +12,9 @@ import {
   ChevronRight,
   ExternalLink,
   MapPin,
+  Mic,
   Presentation,
   Sparkles,
-  UtensilsCrossed,
   Users,
 } from "lucide-react";
 
@@ -46,7 +46,7 @@ export default function SponsorshipDeckPage() {
   const thumbLabels = [
     { label: "Title", icon: Sparkles },
     { label: "The room", icon: Users },
-    { label: "VIP dinner", icon: UtensilsCrossed },
+    { label: "Fireside", icon: Mic },
     { label: "Packages", icon: Banknote },
   ] as const;
 
@@ -99,6 +99,18 @@ export default function SponsorshipDeckPage() {
 
         <div className="flex shrink-0 items-center gap-2">
           <Link
+            href="/overview/sponsorship/cannes"
+            className="hidden text-xs font-bold text-slate-400 transition-colors hover:text-slate-200 lg:inline"
+          >
+            World App
+          </Link>
+          <Link
+            href="/overview/sponsorship/cannes-wellness"
+            className="hidden text-xs font-bold text-slate-400 transition-colors hover:text-slate-200 lg:inline"
+          >
+            Cannes wellness
+          </Link>
+          <Link
             href="/overview"
             className="hidden text-xs font-bold text-slate-400 transition-colors hover:text-slate-200 lg:inline"
           >
@@ -148,7 +160,7 @@ export default function SponsorshipDeckPage() {
               <div className="flex flex-1 flex-col justify-center p-6 sm:p-10 md:p-12">
                 {activeSlide === 0 && <SlideTitle />}
                 {activeSlide === 1 && <SlideAudience />}
-                {activeSlide === 2 && <SlideVipDinner />}
+                {activeSlide === 2 && <SlideFireside />}
                 {activeSlide === 3 && <SlidePackages />}
               </div>
 
@@ -215,7 +227,7 @@ export default function SponsorshipDeckPage() {
               <SlideAudience />
             </section>
             <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-8 shadow-lg md:p-12">
-              <SlideVipDinner />
+              <SlideFireside />
             </section>
             <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-8 shadow-lg md:p-12">
               <SlidePackages />
@@ -255,36 +267,35 @@ function SlideTitle() {
           ×
         </span>
         <Image
-          src="/stripe.svg"
-          alt="Stripe"
-          width={360}
-          height={150}
-          className="h-10 w-auto object-contain object-center sm:h-14"
+          src="/gemini-logo.png"
+          alt="Google Gemini"
+          width={384}
+          height={142}
+          className="h-9 w-auto object-contain object-center sm:h-12"
           priority
         />
       </div>
 
       <h1 className="text-balance text-3xl font-black leading-[1.12] tracking-tight text-white sm:text-4xl md:text-5xl">
-        The Creator Ops Playbook:{" "}
+        High-Velocity Growth:{" "}
         <span className="bg-gradient-to-r from-amber-200 via-white to-rose-200 bg-clip-text text-transparent">
-          Scaling Campaigns with AI &amp; Global Payouts
+          Automating the Creator Pipeline
         </span>
       </h1>
 
       <p className="mt-6 max-w-2xl text-base font-medium text-slate-300 sm:text-lg">
-        An exclusive evening in San Francisco for founders and operators building at the intersection of creators, AI,
-        and global payouts.
+        Automating the Creator Pipeline &amp; Scaling High-Velocity Growth Workflows via Multimodal AI.
       </p>
 
       <div className="mt-10 flex flex-col items-center gap-2 text-sm text-slate-400 sm:flex-row sm:gap-8">
         <span className="inline-flex items-center gap-2">
           <Calendar className="h-4 w-4 text-amber-400" />
-          <span className="font-semibold text-slate-200">June 17, 2026</span>
+          <span className="font-semibold text-slate-200">June 25, 2026 · 5:30–8:30 PM</span>
         </span>
         <span className="hidden text-slate-600 sm:inline">|</span>
         <span className="inline-flex items-center gap-2">
           <MapPin className="h-4 w-4 text-rose-400" />
-          <span className="font-semibold text-slate-200">San Francisco, CA</span>
+          <span className="font-semibold text-slate-200">Verza HQ · 300 Grant Ave, Suite 500, SF</span>
         </span>
       </div>
     </div>
@@ -293,9 +304,9 @@ function SlideTitle() {
 
 function SlideAudience() {
   const demographics = [
-    "Post-Seed and Series A/B Technology Founders",
-    "CMOs and Heads of Creator Partnerships",
-    "Fintech, Legal, and Operations Leads",
+    "Seed to Series B Technology Founders",
+    "Heads of Growth",
+    "Marketing & Growth Operators",
   ];
 
   return (
@@ -303,7 +314,7 @@ function SlideAudience() {
       <header className="space-y-4 text-center md:text-left">
         <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">The Room</h2>
         <p className="text-base font-medium leading-relaxed text-slate-300 md:text-lg">
-          A strictly vetted registry of 80–100 high-signal tech operators in San Francisco.
+          A strictly curated registry of 80–100 high-signal, venture-backed founders and operators in San Francisco.
         </p>
       </header>
 
@@ -326,9 +337,9 @@ function SlideAudience() {
         <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 to-transparent p-6 md:p-8">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-400">The bottom line</p>
           <p className="mt-4 text-sm font-medium leading-relaxed text-slate-100 md:text-base">
-            An ecosystem of scaling operators actively navigating global compliance, cross-border payouts, and automated
-            contract infrastructure—the precise point where high-velocity growth requires elite structural and emerging
-            companies legal counsel.
+            Scaling teams treating creators as a high-leverage acquisition channel—actively navigating vendor
+            onboarding, legal friction, tax compliance, and cross-border payouts. The precise audience for infrastructure
+            that automates the contract-to-payout pipeline.
           </p>
         </div>
       </div>
@@ -336,22 +347,28 @@ function SlideAudience() {
   );
 }
 
-function SlideVipDinner() {
+function SlideFireside() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 text-center md:text-left">
       <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/25 bg-rose-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-300">
-        <UtensilsCrossed className="h-3.5 w-3.5" /> Premium closer
+        <Mic className="h-3.5 w-3.5" /> The marquee moment
       </div>
-      <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">The Private Founder Dinner</h2>
+      <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">The Fireside Briefing</h2>
       <p className="text-sm leading-relaxed text-slate-400 md:text-base">
-        Directly following the main panel, Verza is hosting an intimate, closed-door dinner for{" "}
-        <strong className="text-slate-100">8–10 of the highest-tier founders and executives</strong> in attendance.
+        <strong className="text-slate-100">
+          The Automated Growth Engine: Scaling Creator Infrastructure via Multimodal AI
+        </strong>{" "}
+        — a 20-minute masterclass with Verza Founder &amp; CEO{" "}
+        <strong className="text-slate-100">Serge Amouzou</strong>, moderated by{" "}
+        <strong className="text-slate-100">Merlin Yamssi, Generative AI Lead at Google</strong>, on how multimodal AI
+        (like Gemini 3 Flash Image) automates contract parsing, quality assurance, and escrow.
       </p>
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">The pitch</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">For sponsors</p>
         <p className="mt-3 text-sm leading-relaxed text-slate-300 md:text-base">
-          This offers sponsor representatives the rare opportunity to sit at the table and build direct, high-trust
-          relationships with decision-makers away from the noise of a standard networking event.
+          Your brand sits beside Verza and Google in the highest-signal moment of the night, ahead of curated VIP
+          roundtables of Seed–Series B founders and growth operators—away from the noise of a standard networking
+          event.
         </p>
       </div>
     </div>
@@ -380,15 +397,15 @@ function SlidePackages() {
             <li className="flex gap-3">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
               <span>
-                <strong className="text-white">3 VIP Tickets</strong> for Sponsor Representatives—includes access to the
-                main event and the exclusive Private Founder Dinner.
+                <strong className="text-white">3 VIP Tickets</strong> for Sponsor Representatives—includes reserved
+                seating at the fireside and a seat at the curated VIP roundtables.
               </span>
             </li>
             <li className="flex gap-3">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
               <span>
-                A dedicated <strong className="text-white">2-minute speaking slot / intro</strong> before the main panel
-                begins.
+                A dedicated <strong className="text-white">2-minute speaking slot / intro</strong> during opening
+                remarks, before the fireside begins.
               </span>
             </li>
           </ul>

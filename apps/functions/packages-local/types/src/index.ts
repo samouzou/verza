@@ -616,6 +616,18 @@ export interface CreatorMarketplaceProfile {
   averageVerzaScore?: number;
 }
 
+/** Public YouTube Data API snapshot stored on link submissions. */
+export interface YouTubeVideoStats {
+  videoId: string;
+  title?: string;
+  channelTitle?: string;
+  publishedAt?: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  fetchedAt: string;
+}
+
 export interface GigSubmission {
   id: string;
   gigId: string;
@@ -628,6 +640,8 @@ export interface GigSubmission {
   verzaFeedback: string;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
   createdAt: Timestamp;
+  /** Populated when videoUrl is a YouTube link (via YouTube Data API). */
+  youtubeStats?: YouTubeVideoStats;
   affiliateMetrics?: {
     clicks: number;
     conversions: number;

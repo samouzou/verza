@@ -74,11 +74,22 @@ import {
   initiateInternalTalentPayment,
 } from "./agency";
 
-import {payoutCreatorForGig, onGigCreated, onGigStatusOpened, extendCreatorDeadline} from "./gigs";
+import {
+  payoutCreatorForGig,
+  onGigCreated,
+  onGigStatusOpened,
+  extendCreatorDeadline,
+} from "./gigs";
+import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
-import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
+import {
+  syncInstagramStats,
+  syncYouTubeStats,
+  syncTikTokStats,
+  fetchYouTubeVideoStats,
+} from "./social";
 import {conversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
 import {
@@ -155,12 +166,14 @@ export {
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,
+  generateCampaignCopy,
   generateScene,
   generateImage,
   analyzeBrand,
   syncInstagramStats,
   syncYouTubeStats,
   syncTikTokStats,
+  fetchYouTubeVideoStats,
   conversionWebhook,
   onAffiliateLinkClick,
   enqueueOpticDiscoveryJob,

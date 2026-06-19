@@ -14,6 +14,8 @@ export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOO
 export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET");
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+/** YouTube Data API v3 key for public video statistics on link submissions. */
+export const YOUTUBE_API_KEY = defineSecret("YOUTUBE_API_KEY");
 export const GMAIL_OAUTH_CLIENT_SECRET = defineSecret("GMAIL_OAUTH_CLIENT_SECRET");
 export const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
 
