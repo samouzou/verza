@@ -8,6 +8,7 @@ import {v4 as uuidv4} from "uuid";
 import type {Generation} from "./../types";
 import * as params from "../config/params";
 import {ai} from "../ai/genkit"; // Import the shared AI instance
+import {resolveReferenceImageDataUri} from "../ai/referenceImage";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const IMAGE_COST = 1;
@@ -21,7 +22,7 @@ export const generateImage = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const {prompt, style, orientation, imageDataUri} = request.data;
+  const {prompt, style, orientation, imageDataUri, referenceImageUrl} = request.data;
   const userId = request.auth.uid;
 
   if (!prompt || !style) {
@@ -33,14 +34,23 @@ export const generateImage = onCall({
   if (!orientation || !["16:9", "9:16", "1:1"].includes(orientation)) {
     throw new HttpsError("invalid-argument", "A valid 'orientation' ('16:9', '9:16', or '1:1') is required.");
   }
-  const hasSourceImage = typeof imageDataUri === "string" && imageDataUri.length > 0;
 
   if (!admin.apps.length) {
     admin.initializeApp();
   }
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
-  const defaultBucket = adminStorage.bucket(params.APP_STORAGE_BUCKET.value());
+  const bucketName = params.APP_STORAGE_BUCKET.value();
+  const defaultBucket = adminStorage.bucket(bucketName);
+
+  const resolvedImageDataUri = await resolveReferenceImageDataUri({
+    imageDataUri,
+    referenceImageUrl,
+    bucket: defaultBucket,
+    bucketName,
+    userId,
+  });
+  const hasSourceImage = !!resolvedImageDataUri;
 
   const userDocRef = adminDb.collection("users").doc(userId);
 
@@ -78,10 +88,10 @@ export const generateImage = onCall({
   // Generate image
   try {
     // Store source image if provided (image-to-image mode)
-    if (hasSourceImage) {
+    if (hasSourceImage && resolvedImageDataUri) {
       const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
       const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
-      const imageBufferFromUri = Buffer.from(imageDataUri.split(",")[1], "base64");
+      const imageBufferFromUri = Buffer.from(resolvedImageDataUri.split(",")[1], "base64");
       await sourceImageFile.save(imageBufferFromUri, {metadata: {contentType: "image/jpeg"}});
       const [signedSourceUrl] = await sourceImageFile.getSignedUrl({
         action: "read", expires: Date.now() +
@@ -91,10 +101,10 @@ export const generateImage = onCall({
     }
 
     logger.info(`Starting ${hasSourceImage ? "image-to-image" : "text-to-image"} generation for user ${userId}.`);
-    const aiPrompt = hasSourceImage ?
+    const aiPrompt = hasSourceImage && resolvedImageDataUri ?
       [
         {text: `In a ${style} style: ${prompt}`},
-        {media: {url: imageDataUri, contentType: "image/jpeg"}},
+        {media: {url: resolvedImageDataUri, contentType: "image/jpeg"}},
       ] :
       [{text: `Generate an image in a ${style} style: ${prompt}`}];
 

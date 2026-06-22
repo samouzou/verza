@@ -517,6 +517,9 @@ export interface Character {
   userId: string;
   name: string;
   description: string;
+  /** Portrait generated at creation time for visual consistency in scenes. */
+  imageUrl?: string;
+  style?: string;
   createdAt: Timestamp;
 }
 
