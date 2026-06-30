@@ -32,6 +32,7 @@ const taxClassifications: { value: TaxClassification; label: string }[] = [
   { value: 'partnership', label: 'Partnership' },
   { value: 'trust_estate', label: 'Trust/Estate' },
   { value: 'llc', label: 'Limited Liability Company' },
+  { value: 'nonprofit_501c3', label: '501(c)(3) Nonprofit' },
 ];
 
 const US_TREATY_COUNTRIES = [

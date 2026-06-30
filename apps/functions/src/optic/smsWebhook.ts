@@ -24,7 +24,7 @@ function twiml(message: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escaped}</Message></Response>`;
 }
 
-/** Inbound Twilio SMS — CONTINUE starts another batch, STOP pauses texts. */
+/** Inbound Twilio SMS — HELP (any number), STOP / CONTINUE for enrolled numbers. */
 export const opticTwilioSmsWebhook = onRequest(
   {secrets: [TWILIO_AUTH_TOKEN], cors: false},
   async (req, res) => {
@@ -55,6 +55,19 @@ export const opticTwilioSmsWebhook = onRequest(
     }
 
     const cmd = parseSmsCommand(body);
+
+    if (cmd === "help") {
+      res
+        .type("text/xml")
+        .send(
+          twiml(
+            "Verza Optic: transactional SMS from Verza Technologies, Inc. about batch status. " +
+              "Msg/data rates may apply. Reply STOP to opt out. support@tryverza.com tryverza.com"
+          )
+        );
+      return;
+    }
+
     const uid = await findUidByOpticSmsPhone(from);
 
     if (!uid) {
@@ -108,7 +121,9 @@ export const opticTwilioSmsWebhook = onRequest(
     res
       .type("text/xml")
       .send(
-        twiml("Reply CONTINUE for another batch of creators, or STOP to pause texts.")
+        twiml(
+          "Reply CONTINUE for another batch, STOP to opt out, or HELP for program information."
+        )
       );
   }
 );

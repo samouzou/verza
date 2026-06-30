@@ -30,6 +30,8 @@ import {
   ChevronRight,
   Zap,
   ScanSearch,
+  Linkedin,
+  ExternalLink,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -108,6 +110,7 @@ type WorkflowNavItem = {
   label: string;
   icon: LucideIcon;
   subItems?: WorkflowNavSubItem[];
+  external?: boolean;
 };
 
 const creatorWorkflowNavItems: WorkflowNavItem[] = [
@@ -115,6 +118,13 @@ const creatorWorkflowNavItems: WorkflowNavItem[] = [
   { id: "nav-item-ai-studio", href: "/ai-studio", label: "AI Studio", icon: Video },
   { id: "nav-item-brand-research", href: "/brand-research", label: "Brand Research", icon: BarChart3 },
 ];
+
+const brandLinkedInOsNavItem: WorkflowNavItem = {
+  id: "nav-item-linkedin-os",
+  href: "/linkedin-os",
+  label: "LinkedIn OS",
+  icon: Linkedin,
+};
 
 const brandOpticNavItem: WorkflowNavItem = {
   id: "nav-item-optic",
@@ -126,6 +136,32 @@ const brandOpticNavItem: WorkflowNavItem = {
     { id: "sub-item-optic-vault", href: "/optic/vault", label: "Vault" },
     { id: "sub-item-optic-pricing", href: "/optic/pricing", label: "Pricing" },
   ],
+};
+
+const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M13 19l-4-4-4 4" />
+      <path d="M13 5l-4-4-4-4" />
+      <path d="M7 19V5" />
+      <path d="M21 19V5" />
+    </svg>
+);
+
+const gauntletNavItem: WorkflowNavItem = {
+  id: "nav-item-the-gauntlet",
+  href: "https://gauntlet.tryverza.com/",
+  label: "The Gauntlet",
+  icon: GauntletIcon as unknown as LucideIcon,
+  external: true,
 };
 
 function SidebarOpticCreditsBlock({ agencyId }: { agencyId: string }) {
@@ -157,8 +193,8 @@ function workflowNavItemsForUser(
   const isCreator = user.role === "individual_creator" || user.role === "talent";
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
-  if (showBrandWorkflows) return [brandOpticNavItem];
-  if (isCreator) return creatorWorkflowNavItems;
+  if (showBrandWorkflows) return [brandLinkedInOsNavItem, brandOpticNavItem, gauntletNavItem];
+  if (isCreator) return [...creatorWorkflowNavItems, gauntletNavItem];
   return [];
 }
 
@@ -166,6 +202,7 @@ type NavSubItem = { id: string; href: string; label: string };
 
 function subNavItemIsActive(pathname: string, parentHref: string, subHref: string): boolean {
   if (subHref === "/optic") return pathname === "/optic";
+  if (subHref === "/linkedin-os") return pathname === "/linkedin-os";
   if (subHref === parentHref) return pathname === subHref;
   return pathname.startsWith(subHref);
 }
@@ -417,6 +454,30 @@ export function SidebarNav() {
                             isMobile={isMobile}
                             onNavigate={() => isMobile && setOpenMobile(false)}
                           />
+                        );
+                      }
+
+                      if (item.external) {
+                        return (
+                          <SidebarMenuItem key={item.id} id={item.id}>
+                            <SidebarMenuButton
+                              asChild
+                              onClick={() => isMobile && setOpenMobile(false)}
+                              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                              tooltip={{
+                                children: item.label,
+                                className: "group-data-[collapsible=icon]:block hidden",
+                              }}
+                            >
+                              <a href={item.href} target="_blank" rel="noopener noreferrer">
+                                <item.icon className="h-5 w-5" />
+                                <span className="group-data-[collapsible=icon]:hidden flex-1 flex items-center justify-between">
+                                  <span>{item.label}</span>
+                                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                                </span>
+                              </a>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
                         );
                       }
 

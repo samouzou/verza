@@ -9,6 +9,13 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
+import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
+import {
+  buildExpressAccountParams,
+  connectTransferMetadata,
+  needsRecipientServiceAgreement,
+  transferToConnectAccountIfNeeded,
+} from "./stripeConnect";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -29,6 +36,15 @@ async function verifyAuthToken(authHeader: string | undefined): Promise<string> 
     logger.error("Error verifying auth token:", error);
     throw new Error("Invalid token");
   }
+}
+
+/**
+ * Verza platform fee on contract invoice payments (card processing is added separately in application_fee).
+ * @param {'user'|'agency'} ownerType Contract workspace: agency pays 1%, user (creator) pays 15%.
+ * @return {number} Fee fraction applied to amount in cents (e.g. 0.01 or 0.15).
+ */
+function invoicePlatformFeeFraction(ownerType: Contract["ownerType"]): number {
+  return ownerType === "agency" ? 0.01 : 0.15;
 }
 
 // Create Stripe Connected Account
@@ -107,19 +123,18 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       throw new Error("User must have an email address");
     }
 
-    logger.info(`Creating Stripe Express account for user ${userId} in country ${finalCountry} (${defaultCurrency})`);
+    const agreementLabel = needsRecipientServiceAgreement(finalCountry) ? "recipient" : "full";
+    logger.info(
+      `Creating Stripe Express (${agreementLabel}) account for user ${userId} in country ${finalCountry} (${defaultCurrency})`
+    );
 
-    // Create Stripe Connected Account
-    const account = await stripe.accounts.create({
-      type: "express",
-      email,
-      country: finalCountry,
-      default_currency: defaultCurrency,
-      capabilities: {
-        card_payments: {requested: true},
-        transfers: {requested: true},
-      },
-    });
+    const account = await stripe.accounts.create(
+      buildExpressAccountParams({
+        email,
+        country: finalCountry,
+        defaultCurrency,
+      })
+    );
 
     // Update user document with Stripe account info
     logger.info(`Finalizing Firestore update for user ${userId}: Account=${account.id}, Country=${finalCountry}`);
@@ -363,7 +378,7 @@ export const createPaymentIntent = onRequest(async (request, response) => {
 
       const isForTalent = agencyData.talent.some((t) => t.userId === contractData.userId);
 
-      const platformFee = Math.round(amountInCents * 0.15);
+      const platformFee = Math.round(amountInCents * invoicePlatformFeeFraction(contractData.ownerType));
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
@@ -390,35 +405,39 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         paymentIntentParams = {
           amount: amountInCents,
           currency,
-          application_fee_amount: totalApplicationFee,
-          metadata: metadataForStripe,
-          receipt_email: emailForReceiptAndMetadata || undefined,
-          transfer_data: {
-            destination: agencyOwnerData.stripeAccountId,
+          metadata: {
+            ...metadataForStripe,
+            ...connectTransferMetadata(
+              agencyOwnerData.stripeAccountId,
+              amountInCents - totalApplicationFee
+            ),
           },
+          receipt_email: emailForReceiptAndMetadata || undefined,
         };
       }
     } else {
       // Logic for individual creator contracts
       const creatorDoc = await db.collection("users").doc(contractData.userId).get();
       const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-        throw new Error("Creator does not have a valid Stripe account");
+      if (!creatorData?.stripeAccountId || !creatorData.stripePayoutsEnabled) {
+        throw new Error("Creator does not have a valid Stripe account ready for payouts.");
       }
 
-      const platformFee = Math.round(amountInCents * 0.15);
+      const platformFee = Math.round(amountInCents * invoicePlatformFeeFraction(contractData.ownerType));
       const stripeFee = Math.round(amountInCents * 0.029) + 30;
       const totalApplicationFee = platformFee + stripeFee;
 
       paymentIntentParams = {
         amount: amountInCents,
         currency,
-        application_fee_amount: totalApplicationFee,
-        metadata: metadataForStripe,
-        receipt_email: emailForReceiptAndMetadata || undefined,
-        transfer_data: {
-          destination: creatorData.stripeAccountId,
+        metadata: {
+          ...metadataForStripe,
+          ...connectTransferMetadata(
+            creatorData.stripeAccountId,
+            amountInCents - totalApplicationFee
+          ),
         },
+        receipt_email: emailForReceiptAndMetadata || undefined,
       };
     }
 
@@ -500,6 +519,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       } = metadata;
 
       if (internalPayoutId) {
+        await transferToConnectAccountIfNeeded(stripe, metadata, latestCharge);
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
         await payoutDocRef.update({
           status: "paid",
@@ -581,7 +601,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; 
                 background-color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
                   <div style="text-align: center; margin-bottom: 32px;">
-                    <div style="display: inline-block; padding: 8px 16px; background-color: #6B37FF; border-radius: 8px; 
+                    <div style="display: inline-block; padding: 8px 16px; background-color: ${EMAIL_BRAND_PRIMARY}; border-radius: 8px; 
                     color: #ffffff; font-weight: bold; font-size: 14px; margin-bottom: 16px;">VERZA SECURE</div>
                     <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">
                     Capital Confirmed</h1>
@@ -605,7 +625,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                       </tr>
                       <tr style="border-top: 2px solid #edf2f7;">
                         <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Deployed</td>
-                        <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800; text-align: right; 
+                        <td style="padding: 20px 0 0 0; color: ${EMAIL_BRAND_PRIMARY}; font-weight: 800; text-align: right; 
                         font-size: 24px;">$${(amount / 100).toLocaleString()}</td>
                       </tr>
                     </table>
@@ -687,6 +707,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
         await contractDocRef.update(updates);
 
+        await transferToConnectAccountIfNeeded(stripe, metadata, latestCharge);
+
         if (paymentType === "agency_payment" && agencyId) {
           const latestChargeId = latestCharge;
           if (latestChargeId) {
@@ -703,7 +725,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
 
               if (agencyOwnerData.stripeAccountId && talentUserData.stripeAccountId) {
                 const stripeFeeRaw = Math.round(amount * 0.029) + 30;
-                const platformFeeRaw = Math.round(amount * 0.15);
+                const platformFeeRaw = Math.round(amount * invoicePlatformFeeFraction(contractData.ownerType));
                 const netForDistribution = amount - stripeFeeRaw - platformFeeRaw;
                 const agencyCommRaw = Math.round(netForDistribution * (talentInfo.commissionRate / 100));
                 const talentShareAmount = netForDistribution - agencyCommRaw;
@@ -881,8 +903,29 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     deliverablesDueDate,
   } = request.data;
 
-  if (!title || !description || !platforms || !ratePerCreator || !creatorsNeeded || !videosPerCreator || !campaignType) {
+  if (!title || !description || !platforms || !videosPerCreator || !campaignType) {
     throw new HttpsError("invalid-argument", "Missing required campaign details.");
+  }
+
+  const rateNum = Number(ratePerCreator);
+  const creatorsNum = Number(creatorsNeeded);
+  if (!Number.isFinite(rateNum) || rateNum < 0) {
+    throw new HttpsError("invalid-argument", "Invalid base rate per creator.");
+  }
+  if (campaignType === "cause_campaign") {
+    if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
+      throw new HttpsError("invalid-argument", "Invalid creators count.");
+    }
+  } else if (!Number.isFinite(creatorsNum) || creatorsNum <= 0) {
+    throw new HttpsError("invalid-argument", "A positive number of creators is required to fund this campaign.");
+  }
+
+  const totalBudget = rateNum * creatorsNum;
+  if (!Number.isFinite(totalBudget) || totalBudget <= 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Checkout requires a positive campaign budget (base rate × creators).",
+    );
   }
 
   const userDoc = await db.collection("users").doc(userId).get();
@@ -931,8 +974,8 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     title,
     description,
     platforms,
-    ratePerCreator: Number(ratePerCreator),
-    creatorsNeeded: Number(creatorsNeeded),
+    ratePerCreator: rateNum,
+    creatorsNeeded: creatorsNum,
     videosPerCreator: Number(videosPerCreator),
     campaignType,
     usageRights: usageRights || null,
@@ -959,7 +1002,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
 
   await gigRef.set(gigDataToSet, {merge: true});
 
-  const totalAmount = ratePerCreator * creatorsNeeded;
+  const totalAmount = rateNum * creatorsNum;
   const totalAmountInCents = Math.round(totalAmount * 100);
 
   try {
@@ -979,7 +1022,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
           currency: "usd",
           product_data: {
             name: `Campaign Budget: ${title}`,
-            description: `Funding for ${creatorsNeeded} creators at $${ratePerCreator} each.`,
+            description: `Funding for ${creatorsNum} creators at $${rateNum} each.`,
           },
           unit_amount: totalAmountInCents,
         },
@@ -1206,6 +1249,7 @@ export const syncStripeAccountStatus = onCall(async (request) => {
     payouts_enabled: account.payouts_enabled,
     details_submitted: account.details_submitted,
     type: account.type,
+    service_agreement: account.tos_acceptance?.service_agreement,
   });
 
   const updates: Partial<UserProfileFirestoreData> = {
@@ -1411,7 +1455,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
     await db.collection("notifications").add({
       userId,
       title: "Payout Initiated!",
-      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-3 business days to arrive.`,
+      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-7 business days to arrive.`,
       type: "payout_received",
       read: false,
       link: "/wallet",

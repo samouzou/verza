@@ -26,7 +26,8 @@ import {
   Target,
   Zap,
   Heart,
-  Infinity
+  Infinity,
+  Handshake
 } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,6 +40,7 @@ import { trackEvent } from '@/lib/analytics';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { allowsNoPlatformCashCompensation, isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
@@ -72,7 +74,7 @@ export default function PostGigPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant' | 'cause_campaign'>('standard_sponsorship');
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant' | 'cause_campaign' | 'barter_campaign'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -167,7 +169,7 @@ export default function PostGigPage() {
   }, [campaignType]);
 
   const totalAmount = useMemo(() => {
-    if (!isBaseRateEnabled || campaignType === 'cause_campaign') return 0;
+    if (!isBaseRateEnabled || isCauseCampaignType(campaignType)) return 0;
     const rate = parseFloat(ratePerCreator);
     const needed = parseInt(creatorsNeeded, 10);
     if (!isNaN(rate) && !isNaN(needed) && rate > 0 && needed > 0) {
@@ -200,14 +202,14 @@ export default function PostGigPage() {
     const videosNum = parseInt(videosPerCreator, 10);
 
     // Core Validation
-    const isCause = campaignType === 'cause_campaign';
+    const isCause = isCauseCampaignType(campaignType);
     if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0 || (!isCause && (isNaN(creatorsNum) || creatorsNum <= 0))) {
       toast({ title: 'Missing Details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
       return;
     }
 
     // Compensation Validation — cause campaigns can launch without payment (awareness/exposure)
-    if (!isCause && !isBaseRateEnabled && !isAffiliateEnabled) {
+    if (!allowsNoPlatformCashCompensation(campaignType) && !isBaseRateEnabled && !isAffiliateEnabled) {
       toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
       return;
     }
@@ -243,7 +245,12 @@ export default function PostGigPage() {
 
       // If pure performance ($0 total), we launch directly instead of Stripe Checkout
       if (totalAmount === 0) {
-        toast({ title: "Launching Campaign", description: "This performance-only campaign is being prepared..." });
+        toast({
+          title: "Launching Campaign",
+          description: isBarterCampaignType(campaignType) && !isAffiliateEnabled
+            ? "Your barter campaign is being prepared…"
+            : "This performance-only campaign is being prepared…",
+        });
 
         // Direct launch for performance-only
         const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId));
@@ -282,7 +289,12 @@ export default function PostGigPage() {
         };
 
         const { id: newGigId } = await addDoc(collection(db, 'gigs'), gigData);
-        toast({ title: "Campaign Live!", description: "Your performance-only campaign is now active." });
+        toast({
+          title: "Campaign Live!",
+          description: isBarterCampaignType(campaignType) && !isAffiliateEnabled
+            ? "Your barter campaign is now active."
+            : "Your performance-only campaign is now active.",
+        });
         router.push(`/campaigns/${newGigId}`);
         return;
       }
@@ -465,6 +477,20 @@ export default function PostGigPage() {
                       </p>
                     </Label>
                   </div>
+                  <div className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    campaignType === 'barter_campaign' ? "border-amber-500 bg-amber-500/5" : "border-muted hover:border-amber-400/40"
+                  )}>
+                    <RadioGroupItem value="barter_campaign" id="barter" className="mt-1" />
+                    <Label htmlFor="barter" className="flex-1 cursor-pointer">
+                      <p className="font-bold text-base flex items-center gap-2">
+                        <Handshake className="h-4 w-4 text-amber-600" /> Barter
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Product seeding, trade-for-post, or other in-kind compensation. Fixed base pay and performance rewards are optional — describe what creators receive in your brief.
+                      </p>
+                    </Label>
+                  </div>
                 </RadioGroup>
               </CardContent>
             </Card>
@@ -473,7 +499,7 @@ export default function PostGigPage() {
               <CardHeader>
                 <CardTitle>2. Campaign Details</CardTitle>
                 <CardDescription>
-                  Describe your {campaignType === 'production_grant' ? 'grant scope' : campaignType === 'cause_campaign' ? 'cause and what creators should share' : 'user-generated content (UGC) campaign'}.
+                  Describe your {campaignType === 'production_grant' ? 'grant scope' : campaignType === 'cause_campaign' ? 'cause and what creators should share' : campaignType === 'barter_campaign' ? 'product, trade, or in-kind compensation and what creators should deliver' : 'user-generated content (UGC) campaign'}.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -867,11 +893,24 @@ export default function PostGigPage() {
                   </p>
                   <p className="text-muted-foreground text-xs mt-2">No upfront base rate funding required. Performance bonuses are accrued and paid post-conversion.</p>
                 </div>
+              ) : isBarterCampaignType(campaignType) ? (
+                <div className="p-6 border rounded-lg bg-amber-500/5 text-center border-amber-500/20">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 font-bold flex items-center justify-center gap-2 uppercase tracking-widest">
+                    <Handshake className="h-4 w-4" /> In-kind barter
+                  </p>
+                  <p className="text-muted-foreground text-xs mt-2">No Verza wallet funding required for base pay. Spell out product, gifting, or trade terms in your brief.</p>
+                </div>
               ) : null}
 
               <Button type="submit" className="w-full h-12 text-lg font-bold" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <DollarSign className="mr-2 h-5 w-5" />}
-                {totalAmount > 0 ? 'Fund & Launch Campaign' : campaignType === 'cause_campaign' ? 'Launch Cause Campaign' : 'Launch Performance Campaign'}
+                {totalAmount > 0
+                  ? 'Fund & Launch Campaign'
+                  : isCauseCampaignType(campaignType)
+                    ? 'Launch Cause Campaign'
+                    : isBarterCampaignType(campaignType)
+                      ? 'Launch Barter Campaign'
+                      : 'Launch Performance Campaign'}
               </Button>
             </div>
           </form>

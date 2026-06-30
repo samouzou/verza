@@ -61,7 +61,7 @@ export default function EditGigPage() {
   const [gig, setGig] = useState<Gig | null>(null);
   const [isLoadingGig, setIsLoadingGig] = useState(true);
 
-  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant'>('standard_sponsorship');
+  const [campaignType, setCampaignType] = useState<Gig['campaignType']>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
