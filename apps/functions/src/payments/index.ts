@@ -9,6 +9,13 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
+import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
+import {
+  buildExpressAccountParams,
+  connectTransferMetadata,
+  needsRecipientServiceAgreement,
+  transferToConnectAccountIfNeeded,
+} from "./stripeConnect";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -116,19 +123,18 @@ export const createStripeConnectedAccount = onRequest(async (request, response) 
       throw new Error("User must have an email address");
     }
 
-    logger.info(`Creating Stripe Express account for user ${userId} in country ${finalCountry} (${defaultCurrency})`);
+    const agreementLabel = needsRecipientServiceAgreement(finalCountry) ? "recipient" : "full";
+    logger.info(
+      `Creating Stripe Express (${agreementLabel}) account for user ${userId} in country ${finalCountry} (${defaultCurrency})`
+    );
 
-    // Create Stripe Connected Account
-    const account = await stripe.accounts.create({
-      type: "express",
-      email,
-      country: finalCountry,
-      default_currency: defaultCurrency,
-      capabilities: {
-        card_payments: {requested: true},
-        transfers: {requested: true},
-      },
-    });
+    const account = await stripe.accounts.create(
+      buildExpressAccountParams({
+        email,
+        country: finalCountry,
+        defaultCurrency,
+      })
+    );
 
     // Update user document with Stripe account info
     logger.info(`Finalizing Firestore update for user ${userId}: Account=${account.id}, Country=${finalCountry}`);
@@ -399,20 +405,22 @@ export const createPaymentIntent = onRequest(async (request, response) => {
         paymentIntentParams = {
           amount: amountInCents,
           currency,
-          application_fee_amount: totalApplicationFee,
-          metadata: metadataForStripe,
-          receipt_email: emailForReceiptAndMetadata || undefined,
-          transfer_data: {
-            destination: agencyOwnerData.stripeAccountId,
+          metadata: {
+            ...metadataForStripe,
+            ...connectTransferMetadata(
+              agencyOwnerData.stripeAccountId,
+              amountInCents - totalApplicationFee
+            ),
           },
+          receipt_email: emailForReceiptAndMetadata || undefined,
         };
       }
     } else {
       // Logic for individual creator contracts
       const creatorDoc = await db.collection("users").doc(contractData.userId).get();
       const creatorData = creatorDoc.data() as UserProfileFirestoreData;
-      if (!creatorData?.stripeAccountId || !creatorData.stripeChargesEnabled) {
-        throw new Error("Creator does not have a valid Stripe account");
+      if (!creatorData?.stripeAccountId || !creatorData.stripePayoutsEnabled) {
+        throw new Error("Creator does not have a valid Stripe account ready for payouts.");
       }
 
       const platformFee = Math.round(amountInCents * invoicePlatformFeeFraction(contractData.ownerType));
@@ -422,12 +430,14 @@ export const createPaymentIntent = onRequest(async (request, response) => {
       paymentIntentParams = {
         amount: amountInCents,
         currency,
-        application_fee_amount: totalApplicationFee,
-        metadata: metadataForStripe,
-        receipt_email: emailForReceiptAndMetadata || undefined,
-        transfer_data: {
-          destination: creatorData.stripeAccountId,
+        metadata: {
+          ...metadataForStripe,
+          ...connectTransferMetadata(
+            creatorData.stripeAccountId,
+            amountInCents - totalApplicationFee
+          ),
         },
+        receipt_email: emailForReceiptAndMetadata || undefined,
       };
     }
 
@@ -509,6 +519,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
       } = metadata;
 
       if (internalPayoutId) {
+        await transferToConnectAccountIfNeeded(stripe, metadata, latestCharge);
         const payoutDocRef = db.collection("internalPayouts").doc(internalPayoutId);
         await payoutDocRef.update({
           status: "paid",
@@ -590,7 +601,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 <div style="max-width: 600px; margin: auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 16px; 
                 background-color: #ffffff; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
                   <div style="text-align: center; margin-bottom: 32px;">
-                    <div style="display: inline-block; padding: 8px 16px; background-color: #6B37FF; border-radius: 8px; 
+                    <div style="display: inline-block; padding: 8px 16px; background-color: ${EMAIL_BRAND_PRIMARY}; border-radius: 8px; 
                     color: #ffffff; font-weight: bold; font-size: 14px; margin-bottom: 16px;">VERZA SECURE</div>
                     <h1 style="color: #1a202c; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">
                     Capital Confirmed</h1>
@@ -614,7 +625,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                       </tr>
                       <tr style="border-top: 2px solid #edf2f7;">
                         <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Deployed</td>
-                        <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800; text-align: right; 
+                        <td style="padding: 20px 0 0 0; color: ${EMAIL_BRAND_PRIMARY}; font-weight: 800; text-align: right; 
                         font-size: 24px;">$${(amount / 100).toLocaleString()}</td>
                       </tr>
                     </table>
@@ -695,6 +706,8 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
         }
 
         await contractDocRef.update(updates);
+
+        await transferToConnectAccountIfNeeded(stripe, metadata, latestCharge);
 
         if (paymentType === "agency_payment" && agencyId) {
           const latestChargeId = latestCharge;
@@ -1236,6 +1249,7 @@ export const syncStripeAccountStatus = onCall(async (request) => {
     payouts_enabled: account.payouts_enabled,
     details_submitted: account.details_submitted,
     type: account.type,
+    service_agreement: account.tos_acceptance?.service_agreement,
   });
 
   const updates: Partial<UserProfileFirestoreData> = {
@@ -1441,7 +1455,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
     await db.collection("notifications").add({
       userId,
       title: "Payout Initiated!",
-      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-3 business days to arrive.`,
+      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-7 business days to arrive.`,
       type: "payout_received",
       read: false,
       link: "/wallet",
