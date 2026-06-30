@@ -14,6 +14,8 @@ export const STRIPE_ACCOUNT_WEBHOOK_SECRET = defineSecret("STRIPE_ACCOUNT_WEBHOO
 export const STRIPE_SUBSCRIPTION_WEBHOOK_SECRET = defineSecret("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET");
 export const VERTEX_API_KEY = defineSecret("VERTEX_API_KEY");
 export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+/** YouTube Data API v3 key for public video statistics on link submissions. */
+export const YOUTUBE_API_KEY = defineSecret("YOUTUBE_API_KEY");
 export const GMAIL_OAUTH_CLIENT_SECRET = defineSecret("GMAIL_OAUTH_CLIENT_SECRET");
 export const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
 
@@ -88,6 +90,18 @@ export const OPTIC_WORKER_URL = defineString("OPTIC_WORKER_URL", {
 export const OPTIC_WORKER_SHARED_SECRET = defineString("OPTIC_WORKER_SHARED_SECRET", {
   default: "",
   description: "Same value configured on the Optic worker service.",
+});
+
+/** Base URL of the LinkedIn OS worker (separate from Optic). */
+export const LINKEDIN_OS_WORKER_URL = defineString("LINKEDIN_OS_WORKER_URL", {
+  default: "",
+  description: "Example: https://linkedin-os-worker-xxx.run.app",
+});
+
+/** Shared secret for LinkedIn OS worker HTTP `/internal/run-job`. */
+export const LINKEDIN_OS_WORKER_SHARED_SECRET = defineString("LINKEDIN_OS_WORKER_SHARED_SECRET", {
+  default: "",
+  description: "Same value configured on the LinkedIn OS worker service.",
 });
 
 /** Google OAuth client ID (Web application) for Gmail compose drafts. */

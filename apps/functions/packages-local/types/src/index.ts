@@ -202,7 +202,8 @@ export type TaxClassification =
   | 's_corp'
   | 'partnership'
   | 'trust_estate'
-  | 'llc';
+  | 'llc'
+  | 'nonprofit_501c3';
 
 // For Firestore user document
 export interface UserProfileFirestoreData {
@@ -516,6 +517,9 @@ export interface Character {
   userId: string;
   name: string;
   description: string;
+  /** Portrait generated at creation time for visual consistency in scenes. */
+  imageUrl?: string;
+  style?: string;
   createdAt: Timestamp;
 }
 
@@ -570,7 +574,7 @@ export interface Gig {
   fundedAmount?: number; // Total amount paid to fund this gig
   status: 'pending_payment' | 'open' | 'in-progress' | 'completed' | 'budget_exhausted';
   createdAt: Timestamp;
-  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign';
+  campaignType: 'standard_sponsorship' | 'production_grant' | 'cause_campaign' | 'barter_campaign';
   usageRights?: 'none' | '30_days' | '1_year' | 'perpetuity';
   allowWhitelisting?: boolean;
   requireVerzaScore?: boolean;
@@ -615,6 +619,18 @@ export interface CreatorMarketplaceProfile {
   averageVerzaScore?: number;
 }
 
+/** Public YouTube Data API snapshot stored on link submissions. */
+export interface YouTubeVideoStats {
+  videoId: string;
+  title?: string;
+  channelTitle?: string;
+  publishedAt?: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  fetchedAt: string;
+}
+
 export interface GigSubmission {
   id: string;
   gigId: string;
@@ -627,6 +643,8 @@ export interface GigSubmission {
   verzaFeedback: string;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
   createdAt: Timestamp;
+  /** Populated when videoUrl is a YouTube link (via YouTube Data API). */
+  youtubeStats?: YouTubeVideoStats;
   affiliateMetrics?: {
     clicks: number;
     conversions: number;

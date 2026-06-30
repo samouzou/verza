@@ -23,7 +23,8 @@ import {
   Target,
   Zap,
   Heart,
-  Infinity
+  Infinity,
+  Handshake
 } from 'lucide-react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { allowsNoPlatformCashCompensation, isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
@@ -63,7 +65,7 @@ export default function EditGigPage() {
   const [gig, setGig] = useState<Gig | null>(null);
   const [isLoadingGig, setIsLoadingGig] = useState(true);
 
-  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant' | 'cause_campaign'>('standard_sponsorship');
+  const [campaignType, setCampaignType] = useState<'standard_sponsorship' | 'production_grant' | 'cause_campaign' | 'barter_campaign'>('standard_sponsorship');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -169,13 +171,23 @@ export default function EditGigPage() {
     e.preventDefault();
     if (!user || !gig) return;
 
-    const isCause = campaignType === 'cause_campaign';
+    const isCause = isCauseCampaignType(campaignType);
     const rateNum = (isBaseRateEnabled && !isCause) ? parseFloat(ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
 
     if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0 || (!isCause && (isNaN(creatorsNum) || creatorsNum <= 0))) {
       toast({ title: 'Missing details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
+      return;
+    }
+
+    if (!allowsNoPlatformCashCompensation(campaignType) && !isBaseRateEnabled && !isAffiliateEnabled) {
+      toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
+      return;
+    }
+
+    if (isBaseRateEnabled && (isNaN(rateNum) || rateNum <= 0)) {
+      toast({ title: 'Invalid Base Rate', description: 'Please enter a valid amount for the Fixed Base Rate.', variant: 'destructive' });
       return;
     }
 
@@ -338,6 +350,18 @@ export default function EditGigPage() {
                       <Heart className="h-4 w-4 text-rose-500" /> Cause Campaign
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">For nonprofits and social impact initiatives. Unlimited creator slots — anyone can join and amplify your cause.</p>
+                  </Label>
+                </div>
+                <div className={cn(
+                  "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                  campaignType === 'barter_campaign' ? "border-amber-500 bg-amber-500/5" : "border-muted hover:border-amber-400/40"
+                )}>
+                  <RadioGroupItem value="barter_campaign" id="barter" className="mt-1" />
+                  <Label htmlFor="barter" className="flex-1 cursor-pointer">
+                    <p className="font-bold text-base flex items-center gap-2">
+                      <Handshake className="h-4 w-4 text-amber-600" /> Barter
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">Product seeding or in-kind trade. Base pay and performance rewards are optional — describe compensation in your brief.</p>
                   </Label>
                 </div>
               </RadioGroup>

@@ -30,6 +30,8 @@ import {
   handleSendGridEmailWebhook,
   submitFeedback,
   notifyBrandCreatorJoined,
+  notifyBrandVideoSubmitted,
+  notifyBrandCampaignApplicant,
 } from "./notifications";
 
 import {
@@ -72,17 +74,29 @@ import {
   initiateInternalTalentPayment,
 } from "./agency";
 
-import {payoutCreatorForGig, onGigCreated, onGigStatusOpened, extendCreatorDeadline} from "./gigs";
+import {
+  payoutCreatorForGig,
+  onGigCreated,
+  onGigStatusOpened,
+  extendCreatorDeadline,
+} from "./gigs";
+import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand} from "./brand-research";
-import {syncInstagramStats, syncYouTubeStats, syncTikTokStats} from "./social";
+import {
+  syncInstagramStats,
+  syncYouTubeStats,
+  syncTikTokStats,
+  fetchYouTubeVideoStats,
+} from "./social";
 import {conversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
 import {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadEmail,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
@@ -95,6 +109,10 @@ import {
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
 import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
 import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
+import {enqueueLinkedInOsDraftJob} from "./linkedinOs/jobs";
+import {dispatchLinkedInOsJobToWorker} from "./linkedinOs/onJobCreated";
+import {generateLinkedInOsBeehiivNewsletter} from "./linkedinOs/beehiivNewsletter";
+import {generateLinkedInOsVideoScript} from "./linkedinOs/videoScript";
 import {
   beginGmailConnect,
   completeGmailConnect,
@@ -118,6 +136,8 @@ export {
   handleSendGridEmailWebhook,
   submitFeedback,
   notifyBrandCreatorJoined,
+  notifyBrandVideoSubmitted,
+  notifyBrandCampaignApplicant,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
@@ -146,17 +166,20 @@ export {
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,
+  generateCampaignCopy,
   generateScene,
   generateImage,
   analyzeBrand,
   syncInstagramStats,
   syncYouTubeStats,
   syncTikTokStats,
+  fetchYouTubeVideoStats,
   conversionWebhook,
   onAffiliateLinkClick,
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadEmail,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
   createOpticSubscriptionCheckoutSession,
@@ -166,6 +189,10 @@ export {
   opticJobSmsOnComplete,
   opticTwilioSmsWebhook,
   dispatchOpticJobToWorker,
+  enqueueLinkedInOsDraftJob,
+  dispatchLinkedInOsJobToWorker,
+  generateLinkedInOsVideoScript,
+  generateLinkedInOsBeehiivNewsletter,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { PageHeader } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame, Zap, Heart } from 'lucide-react';
+import { PlusCircle, Loader2, Briefcase, User, Search, Filter, Smartphone, DollarSign, X, LifeBuoy, CheckCircle2, Flame, Zap, Heart, Handshake } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +21,7 @@ import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot
 import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
 import { cn } from '@/lib/utils';
+import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
 
@@ -30,7 +31,16 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
 
   const getStatusLabel = (status: string) => {
     if (status === 'open') {
-      if (gig.campaignType === 'cause_campaign') return 'Open for Creators';
+      if (isCauseCampaignType(gig.campaignType)) return 'Open for Creators';
+      const hasPerf =
+        gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0;
+      if (
+        isBarterCampaignType(gig.campaignType) &&
+        (gig.ratePerCreator || 0) <= 0 &&
+        !hasPerf
+      ) {
+        return 'Barter · In-Kind';
+      }
       return (gig.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
     }
     if (status === 'pending_payment') return 'Funding Pending';
@@ -61,6 +71,11 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           dangerouslySetInnerHTML={{ __html: gig.description }}
         />
         <div className="flex flex-wrap gap-2">
+          {isBarterCampaignType(gig.campaignType) && (
+            <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider border-amber-500/40 text-amber-800 dark:text-amber-200 bg-amber-500/10 gap-1">
+              <Handshake className="h-3 w-3" /> Barter
+            </Badge>
+          )}
           {gig.platforms?.map(platform => (
             <Badge key={platform} variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
               {platform}
@@ -87,10 +102,15 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
           <div className="text-xl font-bold text-primary">
             {(gig.ratePerCreator || 0) > 0 ? (
               `$${(gig.ratePerCreator || 0).toLocaleString()}`
-            ) : gig.campaignType === 'cause_campaign' ? (
+            ) : isCauseCampaignType(gig.campaignType) ? (
               <div className="flex items-center gap-1.5 text-rose-500 text-sm">
                 <Heart className="h-4 w-4 fill-rose-500" />
                 <span>Volunteer</span>
+              </div>
+            ) : isBarterCampaignType(gig.campaignType) ? (
+              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-200 text-sm">
+                <Handshake className="h-4 w-4" />
+                <span>Barter</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-blue-600 text-sm">
@@ -99,10 +119,10 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
               </div>
             )}
           </div>
-          {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && ((gig.ratePerCreator || 0) > 0 || gig.campaignType === 'cause_campaign') && (
-            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight ${gig.campaignType === 'cause_campaign' ? 'text-rose-500' : 'text-blue-600'}`}>
-              <Zap className={`h-3 w-3 ${gig.campaignType === 'cause_campaign' ? 'fill-rose-500' : 'fill-blue-600'}`} />
-              <span>{gig.campaignType === 'cause_campaign' ? '+ Performance Bonus' : '+ Performance'}</span>
+          {gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && ((gig.ratePerCreator || 0) > 0 || isCauseCampaignType(gig.campaignType) || isBarterCampaignType(gig.campaignType)) && (
+            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight ${isCauseCampaignType(gig.campaignType) ? 'text-rose-500' : isBarterCampaignType(gig.campaignType) ? 'text-amber-700 dark:text-amber-300' : 'text-blue-600'}`}>
+              <Zap className={`h-3 w-3 ${isCauseCampaignType(gig.campaignType) ? 'fill-rose-500' : isBarterCampaignType(gig.campaignType) ? 'fill-amber-600' : 'fill-blue-600'}`} />
+              <span>{isCauseCampaignType(gig.campaignType) ? '+ Performance Bonus' : isBarterCampaignType(gig.campaignType) ? '+ Performance (Barter)' : '+ Performance'}</span>
             </div>
           )}
         </div>

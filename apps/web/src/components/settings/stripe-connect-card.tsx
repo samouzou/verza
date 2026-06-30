@@ -284,16 +284,10 @@ export function StripeConnectCard() {
           <p className="text-xs text-muted-foreground">Account ID: {user.stripeAccountId}</p>
         )}
         {user.stripeAccountStatus === 'active' && (
-          <>
-            <p className={`text-sm flex items-center ${user.stripeChargesEnabled ? 'text-green-600' : 'text-destructive'}`}>
-              {user.stripeChargesEnabled ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
-              Payments: {user.stripeChargesEnabled ? 'Enabled' : 'Disabled'}
-            </p>
-            <p className={`text-sm flex items-center ${user.stripePayoutsEnabled ? 'text-green-600' : 'text-destructive'}`}>
-              {user.stripePayoutsEnabled ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
-              Payouts: {user.stripePayoutsEnabled ? 'Enabled' : 'Disabled'}
-            </p>
-          </>
+          <p className={`text-sm flex items-center ${user.stripePayoutsEnabled ? 'text-green-600' : 'text-destructive'}`}>
+            {user.stripePayoutsEnabled ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
+            Payouts: {user.stripePayoutsEnabled ? 'Enabled' : 'Disabled'}
+          </p>
         )}
 
         {user.stripeAccountStatus === 'onboarding_incomplete' && (

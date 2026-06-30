@@ -20,6 +20,9 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
+import { fetchYouTubeStatsForUrl } from '@/lib/submissions/youtube-stats';
+import { isYouTubeUrl } from '@/lib/youtube';
+import { SubmissionVideoPreview, submissionPreviewProps } from '@/components/marketplace/submission-video-preview';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -98,6 +101,7 @@ function GigDetailContent() {
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+  const notifyBrandVideoSubmittedCallable = httpsCallable(functions, 'notifyBrandVideoSubmitted');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -112,7 +116,7 @@ function GigDetailContent() {
         value: totalValue
       });
 
-      router.replace(`/deployments/${gigId}`, { scroll: false });
+      router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
 
@@ -361,13 +365,18 @@ function GigDetailContent() {
             : `${creatorName} has secured your deployment "${gig.title}".`,
           type: 'gig_accepted',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
 
         // Send email to brand owner
         const notifyBrandCreatorJoined = httpsCallable(functions, 'notifyBrandCreatorJoined');
-        notifyBrandCreatorJoined({ gigId: gig.id, creatorName, isAgencyAcceptance }).catch(err => {
+        notifyBrandCreatorJoined({
+          gigId: gig.id,
+          creatorName,
+          isAgencyAcceptance,
+          fromApplicationApproval: false,
+        }).catch(err => {
           console.error('Failed to send brand notification email:', err);
         });
       }
@@ -381,7 +390,7 @@ function GigDetailContent() {
           message: `Your agency ${userAgencies.find(a => a.talent.some(t => t.userId === selectedTalentId))?.name || ''} has secured a spot for you on the "${gig.title}" deployment.`,
           type: 'system',
           read: false,
-          link: `/deployments/${gig.id}`,
+          link: `/campaigns/${gig.id}`,
           createdAt: serverTimestamp(),
         });
       }
@@ -486,9 +495,13 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: `Video ${slotIndex + 1} uploaded!`, description: "Your submission has been sent to the brand." });
       } else {
@@ -514,6 +527,7 @@ function GigDetailContent() {
     setIsSubmittingLink(slotIndex);
     try {
       const isVerzaRequired = gig.requireVerzaScore ?? true;
+      const youtubeStats = await fetchYouTubeStatsForUrl(url);
       const subData: Omit<GigSubmission, 'id'> = {
         gigId: gig.id,
         brandId: gig.brandId,
@@ -525,6 +539,7 @@ function GigDetailContent() {
         verzaFeedback: "",
         status: isVerzaRequired ? 'pending_verza_score' : 'submitted',
         createdAt: serverTimestamp() as any,
+        ...(youtubeStats ? { youtubeStats } : {}),
       };
 
       const existingAtSlot = mySubmissions[slotIndex];
@@ -534,6 +549,10 @@ function GigDetailContent() {
         await addDoc(collection(db, 'submissions'), subData);
       }
       trackEvent({ action: 'link_upload', category: 'marketplace', label: `slot_${slotIndex}` });
+
+      const statsSuffix = youtubeStats
+        ? ""
+        : " YouTube view counts could not be loaded — try re-submitting the link later.";
 
       if (!isVerzaRequired) {
         const agencySnap = await getDoc(doc(db, 'agencies', gig.brandId));
@@ -545,13 +564,23 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a link for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: 'link',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
-        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Your submission has been sent to the brand." });
+        toast({
+          title: `Link ${slotIndex + 1} submitted!`,
+          description: `Your submission has been sent to the brand.${statsSuffix}`,
+        });
       } else {
-        toast({ title: `Link ${slotIndex + 1} submitted!`, description: "Calculate your Verza Score to verify your link." });
+        toast({
+          title: `Link ${slotIndex + 1} submitted!`,
+          description: `Calculate your Verza Score to verify your link.${statsSuffix}`,
+        });
       }
       setLinkInputs(prev => ({ ...prev, [slotIndex]: '' }));
     } catch (error: any) {
@@ -592,9 +621,13 @@ function GigDetailContent() {
             message: `${user?.displayName || 'A creator'} submitted a video for "${gig.title}".`,
             type: 'submission_received',
             read: false,
-            link: `/deployments/${gig.id}`,
+            link: `/campaigns/${gig.id}`,
             createdAt: serverTimestamp(),
           } as Omit<Notification, 'id'>);
+          notifyBrandVideoSubmittedCallable({
+            gigId: gig.id,
+            submissionKind: isYouTube ? 'link' : 'video',
+          }).catch((err) => console.error('Failed to send brand submission email:', err));
         }
         toast({ title: "VERZA SCORE PASSED!", description: `Score: ${result.score}%. Your work is now with the brand.` });
       } else {
@@ -644,7 +677,7 @@ function GigDetailContent() {
     try {
       await deleteDoc(doc(db, 'gigs', gig.id));
       toast({ title: "Deployment Deleted", description: "The deployment has been removed." });
-      router.push('/deployments');
+      router.push('/campaigns');
     } catch (error: any) {
       console.error(error);
       toast({ title: "Delete Failed", description: error.message, variant: "destructive" });
@@ -752,7 +785,7 @@ function GigDetailContent() {
         <PageHeader
           title={gig.title}
           description={`Campaign by ${gig.brandName}`}
-          actions={<Button asChild variant="outline"><Link href="/deployments"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
+          actions={<Button asChild variant="outline"><Link href="/campaigns"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link></Button>}
         />
 
         {isCompleted && (
@@ -969,39 +1002,11 @@ function GigDetailContent() {
 
                         {submission ? (
                           <div className="space-y-4">
-                            <div className="aspect-video bg-black rounded-lg overflow-hidden relative group">
-                              {(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) ? (
-                                (() => {
-                                  let yId = null;
-                                  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-                                  const match = submission.videoUrl.match(regExp);
-                                  if (match && match[2].length === 11) yId = match[2];
-                                  return yId ? (
-                                    <iframe 
-                                      className="w-full h-full" 
-                                      src={`https://www.youtube.com/embed/${yId}`} 
-                                      frameBorder="0" 
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                      allowFullScreen
-                                    ></iframe>
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">Invalid YouTube Link</div>
-                                  );
-                                })()
-                              ) : (
-                                <video src={submission.videoUrl} controls className="w-full h-full" />
-                              )}
-                              
-                              {!(submission.videoUrl.includes('youtube.com') || submission.videoUrl.includes('youtu.be')) && (
-                                <div className="absolute top-2 right-2 flex gap-2">
-                                  <Button size="icon" variant="secondary" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" asChild>
-                                    <a href={submission.videoUrl} download target="_blank" rel="noopener noreferrer">
-                                      <Download className="h-3 w-3" />
-                                    </a>
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
+                            <SubmissionVideoPreview
+                              {...submissionPreviewProps(submission)}
+                              showFeedback={false}
+                              downloadOnHover
+                            />
 
                             {(submission.status === 'pending_verza_score' || submission.status === 'rejected') && (gig.requireVerzaScore ?? true) ? (
                               <div className="p-4 border rounded-lg bg-background space-y-4 shadow-sm">
@@ -1243,12 +1248,11 @@ function GigDetailContent() {
                                       </div>
 
                                       {sub ? (
-                                        <>
-                                          <video src={sub.videoUrl} controls className="w-full rounded-md max-h-40 bg-black" />
-                                          {sub.verzaFeedback && (
-                                            <p className="text-[10px] text-muted-foreground italic line-clamp-2">"{sub.verzaFeedback}"</p>
-                                          )}
-                                        </>
+                                        <SubmissionVideoPreview
+                                          {...submissionPreviewProps(sub)}
+                                          compact
+                                          showDownload={false}
+                                        />
                                       ) : (
                                         <div className="py-10 text-center border-2 border-dashed rounded-md flex flex-col items-center justify-center bg-muted/10">
                                           <Loader2 className="h-4 w-4 animate-pulse text-muted-foreground mb-2" />
@@ -1509,7 +1513,7 @@ function GigDetailContent() {
                       <div className="space-y-2">
                         {!isCompleted && (
                           <Button asChild className="w-full" variant="outline">
-                            <Link href={`/deployments/${gig.id}/edit`}>
+                            <Link href={`/campaigns/${gig.id}/edit`}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Deployment
                             </Link>
                           </Button>

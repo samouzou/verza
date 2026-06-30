@@ -68,7 +68,7 @@ export function BudgetSummary({ agency, isBrandAccount }: BudgetSummaryProps) {
       await initiateAgencyPayout({ agencyId: agency.id, amount: amountNum });
       toast({
         title: "Payout Initiated!",
-        description: `$${amountNum.toFixed(2)} is on its way to your bank account. Allow 1-3 business days.`,
+        description: `$${amountNum.toFixed(2)} is on its way to your bank account. Allow 1-7 business days.`,
       });
       setIsPayoutOpen(false);
       setPayoutAmount("");
@@ -218,7 +218,7 @@ export function BudgetSummary({ agency, isBrandAccount }: BudgetSummaryProps) {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Payout to Bank</DialogTitle>
-                  <DialogDescription>Choose how much to transfer to your connected bank account. Allow 1-3 business days.</DialogDescription>
+                  <DialogDescription>Choose how much to transfer to your connected bank account. Allow 1-7 business days.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">

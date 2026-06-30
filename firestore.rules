@@ -253,5 +253,18 @@ service cloud.firestore {
     match /optic_top_up_events/{eventId} {
       allow read, write: if false;
     }
+
+    // LinkedIn OS — company LinkedIn draft jobs (worker writes; agency team reads)
+    match /linkedin_os_jobs/{jobId} {
+      allow read: if request.auth != null &&
+        (resource.data.createdBy == request.auth.uid ||
+          (resource.data.get('agencyId', null) != null &&
+            isTeamMemberOf(resource.data.agencyId)));
+      allow write: if false;
+    }
+
+    match /linkedin_os_prompts/{docId} {
+      allow read, write: if false;
+    }
   }
 }

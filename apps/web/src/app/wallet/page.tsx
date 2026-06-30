@@ -90,7 +90,7 @@ export default function WalletPage() {
       await initiateCreatorPayout();
       toast({
         title: "Payout Initiated!",
-        description: `$${walletBalance.toFixed(2)} is on its way to your bank account. Allow 1-3 business days.`,
+        description: `$${walletBalance.toFixed(2)} is on its way to your bank account. Allow 1-7 business days.`,
       });
     } catch (error: any) {
       toast({

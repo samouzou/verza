@@ -4,6 +4,10 @@ import * as logger from "firebase-functions/logger";
 import axios from "axios";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
+import {
+  extractYouTubeVideoId,
+  fetchYouTubeVideoStatsById,
+} from "./youtubeVideo";
 
 /**
  * syncInstagramStats - Exchanges a client token for real IG data.
@@ -245,6 +249,47 @@ export const syncYouTubeStats = onCall(async (request) => {
     logger.error("YouTube sync failed:", error.message);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", `YouTube Sync Error: ${error.message}`);
+  }
+});
+
+/**
+ * fetchYouTubeVideoStats - Public video statistics for YouTube link submissions.
+ * Uses YouTube Data API v3 (videos.list) with a server API key.
+ */
+export const fetchYouTubeVideoStats = onCall({
+  secrets: [params.YOUTUBE_API_KEY],
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+
+  const {videoUrl} = request.data ?? {};
+  if (!videoUrl || typeof videoUrl !== "string") {
+    throw new HttpsError("invalid-argument", "A YouTube video URL is required.");
+  }
+
+  const videoId = extractYouTubeVideoId(videoUrl);
+  if (!videoId) {
+    throw new HttpsError("invalid-argument", "Invalid YouTube URL.");
+  }
+
+  const apiKey = params.YOUTUBE_API_KEY.value();
+  if (!apiKey) {
+    throw new HttpsError(
+      "failed-precondition",
+      "YouTube Data API is not configured on the server."
+    );
+  }
+
+  try {
+    const stats = await fetchYouTubeVideoStatsById(videoId, apiKey);
+    logger.info(`Fetched YouTube stats for ${videoId} (user ${request.auth.uid})`);
+    return stats;
+  } catch (error: unknown) {
+    if (error instanceof HttpsError) throw error;
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error("fetchYouTubeVideoStats failed:", message);
+    throw new HttpsError("internal", `YouTube stats error: ${message}`);
   }
 });
 

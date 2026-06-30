@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2, LifeBuoy } from 'lucide-react';
+import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2, LifeBuoy, ZoomIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { onSnapshot, collection, query, where, orderBy, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
@@ -44,10 +44,15 @@ import { aiStudioTour } from '@/lib/tours';
 import { trackEvent } from '@/lib/analytics';
 import { useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
+import {
+  applyCharacterToPrompt,
+  buildCharacterPortraitPrompt,
+} from '@/lib/ai-studio/characters';
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const IMAGE_COST = 1;
+const CHARACTER_PORTRAIT_COST = 1;
 
 const INSPIRATION_EXAMPLES = [
   {
@@ -61,7 +66,7 @@ const INSPIRATION_EXAMPLES = [
     tab: "text-to-image",
     style: "Realistic",
     prompt: "Brand ambassador posing confidently in front of a luxury hotel lobby, editorial lighting",
-    gradient: "from-slate-900 via-purple-900 to-indigo-800",
+    gradient: "from-slate-900 via-emerald-900 to-emerald-800",
     label: "Brand Shoot",
   },
   {
@@ -82,14 +87,14 @@ const INSPIRATION_EXAMPLES = [
     tab: "text-to-video",
     style: "Claymation",
     prompt: "Claymation character dancing in a candy-colored kitchen, playful and bouncy",
-    gradient: "from-violet-800 via-fuchsia-700 to-pink-600",
+    gradient: "from-emerald-900 via-teal-700 to-emerald-600",
     label: "Claymation",
   },
   {
     tab: "text-to-image",
     style: "Anime",
     prompt: "Anime creator recording content in a neon-lit bedroom studio, vibrant colors",
-    gradient: "from-blue-900 via-indigo-700 to-violet-600",
+    gradient: "from-blue-900 via-emerald-700 to-teal-600",
     label: "Creator Studio",
   },
 ] as const;
@@ -119,10 +124,12 @@ function SceneSpawnerContent() {
   const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false);
   const [newCharacterName, setNewCharacterName] = useState("");
   const [newCharacterDescription, setNewCharacterDescription] = useState("");
+  const [newCharacterStyle, setNewCharacterStyle] = useState<(typeof styleOptions)[number]>("Realistic");
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
   const [isSavingCharacter, setIsSavingCharacter] = useState(false);
   const [isDeletingCharacter, setIsDeletingCharacter] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<Character | null>(null);
+  const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   
   // State for Image-to-Video and Image-to-Image
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -219,6 +226,19 @@ function SceneSpawnerContent() {
     }
   };
 
+  const selectedCharacter =
+    selectedCharacterId !== "none"
+      ? characters.find((c) => c.id === selectedCharacterId) ?? null
+      : null;
+
+  const fileToDataUri = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleGeneration = async () => {
     if (!user) {
       toast({ title: "Authentication Error", variant: "destructive" });
@@ -247,28 +267,38 @@ function SceneSpawnerContent() {
 
     try {
       let result;
-      let data: any;
+      let data: { imageUrl?: string; videoUrl?: string; remainingCredits: number };
       let imageDataUri: string | undefined;
+      let referenceImageUrl: string | undefined;
+      let effectivePrompt = currentPrompt;
 
-      if (mode !== 'text-to-video' && imageFile) {
-        imageDataUri = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(imageFile);
-        });
+      if (selectedCharacter) {
+        effectivePrompt = applyCharacterToPrompt(
+          currentPrompt,
+          selectedCharacter,
+          selectedCharacter.imageUrl && !imageFile ? "image-reference" : "text"
+        );
+      }
+
+      if (isImageMode && imageFile) {
+        imageDataUri = await fileToDataUri(imageFile);
+      } else if (
+        selectedCharacter?.imageUrl &&
+        (mode === "text-to-video" || mode === "text-to-image")
+      ) {
+        referenceImageUrl = selectedCharacter.imageUrl;
       }
       
       trackEvent({ action: 'spawn_scene_start', category: 'ai_tool', label: mode });
 
       if (mode === 'image-to-image' || mode === 'text-to-image') {
         const generateImageCallable = httpsCallable(functions, 'generateImage');
-        result = await generateImageCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
+        result = await generateImageCallable({ prompt: effectivePrompt, style, orientation, imageDataUri, referenceImageUrl });
         data = result.data as { imageUrl: string, remainingCredits: number };
         setGeneratedMedia({ url: data.imageUrl, type: 'image' });
       } else {
         const generateSceneCallable = httpsCallable(functions, 'generateScene');
-        result = await generateSceneCallable({ prompt: currentPrompt, style, orientation, imageDataUri });
+        result = await generateSceneCallable({ prompt: effectivePrompt, style, orientation, imageDataUri, referenceImageUrl });
         data = result.data as { videoUrl: string, remainingCredits: number };
         setGeneratedMedia({ url: data.videoUrl, type: 'video' });
       }
@@ -291,23 +321,60 @@ function SceneSpawnerContent() {
         toast({title: "Missing Information", description: "Please provide a name and description.", variant: "destructive"});
         return;
     }
+    const credits = user.credits ?? 0;
+    if (credits < CHARACTER_PORTRAIT_COST) {
+      toast({
+        title: "Not enough credits",
+        description: `Character portraits cost ${CHARACTER_PORTRAIT_COST} credit. You have ${credits}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSavingCharacter(true);
     try {
+        const portraitPrompt = buildCharacterPortraitPrompt(
+          newCharacterName.trim(),
+          newCharacterDescription.trim(),
+          newCharacterStyle
+        );
+
+        toast({
+          title: "Generating portrait…",
+          description: "Creating your character image. This usually takes a few seconds.",
+        });
+
+        const generateImageCallable = httpsCallable(functions, "generateImage");
+        const portraitResult = await generateImageCallable({
+          prompt: portraitPrompt,
+          style: newCharacterStyle,
+          orientation: "1:1",
+        });
+        const portraitData = portraitResult.data as { imageUrl: string; remainingCredits: number };
+
         const characterData = {
             userId: user.uid,
             name: newCharacterName.trim(),
             description: newCharacterDescription.trim(),
+            style: newCharacterStyle,
+            imageUrl: portraitData.imageUrl,
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
         trackEvent({ action: 'create_character', category: 'engagement', label: 'ai_studio' });
-        toast({title: "Character Saved!", description: `${newCharacterName.trim()} is now available.`});
+        toast({
+          title: "Character created!",
+          description: `${newCharacterName.trim()} is ready with a portrait. ${portraitData.remainingCredits} credits left.`,
+        });
         setNewCharacterName("");
         setNewCharacterDescription("");
+        setNewCharacterStyle("Realistic");
         setIsCharacterDialogOpen(false);
-    } catch (error) {
+        await refreshAuthUser();
+    } catch (error: unknown) {
         console.error("Error saving character:", error);
-        toast({title: "Save Failed", description: "Could not save character.", variant: "destructive"});
+        const message = error instanceof Error ? error.message : "Could not create character.";
+        toast({title: "Creation Failed", description: message, variant: "destructive"});
     } finally {
         setIsSavingCharacter(false);
     }
@@ -360,7 +427,7 @@ function SceneSpawnerContent() {
       <div
         className="relative rounded-2xl overflow-hidden mb-6"
         style={{
-          background: 'linear-gradient(135deg, #0f0c29, #302b63, #1a1a4e, #24105a)',
+          background: 'linear-gradient(135deg, #0B100E, #0A2E22, #0E7C5A, #0B1F18)',
           backgroundSize: '400% 400%',
           animation: 'gradient-shift 12s ease infinite',
         }}
@@ -372,13 +439,13 @@ function SceneSpawnerContent() {
               'repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px)',
           }}
         />
-        <div className="absolute top-0 right-1/4 w-72 h-72 bg-violet-600/25 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-56 h-56 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-teal-600/25 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-56 h-56 bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-7 sm:px-8 sm:py-8">
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
-              <Sparkles className="h-6 w-6 text-violet-300" />
+              <Sparkles className="h-6 w-6 text-teal-400" />
               <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">AI Studio</h1>
             </div>
             <p className="text-sm text-white/55 max-w-sm leading-relaxed">
@@ -583,6 +650,38 @@ function SceneSpawnerContent() {
                             ))}
                         </SelectContent>
                       </Select>
+                      {selectedCharacter && (
+                        <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/30 p-2">
+                          {selectedCharacter.imageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewCharacter(selectedCharacter)}
+                              className="group relative h-10 w-10 shrink-0 overflow-hidden rounded-md ring-offset-background transition hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={`Preview ${selectedCharacter.name}`}
+                            >
+                              <Image
+                                src={selectedCharacter.imageUrl}
+                                alt={selectedCharacter.name}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
+                                <ZoomIn className="h-4 w-4 text-white opacity-0 transition group-hover:opacity-100" />
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {selectedCharacter.imageUrl
+                              ? "Portrait will be used as a visual reference in your generation."
+                              : "Description only — recreate this character to get a portrait."}
+                          </p>
+                        </div>
+                      )}
                     </div>
                 </div>
 
@@ -666,12 +765,38 @@ function SceneSpawnerContent() {
             </CardHeader>
             <CardContent>
                 <AlertDialog open={!!characterToDelete} onOpenChange={(open) => !open && setCharacterToDelete(null)}>
-                    <div className="space-y-2 mb-4 max-h-48 overflow-y-auto pr-2">
+                    <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-2">
                         {characters.length > 0 ? characters.map(char => (
-                            <div key={char.id} className="p-3 border rounded-md text-sm bg-muted/50 flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold">{char.name}</p>
-                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{char.description}</p>
+                            <div key={char.id} className="p-2 border rounded-md text-sm bg-muted/50 flex gap-3 items-center">
+                                {char.imageUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewCharacter(char)}
+                                    className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted ring-offset-background transition hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    aria-label={`Preview ${char.name}`}
+                                  >
+                                    <Image
+                                      src={char.imageUrl}
+                                      alt={char.name}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
+                                      <ZoomIn className="h-4 w-4 text-white opacity-0 transition group-hover:opacity-100" />
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
+                                    <Users className="h-5 w-5" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold truncate">{char.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{char.description}</p>
+                                    {char.style && (
+                                      <p className="text-[10px] text-muted-foreground/80 mt-0.5">{char.style}</p>
+                                    )}
                                 </div>
                                 <AlertDialogTrigger asChild>
                                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive/70 hover:text-destructive flex-shrink-0" onClick={() => setCharacterToDelete(char)}>
@@ -697,6 +822,31 @@ function SceneSpawnerContent() {
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+              <Dialog open={!!previewCharacter} onOpenChange={(open) => !open && setPreviewCharacter(null)}>
+                <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:rounded-xl">
+                  {previewCharacter?.imageUrl && (
+                    <div className="relative aspect-square w-full max-h-[min(70vh,640px)] bg-black">
+                      <Image
+                        src={previewCharacter.imageUrl}
+                        alt={previewCharacter.name}
+                        fill
+                        className="object-contain"
+                        unoptimized
+                        priority
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1 p-6">
+                    <DialogHeader className="text-left">
+                      <DialogTitle>{previewCharacter?.name}</DialogTitle>
+                      <DialogDescription className="text-left">{previewCharacter?.description}</DialogDescription>
+                    </DialogHeader>
+                    {previewCharacter?.style && (
+                      <p className="text-sm text-muted-foreground">{previewCharacter.style} style</p>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Dialog open={isCharacterDialogOpen} onOpenChange={setIsCharacterDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="w-full">
@@ -707,7 +857,7 @@ function SceneSpawnerContent() {
                   <DialogHeader>
                     <DialogTitle>Create a New Character</DialogTitle>
                     <DialogDescription>
-                      Define a character that you can reuse in different scenes. Provide a name and a detailed description.
+                      Define a character with a name and description. We&apos;ll generate a portrait ({CHARACTER_PORTRAIT_COST} credit) you can reuse in scenes.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -719,12 +869,29 @@ function SceneSpawnerContent() {
                       <Label htmlFor="char-desc">Description</Label>
                       <Textarea id="char-desc" value={newCharacterDescription} onChange={(e) => setNewCharacterDescription(e.target.value)} placeholder="e.g., A space pirate with a robotic arm and a sarcastic parrot on her shoulder." rows={4} disabled={isSavingCharacter} />
                     </div>
+                    <div>
+                      <Label htmlFor="char-style">Visual Style</Label>
+                      <Select
+                        value={newCharacterStyle}
+                        onValueChange={(v) => setNewCharacterStyle(v as (typeof styleOptions)[number])}
+                        disabled={isSavingCharacter}
+                      >
+                        <SelectTrigger id="char-style">
+                          <SelectValue placeholder="Select a style" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {styleOptions.map((opt) => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCharacterDialogOpen(false)} disabled={isSavingCharacter}>Cancel</Button>
                     <Button onClick={handleSaveCharacter} disabled={isSavingCharacter || !newCharacterName.trim() || !newCharacterDescription.trim()}>
                         {isSavingCharacter && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Save Character
+                        Create Character ({CHARACTER_PORTRAIT_COST} Credit)
                     </Button>
                   </DialogFooter>
                 </DialogContent>

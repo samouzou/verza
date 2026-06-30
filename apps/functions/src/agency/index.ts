@@ -552,10 +552,6 @@ export const createInternalPayout = onCall(async (request) => {
       customer: agencyOwnerData.stripeCustomerId,
       payment_method: paymentMethodId,
       description: `Payout to ${talentInfo.displayName} for: ${description}`,
-      transfer_data: {
-        destination: talentUserData.stripeAccountId,
-        amount: payoutAmountInCents,
-      },
       confirm: true,
       off_session: true,
       metadata: {
@@ -566,6 +562,8 @@ export const createInternalPayout = onCall(async (request) => {
         payout_amount: (amount).toString(),
         platform_fee: (newPayout.platformFee).toString(),
         internalPayoutId: newPayout.id,
+        connectTransferDestination: talentUserData.stripeAccountId,
+        connectTransferAmount: String(payoutAmountInCents),
       },
     });
 
@@ -758,7 +756,7 @@ export const initiateAgencyPayout = onCall(async (request) => {
       userId: receiverId,
       title: "Agency Payout Initiated!",
       message: `$${payoutAmount.toFixed(2)} from ${agencyData.name}'s wallet has been transferred to your bank account.
-        It may take 1-3 business days to arrive.`,
+        It may take 1-7 business days to arrive.`,
       type: "payout_received",
       read: false,
       link: "/wallet",

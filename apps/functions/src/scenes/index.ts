@@ -7,6 +7,7 @@ import type {Generation} from "./../types";
 import * as params from "../config/params";
 import {ai} from "../ai/genkit"; // Import the shared AI instance
 import {googleAI} from "@genkit-ai/google-genai";
+import {resolveReferenceImageDataUri} from "../ai/referenceImage";
 
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
@@ -21,7 +22,7 @@ export const generateScene = onCall({
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
 
-  const {prompt, style, orientation, imageDataUri} = request.data;
+  const {prompt, style, orientation, imageDataUri, referenceImageUrl} = request.data;
   const userId = request.auth.uid;
 
   if (!prompt || !style) {
@@ -37,14 +38,22 @@ export const generateScene = onCall({
     throw new HttpsError("invalid-argument", "If provided, 'imageDataUri' must be a string.");
   }
 
-
   // Initialize Admin SDK inside the function
   if (!admin.apps.length) {
     admin.initializeApp();
   }
   const adminDb = admin.firestore();
   const adminStorage = admin.storage();
-  const defaultBucket = adminStorage.bucket(params.APP_STORAGE_BUCKET.value());
+  const bucketName = params.APP_STORAGE_BUCKET.value();
+  const defaultBucket = adminStorage.bucket(bucketName);
+
+  const resolvedImageDataUri = await resolveReferenceImageDataUri({
+    imageDataUri,
+    referenceImageUrl,
+    bucket: defaultBucket,
+    bucketName,
+    userId,
+  });
 
   const userDocRef = adminDb.collection("users").doc(userId);
 
@@ -86,13 +95,13 @@ export const generateScene = onCall({
   try {
     let finalPrompt: any;
 
-    if (imageDataUri) {
+    if (resolvedImageDataUri) {
       // Handle image-to-video
       logger.info(`Starting image-to-video generation for user ${userId}.`);
 
       const sourceImageFileName = `${Date.now()}-source-${uuidv4()}.jpeg`;
       const sourceImageFile = defaultBucket.file(`generated-scenes/${userId}/${sourceImageFileName}`);
-      const imageBuffer = Buffer.from(imageDataUri.split(",")[1], "base64");
+      const imageBuffer = Buffer.from(resolvedImageDataUri.split(",")[1], "base64");
 
       await sourceImageFile.save(imageBuffer, {metadata: {contentType: "image/jpeg"}});
       const [signedSourceUrl] = await sourceImageFile.getSignedUrl({action: "read",
@@ -101,7 +110,7 @@ export const generateScene = onCall({
 
       finalPrompt = [
         {text: `In a ${style} style: ${prompt}`},
-        {media: {url: imageDataUri, contentType: "image/jpeg"}},
+        {media: {url: resolvedImageDataUri, contentType: "image/jpeg"}},
       ];
     } else {
       // Handle text-to-video

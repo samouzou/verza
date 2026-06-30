@@ -155,8 +155,8 @@ export const handleSendGridEmailWebhook = onRequest(async (request, response) =>
         const contractDoc = await contractRef.get();
         if (contractDoc.exists) {
           const contractData = contractDoc.data();
-          const history = contractData?.invoiceHistory || [];
-          const alreadyViewed = history.some((h: any) => h.action === "Invoice Viewed by Client");
+          const history = (contractData?.invoiceHistory || []) as Array<{action?: string}>;
+          const alreadyViewed = history.some((h) => h.action === "Invoice Viewed by Client");
 
           if (!alreadyViewed) {
             await contractRef.update({
@@ -1303,23 +1303,80 @@ export async function sendAgencyEmailSequence(
 }
 
 /**
- * Sends an email to the brand owner when a creator secures a spot on their deployment.
- * @param {string} toEmail The brand owner's email address.
- * @param {string} brandName The brand owner's display name.
- * @param {string} creatorName The name of the creator or talent who joined.
- * @param {string} gigTitle The title of the deployment.
- * @param {string} gigId The Firestore document ID of the deployment.
- * @param {boolean} isAgencyAcceptance Whether the acceptance was made by an agency on behalf of talent.
- * @return {Promise<void>}
+ * Unique recipient emails for agency alerts: owner + active team members on the agency doc.
+ * @param {string} agencyId Firestore document ID of the agency (brand).
+ * @return {!Promise<!Array<string>>} Distinct lowercased email addresses.
+ */
+export async function getAgencyTeamNotificationEmails(agencyId: string): Promise<string[]> {
+  const agencySnap = await db.collection("agencies").doc(agencyId).get();
+  if (!agencySnap.exists) return [];
+  const agency = agencySnap.data() as {
+    ownerId?: string;
+    team?: Array<{email?: string; status?: string; userId?: string}>;
+  };
+  const emails = new Set<string>();
+  const add = (raw: unknown) => {
+    if (typeof raw !== "string") return;
+    const t = raw.trim();
+    if (t.includes("@")) emails.add(t.toLowerCase());
+  };
+  if (agency.ownerId) {
+    const ownerSnap = await db.collection("users").doc(agency.ownerId).get();
+    if (ownerSnap.exists) add(ownerSnap.data()?.email);
+  }
+  for (const m of agency.team || []) {
+    if (m?.status === "active" && m?.email) add(m.email);
+  }
+  return [...emails];
+}
+
+/**
+ * Whether the authenticated user may trigger applicant-related emails for this agency.
+ * @param {string} authUid Authenticated Firebase user id.
+ * @param {string} agencyId Firestore agency id (matches gig `brandId`).
+ * @param {string} applicantUid User id of the applicant listed on the gig.
+ * @return {!Promise<boolean>} True if the caller is the applicant, agency owner, or active team member.
+ */
+async function canManageAgencyTeamEmail(
+  authUid: string,
+  agencyId: string,
+  applicantUid: string
+): Promise<boolean> {
+  if (authUid === applicantUid) return true;
+  const agencySnap = await db.collection("agencies").doc(agencyId).get();
+  if (!agencySnap.exists) return false;
+  const agency = agencySnap.data() as {
+    ownerId?: string;
+    team?: Array<{userId?: string; status?: string}>;
+  };
+  if (agency.ownerId === authUid) return true;
+  return (agency.team || []).some(
+    (t) => t?.userId === authUid && t?.status === "active"
+  );
+}
+
+/**
+ * Sends an email to agency team members when a creator is added to the active roster.
+ * @param {!Array<string>} recipientEmails Distinct team inboxes to notify.
+ * @param {string} agencyName Display name of the brand/agency.
+ * @param {string} creatorName Display name of the creator (or assigned talent).
+ * @param {string} gigTitle Campaign title.
+ * @param {string} gigId Firestore gig id for deep link.
+ * @param {boolean} isAgencyAcceptance True when an agency assigned talent vs solo join.
+ * @param {boolean} fromApplicationApproval True when the brand just approved an application
+ *   (vs instant join, e.g. cause campaigns).
+ * @return {!Promise<void>}
  */
 export async function sendCreatorSecuredEmail(
-  toEmail: string,
-  brandName: string,
+  recipientEmails: string[],
+  agencyName: string,
   creatorName: string,
   gigTitle: string,
   gigId: string,
-  isAgencyAcceptance: boolean
+  isAgencyAcceptance: boolean,
+  fromApplicationApproval: boolean
 ): Promise<void> {
+  if (recipientEmails.length === 0) return;
   const sendgridKey = params.SENDGRID_API_KEY.value();
   if (!sendgridKey) {
     logger.error("SENDGRID_API_KEY not set, skipping creator secured email.");
@@ -1328,7 +1385,7 @@ export async function sendCreatorSecuredEmail(
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
-  const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
+  const campaignUrl = `${appUrl}/campaigns/${gigId}`;
 
   const emailLogoHeader = `
     <div style="text-align: center; margin-bottom: 30px;">
@@ -1342,21 +1399,34 @@ export async function sendCreatorSecuredEmail(
   const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
     "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
 
-  const subject = isAgencyAcceptance ?
-    `An agency has filled a spot on "${gigTitle}"` :
-    `${creatorName} claimed a spot on "${gigTitle}"`;
+  let subject: string;
+  let headline: string;
+  let body: string;
 
-  const headline = isAgencyAcceptance ?
-    "A new creator just joined your campaign" :
-    `${creatorName} is in`;
-
-  const body = isAgencyAcceptance ?
-    `An agency has assigned <strong>${creatorName}</strong> to your campaign
-       <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
-       and track content submissions.` :
-    `<strong>${creatorName}</strong> just claimed a spot on your campaign
-       <strong>"${gigTitle}"</strong>. Head to your campaign to review the roster
-       and track content submissions.`;
+  if (fromApplicationApproval) {
+    subject = `You've approved ${creatorName} for "${gigTitle}"`;
+    headline = "You approved a creator";
+    body = isAgencyAcceptance ?
+      `You approved <strong>${creatorName}</strong> for <strong>"${gigTitle}"</strong> (${agencyName}). ` +
+        "They were submitted by an agency on the creator's behalf. " +
+        "Open your campaign to review the roster and track content submissions." :
+      `You approved <strong>${creatorName}</strong> for <strong>"${gigTitle}"</strong> (${agencyName}). ` +
+        "Open your campaign to review the roster and track content submissions.";
+  } else if (isAgencyAcceptance) {
+    subject = `An agency has filled a spot on "${gigTitle}"`;
+    headline = "A new creator just joined your campaign";
+    body =
+      `An agency has assigned <strong>${creatorName}</strong> to your campaign ` +
+      `<strong>"${gigTitle}"</strong> (${agencyName}). Head to your campaign to review the roster ` +
+      "and track content submissions.";
+  } else {
+    subject = `${creatorName} joined "${gigTitle}"`;
+    headline = `${creatorName} is on your campaign`;
+    body =
+      `<strong>${creatorName}</strong> has joined your campaign ` +
+      `<strong>"${gigTitle}"</strong> (${agencyName}). Head to your campaign to review the roster ` +
+      "and track content submissions.";
+  }
 
   const html = `
     <!DOCTYPE html>
@@ -1371,10 +1441,10 @@ export async function sendCreatorSecuredEmail(
         border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
         ${emailLogoHeader}
         <h1 style="color: #333; font-size: 22px;">${headline}</h1>
-        <p style="color: #555; line-height: 1.6;">Hi ${brandName},</p>
+        <p style="color: #555; line-height: 1.6;">Hello,</p>
         <p style="color: #555; line-height: 1.6;">${body}</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${deploymentUrl}" style="${btnStyle}">View Deployment</a>
+          <a href="${campaignUrl}" style="${btnStyle}">View campaign</a>
         </div>
         <p style="margin-top: 30px; font-size: 14px; color: #666;">
           Cheers,<br/>
@@ -1394,25 +1464,359 @@ export async function sendCreatorSecuredEmail(
     </html>
   `;
 
-  try {
-    await sgMail.send({
-      to: toEmail,
-      from: {name: "Serge from Verza", email: params.SENDGRID_FROM_EMAIL.value()},
-      subject,
-      html,
-    });
-    logger.info(`Creator secured email sent to ${toEmail} for deployment ${gigId}.`);
-  } catch (error) {
-    logger.error(`Failed to send creator secured email to ${toEmail}:`, error);
+  for (const toEmail of recipientEmails) {
+    try {
+      await sgMail.send({
+        to: toEmail,
+        from: {name: "Serge from Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+        subject,
+        html,
+      });
+      logger.info(`Creator secured email sent to ${toEmail} for campaign ${gigId}.`);
+    } catch (error) {
+      logger.error(`Failed to send creator secured email to ${toEmail}:`, error);
+    }
   }
 }
+
+/**
+ * Sends an email to agency team when someone applies to a campaign.
+ * @param {!Array<string>} recipientEmails Distinct team inboxes to notify.
+ * @param {string} agencyName Display name of the brand/agency.
+ * @param {string} applicantDisplayName Applicant display name for email copy.
+ * @param {string} gigTitle Campaign title.
+ * @param {string} gigId Firestore gig id for deep link.
+ * @param {boolean} isAgencyAcceptance True when an agency applied on behalf of talent.
+ * @return {!Promise<void>}
+ */
+export async function sendBrandCampaignApplicantEmails(
+  recipientEmails: string[],
+  agencyName: string,
+  applicantDisplayName: string,
+  gigTitle: string,
+  gigId: string,
+  isAgencyAcceptance: boolean
+): Promise<void> {
+  if (recipientEmails.length === 0) return;
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping applicant email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+  const appUrl = params.APP_URL.value();
+  const campaignUrl = `${appUrl}/campaigns/${gigId}`;
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const subject = isAgencyAcceptance ?
+    `New applicant (agency) on "${gigTitle}"` :
+    `New applicant on "${gigTitle}"`;
+  const body = isAgencyAcceptance ?
+    `An agency has applied on behalf of <strong>${applicantDisplayName}</strong> for
+      <strong>"${gigTitle}"</strong> (${agencyName}). Review the application in Verza.` :
+    `<strong>${applicantDisplayName}</strong> applied to your campaign
+      <strong>"${gigTitle}"</strong> (${agencyName}). Review the application in Verza.`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title></head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <h1 style="color: #333; font-size: 22px;">New campaign applicant</h1>
+        <p style="color: #555; line-height: 1.6;">Hello,</p>
+        <p style="color: #555; line-height: 1.6;">${body}</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${campaignUrl}" style="${btnStyle}">Review application</a>
+        </div>
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          You also received an in-app notification about this application.
+        </p>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  for (const toEmail of recipientEmails) {
+    try {
+      await sgMail.send({
+        to: toEmail,
+        from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+        subject,
+        html,
+      });
+      logger.info(`Applicant email sent to ${toEmail} for campaign ${gigId}.`);
+    } catch (error) {
+      logger.error(`Failed to send applicant email to ${toEmail}:`, error);
+    }
+  }
+}
+
+/**
+ * Sends an email to agency team members when a creator submits a video or link for review.
+ * @param {!Array<string>} recipientEmails Distinct team inboxes to notify.
+ * @param {string} agencyName Display name of the brand/agency.
+ * @param {string} creatorName Display name of the submitting creator.
+ * @param {string} gigTitle Campaign title.
+ * @param {string} gigId Firestore gig id for deep link.
+ * @param {"video"|"link"} submissionKind Whether the submission is a file upload or link.
+ * @return {!Promise<void>}
+ */
+export async function sendBrandSubmissionReceivedEmail(
+  recipientEmails: string[],
+  agencyName: string,
+  creatorName: string,
+  gigTitle: string,
+  gigId: string,
+  submissionKind: "video" | "link"
+): Promise<void> {
+  if (recipientEmails.length === 0) return;
+  const sendgridKey = params.SENDGRID_API_KEY.value();
+  if (!sendgridKey) {
+    logger.error("SENDGRID_API_KEY not set, skipping submission received email.");
+    return;
+  }
+  sgMail.setApiKey(sendgridKey);
+
+  const appUrl = params.APP_URL.value();
+  const campaignUrl = `${appUrl}/campaigns/${gigId}`;
+
+  const emailLogoHeader = `
+    <div style="text-align: center; margin-bottom: 30px;">
+      <img src="https://app.tryverza.com/verza-icon.svg" alt="Verza" width="24" height="18"
+        style="vertical-align: middle; margin-right: 8px;">
+      <span style="font-weight: bold; font-size: 24px; color: #000000;
+        vertical-align: middle; font-family: sans-serif;">Verza</span>
+    </div>
+  `;
+
+  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
+    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+
+  const assetLabel = submissionKind === "link" ? "a video link" : "a new video";
+  const subject = `New submission on "${gigTitle}"`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="background-color: #f9f9f9; padding: 20px; font-family: sans-serif; margin: 0;">
+      <div style="max-width: 600px; margin: auto; padding: 30px; border: 1px solid #eee;
+        border-radius: 12px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        ${emailLogoHeader}
+        <h1 style="color: #333; font-size: 22px;">New creator submission</h1>
+        <p style="color: #555; line-height: 1.6;">Hello,</p>
+        <p style="color: #555; line-height: 1.6;">
+          <strong>${creatorName}</strong> submitted ${assetLabel} for your campaign
+          <strong>"${gigTitle}"</strong> (${agencyName}). Review it in Verza when you&apos;re ready.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${campaignUrl}" style="${btnStyle}">Review submission</a>
+        </div>
+        <p style="margin-top: 30px; font-size: 14px; color: #666;">
+          You also received an in-app notification about this submission.
+        </p>
+        <div style="text-align: center; border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
+          <p style="font-size: 12px; color: #999; margin: 0;">
+            Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
+          </p>
+          <div style="margin-top: 10px;">
+            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  for (const toEmail of recipientEmails) {
+    try {
+      await sgMail.send({
+        to: toEmail,
+        from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value()},
+        subject,
+        html,
+      });
+      logger.info(`Submission received email sent to ${toEmail} for campaigns/${gigId}.`);
+    } catch (error) {
+      logger.error(`Failed to send submission received email to ${toEmail}:`, error);
+    }
+  }
+}
+
+export const notifyBrandVideoSubmitted = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const userId = request.auth.uid;
+  const {gigId, submissionKind} = request.data as {
+    gigId?: string;
+    submissionKind?: "video" | "link";
+  };
+
+  if (!gigId || typeof gigId !== "string") {
+    throw new HttpsError("invalid-argument", "gigId is required.");
+  }
+
+  const kind: "video" | "link" = submissionKind === "link" ? "link" : "video";
+
+  try {
+    const gigSnap = await db.collection("gigs").doc(gigId).get();
+    if (!gigSnap.exists) {
+      throw new HttpsError("not-found", "Campaign not found.");
+    }
+    const gigData = gigSnap.data() as {
+      title: string;
+      brandId: string;
+      acceptedCreatorIds?: string[];
+    };
+
+    if (!gigData.acceptedCreatorIds?.includes(userId)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only accepted creators can notify the brand about submissions for this campaign."
+      );
+    }
+
+    const recipients = await getAgencyTeamNotificationEmails(gigData.brandId);
+    if (recipients.length === 0) return {success: true};
+
+    const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+    const agencyName = agencySnap.exists ?
+      ((agencySnap.data()?.name as string) || "Your agency") :
+      "Your agency";
+
+    const creatorSnap = await db.collection("users").doc(userId).get();
+    const creatorName = creatorSnap.exists ?
+      ((creatorSnap.data()?.displayName as string) || "A creator") :
+      "A creator";
+
+    await sendBrandSubmissionReceivedEmail(
+      recipients,
+      agencyName,
+      creatorName,
+      gigData.title,
+      gigId,
+      kind
+    );
+
+    return {success: true};
+  } catch (error: unknown) {
+    logger.error(`Error in notifyBrandVideoSubmitted for gig ${gigId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    const msg = error instanceof Error ? error.message : "Failed to send submission email.";
+    throw new HttpsError("internal", msg || "Failed to send submission email.");
+  }
+});
+
+export const notifyBrandCampaignApplicant = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const authUid = request.auth.uid;
+  const {gigId, applicantUserId, isAgencyAcceptance} = request.data as {
+    gigId?: string;
+    applicantUserId?: string;
+    isAgencyAcceptance?: boolean;
+  };
+
+  if (!gigId || typeof gigId !== "string") {
+    throw new HttpsError("invalid-argument", "gigId is required.");
+  }
+  if (!applicantUserId || typeof applicantUserId !== "string") {
+    throw new HttpsError("invalid-argument", "applicantUserId is required.");
+  }
+
+  try {
+    const gigSnap = await db.collection("gigs").doc(gigId).get();
+    if (!gigSnap.exists) {
+      throw new HttpsError("not-found", "Campaign not found.");
+    }
+    const gigData = gigSnap.data() as {
+      title: string;
+      brandId: string;
+      appliedCreatorIds?: string[];
+    };
+
+    if (!gigData.appliedCreatorIds?.includes(applicantUserId)) {
+      throw new HttpsError(
+        "permission-denied",
+        "Applicant is not on the pending list for this campaign."
+      );
+    }
+
+    const allowed = await canManageAgencyTeamEmail(authUid, gigData.brandId, applicantUserId);
+    if (!allowed) {
+      throw new HttpsError(
+        "permission-denied",
+        "You cannot send this notification for this applicant."
+      );
+    }
+
+    const recipients = await getAgencyTeamNotificationEmails(gigData.brandId);
+    if (recipients.length === 0) return {success: true};
+
+    const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
+    const agencyName = agencySnap.exists ?
+      ((agencySnap.data()?.name as string) || "Your agency") :
+      "Your agency";
+
+    const applicantSnap = await db.collection("users").doc(applicantUserId).get();
+    const applicantDisplayName = applicantSnap.exists ?
+      ((applicantSnap.data()?.displayName as string) || "A creator") :
+      "A creator";
+
+    await sendBrandCampaignApplicantEmails(
+      recipients,
+      agencyName,
+      applicantDisplayName,
+      gigData.title,
+      gigId,
+      Boolean(isAgencyAcceptance)
+    );
+
+    return {success: true};
+  } catch (error: unknown) {
+    logger.error(`Error in notifyBrandCampaignApplicant for gig ${gigId}:`, error);
+    if (error instanceof HttpsError) throw error;
+    const msg = error instanceof Error ? error.message : "Failed to send applicant email.";
+    throw new HttpsError("internal", msg || "Failed to send applicant email.");
+  }
+});
 
 export const notifyBrandCreatorJoined = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
   }
 
-  const {gigId, creatorName, isAgencyAcceptance} = request.data;
+  const {gigId, creatorName, isAgencyAcceptance, fromApplicationApproval} = request.data as {
+    gigId?: string;
+    creatorName?: string;
+    isAgencyAcceptance?: boolean;
+    fromApplicationApproval?: boolean;
+  };
   if (!gigId || !creatorName) {
     throw new HttpsError("invalid-argument", "gigId and creatorName are required.");
   }
@@ -1424,30 +1828,29 @@ export const notifyBrandCreatorJoined = onCall(async (request) => {
     }
     const gigData = gigSnap.data() as { title: string; brandId: string };
 
+    const recipients = await getAgencyTeamNotificationEmails(gigData.brandId);
+    if (recipients.length === 0) return {success: true};
+
     const agencySnap = await db.collection("agencies").doc(gigData.brandId).get();
     if (!agencySnap.exists) return {success: true};
     const agencyData = agencySnap.data() as { ownerId: string; name: string };
 
-    const ownerSnap = await db.collection("users").doc(agencyData.ownerId).get();
-    if (!ownerSnap.exists) return {success: true};
-    const ownerData = ownerSnap.data() as { email: string | null; displayName: string | null };
-
-    if (!ownerData.email) return {success: true};
-
     await sendCreatorSecuredEmail(
-      ownerData.email,
-      ownerData.displayName || agencyData.name,
+      recipients,
+      agencyData.name,
       creatorName,
       gigData.title,
       gigId,
-      isAgencyAcceptance ?? false
+      isAgencyAcceptance ?? false,
+      Boolean(fromApplicationApproval)
     );
 
     return {success: true};
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`Error in notifyBrandCreatorJoined for gig ${gigId}:`, error);
     if (error instanceof HttpsError) throw error;
-    throw new HttpsError("internal", error.message || "Failed to send notification email.");
+    const msg = error instanceof Error ? error.message : "Failed to send notification email.";
+    throw new HttpsError("internal", msg || "Failed to send notification email.");
   }
 });
 
@@ -1502,8 +1905,9 @@ export const submitFeedback = onCall(async (request) => {
   try {
     await sgMail.send(msg);
     return {success: true};
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("Error sending feedback email:", error);
-    throw new HttpsError("internal", error.message || "Failed to send feedback.");
+    const msg = error instanceof Error ? error.message : "Failed to send feedback.";
+    throw new HttpsError("internal", msg || "Failed to send feedback.");
   }
 });
