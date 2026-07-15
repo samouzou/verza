@@ -16,6 +16,7 @@ import {
   needsRecipientServiceAgreement,
   transferToConnectAccountIfNeeded,
 } from "./stripeConnect";
+import {fulfillStoreSale} from "../store";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -563,6 +564,15 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           } catch (error) {
             logger.error(`Error updating user credits in handlePaymentSuccess for user ${targetUserId}:`, error);
           }
+        }
+      } else if (purchaseType === "storeSale" && metadata.productId) {
+        try {
+          await fulfillStoreSale(stripe, metadata, paymentIntent.id, latestCharge);
+        } catch (error) {
+          logger.error(
+            `Error fulfilling store sale for payment ${paymentIntent.id}:`,
+            error
+          );
         }
       } else if (purchaseType === "gigFunding" && gigId && agencyId) {
         try {

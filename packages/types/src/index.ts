@@ -296,6 +296,49 @@ export interface UserProfileFirestoreData {
   hasCompletedCareerPath?: boolean;
   careerPathResult?: "monetized" | "emerging" | null;
   hasCompletedBrandJourney?: boolean;
+
+  /** Public storefront slug for creator Store (/c/{storeSlug}). */
+  storeSlug?: string | null;
+}
+
+/** Creator-sold digital product (fan commerce / Whop-style Store). */
+export type StoreProductStatus = "draft" | "active" | "archived";
+
+export interface StoreProduct {
+  id: string;
+  creatorId: string;
+  /** Denormalized for public storefront (buyers can't read private profiles). */
+  creatorDisplayName?: string | null;
+  creatorAvatarUrl?: string | null;
+  title: string;
+  description: string;
+  /** Price in cents (USD). */
+  priceCents: number;
+  currency: "usd";
+  /** URL or content delivered after purchase (download, invite link, etc.). */
+  accessUrl: string;
+  status: StoreProductStatus;
+  salesCount: number;
+  revenueCents: number;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export type StorePurchaseStatus = "paid" | "refunded";
+
+export interface StorePurchase {
+  id: string;
+  productId: string;
+  productTitle: string;
+  creatorId: string;
+  buyerEmail: string;
+  amountCents: number;
+  platformFeeCents: number;
+  creatorNetCents: number;
+  paymentIntentId: string;
+  accessUrl: string;
+  status: StorePurchaseStatus;
+  createdAt: Timestamp;
 }
 
 // Credit transaction

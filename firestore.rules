@@ -266,5 +266,25 @@ service cloud.firestore {
     match /linkedin_os_prompts/{docId} {
       allow read, write: if false;
     }
+
+    // Creator Store — digital products sold to fans via Connect checkout
+    match /storeProducts/{productId} {
+      allow read: if resource.data.status == "active" ||
+        (request.auth != null && isOwner(resource.data.creatorId));
+      allow create: if request.auth != null &&
+        isOwner(request.resource.data.creatorId) &&
+        request.resource.data.creatorId == request.auth.uid;
+      allow update: if request.auth != null && isOwner(resource.data.creatorId) &&
+        request.resource.data.creatorId == resource.data.creatorId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'salesCount', 'revenueCents', 'creatorId'
+        ]);
+      allow delete: if request.auth != null && isOwner(resource.data.creatorId);
+    }
+
+    match /storePurchases/{purchaseId} {
+      allow read: if request.auth != null && isOwner(resource.data.creatorId);
+      allow write: if false;
+    }
   }
 }
