@@ -263,19 +263,19 @@
     }
 
     .list li {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 0.85rem;
-      align-items: start;
+      position: relative;
+      padding-left: 1.3rem;
       font-size: 1.02rem;
       color: var(--paper-dim);
     }
 
     .list li::before {
       content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55rem;
       width: 0.45rem;
       height: 0.45rem;
-      margin-top: 0.55rem;
       border-radius: 999px;
       background: var(--emerald);
       box-shadow: 0 0 12px rgba(22, 192, 136, 0.45);
@@ -519,7 +519,182 @@
       50% { opacity: 0.8; }
     }
 
-    .slide.cover h1 { max-width: 12ch; }
+    /* Market research table */
+    .market-table-wrap {
+      margin-top: 1.25rem;
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.18);
+      background: rgba(18, 26, 23, 0.85);
+    }
+
+    .market-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 36rem;
+    }
+
+    .market-table th,
+    .market-table td {
+      padding: 0.75rem 0.9rem;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    .market-table th {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .market-table td:first-child {
+      font-weight: 600;
+      color: var(--paper);
+      white-space: nowrap;
+    }
+
+    .market-table td.num-cell {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.15rem;
+      color: var(--emerald);
+      white-space: nowrap;
+    }
+
+    .market-table td.basis {
+      color: var(--mist);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .market-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .source-line {
+      margin-top: 0.85rem;
+      font-size: 0.7rem;
+      color: var(--mist);
+      max-width: 48rem;
+      line-height: 1.45;
+    }
+
+    .ask-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .ask-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .ask-grid .card .label {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      margin-top: 1.25rem;
+      max-width: 44rem;
+      border-left: 2px solid rgba(22, 192, 136, 0.35);
+      padding-left: 1.25rem;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding: 0.85rem 0;
+    }
+
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -1.55rem;
+      top: 1.15rem;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 999px;
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(22, 192, 136, 0.2);
+    }
+
+    .timeline-item .when {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    .timeline-item .what {
+      font-size: 0.95rem;
+      color: var(--paper-dim);
+    }
+
+    .timeline-item .what strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .team-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (min-width: 720px) {
+      .team-grid { grid-template-columns: 1.2fr 1fr; }
+    }
+
+    .team-card {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 1.1rem;
+      align-items: start;
+    }
+
+    .team-photo {
+      width: 5.5rem;
+      height: 5.5rem;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(22, 192, 136, 0.35);
+      box-shadow: 0 0 0 4px rgba(22, 192, 136, 0.08);
+      background: rgba(11, 16, 14, 0.6);
+    }
+
+    .team-card .label {
+      margin-bottom: 0.2rem;
+    }
+
+    .team-card h3 {
+      margin-bottom: 0.55rem;
+    }
+
+    @media (max-width: 520px) {
+      .team-card {
+        grid-template-columns: 1fr;
+        justify-items: start;
+      }
+    }
+
+    @media print {
+      .market-table { font-size: 0.7rem; }
+      .market-table td.num-cell { color: #0E7C5A; }
+    }
+
+    .slide.cover h1 { max-width: 14ch; }
 
     @media (max-width: 640px) {
       .stack-row { grid-template-columns: 1fr; gap: 0.25rem; }
@@ -547,206 +722,200 @@
       <img src="/verza-icon.svg" alt="" width="28" height="20" />
       Verza
     </a>
-    <div class="nav-meta">Seed · <strong>$1,000,000</strong></div>
+    <div class="nav-meta">Seed · <strong>$1M SAFE</strong></div>
   </header>
   <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
 
   <!-- 01 -->
-  <section class="slide cover" data-n="01 / 12" id="cover">
-    <p class="eyebrow">Seed round</p>
-    <h1>The operating system for creator campaigns that pay for results.</h1>
+  <section class="slide cover" data-n="01 / 14" id="cover">
+    <p class="eyebrow">Seed round · creator-first</p>
+    <h1>Get creators paid. Matched. And free of the gatekeepers.</h1>
     <p class="lede">
-      Verza is infrastructure for brands and creators to run <strong>trackable performance campaigns</strong>, settle money globally, and increasingly monetize audiences — not just post and invoice.
+      Verza is the operating system for creators to <strong>earn from brand work and their own audience</strong> — with contracts, attribution, wallets, and global payouts in one place.
     </p>
     <div class="ask-pill">
       <span class="amt">$1M</span>
-      <span class="lbl">raising · seed</span>
+      <span class="lbl">post-money SAFE</span>
     </div>
     <p class="foot">tryverza.com · app.tryverza.com · July 2026</p>
   </section>
 
   <!-- 02 -->
-  <section class="slide" data-n="02 / 12" id="problem">
+  <section class="slide" data-n="02 / 14" id="problem">
     <p class="eyebrow">Problem</p>
-    <h2>Brands spend billions on creators. Most of it is still unattributed faith.</h2>
+    <h2>Creators built the audiences. Platforms and brands still own the economics.</h2>
     <ul class="list">
-      <li>Flat sponsorship fees with no click or conversion truth.</li>
-      <li>Spreadsheets, shared codes, screenshot “proof,” and delayed invoices.</li>
-      <li>Affiliate networks weren’t built for creator briefs, submissions, and global payouts.</li>
-      <li>Ad platforms optimize for their metrics — not named creators who drive your store.</li>
+      <li>Creators wait <strong>45+ days</strong> (often 60–120) to get paid for work already delivered.</li>
+      <li>They spend hours chasing invoices instead of creating.</li>
+      <li>FB, IG, YouTube keep moving the monetization goalposts — gatekeeping audiences creators built.</li>
+      <li>Loyal mid-size followings often beat vanity 1M accounts stuck on platform RPM rules.</li>
+      <li>Matching with brands that already need their niche still takes double work and cold outreach.</li>
+      <li>Brand campaign cycles drag — planning and fulfillment stretch while creators sit idle.</li>
+      <li>Global South creators stay locked into differential pricing and weaker payout rails.</li>
     </ul>
-    <p class="lede" style="margin-top:1.75rem;margin-bottom:0">
-      The missing piece is <strong>campaign → attribution → wallet → payout</strong> in one system.
-    </p>
   </section>
 
   <!-- 03 -->
-  <section class="slide" data-n="03 / 12" id="insight">
-    <p class="eyebrow">Insight</p>
-    <h2>Creators are a sales channel — treat them like one.</h2>
-    <p class="lede">
-      The winning stack looks less like a marketplace directory and more like <strong>financial rails + attribution</strong>: unique links and codes per creator, wallet-backed rewards, contracts when you need them, and payouts that clear.
-    </p>
+  <section class="slide" data-n="03 / 14" id="solution">
+    <p class="eyebrow">Solution</p>
+    <h2>Verza puts creators at the center of the money and the match.</h2>
     <div class="grid-2">
       <div class="card">
-        <h3>Brand side</h3>
-        <p>Launch hybrid or pure-performance campaigns. See per-creator clicks and store conversions. Fund rewards from a wallet.</p>
+        <h3>Get paid</h3>
+        <p>Contracts, invoices, wallets, Stripe Connect, and global payout paths — so settlement isn’t a side hustle.</p>
       </div>
       <div class="card">
-        <h3>Creator side</h3>
-        <p>Join, get a unique link or code, submit work, earn performance bonuses, cash out via Connect or global payout rails.</p>
+        <h3>Get matched</h3>
+        <p>Campaigns with briefs and Optic discovery so brands find niche creators without months of spreadsheet casting.</p>
+      </div>
+      <div class="card">
+        <h3>Own the outcome</h3>
+        <p>Per-creator links and codes, performance rewards (CPC/CPA), and a Store to monetize fans off-platform.</p>
+      </div>
+      <div class="card">
+        <h3>Stay global</h3>
+        <p>Payout infrastructure built for creators outside US-only banking — including Global South settlement paths.</p>
       </div>
     </div>
   </section>
 
   <!-- 04 -->
-  <section class="slide" data-n="04 / 12" id="product">
+  <section class="slide" data-n="04 / 14" id="product">
     <p class="eyebrow">Product</p>
-    <h2>One platform. Campaign economics that finally close the loop.</h2>
+    <h2>One stack: match → deliver → track → pay → own audience.</h2>
     <dl class="stack">
       <div class="stack-row">
         <dt>Campaigns</dt>
-        <dd>Briefs, capacity, Verza Score gates, fixed base + CPC/CPA performance rewards.</dd>
-      </div>
-      <div class="stack-row">
-        <dt>Attribution</dt>
-        <dd>Per-creator tracking links (<code style="color:var(--emerald)">/l/…</code>) and promo codes; Shopify &amp; WooCommerce conversion webhooks.</dd>
+        <dd>Join briefs, submit work, earn fixed base + performance rewards — not screenshot proof.</dd>
       </div>
       <div class="stack-row">
         <dt>Money</dt>
-        <dd>Wallets, escrow funding, contracts &amp; invoices, Stripe Connect + global payout paths.</dd>
+        <dd>Wallets, contract invoices, Connect cash-out, global payout options.</dd>
       </div>
       <div class="stack-row">
-        <dt>Growth ops</dt>
-        <dd>Optic discovery, LinkedIn OS for brand LinkedIn, creator Store for audience commerce.</dd>
+        <dt>Attribution</dt>
+        <dd>Unique links (<code style="color:var(--emerald)">/l/…</code>) and promo codes tied to store conversions.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Optic + Store</dt>
+        <dd>AI discovery into live campaigns; digital products so followers pay creators directly.</dd>
       </div>
     </dl>
   </section>
 
-  <!-- 05 -->
-  <section class="slide" data-n="05 / 12" id="flow">
-    <p class="eyebrow">Mechanics</p>
-    <h2>How a performance campaign works on Verza.</h2>
-    <div class="flow" aria-label="Campaign flow">
-      <span>Brief &amp; rates</span><i>→</i>
-      <span>Creators join</span><i>→</i>
-      <span>Unique link / code</span><i>→</i>
-      <span>Clicks &amp; orders</span><i>→</i>
-      <span>Wallet rewards</span><i>→</i>
-      <span>Connect payout</span>
+  <!-- 05 MARKET TABLE — Jinmi ask -->
+  <section class="slide" data-n="05 / 14" id="market">
+    <p class="eyebrow">Market · researched</p>
+    <h2>Creator TAM, SAM, and the cost of slow matching.</h2>
+    <div class="market-table-wrap">
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Estimate</th>
+            <th>Basis / source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Creator TAM — US</td>
+            <td class="num-cell">~$51–70B</td>
+            <td class="basis">U.S. creator economy ~$50.9B (Market.us, 2024) with 2025 reads near ~$70B in independent tallies. Narrower U.S. creator <em>ad</em> spend: ~$37B (IAB, 2025).</td>
+          </tr>
+          <tr>
+            <td>Creator TAM — Africa</td>
+            <td class="num-cell">~$4B → $17.8B</td>
+            <td class="basis">Africa creator economy ~$3.08B (2023), ~28.5% CAGR → ~$4B+ mid-decade; projected <strong>$17.84B by 2030</strong> (TMCon / Communiqué Africa Creator Economy reports).</td>
+          </tr>
+          <tr>
+            <td>Creator TAM — Rest of World</td>
+            <td class="num-cell">~$180–200B</td>
+            <td class="basis">Global creator economy ~$250–314B (2025–26 research range). RoW ≈ global − US − Africa (e.g. ~$254B − ~$51B − ~$4B ≈ <strong>~$199B</strong>).</td>
+          </tr>
+          <tr>
+            <td>Creator SAM (Verza)</td>
+            <td class="num-cell">~$33–40B</td>
+            <td class="basis">Serviceable market = brand-deal / influencer spend that needs matching, tracking, and payout rails. Global influencer marketing ~$32.6–33B (2025; CreatorIQ / Statista); U.S. creator ad investment alone ~$37B (IAB).</td>
+          </tr>
+          <tr>
+            <td>Unmatched / stalled campaigns (3+ mo)</td>
+            <td class="num-cell">~15–25%</td>
+            <td class="basis">Industry: manual casting often runs <strong>weeks to months</strong> (Cirqle, agency ops reports). Verza model: of active brand creator programs, estimate <strong>15–25%</strong> sit 90+ days without a matched creator cohort — driven by discovery + outreach throughput, not lack of talent.</td>
+          </tr>
+          <tr>
+            <td>Time lost (non-execution)</td>
+            <td class="num-cell">~70–200 hrs / campaign</td>
+            <td class="basis">~2 hrs per creator from discovery → first activation (manual); mid-size shortlists burn <strong>70+ hrs</strong> on sourcing alone (Influship / ops benchmarks). At ~2,000 outreaches to land ~100 activations, load exceeds one FTE-month before content ships.</td>
+          </tr>
+          <tr>
+            <td>Engagement / work lost to lag</td>
+            <td class="num-cell">20–62%</td>
+            <td class="basis"><strong>20%</strong> of creators significantly cut platform activity when payouts lag; <strong>+42%</strong> cut slightly (Runa Content Creators study, 2025). <strong>68%</strong> paid late in the last year; avg <strong>47 days past due</strong> (Visa/Karat 2025). IAB UK: 56% face late pay; 74% have stopped working with a brand after feeling undervalued.</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-    <div class="grid-3" style="margin-top:2rem">
-      <div class="card">
-        <h3>Hybrid by default</h3>
-        <p>Optional fixed base + performance upside. Or $0 base and pure pay-for-results from wallet.</p>
-      </div>
-      <div class="card">
-        <h3>Per-creator truth</h3>
-        <p>Dashboard rows for each partner: code, clicks, conversions, estimated bonus.</p>
-      </div>
-      <div class="card">
-        <h3>Settlement</h3>
-        <p>Rewards accrue against agency wallet; creators cash out through existing payout infrastructure.</p>
-      </div>
-    </div>
+    <p class="source-line">
+      Published figures cited above; stalled-campaign % and hour ranges are Verza working estimates from industry cycle benchmarks (not a single census). Diligence appendix available with source links.
+    </p>
   </section>
 
   <!-- 06 -->
-  <section class="slide" data-n="06 / 12" id="why-now">
-    <p class="eyebrow">Why now</p>
-    <h2>Creator spend is scaling faster than measurement standards.</h2>
-    <div class="grid-2">
-      <div class="card">
-        <div class="num">$37B</div>
-        <h3>U.S. creator ad spend, 2025</h3>
-        <p>American brands put ~$37B into creator advertising — growing about four times faster than media overall (IAB).</p>
-      </div>
-      <div class="card">
-        <div class="num">$33B</div>
-        <h3>Global influencer marketing</h3>
-        <p>A ~$33B category still run on fragmented tools, shared codes, and post-hoc “proof.”</p>
-      </div>
-      <div class="card">
-        <div class="num">ROI gap</div>
-        <h3>Budgets follow proof</h3>
-        <p>Marketers’ hardest problems: finding the right creators, proving ROI, and stitching tools together.</p>
-      </div>
-      <div class="card">
-        <div class="num">Rails ready</div>
-        <h3>Attribution meets payouts</h3>
-        <p>Store webhooks plus Connect make performance campaigns operationally real — not a spreadsheet promise.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- 07 -->
-  <section class="slide" data-n="07 / 12" id="market">
-    <p class="eyebrow">Market</p>
-    <h2>We sell picks and shovels at the intersection of Influencer × Affiliate × Fintech.</h2>
+  <section class="slide" data-n="06 / 14" id="why-now">
+    <p class="eyebrow">Why this matters</p>
+    <h2>Lag isn’t a paperwork issue — it shrinks creator output and brand ROI.</h2>
     <div class="grid-3">
       <div class="card">
-        <h3>TAM</h3>
-        <p>The broader creator economy — brand deals, platform payouts, commerce, and the infrastructure underneath.</p>
+        <div class="num">47d</div>
+        <h3>Avg days past due</h3>
+        <p>Late brand payments are normal, not edge cases — cash stress forces creators to stop creating.</p>
       </div>
       <div class="card">
-        <h3>SAM</h3>
-        <p>Brand and agency spend on creator campaigns that need tracking and settlement — the performance slice of influencer marketing.</p>
+        <div class="num">20%</div>
+        <h3>Hard cut in activity</h3>
+        <p>One in five creators significantly reduce work when payouts lag — compounding into missed campaigns.</p>
       </div>
       <div class="card">
-        <h3>Beachhead</h3>
-        <p>DTC and e‑commerce on Shopify or Woo, plus agencies running multi-creator cohorts who hate spreadsheet ops.</p>
-      </div>
-    </div>
-    <p class="lede" style="margin-top:1.75rem;margin-bottom:0">
-      Next wedge: creator <strong>Store</strong> — fan commerce on the same Connect rails — turns Verza from campaign infrastructure into two-sided monetization.
-    </p>
-  </section>
-
-  <!-- 08 -->
-  <section class="slide" data-n="08 / 12" id="model">
-    <p class="eyebrow">Business model</p>
-    <h2>Take rate on the money that moves.</h2>
-    <ul class="list">
-      <li>Platform fees on campaign / gig payouts and performance settlement.</li>
-      <li>Contract &amp; invoice payment rails (creator and agency flows).</li>
-      <li>SaaS surfaces: agency subscriptions, Optic credits / billing.</li>
-      <li>Creator Store: application fee on fan checkouts via Connect.</li>
-    </ul>
-    <p class="lede" style="margin-top:1.5rem">
-      Strategy: own the <strong>transaction graph</strong> between brands, creators, and fans — not media inventory.
-    </p>
-  </section>
-
-  <!-- 09 -->
-  <section class="slide" data-n="09 / 12" id="wedge">
-    <p class="eyebrow">Wedge</p>
-    <h2>Why Verza compounds.</h2>
-    <div class="grid-2">
-      <div class="card">
-        <h3>Full-loop product</h3>
-        <p>Brief → accept → track → convert → pay. Competitors usually own one slice.</p>
-      </div>
-      <div class="card">
-        <h3>Payout DNA</h3>
-        <p>Connect, wallets, global payout paths already battle-tested for creator settlement.</p>
-      </div>
-      <div class="card">
-        <h3>Performance-native</h3>
-        <p>CPC/CPA + store webhooks are first-class — not a spreadsheet afterthought.</p>
-      </div>
-      <div class="card">
-        <h3>AI ops layer</h3>
-        <p>Optic + LinkedIn OS help agencies find and message creators without bolting on five tools.</p>
+        <div class="num">Months</div>
+        <h3>Match cycles</h3>
+        <p>Manual discovery + outreach turns “we need creators” into quarters of non-execution.</p>
       </div>
     </div>
   </section>
 
-  <!-- 10 -->
-  <section class="slide" data-n="10 / 12" id="traction">
+  <!-- 07 TEAM -->
+  <section class="slide" data-n="07 / 14" id="team">
+    <p class="eyebrow">Company</p>
+    <h2>Founded June 23, 2025. Built for creators, by operators who’ve shipped fintech.</h2>
+    <div class="team-grid">
+      <div class="card team-card">
+        <img class="team-photo" src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="88" height="88" />
+        <div>
+          <p class="label">Founder &amp; CEO</p>
+          <h3>Serge Amouzou</h3>
+          <p>Award-winning fintech entrepreneur, 15+ years. Built Verza himself. Previously founded Datatrixs (AI insights) and Delect (restaurant fintech). Deep expertise scaling money tools for independent professionals.</p>
+        </div>
+      </div>
+      <div class="card team-card">
+        <img class="team-photo" src="/Nercy-Escobedo-profile.jpg" alt="Nercy Escobedo" width="88" height="88" />
+        <div>
+          <p class="label">COO</p>
+          <h3>Nercy Escobedo</h3>
+          <p>15+ years in financial systems &amp; ops — Bloomberg, Morgan Stanley, fintech. Trading systems for 75+ accounts incl. Google, Apple, Wells Fargo, BlackRock. PMP; BS Electrical/Computer Engineering. Joined early 2026.</p>
+        </div>
+      </div>
+    </div>
+    <p class="lede" style="margin-top:1.5rem;margin-bottom:0">
+      Early backers include <strong>Ross Pomerantz</strong> (Stanford MBA; Corporate Bro, 1M+ followers; Corp Capital), <strong>Carlos Fraser</strong> (Enrolled Agent; Taxko), and <strong>Jinmi O.</strong> (creative; former TPM, Global at Meta) — angels who know creator ops, tax, and large-scale product from the inside.
+    </p>
+  </section>
+
+  <!-- 08 TRACTION -->
+  <section class="slide" data-n="08 / 14" id="traction">
     <p class="eyebrow">Traction</p>
-    <h2>Paying brands. Reach that compounds. Campaigns that settle.</h2>
+    <h2>Paying logos, recurring SaaS, and campaigns that settle.</h2>
     <p class="lede">
-      Live on <strong>app.tryverza.com</strong>. Brands run campaigns; Optic sources creators for them — so reach beats seat count as the signal that matters.
+      Live on <strong>app.tryverza.com</strong>. Growth is logo quality + retention first — then GMV. Optic sources creators so reach isn’t gated on a closed network.
     </p>
 
     <div class="brands" aria-label="Paying brands">
@@ -762,7 +931,7 @@
           <img src="/cais-white.png" alt="Center for AI Safety logo" />
         </div>
         <span class="name">Center for AI Safety</span>
-        <span class="role">Paying brand</span>
+        <span class="role">Paying brand · SaaS since Mar 2026 · 0 churn</span>
       </div>
     </div>
 
@@ -770,25 +939,138 @@
       <div class="card">
         <div class="num">36.3M</div>
         <h3>Followers across platforms</h3>
-        <p>Creators and agencies on Verza. Optic sources talent into campaigns — we don’t wait on a closed network to activate reach.</p>
+        <p>Creators and agencies on Verza — Optic activates reach into live campaigns.</p>
       </div>
       <div class="card">
         <div class="num">$15K</div>
-        <h3>GMV</h3>
-        <p>In the first month of launching campaigns on the platform.</p>
+        <h3>Campaign GMV</h3>
+        <p>First month of launching campaigns on the platform.</p>
       </div>
       <div class="card">
         <div class="num">$5K</div>
         <h3>Creator payouts</h3>
-        <p>Already settled through Verza’s wallet and Connect rails.</p>
+        <p>Settled through Verza wallet and Connect rails.</p>
+      </div>
+    </div>
+
+    <div class="timeline" aria-label="Customer growth profile">
+      <div class="timeline-item">
+        <div class="when">Jun 23, 2025</div>
+        <div class="what"><strong>Company founded</strong> — Verza incorporated; product build begins.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">2025</div>
+        <div class="what"><strong>~$54K ARR booked</strong> — early agency/creator infrastructure revenue on the books.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">Mar 2026 → now</div>
+        <div class="what"><strong>CAIS on subscription</strong> — Center for AI Safety live as a recurring customer; <strong>zero churn</strong> since start. That’s the customer-growth signal: logo retention on SaaS, not just one-off campaign spend.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">Mid 2026</div>
+        <div class="what"><strong>Campaigns + Illuminate</strong> — performance campaigns live; $15K GMV in month one; $5K paid to creators; 36.3M follower reach Optic can activate.</div>
       </div>
     </div>
   </section>
 
-  <!-- 11 -->
-  <section class="slide" data-n="11 / 12" id="funds">
+  <!-- 09 FINANCIALS -->
+  <section class="slide" data-n="09 / 14" id="financials">
+    <p class="eyebrow">Financials &amp; timeline</p>
+    <h2>Revenue to date, spend, and what the $1M buys on the clock.</h2>
+    <div class="market-table-wrap">
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Figure</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Year founded</td>
+            <td class="num-cell">Jun 23, 2025</td>
+            <td class="basis">~13 months from founding to this raise.</td>
+          </tr>
+          <tr>
+            <td>Revenue / ARR booked</td>
+            <td class="num-cell">~$54K</td>
+            <td class="basis">2025 actual ARR booked (agency/creator infrastructure). Separate from campaign GMV below.</td>
+          </tr>
+          <tr>
+            <td>Campaign GMV (YTD signal)</td>
+            <td class="num-cell">$15K</td>
+            <td class="basis">First month of campaign launches on-platform. Creator payouts settled: <strong>$5K</strong>.</td>
+          </tr>
+          <tr>
+            <td>SaaS retention</td>
+            <td class="num-cell">0% churn</td>
+            <td class="basis">CAIS on subscription since <strong>March 2026</strong> — logo retention is the growth-profile proof before scale marketing spend.</td>
+          </tr>
+          <tr>
+            <td>Operational spend (to date)</td>
+            <td class="num-cell">Lean</td>
+            <td class="basis">Founder-built product (Serge); COO added early 2026. No large burn engine yet — monthly burn schedule available on request.</td>
+          </tr>
+          <tr>
+            <td>Projected spend (raise)</td>
+            <td class="num-cell">$1M / 18 mo</td>
+            <td class="basis">45% product/eng · 25% GTM · 15% supply · 10% ops · 5% reserve (see Use of funds).</td>
+          </tr>
+          <tr>
+            <td>Timeline to milestones</td>
+            <td class="num-cell">18 months</td>
+            <td class="basis"><strong>0–6 mo:</strong> deepen Optic + Store, design-partner logos. <strong>6–12 mo:</strong> GTM hire, repeatable creator→campaign playbooks. <strong>12–18 mo:</strong> Series A metrics — net revenue, retention, GMV run-rate.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 08 -->
+  <section class="slide" data-n="10 / 14" id="model">
+    <p class="eyebrow">Business model</p>
+    <h2>Take rate on money that moves to creators.</h2>
+    <ul class="list">
+      <li>Platform fees on campaign payouts and performance settlement.</li>
+      <li>Contract &amp; invoice payment rails.</li>
+      <li>SaaS: agency subscriptions, Optic credits.</li>
+      <li>Creator Store: application fee on fan checkouts via Connect.</li>
+    </ul>
+  </section>
+
+  <!-- 09 WHY $1M -->
+  <section class="slide" data-n="11 / 14" id="why-ask">
+    <p class="eyebrow">The financial ask</p>
+    <h2>Why $1M — and how we sized it.</h2>
+    <div class="ask-grid">
+      <div class="card">
+        <p class="label">Instrument</p>
+        <h3>Post-money SAFE</h3>
+        <p>Equity via SAFE — not debt. Standard seed instrument; valuation cap set with this round.</p>
+      </div>
+      <div class="card">
+        <p class="label">Amount</p>
+        <h3>$1,000,000</h3>
+        <p>Bottoms-up 18-month operating plan to ship Store + Optic scale, hire, and GTM — not a round number for optics.</p>
+      </div>
+      <div class="card">
+        <p class="label">How we got $1M</p>
+        <h3>Hire + burn math</h3>
+        <p>~$450k product/eng (2–3 hires), $250k GTM, $150k supply, $100k ops/compliance, $50k reserve ≈ 18 months to category milestones.</p>
+      </div>
+      <div class="card">
+        <p class="label">Valuation</p>
+        <h3>Cap negotiated on SAFE</h3>
+        <p>Post-money SAFE with a valuation cap agreed with investors in this raise. Happy to walk comps and ownership in diligence.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide" data-n="12 / 14" id="funds">
     <p class="eyebrow">Use of funds · $1M</p>
-    <h2>18 months to category ownership of performance creator campaigns.</h2>
+    <h2>18 months to make fast pay and fast match the default.</h2>
     <div class="funds">
       <div class="fund-row">
         <span class="pct">45%</span>
@@ -831,26 +1113,45 @@
         <span class="amt">$50k</span>
       </div>
     </div>
-    <ul class="list" style="margin-top:1.75rem">
-      <li>Ship Store + deeper commerce attribution; harden Optic / LinkedIn OS for agencies.</li>
-      <li>Hire 2–3 engineers + 1 GTM lead; founder-led sales to DTC &amp; agencies.</li>
-      <li>Design partners that create reusable playbooks and case studies.</li>
-    </ul>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide" data-n="13 / 14" id="wedge">
+    <p class="eyebrow">Wedge</p>
+    <h2>Why Verza compounds for creators.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Full loop</h3>
+        <p>Match → deliver → track → pay → fan Store. Most tools own one slice.</p>
+      </div>
+      <div class="card">
+        <h3>Payout DNA</h3>
+        <p>Connect + global rails already shipping — including outside US-only banking.</p>
+      </div>
+      <div class="card">
+        <h3>Performance-native</h3>
+        <p>CPC/CPA and store webhooks so creators get paid for outcomes, not vibes.</p>
+      </div>
+      <div class="card">
+        <h3>Optic</h3>
+        <p>AI discovery shortens the months brands waste finding the right niche creator.</p>
+      </div>
+    </div>
   </section>
 
   <!-- 12 -->
-  <section class="slide" data-n="12 / 12" id="ask">
+  <section class="slide" data-n="14 / 14" id="ask">
     <p class="eyebrow">The ask</p>
-    <h2>Raise $1M to make “pay creators for outcomes” the default.</h2>
+    <h2>$1M on a post-money SAFE to free creators from slow pay and slow match.</h2>
     <p class="lede">
-      We’re building the financial and attribution layer for the creator channel — campaigns today, audience commerce next. If you back infrastructure for how brands buy culture, let’s talk.
+      If you back infrastructure that puts creators first — settlement, matching, and audience monetization — let’s talk.
     </p>
     <div class="ask-pill">
       <span class="amt">$1,000,000</span>
-      <span class="lbl">seed · instrument TBD</span>
+      <span class="lbl">seed · post-money SAFE</span>
     </div>
     <div class="cta-row">
-      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Verza%20Seed%20%C2%B7%20%241M">Email founder</a>
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Verza%20Seed%20%C2%B7%20%241M%20SAFE">Email founder</a>
       <a class="btn btn-ghost" href="https://app.tryverza.com" target="_blank" rel="noopener">Open the product</a>
       <a class="btn btn-ghost" href="https://tryverza.com" target="_blank" rel="noopener">tryverza.com</a>
     </div>
