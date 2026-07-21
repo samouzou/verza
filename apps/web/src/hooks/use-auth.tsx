@@ -63,8 +63,13 @@ export interface UserProfile {
   stripePayoutsEnabled?: boolean;
 
   // Payout Infrastructure
-  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin' | 'inflow';
   globalPayoutRecipientId?: string | null;
+  inflowSubMerchantId?: string | null;
+  inflowKycStatus?: string | null;
+  inflowKycReady?: boolean;
+  inflowPayoutCountry?: string | null;
+  inflowPayoutAccountId?: string | null;
 
   // Verza Wallet
   walletBalance?: number;
@@ -431,6 +436,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
               payoutMethod: firestoreUserData.payoutMethod,
               globalPayoutRecipientId: firestoreUserData.globalPayoutRecipientId,
+              inflowSubMerchantId: firestoreUserData.inflowSubMerchantId,
+              inflowKycStatus: firestoreUserData.inflowKycStatus,
+              inflowKycReady: firestoreUserData.inflowKycReady,
+              inflowPayoutCountry: firestoreUserData.inflowPayoutCountry,
+              inflowPayoutAccountId: firestoreUserData.inflowPayoutAccountId,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               hasCompletedCareerPath: firestoreUserData.hasCompletedCareerPath || false,
               hasCompletedBrandJourney: firestoreUserData.hasCompletedBrandJourney || false,

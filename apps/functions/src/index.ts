@@ -26,6 +26,13 @@ import {
 } from "./payments";
 
 import {
+  createInflowSubMerchant,
+  syncInflowKycStatus,
+  getInflowBankForm,
+  registerInflowBankAccount,
+} from "./payments/inflowConnect";
+
+import {
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
@@ -139,6 +146,10 @@ export {
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
   initiateCreatorPayout,
+  createInflowSubMerchant,
+  syncInflowKycStatus,
+  getInflowBankForm,
+  registerInflowBankAccount,
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,

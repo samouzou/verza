@@ -18,6 +18,7 @@ export const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 export const YOUTUBE_API_KEY = defineSecret("YOUTUBE_API_KEY");
 export const GMAIL_OAUTH_CLIENT_SECRET = defineSecret("GMAIL_OAUTH_CLIENT_SECRET");
 export const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
+export const INFLOW_API_KEY = defineSecret("INFLOW_API_KEY");
 
 // TikTok Secrets
 export const TIKTOK_CLIENT_SECRET = defineSecret("TIKTOK_CLIENT_SECRET");
@@ -80,6 +81,12 @@ export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFOR
   default: "",
 });
 
+/** Inflow Connect marketplace user id (origin for sub-merchant transfers). */
+export const INFLOW_MARKETPLACE_USER_ID = defineString("INFLOW_MARKETPLACE_USER_ID", {
+  description: "Inflowpay marketplace account user id (usr_…).",
+  default: "",
+});
+
 /** Base URL of the Cloud Run (or local) Optic worker that runs Playwright discovery. */
 export const OPTIC_WORKER_URL = defineString("OPTIC_WORKER_URL", {
   default: "",
@@ -112,3 +119,9 @@ export const GMAIL_OAUTH_CLIENT_ID = defineString("GMAIL_OAUTH_CLIENT_ID", {
 
 export const TWILIO_ACCOUNT_SID = defineString("TWILIO_ACCOUNT_SID", {default: ""});
 export const TWILIO_PHONE_NUMBER = defineString("TWILIO_PHONE_NUMBER", {default: ""});
+/** Must match the inbound SMS webhook URL configured on the Twilio number exactly. */
+export const TWILIO_SMS_WEBHOOK_URL = defineString("TWILIO_SMS_WEBHOOK_URL", {
+  default: "",
+  description:
+    "Exact Twilio webhook URL (e.g. https://us-central1-verza-canvas.cloudfunctions.net/opticTwilioSmsWebhook).",
+});

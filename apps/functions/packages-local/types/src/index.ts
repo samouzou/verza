@@ -266,8 +266,15 @@ export interface UserProfileFirestoreData {
   stripeAccountCountry?: string | null;
 
   // Payout Infrastructure
-  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin' | 'inflow';
   globalPayoutRecipientId?: string | null;
+
+  /** Inflow Connect (African corridors — Phase 1 wallet payouts). */
+  inflowSubMerchantId?: string | null;
+  inflowKycStatus?: 'pending' | 'approved' | 'rejected' | string | null;
+  inflowKycReady?: boolean;
+  inflowPayoutCountry?: string | null;
+  inflowPayoutAccountId?: string | null;
 
   // Verza Wallet
   walletBalance?: number;

@@ -9,7 +9,7 @@ import Link from "next/link";
 interface WalletOverviewProps {
   walletBalance: number;
   isLoading: boolean;
-  stripeConnected: boolean;
+  payoutReady: boolean;
   isPayingOut: boolean;
   onInitiatePayout: () => void;
 }
@@ -17,7 +17,7 @@ interface WalletOverviewProps {
 export function WalletOverview({
   walletBalance,
   isLoading,
-  stripeConnected,
+  payoutReady,
   isPayingOut,
   onInitiatePayout,
 }: WalletOverviewProps) {
@@ -49,7 +49,7 @@ export function WalletOverview({
           <div className="text-5xl font-bold mb-6">${formatted}</div>
         )}
 
-        {stripeConnected ? (
+        {payoutReady ? (
           <Button
             className="w-full sm:w-auto"
             disabled={isPayingOut || walletBalance < 1 || isLoading}
