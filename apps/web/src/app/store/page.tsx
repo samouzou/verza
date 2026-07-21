@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   collection,
   onSnapshot,
@@ -17,7 +18,6 @@ import {
   Plus,
   ShoppingBag,
   AlertTriangle,
-  Trash2,
   GraduationCap,
   Link2,
 } from "lucide-react";
@@ -53,57 +53,27 @@ import { ImageUpload } from "@/components/ui/image-upload";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { db, functions } from "@/lib/firebase";
-import type {
-  StoreChapterContent,
-  StoreProduct,
-  StoreProductKind,
-  StorePurchase,
-} from "@/types";
+import type { StoreProduct, StorePurchase } from "@/types";
+import { chapterCount } from "@/lib/store-editor";
 import { cn } from "@/lib/utils";
 
-type ChapterFormRow = {
-  id: string;
-  title: string;
-  summary: string;
-  body: string;
-  contentUrl: string;
-};
-
-type ProductFormState = {
+type LinkFormState = {
   title: string;
   description: string;
   priceDollars: string;
-  kind: StoreProductKind;
   coverImageUrl: string;
   accessUrl: string;
-  chapters: ChapterFormRow[];
   status: "draft" | "active" | "archived";
 };
 
-const emptyChapter = (): ChapterFormRow => ({
-  id: `chapter_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-  title: "",
-  summary: "",
-  body: "",
-  contentUrl: "",
-});
-
-const emptyForm: ProductFormState = {
+const emptyLinkForm: LinkFormState = {
   title: "",
   description: "",
   priceDollars: "",
-  kind: "link",
   coverImageUrl: "",
   accessUrl: "",
-  chapters: [emptyChapter()],
   status: "draft",
 };
-
-function chapterCount(product: StoreProduct) {
-  return (
-    product.chapterOutline?.length || product.lessonOutline?.length || 0
-  );
-}
 
 function formatUsd(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -113,6 +83,7 @@ function formatUsd(cents: number) {
 }
 
 export default function StorePage() {
+  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -120,9 +91,8 @@ export default function StorePage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ProductFormState>(emptyForm);
+  const [form, setForm] = useState<LinkFormState>(emptyLinkForm);
   const [saving, setSaving] = useState(false);
-  const [loadingContent, setLoadingContent] = useState(false);
 
   const isCreator =
     user?.role === "individual_creator" || user?.role === "talent";
@@ -186,69 +156,36 @@ export default function StorePage() {
     };
   }, [user?.uid, isCreator, toast]);
 
-  const openCreate = () => {
+  const openCreateLink = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(emptyLinkForm);
     setDialogOpen(true);
   };
 
   const openEdit = async (product: StoreProduct) => {
+    if ((product.kind || "link") === "course") {
+      router.push(`/store/${product.id}/edit`);
+      return;
+    }
     setEditingId(product.id);
     setForm({
       title: product.title,
       description: product.description || "",
       priceDollars: (product.priceCents / 100).toFixed(2),
-      kind: product.kind || "link",
       coverImageUrl: product.coverImageUrl || "",
       accessUrl: product.accessUrl || "",
-      chapters:
-        (product.chapterOutline || product.lessonOutline)?.map((c) => ({
-          id: c.id,
-          title: c.title,
-          summary: c.summary || "",
-          body: "",
-          contentUrl: "",
-        })) || [emptyChapter()],
       status: product.status,
     });
     setDialogOpen(true);
-    setLoadingContent(true);
     try {
       const getContent = httpsCallable(functions, "getStoreProductContent");
       const result = await getContent({ productId: product.id });
-      const data = result.data as {
-        kind?: StoreProductKind;
-        accessUrl?: string | null;
-        chapters?: StoreChapterContent[];
-        lessons?: Array<StoreChapterContent & { contentUrl?: string }>;
-      };
-      const loadedChapters = data.chapters?.length
-        ? data.chapters
-        : data.lessons;
-      setForm((f) => ({
-        ...f,
-        kind: data.kind || f.kind,
-        accessUrl: data.accessUrl || f.accessUrl,
-        chapters:
-          loadedChapters && loadedChapters.length > 0
-            ? loadedChapters.map((c) => ({
-                id: c.id,
-                title: c.title,
-                summary: c.summary || "",
-                body: c.body || "",
-                contentUrl: c.contentUrl || "",
-              }))
-            : f.chapters,
-      }));
-    } catch (e: any) {
-      console.error(e);
-      toast({
-        title: "Couldn’t load delivery content",
-        description: e?.message || "You can still edit public fields.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingContent(false);
+      const data = result.data as { accessUrl?: string | null };
+      if (data.accessUrl) {
+        setForm((f) => ({ ...f, accessUrl: data.accessUrl || "" }));
+      }
+    } catch {
+      // Public fields still editable
     }
   };
 
@@ -266,31 +203,13 @@ export default function StorePage() {
       });
       return;
     }
-    if (form.kind === "link" && !form.accessUrl.trim()) {
+    if (!form.accessUrl.trim()) {
       toast({
         title: "Access link required",
         description: "Buyers receive this URL after payment.",
         variant: "destructive",
       });
       return;
-    }
-    if (form.kind === "course") {
-      const validChapters = form.chapters.filter((c) => c.title.trim());
-      if (validChapters.length === 0) {
-        toast({
-          title: "Add at least one chapter",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (validChapters.some((c) => !c.body.trim())) {
-        toast({
-          title: "Each chapter needs body content",
-          description: "Write the chapter copy buyers unlock after purchase.",
-          variant: "destructive",
-        });
-        return;
-      }
     }
     if (form.status === "active" && !connectReady) {
       toast({
@@ -309,22 +228,9 @@ export default function StorePage() {
         title: form.title.trim(),
         description: form.description.trim(),
         priceCents: price,
-        kind: form.kind,
+        kind: "link",
         coverImageUrl: form.coverImageUrl.trim() || null,
-        accessUrl: form.kind === "link" ? form.accessUrl.trim() : null,
-        chapters:
-          form.kind === "course"
-            ? form.chapters
-                .filter((c) => c.title.trim())
-                .map((c, i) => ({
-                  id: c.id,
-                  title: c.title.trim(),
-                  summary: c.summary.trim() || undefined,
-                  body: c.body.trim(),
-                  contentUrl: c.contentUrl.trim() || undefined,
-                  sortOrder: i,
-                }))
-            : [],
+        accessUrl: form.accessUrl.trim(),
         status: form.status,
       });
       toast({
@@ -350,13 +256,6 @@ export default function StorePage() {
     } catch {
       toast({ title: "Copy failed", description: url, variant: "destructive" });
     }
-  };
-
-  const updateChapter = (id: string, patch: Partial<ChapterFormRow>) => {
-    setForm((f) => ({
-      ...f,
-      chapters: f.chapters.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    }));
   };
 
   if (authLoading || loading) {
@@ -386,10 +285,16 @@ export default function StorePage() {
         title="Store"
         description="Sell downloads and courses to your audience. Fans pay once; you get paid via your payout account."
         actions={
-          <Button onClick={openCreate} id="store-create-product">
-            <Plus className="mr-2 h-4 w-4" />
-            New product
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => router.push("/store/new?kind=course")}>
+              <GraduationCap className="mr-2 h-4 w-4" />
+              New course
+            </Button>
+            <Button onClick={openCreateLink} id="store-create-product">
+              <Plus className="mr-2 h-4 w-4" />
+              New download
+            </Button>
+          </div>
         }
       />
 
@@ -437,7 +342,7 @@ export default function StorePage() {
                 Sell a download, invite link, or a multi-lesson course. Share the
                 product URL anywhere your audience already is.
               </p>
-              <Button onClick={openCreate}>
+              <Button onClick={openCreateLink}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create your first product
               </Button>
@@ -572,21 +477,14 @@ export default function StorePage() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Edit product" : "New product"}
+              {editingId ? "Edit download" : "New download"}
             </DialogTitle>
             <DialogDescription>
-              One-time purchase. After payment, buyers unlock your delivery
-              content (10% Verza fee + card processing).
+              One-time purchase. After payment, buyers get your access link by
+              email (10% Verza fee + card processing).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {loadingContent && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading delivery content…
-              </p>
-            )}
-
             <div className="space-y-2">
               <Label>Cover image</Label>
               {user?.uid && (
@@ -605,31 +503,6 @@ export default function StorePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Product type</Label>
-              <Select
-                value={form.kind}
-                onValueChange={(v: StoreProductKind) =>
-                  setForm((f) => ({
-                    ...f,
-                    kind: v,
-                    chapters:
-                      v === "course" && f.chapters.length === 0
-                        ? [emptyChapter()]
-                        : f.chapters,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="link">Download / access link</SelectItem>
-                  <SelectItem value="course">Course (chapters)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="store-title">Title</Label>
               <Input
                 id="store-title"
@@ -637,7 +510,7 @@ export default function StorePage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, title: e.target.value }))
                 }
-                placeholder="Creator pack, Discord invite, course…"
+                placeholder="Creator pack, Discord invite…"
                 maxLength={120}
               />
             </div>
@@ -673,7 +546,7 @@ export default function StorePage() {
                 <Label>Status</Label>
                 <Select
                   value={form.status}
-                  onValueChange={(v: ProductFormState["status"]) =>
+                  onValueChange={(v: LinkFormState["status"]) =>
                     setForm((f) => ({ ...f, status: v }))
                   }
                 >
@@ -691,119 +564,27 @@ export default function StorePage() {
               </div>
             </div>
 
-            {form.kind === "link" ? (
-              <div className="space-y-2">
-                <Label htmlFor="store-access">Access / delivery link</Label>
-                <Input
-                  id="store-access"
-                  value={form.accessUrl}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, accessUrl: e.target.value }))
-                  }
-                  placeholder="https://…"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Kept private until purchase. Buyers unlock it by email after
-                  paying.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Chapters</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        chapters: [...f.chapters, emptyChapter()],
-                      }))
-                    }
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Add chapter
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Titles and summaries show on the public page. Body and
-                  resource links stay private until purchase.
-                </p>
-                <div className="space-y-4">
-                  {form.chapters.map((chapter, index) => (
-                    <div
-                      key={chapter.id}
-                      className="space-y-2 rounded-lg border p-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Chapter {index + 1}
-                        </p>
-                        {form.chapters.length > 1 && (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() =>
-                              setForm((f) => ({
-                                ...f,
-                                chapters: f.chapters.filter(
-                                  (c) => c.id !== chapter.id
-                                ),
-                              }))
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                      <Input
-                        value={chapter.title}
-                        onChange={(e) =>
-                          updateChapter(chapter.id, { title: e.target.value })
-                        }
-                        placeholder="Chapter title"
-                        maxLength={120}
-                      />
-                      <Input
-                        value={chapter.summary}
-                        onChange={(e) =>
-                          updateChapter(chapter.id, { summary: e.target.value })
-                        }
-                        placeholder="Short public summary (optional)"
-                        maxLength={500}
-                      />
-                      <Textarea
-                        value={chapter.body}
-                        onChange={(e) =>
-                          updateChapter(chapter.id, { body: e.target.value })
-                        }
-                        placeholder="Chapter body — what buyers read after purchase"
-                        rows={5}
-                        maxLength={20000}
-                      />
-                      <Input
-                        value={chapter.contentUrl}
-                        onChange={(e) =>
-                          updateChapter(chapter.id, {
-                            contentUrl: e.target.value,
-                          })
-                        }
-                        placeholder="Optional resource URL (video, PDF, Drive…)"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="store-access">Access / delivery link</Label>
+              <Input
+                id="store-access"
+                value={form.accessUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, accessUrl: e.target.value }))
+                }
+                placeholder="https://…"
+              />
+              <p className="text-xs text-muted-foreground">
+                Kept private until purchase. Buyers unlock it by email after
+                paying.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || loadingContent}>
+            <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>

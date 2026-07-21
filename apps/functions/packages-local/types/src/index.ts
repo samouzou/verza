@@ -319,7 +319,7 @@ export interface StoreChapterContent {
   id: string;
   title: string;
   summary?: string;
-  /** Chapter copy (markdown-friendly plain text). */
+  /** Chapter copy (HTML from rich text editor). */
   body: string;
   /** Optional video, file, or resource URL. */
   contentUrl?: string;

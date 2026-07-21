@@ -125,6 +125,7 @@ import {
   getStoreProductContent,
   getStoreAccess,
 } from "./store";
+import {generateStoreCourseContent} from "./store/generateCourseContent";
 
 // Export v2 functions
 export {
@@ -207,6 +208,7 @@ export {
   createStoreCheckoutSession,
   getStoreProductContent,
   getStoreAccess,
+  generateStoreCourseContent,
 };
 
 // Import and export v1 auth trigger using require/exports

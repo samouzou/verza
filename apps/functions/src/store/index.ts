@@ -75,7 +75,19 @@ function sanitizeOptionalUrl(
   return trimmed;
 }
 
-function sanitizeChapters(raw: unknown): StoreChapterContent[] {
+function isHtmlBodyEmpty(html: string): boolean {
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return !text;
+}
+
+function sanitizeChapters(
+  raw: unknown,
+  requireBodies = true
+): StoreChapterContent[] {
   if (!Array.isArray(raw)) {
     throw new HttpsError("invalid-argument", "chapters must be an array.");
   }
@@ -119,10 +131,17 @@ function sanitizeChapters(raw: unknown): StoreChapterContent[] {
         `Chapter ${index + 1}: summary must be under 500 characters.`
       );
     }
-    if (!body || body.length > MAX_CHAPTER_BODY) {
+    if (requireBodies) {
+      if (!body || body.length > MAX_CHAPTER_BODY || isHtmlBodyEmpty(body)) {
+        throw new HttpsError(
+          "invalid-argument",
+          `Chapter ${index + 1} (“${title || "untitled"}”): body is required before publishing (max ${MAX_CHAPTER_BODY} characters).`
+        );
+      }
+    } else if (body.length > MAX_CHAPTER_BODY) {
       throw new HttpsError(
         "invalid-argument",
-        `Chapter ${index + 1}: body is required (max ${MAX_CHAPTER_BODY} characters).`
+        `Chapter ${index + 1}: body must be under ${MAX_CHAPTER_BODY} characters.`
       );
     }
     let contentUrl: string | undefined;
@@ -158,9 +177,13 @@ function sanitizeChapters(raw: unknown): StoreChapterContent[] {
 }
 
 /** Accept `chapters` or legacy `lessons` from older clients. */
-function sanitizeCourseChapters(data: Record<string, unknown>): StoreChapterContent[] {
+function sanitizeCourseChapters(
+  data: Record<string, unknown>,
+  status: StoreProduct["status"]
+): StoreChapterContent[] {
+  const requireBodies = status === "active";
   if (Array.isArray(data.chapters) && data.chapters.length > 0) {
-    return sanitizeChapters(data.chapters);
+    return sanitizeChapters(data.chapters, requireBodies);
   }
   if (Array.isArray(data.lessons) && data.lessons.length > 0) {
     return sanitizeChapters(
@@ -175,7 +198,8 @@ function sanitizeCourseChapters(data: Record<string, unknown>): StoreChapterCont
               ? lesson.summary
               : " ",
         contentUrl: lesson.contentUrl,
-      }))
+      })),
+      requireBodies
     );
   }
   throw new HttpsError(
@@ -187,11 +211,29 @@ function sanitizeCourseChapters(data: Record<string, unknown>): StoreChapterCont
 function outlineFromChapters(
   chapters: StoreChapterContent[]
 ): StoreChapterOutline[] {
-  return chapters.map((chapter) => ({
-    id: chapter.id,
-    title: chapter.title,
-    summary: chapter.summary,
-  }));
+  return chapters.map((chapter) => {
+    const row: StoreChapterOutline = {
+      id: chapter.id,
+      title: chapter.title,
+    };
+    if (chapter.summary) row.summary = chapter.summary;
+    return row;
+  });
+}
+
+/** Firestore rejects undefined — omit optional chapter fields. */
+function chaptersForFirestore(chapters: StoreChapterContent[]) {
+  return chapters.map((chapter) => {
+    const row: StoreChapterContent = {
+      id: chapter.id,
+      title: chapter.title,
+      body: chapter.body,
+      sortOrder: chapter.sortOrder,
+    };
+    if (chapter.summary) row.summary = chapter.summary;
+    if (chapter.contentUrl) row.contentUrl = chapter.contentUrl;
+    return row;
+  });
 }
 
 function legacyLessonsToChapters(
@@ -297,7 +339,7 @@ function sanitizeProductInput(data: Record<string, unknown>): {
     };
   }
 
-  const chapters = sanitizeCourseChapters(data);
+  const chapters = sanitizeCourseChapters(data, status);
   return {
     title,
     description,
@@ -316,6 +358,24 @@ async function loadPrivateContent(
   const snap = await db.collection("storeProductContent").doc(productId).get();
   if (!snap.exists) return null;
   return snap.data() as StoreProductContent;
+}
+
+/** Draft saves may send empty bodies for chapters not currently open in the editor. */
+async function preserveDraftChapterBodies(
+  productId: string,
+  incoming: StoreChapterContent[]
+): Promise<StoreChapterContent[]> {
+  const existing = await loadPrivateContent(productId);
+  if (!existing?.chapters?.length) return incoming;
+  const byId = new Map(existing.chapters.map((chapter) => [chapter.id, chapter]));
+  return incoming.map((chapter) => {
+    if (!isHtmlBodyEmpty(chapter.body)) return chapter;
+    const prev = byId.get(chapter.id);
+    if (prev?.body && !isHtmlBodyEmpty(prev.body)) {
+      return {...chapter, body: prev.body};
+    }
+    return chapter;
+  });
 }
 
 function resolveDelivery(
@@ -369,8 +429,18 @@ export const upsertStoreProduct = onCall(async (request) => {
   }
 
   const now = FieldValue.serverTimestamp();
+  let courseChapters = fields.chapters;
+  if (
+    productId &&
+    typeof productId === "string" &&
+    fields.kind === "course" &&
+    fields.status !== "active"
+  ) {
+    courseChapters = await preserveDraftChapterBodies(productId, fields.chapters);
+  }
+
   const chapterOutline =
-    fields.kind === "course" ? outlineFromChapters(fields.chapters) : [];
+    fields.kind === "course" ? outlineFromChapters(courseChapters) : [];
 
   const publicFields = {
     title: fields.title,
@@ -388,14 +458,15 @@ export const upsertStoreProduct = onCall(async (request) => {
     accessUrl: FieldValue.delete(),
   };
 
-  const writeContent = async (id: string) => {
+  const writeContent = async (id: string, chapters: StoreChapterContent[]) => {
     await db.collection("storeProductContent").doc(id).set(
       {
         productId: id,
         creatorId,
         kind: fields.kind,
         accessUrl: fields.kind === "link" ? fields.accessUrl : null,
-        chapters: fields.kind === "course" ? fields.chapters : [],
+        chapters:
+          fields.kind === "course" ? chaptersForFirestore(chapters) : [],
         lessons: FieldValue.delete(),
         updatedAt: now,
       },
@@ -414,7 +485,7 @@ export const upsertStoreProduct = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Not your product.");
     }
     await ref.update(publicFields);
-    await writeContent(productId);
+    await writeContent(productId, courseChapters);
     return {id: productId};
   }
 
@@ -436,7 +507,7 @@ export const upsertStoreProduct = onCall(async (request) => {
     createdAt: now,
     updatedAt: now,
   });
-  await writeContent(ref.id);
+  await writeContent(ref.id, courseChapters);
   return {id: ref.id};
 });
 
@@ -534,6 +605,8 @@ export const getStoreAccess = onCall({
     return {
       kind: "course" as const,
       productTitle: product.title,
+      productDescription: product.description || null,
+      coverImageUrl: product.coverImageUrl || null,
       chapters: delivery.chapters.map((chapter) => ({
         id: chapter.id,
         title: chapter.title,
