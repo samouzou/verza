@@ -6,7 +6,12 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { CheckCircle2, Loader2, AlertTriangle, ShoppingBag } from "lucide-react";
+import {
+  AlertTriangle,
+  GraduationCap,
+  Loader2,
+  ShoppingBag,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,7 +73,10 @@ export default function PublicStoreProductPage() {
     setCheckoutError(null);
     setCheckingOut(true);
     try {
-      const createCheckout = httpsCallable(functions, "createStoreCheckoutSession");
+      const createCheckout = httpsCallable(
+        functions,
+        "createStoreCheckoutSession"
+      );
       const result = await createCheckout({
         productId: product.id,
         buyerEmail: buyerEmail.trim(),
@@ -90,25 +98,6 @@ export default function PublicStoreProductPage() {
     );
   }
 
-  if (purchaseState === "success" && product) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-16">
-        <div className="w-full max-w-md space-y-6 text-center">
-          <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
-          <h1 className="text-2xl font-bold tracking-tight">You’re in</h1>
-          <p className="text-muted-foreground">
-            Payment received for <strong>{product.title}</strong>. Check your
-            email for the access link — we also sent it to the address you used
-            at checkout.
-          </p>
-          <Button asChild variant="outline">
-            <Link href="https://tryverza.com">Done</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   if (error || !product) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
@@ -126,6 +115,12 @@ export default function PublicStoreProductPage() {
     );
   }
 
+  const isCourse = (product.kind || "link") === "course";
+  const outline =
+    product.chapterOutline?.length
+      ? product.chapterOutline
+      : product.lessonOutline || [];
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-12">
@@ -139,79 +134,132 @@ export default function PublicStoreProductPage() {
           <ShoppingBag className="h-4 w-4 text-muted-foreground" />
         </div>
 
-        <div className="space-y-8 rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-          <div className="flex items-center gap-3">
-            {product.creatorAvatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.creatorAvatarUrl}
-                alt=""
-                className="h-10 w-10 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-                {(product.creatorDisplayName || "C").slice(0, 1).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                From
-              </p>
-              <p className="font-medium">
-                {product.creatorDisplayName || "Creator"}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{product.title}</h1>
-            {product.description && (
-              <p className="text-muted-foreground whitespace-pre-wrap">
-                {product.description}
-              </p>
-            )}
-          </div>
-
-          <p className="text-4xl font-bold tabular-nums tracking-tight">
-            {formatUsd(product.priceCents)}
-          </p>
-
-          {purchaseState === "cancelled" && (
-            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-              Checkout cancelled — you haven’t been charged.
-            </p>
+        <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          {product.coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.coverImageUrl}
+              alt=""
+              className="aspect-[16/9] w-full object-cover"
+            />
           )}
 
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="buyer-email">Email for delivery</Label>
-              <Input
-                id="buyer-email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@email.com"
-                value={buyerEmail}
-                onChange={(e) => setBuyerEmail(e.target.value)}
-              />
-            </div>
-            {checkoutError && (
-              <p className="text-sm text-destructive">{checkoutError}</p>
-            )}
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleBuy}
-              disabled={checkingOut || !buyerEmail.trim()}
-            >
-              {checkingOut && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <div className="space-y-8 p-6 sm:p-8">
+            <div className="flex items-center gap-3">
+              {product.creatorAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.creatorAvatarUrl}
+                  alt=""
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                  {(product.creatorDisplayName || "C")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </div>
               )}
-              Buy now
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              Secure checkout powered by Stripe. Access link emailed after
-              payment.
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  From
+                </p>
+                <p className="font-medium">
+                  {product.creatorDisplayName || "Creator"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {isCourse && (
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                  Course · {outline.length} chapters
+                </p>
+              )}
+              <h1 className="text-3xl font-bold tracking-tight">
+                {product.title}
+              </h1>
+              {product.description && (
+                <p className="whitespace-pre-wrap text-muted-foreground">
+                  {product.description}
+                </p>
+              )}
+            </div>
+
+            {isCourse && outline.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">What’s inside</p>
+                  <ol className="space-y-2">
+                    {outline.map((chapter, i) => (
+                      <li
+                        key={chapter.id}
+                        className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm"
+                      >
+                        <span className="font-medium">
+                          {i + 1}. {chapter.title}
+                        </span>
+                        {chapter.summary && (
+                          <p className="mt-0.5 text-muted-foreground">
+                            {chapter.summary}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+            <p className="text-4xl font-bold tabular-nums tracking-tight">
+              {formatUsd(product.priceCents)}
             </p>
+
+            {purchaseState === "cancelled" && (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+                Checkout cancelled — you haven’t been charged.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="buyer-email">Email for delivery</Label>
+                <Input
+                  id="buyer-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@email.com"
+                  value={buyerEmail}
+                  onChange={(e) => setBuyerEmail(e.target.value)}
+                />
+              </div>
+              {checkoutError && (
+                <p className="text-sm text-destructive">{checkoutError}</p>
+              )}
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleBuy}
+                disabled={checkingOut || !buyerEmail.trim()}
+              >
+                {checkingOut && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Buy now
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Secure checkout powered by Stripe.{" "}
+                {isCourse
+                  ? "Course access emailed after payment."
+                  : "Access link emailed after payment."}{" "}
+                Already purchased?{" "}
+                <Link
+                  href={`/s/${product.id}/access`}
+                  className="underline underline-offset-2"
+                >
+                  Open access
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </div>

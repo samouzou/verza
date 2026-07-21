@@ -282,6 +282,14 @@ service cloud.firestore {
       allow delete: if request.auth != null && isOwner(resource.data.creatorId);
     }
 
+    // Private delivery (download URLs / course lesson URLs) — creator read only.
+    // Writes go through Admin SDK (upsertStoreProduct). Buyers use getStoreAccess.
+    match /storeProductContent/{productId} {
+      allow read: if request.auth != null &&
+        isOwner(resource.data.creatorId);
+      allow write: if false;
+    }
+
     match /storePurchases/{purchaseId} {
       allow read: if request.auth != null && isOwner(resource.data.creatorId);
       allow write: if false;

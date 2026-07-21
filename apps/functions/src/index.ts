@@ -119,7 +119,12 @@ import {
   disconnectGmail,
   createOpticGmailDraft,
 } from "./gmail";
-import {upsertStoreProduct, createStoreCheckoutSession} from "./store";
+import {
+  upsertStoreProduct,
+  createStoreCheckoutSession,
+  getStoreProductContent,
+  getStoreAccess,
+} from "./store";
 
 // Export v2 functions
 export {
@@ -200,6 +205,8 @@ export {
   createOpticGmailDraft,
   upsertStoreProduct,
   createStoreCheckoutSession,
+  getStoreProductContent,
+  getStoreAccess,
 };
 
 // Import and export v1 auth trigger using require/exports

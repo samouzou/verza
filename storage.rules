@@ -125,6 +125,14 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*|video/.*');
     }
 
+    // Creator Store covers (public) + lesson media uploads
+    match /store/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024 // 10MB
+                   && request.resource.contentType.matches('image/.*|video/.*|application/pdf');
+    }
+
     // LinkedIn OS carousel slide PNGs (worker writes via Admin SDK; agency team reads)
     match /linkedin_os_carousels/{agencyId}/{allPaths=**} {
       allow read: if request.auth != null &&

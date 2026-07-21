@@ -304,6 +304,57 @@ export interface UserProfileFirestoreData {
 /** Creator-sold digital product (fan commerce / Whop-style Store). */
 export type StoreProductStatus = "draft" | "active" | "archived";
 
+/** Single download/invite link vs multi-lesson course. */
+export type StoreProductKind = "link" | "course";
+
+/** Public curriculum row (titles only — no body or delivery URLs). */
+export interface StoreChapterOutline {
+  id: string;
+  title: string;
+  summary?: string;
+}
+
+/** Private chapter payload (creator + post-purchase access only). */
+export interface StoreChapterContent {
+  id: string;
+  title: string;
+  summary?: string;
+  /** Chapter copy (markdown-friendly plain text). */
+  body: string;
+  /** Optional video, file, or resource URL. */
+  contentUrl?: string;
+  sortOrder: number;
+}
+
+/** @deprecated Use StoreChapterOutline */
+export type StoreLessonOutline = StoreChapterOutline;
+
+/** @deprecated Use StoreChapterContent */
+export interface StoreLessonContent {
+  id: string;
+  title: string;
+  summary?: string;
+  contentUrl: string;
+  sortOrder: number;
+}
+
+/**
+ * Private delivery payload for a Store product.
+ * Lives in `storeProductContent/{productId}` — never world-readable.
+ */
+export interface StoreProductContent {
+  productId: string;
+  creatorId: string;
+  kind: StoreProductKind;
+  /** For kind=link: the download / invite URL. */
+  accessUrl?: string | null;
+  /** For kind=course: ordered chapters with private body + optional URLs. */
+  chapters?: StoreChapterContent[];
+  /** @deprecated Migrated to chapters */
+  lessons?: StoreLessonContent[];
+  updatedAt: Timestamp;
+}
+
 export interface StoreProduct {
   id: string;
   creatorId: string;
@@ -315,8 +366,18 @@ export interface StoreProduct {
   /** Price in cents (USD). */
   priceCents: number;
   currency: "usd";
-  /** URL or content delivered after purchase (download, invite link, etc.). */
-  accessUrl: string;
+  /** Defaults to "link" for products created before kinds existed. */
+  kind?: StoreProductKind;
+  coverImageUrl?: string | null;
+  /** Public course curriculum (titles/summaries only). */
+  chapterOutline?: StoreChapterOutline[];
+  /** @deprecated Use chapterOutline */
+  lessonOutline?: StoreChapterOutline[];
+  /**
+   * @deprecated Delivery lives in storeProductContent. Kept optional for
+   * legacy products until migrated; do not expose new paid URLs here.
+   */
+  accessUrl?: string;
   status: StoreProductStatus;
   salesCount: number;
   revenueCents: number;
@@ -336,7 +397,9 @@ export interface StorePurchase {
   platformFeeCents: number;
   creatorNetCents: number;
   paymentIntentId: string;
-  accessUrl: string;
+  kind?: StoreProductKind;
+  /** Snapshot for link products; courses unlock via getStoreAccess. */
+  accessUrl?: string | null;
   status: StorePurchaseStatus;
   createdAt: Timestamp;
 }
