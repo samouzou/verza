@@ -32,6 +32,7 @@ import {
   ScanSearch,
   Linkedin,
   ExternalLink,
+  ShoppingBag,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -114,6 +115,7 @@ type WorkflowNavItem = {
 };
 
 const creatorWorkflowNavItems: WorkflowNavItem[] = [
+  { id: "nav-item-store", href: "/store", label: "Store", icon: ShoppingBag },
   { id: "nav-item-insights", href: "/insights", label: "Creator Insights", icon: Sparkles },
   { id: "nav-item-ai-studio", href: "/ai-studio", label: "AI Studio", icon: Video },
   { id: "nav-item-brand-research", href: "/brand-research", label: "Brand Research", icon: BarChart3 },

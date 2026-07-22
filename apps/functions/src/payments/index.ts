@@ -16,6 +16,8 @@ import {
   needsRecipientServiceAgreement,
   transferToConnectAccountIfNeeded,
 } from "./stripeConnect";
+import {fulfillStoreSale} from "../store";
+import {inflowWalletWithdrawal} from "./inflowClient";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -563,6 +565,15 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           } catch (error) {
             logger.error(`Error updating user credits in handlePaymentSuccess for user ${targetUserId}:`, error);
           }
+        }
+      } else if (purchaseType === "storeSale" && metadata.productId) {
+        try {
+          await fulfillStoreSale(stripe, metadata, paymentIntent.id, latestCharge);
+        } catch (error) {
+          logger.error(
+            `Error fulfilling store sale for payment ${paymentIntent.id}:`,
+            error
+          );
         }
       } else if (purchaseType === "gigFunding" && gigId && agencyId) {
         try {
@@ -1327,7 +1338,9 @@ export const createGlobalPayoutRecipient = onCall(async (request) => {
   }
 });
 
-export const initiateCreatorPayout = onCall(async (request) => {
+export const initiateCreatorPayout = onCall(
+  {secrets: [params.INFLOW_API_KEY]},
+  async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
   }
@@ -1414,6 +1427,28 @@ export const initiateCreatorPayout = onCall(async (request) => {
         description: "Verza wallet payout",
         metadata: {userId},
       });
+    } else if (payoutMethod === "inflow") {
+      if (!userData.inflowSubMerchantId || !userData.inflowKycReady) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Complete Inflowpay identity verification in Settings before withdrawing."
+        );
+      }
+      if (!userData.inflowPayoutAccountId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Add your bank or mobile money account in Settings before withdrawing."
+        );
+      }
+
+      const withdrawalId = db.collection("internalPayouts").doc().id;
+      await inflowWalletWithdrawal({
+        subMerchantId: userData.inflowSubMerchantId,
+        payoutAccountId: userData.inflowPayoutAccountId,
+        amountInCents,
+        idempotencyKey: withdrawalId,
+        description: `Verza wallet withdrawal for ${userId}`,
+      });
     } else if (payoutMethod === "stablecoin") {
       // Stablecoin path via Bridge (dahlia) — placeholder until Bridge credentials are configured
       throw new HttpsError(
@@ -1455,7 +1490,7 @@ export const initiateCreatorPayout = onCall(async (request) => {
     await db.collection("notifications").add({
       userId,
       title: "Payout Initiated!",
-      message: `$${walletBalance.toFixed(2)} has been transferred to your bank account. It may take 1-7 business days to arrive.`,
+      message: `$${walletBalance.toFixed(2)} has been sent to your payout account. Local delivery times vary by country (often same-day for mobile money).`,
       type: "payout_received",
       read: false,
       link: "/wallet",

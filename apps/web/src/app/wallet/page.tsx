@@ -14,7 +14,7 @@ import type { InternalPayout, Agency } from "@/types";
 import { db, collection, query, where, onSnapshot, orderBy, doc } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
+import { isPayoutReady } from "@/lib/payout";
 
 export default function WalletPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -26,7 +26,7 @@ export default function WalletPage() {
   const [isPayingOut, setIsPayingOut] = useState(false);
 
   const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
-  const stripeConnected = !!(user?.stripeAccountId && user?.stripePayoutsEnabled);
+  const payoutReady = isPayoutReady(user);
   const walletBalance = user?.walletBalance ?? 0;
 
   useEffect(() => {
@@ -146,7 +146,7 @@ export default function WalletPage() {
           <WalletOverview
             walletBalance={walletBalance}
             isLoading={false}
-            stripeConnected={stripeConnected}
+            payoutReady={payoutReady}
             isPayingOut={isPayingOut}
             onInitiatePayout={handleInitiatePayout}
           />

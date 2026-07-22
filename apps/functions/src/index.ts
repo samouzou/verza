@@ -26,6 +26,13 @@ import {
 } from "./payments";
 
 import {
+  createInflowSubMerchant,
+  syncInflowKycStatus,
+  getInflowBankForm,
+  registerInflowBankAccount,
+} from "./payments/inflowConnect";
+
+import {
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
@@ -119,6 +126,14 @@ import {
   disconnectGmail,
   createOpticGmailDraft,
 } from "./gmail";
+import {
+  upsertStoreProduct,
+  manageStoreProduct,
+  createStoreCheckoutSession,
+  getStoreProductContent,
+  getStoreAccess,
+} from "./store";
+import {generateStoreCourseContent} from "./store/generateCourseContent";
 
 // Export v2 functions
 export {
@@ -132,6 +147,10 @@ export {
   createGigFundingCheckoutSession,
   createAgencyTopUpSession,
   initiateCreatorPayout,
+  createInflowSubMerchant,
+  syncInflowKycStatus,
+  getInflowBankForm,
+  registerInflowBankAccount,
   sendContractNotification,
   handleSendGridEmailWebhook,
   submitFeedback,
@@ -197,6 +216,12 @@ export {
   completeGmailConnect,
   disconnectGmail,
   createOpticGmailDraft,
+  upsertStoreProduct,
+  manageStoreProduct,
+  createStoreCheckoutSession,
+  getStoreProductContent,
+  getStoreAccess,
+  generateStoreCourseContent,
 };
 
 // Import and export v1 auth trigger using require/exports

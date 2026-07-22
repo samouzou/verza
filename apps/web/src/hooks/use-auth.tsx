@@ -63,8 +63,13 @@ export interface UserProfile {
   stripePayoutsEnabled?: boolean;
 
   // Payout Infrastructure
-  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin' | 'inflow';
   globalPayoutRecipientId?: string | null;
+  inflowSubMerchantId?: string | null;
+  inflowKycStatus?: string | null;
+  inflowKycReady?: boolean;
+  inflowPayoutCountry?: string | null;
+  inflowPayoutAccountId?: string | null;
 
   // Verza Wallet
   walletBalance?: number;
@@ -104,6 +109,7 @@ export interface UserProfile {
   niche?: string;
   contentType?: CreatorMarketplaceProfile['contentType'] | null;
   hasCompletedCareerPath?: boolean;
+  careerPathResult?: 'monetized' | 'emerging' | 'community' | null;
   hasCompletedBrandJourney?: boolean;
 
   /** Optic: Gmail connected for saving outreach drafts (tokens stored server-side). */
@@ -431,8 +437,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               stripePayoutsEnabled: firestoreUserData.stripePayoutsEnabled,
               payoutMethod: firestoreUserData.payoutMethod,
               globalPayoutRecipientId: firestoreUserData.globalPayoutRecipientId,
+              inflowSubMerchantId: firestoreUserData.inflowSubMerchantId,
+              inflowKycStatus: firestoreUserData.inflowKycStatus,
+              inflowKycReady: firestoreUserData.inflowKycReady,
+              inflowPayoutCountry: firestoreUserData.inflowPayoutCountry,
+              inflowPayoutAccountId: firestoreUserData.inflowPayoutAccountId,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               hasCompletedCareerPath: firestoreUserData.hasCompletedCareerPath || false,
+              careerPathResult: firestoreUserData.careerPathResult ?? null,
               hasCompletedBrandJourney: firestoreUserData.hasCompletedBrandJourney || false,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,

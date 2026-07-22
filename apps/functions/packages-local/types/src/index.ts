@@ -266,8 +266,15 @@ export interface UserProfileFirestoreData {
   stripeAccountCountry?: string | null;
 
   // Payout Infrastructure
-  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin';
+  payoutMethod?: 'stripe_connect' | 'global_payout' | 'stablecoin' | 'inflow';
   globalPayoutRecipientId?: string | null;
+
+  /** Inflow Connect (African corridors — Phase 1 wallet payouts). */
+  inflowSubMerchantId?: string | null;
+  inflowKycStatus?: 'pending' | 'approved' | 'rejected' | string | null;
+  inflowKycReady?: boolean;
+  inflowPayoutCountry?: string | null;
+  inflowPayoutAccountId?: string | null;
 
   // Verza Wallet
   walletBalance?: number;
@@ -294,8 +301,116 @@ export interface UserProfileFirestoreData {
   niche?: string;
   contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
   hasCompletedCareerPath?: boolean;
-  careerPathResult?: "monetized" | "emerging" | null;
+  careerPathResult?: "monetized" | "emerging" | "community" | null;
   hasCompletedBrandJourney?: boolean;
+
+  /** Public storefront slug for creator Store (/c/{storeSlug}). */
+  storeSlug?: string | null;
+}
+
+/** Creator-sold digital product (fan commerce / Whop-style Store). */
+export type StoreProductStatus = "draft" | "active" | "archived";
+
+/** Single download/invite link vs multi-lesson course vs fan tip jar. */
+export type StoreProductKind = "link" | "course" | "tip";
+
+/** Public curriculum row (titles only — no body or delivery URLs). */
+export interface StoreChapterOutline {
+  id: string;
+  title: string;
+  summary?: string;
+}
+
+/** Private chapter payload (creator + post-purchase access only). */
+export interface StoreChapterContent {
+  id: string;
+  title: string;
+  summary?: string;
+  /** Chapter copy (HTML from rich text editor). */
+  body: string;
+  /** Optional video, file, or resource URL. */
+  contentUrl?: string;
+  sortOrder: number;
+}
+
+/** @deprecated Use StoreChapterOutline */
+export type StoreLessonOutline = StoreChapterOutline;
+
+/** @deprecated Use StoreChapterContent */
+export interface StoreLessonContent {
+  id: string;
+  title: string;
+  summary?: string;
+  contentUrl: string;
+  sortOrder: number;
+}
+
+/**
+ * Private delivery payload for a Store product.
+ * Lives in `storeProductContent/{productId}` — never world-readable.
+ */
+export interface StoreProductContent {
+  productId: string;
+  creatorId: string;
+  kind: StoreProductKind;
+  /** For kind=link: the download / invite URL. */
+  accessUrl?: string | null;
+  /** For kind=course: ordered chapters with private body + optional URLs. */
+  chapters?: StoreChapterContent[];
+  /** @deprecated Migrated to chapters */
+  lessons?: StoreLessonContent[];
+  updatedAt: Timestamp;
+}
+
+export interface StoreProduct {
+  id: string;
+  creatorId: string;
+  /** Denormalized for public storefront (buyers can't read private profiles). */
+  creatorDisplayName?: string | null;
+  creatorAvatarUrl?: string | null;
+  title: string;
+  description: string;
+  /** Price in cents (USD). */
+  priceCents: number;
+  currency: "usd";
+  /** Defaults to "link" for products created before kinds existed. */
+  kind?: StoreProductKind;
+  /** Preset tip amounts in cents (kind=tip). priceCents is the default / minimum display. */
+  tipAmountsCents?: number[];
+  coverImageUrl?: string | null;
+  /** Public course curriculum (titles/summaries only). */
+  chapterOutline?: StoreChapterOutline[];
+  /** @deprecated Use chapterOutline */
+  lessonOutline?: StoreChapterOutline[];
+  /**
+   * @deprecated Delivery lives in storeProductContent. Kept optional for
+   * legacy products until migrated; do not expose new paid URLs here.
+   */
+  accessUrl?: string;
+  status: StoreProductStatus;
+  salesCount: number;
+  revenueCents: number;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export type StorePurchaseStatus = "paid" | "refunded";
+
+export interface StorePurchase {
+  id: string;
+  productId: string;
+  productTitle: string;
+  creatorId: string;
+  buyerEmail: string;
+  amountCents: number;
+  platformFeeCents: number;
+  creatorNetCents: number;
+  paymentIntentId: string;
+  kind?: StoreProductKind;
+  /** Snapshot for link products; courses unlock via getStoreAccess. */
+  accessUrl?: string | null;
+  status: StorePurchaseStatus;
+  createdAt: Timestamp;
 }
 
 // Credit transaction
