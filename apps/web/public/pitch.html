@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza — Seed Round · $1M</title>
+  <meta name="description" content="Verza seed pitch: creator campaign infrastructure with attribution, payouts, and commerce rails." />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --ink-2: #121A17;
+      --ink-3: #1A2420;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+      --paper-dim: #B8C4BE;
+      --warn: #C4A574;
+      --radius: 1.25rem;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-optical-sizing: auto;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 124, 90, 0.28), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(22, 192, 136, 0.12), transparent 50%),
+        var(--ink);
+      min-height: 100vh;
+    }
+
+    .deck-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(11, 16, 14, 0.92), transparent);
+      pointer-events: none;
+    }
+
+    .deck-nav a,
+    .deck-nav .brand {
+      pointer-events: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--paper);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img { width: 28px; height: auto; }
+
+    .nav-meta {
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-meta strong {
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      z-index: 50;
+      transition: width 120ms linear;
+    }
+
+    .slide {
+      min-height: 100vh;
+      min-height: 100dvh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5.5rem 1.5rem 4rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .slide::before {
+      content: attr(data-n);
+      position: absolute;
+      top: 5.25rem;
+      right: 1.5rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 1.25rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.5rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    h1, h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: clamp(2.75rem, 7vw, 5rem);
+      max-width: 14ch;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-size: clamp(2.1rem, 5vw, 3.5rem);
+      max-width: 18ch;
+      margin-bottom: 1.25rem;
+    }
+
+    .lede {
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      color: var(--paper-dim);
+      max-width: 38rem;
+      margin-bottom: 2rem;
+    }
+
+    .lede strong { color: var(--paper); font-weight: 600; }
+
+    .ask-pill {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.85rem 1.25rem;
+      border: 1px solid rgba(22, 192, 136, 0.35);
+      background: rgba(14, 124, 90, 0.15);
+      border-radius: 999px;
+      margin-top: 0.5rem;
+    }
+
+    .ask-pill .amt {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.75rem;
+      color: var(--emerald);
+    }
+
+    .ask-pill .lbl {
+      font-size: 0.8rem;
+      color: var(--mist);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .grid-2 {
+      display: grid;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 960px) {
+      .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .grid-3, .grid-4 {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .card {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.4rem;
+      backdrop-filter: blur(8px);
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .card:hover {
+      border-color: rgba(22, 192, 136, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.45rem;
+      color: var(--paper);
+    }
+
+    .card p {
+      font-size: 0.92rem;
+      color: var(--mist);
+    }
+
+    .card .num {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 2rem;
+      color: var(--emerald);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      max-width: 40rem;
+      margin-top: 0.5rem;
+    }
+
+    .list li {
+      position: relative;
+      padding-left: 1.3rem;
+      font-size: 1.02rem;
+      color: var(--paper-dim);
+    }
+
+    .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55rem;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 999px;
+      background: var(--emerald);
+      box-shadow: 0 0 12px rgba(22, 192, 136, 0.45);
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1.5rem;
+      max-width: 42rem;
+    }
+
+    .stack-row {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 1rem;
+      align-items: baseline;
+      padding: 0.9rem 0;
+      border-bottom: 1px solid rgba(152, 162, 156, 0.14);
+    }
+
+    .stack-row:first-child { border-top: 1px solid rgba(152, 162, 156, 0.14); }
+
+    .stack-row dt {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .stack-row dd {
+      color: var(--paper-dim);
+      font-size: 0.98rem;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 1.75rem;
+    }
+
+    .flow span {
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      background: var(--ink-3);
+      border: 1px solid rgba(152, 162, 156, 0.2);
+      font-size: 0.85rem;
+      color: var(--paper);
+    }
+
+    .flow i {
+      font-style: normal;
+      color: var(--emerald);
+      font-size: 0.9rem;
+    }
+
+    .note {
+      margin-top: 1.75rem;
+      padding: 1rem 1.15rem;
+      border-left: 2px solid var(--warn);
+      background: rgba(196, 165, 116, 0.08);
+      color: var(--paper-dim);
+      font-size: 0.88rem;
+      max-width: 40rem;
+    }
+
+    .brands {
+      display: grid;
+      gap: 1rem;
+      margin: 1.5rem 0 0;
+    }
+
+    @media (min-width: 720px) {
+      .brands { grid-template-columns: 1fr 1fr; }
+    }
+
+    .brand-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.85rem;
+      padding: 1.25rem 1.35rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      background: rgba(26, 36, 32, 0.72);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .brand-tile:hover {
+      border-color: rgba(22, 192, 136, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .brand-tile .logo-plate {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 4.5rem;
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+    }
+
+    .brand-tile .logo-plate.dark {
+      background: #000;
+    }
+
+    .brand-tile .logo-plate.light {
+      background: #fff;
+    }
+
+    .brand-tile img {
+      max-height: 2.75rem;
+      max-width: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .brand-tile .name {
+      font-weight: 600;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      color: var(--paper);
+    }
+
+    .brand-tile .role {
+      font-size: 0.8rem;
+      color: var(--mist);
+      margin-top: -0.4rem;
+    }
+
+    .metric-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .metric-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .funds {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      max-width: 36rem;
+    }
+
+    .fund-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.95rem;
+    }
+
+    .fund-row .pct {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.35rem;
+      color: var(--emerald);
+    }
+
+    .bar {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(152, 162, 156, 0.15);
+      overflow: hidden;
+    }
+
+    .bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      border-radius: inherit;
+      font-style: normal;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 2rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 1.35rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: transform 200ms var(--ease), background 200ms var(--ease);
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .btn-ghost {
+      border: 1px solid rgba(152, 162, 156, 0.3);
+      color: var(--paper);
+      background: transparent;
+    }
+
+    .foot {
+      margin-top: 2.5rem;
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.04em;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.7;
+      pointer-events: none;
+      animation: pulse 2.4s var(--ease) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.8; }
+    }
+
+    /* Market research table */
+    .market-table-wrap {
+      margin-top: 1.25rem;
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.18);
+      background: rgba(18, 26, 23, 0.85);
+    }
+
+    .market-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 36rem;
+    }
+
+    .market-table th,
+    .market-table td {
+      padding: 0.75rem 0.9rem;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    .market-table th {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .market-table td:first-child {
+      font-weight: 600;
+      color: var(--paper);
+      white-space: nowrap;
+    }
+
+    .market-table td.num-cell {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.15rem;
+      color: var(--emerald);
+      white-space: nowrap;
+    }
+
+    .market-table td.basis {
+      color: var(--mist);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .market-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .source-line {
+      margin-top: 0.85rem;
+      font-size: 0.7rem;
+      color: var(--mist);
+      max-width: 48rem;
+      line-height: 1.45;
+    }
+
+    .ask-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .ask-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .ask-grid .card .label {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      margin-top: 1.25rem;
+      max-width: 44rem;
+      border-left: 2px solid rgba(22, 192, 136, 0.35);
+      padding-left: 1.25rem;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding: 0.85rem 0;
+    }
+
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -1.55rem;
+      top: 1.15rem;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 999px;
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(22, 192, 136, 0.2);
+    }
+
+    .timeline-item .when {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    .timeline-item .what {
+      font-size: 0.95rem;
+      color: var(--paper-dim);
+    }
+
+    .timeline-item .what strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .team-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (min-width: 720px) {
+      .team-grid { grid-template-columns: 1.2fr 1fr; }
+    }
+
+    .team-card {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 1.1rem;
+      align-items: start;
+    }
+
+    .team-photo {
+      width: 5.5rem;
+      height: 5.5rem;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(22, 192, 136, 0.35);
+      box-shadow: 0 0 0 4px rgba(22, 192, 136, 0.08);
+      background: rgba(11, 16, 14, 0.6);
+    }
+
+    .team-card .label {
+      margin-bottom: 0.2rem;
+    }
+
+    .team-card h3 {
+      margin-bottom: 0.55rem;
+    }
+
+    @media (max-width: 520px) {
+      .team-card {
+        grid-template-columns: 1fr;
+        justify-items: start;
+      }
+    }
+
+    @media print {
+      .market-table { font-size: 0.7rem; }
+      .market-table td.num-cell { color: #0E7C5A; }
+    }
+
+    .slide.cover h1 { max-width: 14ch; }
+
+    @media (max-width: 640px) {
+      .stack-row { grid-template-columns: 1fr; gap: 0.25rem; }
+      .fund-row { grid-template-columns: 3.5rem 1fr; }
+      .fund-row .amt { grid-column: 1 / -1; color: var(--mist); font-size: 0.8rem; }
+      .slide::before { display: none; }
+    }
+
+    @media print {
+      html { scroll-snap-type: none; }
+      .slide { min-height: auto; page-break-after: always; padding: 2rem; }
+      .deck-nav, .progress, .hint { display: none; }
+      body { background: #fff; color: #111; }
+      .lede, .card p, .list li, .stack-row dd { color: #333; }
+      .card { background: #f5f5f5; border-color: #ddd; }
+      h1, h2, .card h3 { color: #0B100E; }
+      .ask-pill .amt, .card .num, .eyebrow, .stack-row dt { color: #0E7C5A; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="deck-nav">
+    <a class="brand" href="https://tryverza.com">
+      <img src="/verza-icon.svg" alt="" width="28" height="20" />
+      Verza
+    </a>
+    <div class="nav-meta">Seed · <strong>$1M SAFE</strong></div>
+  </header>
+  <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
+
+  <!-- 01 -->
+  <section class="slide cover" data-n="01 / 14" id="cover">
+    <p class="eyebrow">Seed round · creator-first</p>
+    <h1>Get creators paid. Matched. And free of the gatekeepers.</h1>
+    <p class="lede">
+      Verza is the operating system for creators to <strong>earn from brand work and their own audience</strong> — with contracts, attribution, wallets, and global payouts in one place.
+    </p>
+    <div class="ask-pill">
+      <span class="amt">$1M</span>
+      <span class="lbl">post-money SAFE</span>
+    </div>
+    <p class="foot">tryverza.com · app.tryverza.com · July 2026</p>
+  </section>
+
+  <!-- 02 -->
+  <section class="slide" data-n="02 / 14" id="problem">
+    <p class="eyebrow">Problem</p>
+    <h2>Creators built the audiences. Platforms and brands still own the economics.</h2>
+    <ul class="list">
+      <li>Creators wait <strong>45+ days</strong> (often 60–120) to get paid for work already delivered.</li>
+      <li>They spend hours chasing invoices instead of creating.</li>
+      <li>FB, IG, YouTube keep moving the monetization goalposts — gatekeeping audiences creators built.</li>
+      <li>Loyal mid-size followings often beat vanity 1M accounts stuck on platform RPM rules.</li>
+      <li>Matching with brands that already need their niche still takes double work and cold outreach.</li>
+      <li>Brand campaign cycles drag — planning and fulfillment stretch while creators sit idle.</li>
+      <li>Global South creators stay locked into differential pricing and weaker payout rails.</li>
+    </ul>
+  </section>
+
+  <!-- 03 -->
+  <section class="slide" data-n="03 / 14" id="solution">
+    <p class="eyebrow">Solution</p>
+    <h2>Verza puts creators at the center of the money and the match.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Get paid</h3>
+        <p>Contracts, invoices, wallets, and global payout paths — so settlement isn’t a side hustle.</p>
+      </div>
+      <div class="card">
+        <h3>Get matched</h3>
+        <p>Campaigns with briefs and Optic discovery so brands find niche creators without months of spreadsheet casting.</p>
+      </div>
+      <div class="card">
+        <h3>Own the outcome</h3>
+        <p>Per-creator links and codes, performance rewards (CPC/CPA), and a Store to monetize fans off-platform.</p>
+      </div>
+      <div class="card">
+        <h3>Stay global</h3>
+        <p>Payout infrastructure built for creators outside US-only banking — including Global South settlement paths.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section class="slide" data-n="04 / 14" id="product">
+    <p class="eyebrow">Product</p>
+    <h2>One stack: match → deliver → track → pay → own audience.</h2>
+    <dl class="stack">
+      <div class="stack-row">
+        <dt>Campaigns</dt>
+        <dd>Join briefs, submit work, earn fixed base + performance rewards — not screenshot proof.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Money</dt>
+        <dd>Wallets, contract invoices, cash-out, and global payout options.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Attribution</dt>
+        <dd>Unique links (<code style="color:var(--emerald)">/l/…</code>) and promo codes tied to store conversions.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Optic + Store</dt>
+        <dd>AI discovery into live campaigns; digital products so followers pay creators directly.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- 05 MARKET TABLE — Jinmi ask -->
+  <section class="slide" data-n="05 / 14" id="market">
+    <p class="eyebrow">Market · researched</p>
+    <h2>Creator TAM, SAM, and the cost of slow matching.</h2>
+    <div class="market-table-wrap">
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Estimate</th>
+            <th>Basis / source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Creator TAM — US</td>
+            <td class="num-cell">~$51–70B</td>
+            <td class="basis">U.S. creator economy ~$50.9B (Market.us, 2024) with 2025 reads near ~$70B in independent tallies. Narrower U.S. creator <em>ad</em> spend: ~$37B (IAB, 2025).</td>
+          </tr>
+          <tr>
+            <td>Creator TAM — Africa</td>
+            <td class="num-cell">~$4B → $17.8B</td>
+            <td class="basis">Africa creator economy ~$3.08B (2023), ~28.5% CAGR → ~$4B+ mid-decade; projected <strong>$17.84B by 2030</strong> (TMCon / Communiqué Africa Creator Economy reports).</td>
+          </tr>
+          <tr>
+            <td>Creator TAM — Rest of World</td>
+            <td class="num-cell">~$180–200B</td>
+            <td class="basis">Global creator economy ~$250–314B (2025–26 research range). RoW ≈ global − US − Africa (e.g. ~$254B − ~$51B − ~$4B ≈ <strong>~$199B</strong>).</td>
+          </tr>
+          <tr>
+            <td>Creator SAM (Verza)</td>
+            <td class="num-cell">~$33–40B</td>
+            <td class="basis">Serviceable market = brand-deal / influencer spend that needs matching, tracking, and payout rails. Global influencer marketing ~$32.6–33B (2025; CreatorIQ / Statista); U.S. creator ad investment alone ~$37B (IAB).</td>
+          </tr>
+          <tr>
+            <td>Unmatched / stalled campaigns (3+ mo)</td>
+            <td class="num-cell">~15–25%</td>
+            <td class="basis">Industry: manual casting often runs <strong>weeks to months</strong> (Cirqle, agency ops reports). Verza model: of active brand creator programs, estimate <strong>15–25%</strong> sit 90+ days without a matched creator cohort — driven by discovery + outreach throughput, not lack of talent.</td>
+          </tr>
+          <tr>
+            <td>Time lost (non-execution)</td>
+            <td class="num-cell">~70–200 hrs / campaign</td>
+            <td class="basis">~2 hrs per creator from discovery → first activation (manual); mid-size shortlists burn <strong>70+ hrs</strong> on sourcing alone (Influship / ops benchmarks). At ~2,000 outreaches to land ~100 activations, load exceeds one FTE-month before content ships.</td>
+          </tr>
+          <tr>
+            <td>Engagement / work lost to lag</td>
+            <td class="num-cell">20–62%</td>
+            <td class="basis"><strong>20%</strong> of creators significantly cut platform activity when payouts lag; <strong>+42%</strong> cut slightly (Runa Content Creators study, 2025). <strong>68%</strong> paid late in the last year; avg <strong>47 days past due</strong> (Visa/Karat 2025). IAB UK: 56% face late pay; 74% have stopped working with a brand after feeling undervalued.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="source-line">
+      Published figures cited above; stalled-campaign % and hour ranges are Verza working estimates from industry cycle benchmarks (not a single census). Diligence appendix available with source links.
+    </p>
+  </section>
+
+  <!-- 06 -->
+  <section class="slide" data-n="06 / 14" id="why-now">
+    <p class="eyebrow">Why this matters</p>
+    <h2>Lag isn’t a paperwork issue — it shrinks creator output and brand ROI.</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="num">47d</div>
+        <h3>Avg days past due</h3>
+        <p>Late brand payments are normal, not edge cases — cash stress forces creators to stop creating.</p>
+      </div>
+      <div class="card">
+        <div class="num">20%</div>
+        <h3>Hard cut in activity</h3>
+        <p>One in five creators significantly reduce work when payouts lag — compounding into missed campaigns.</p>
+      </div>
+      <div class="card">
+        <div class="num">Months</div>
+        <h3>Match cycles</h3>
+        <p>Manual discovery + outreach turns “we need creators” into quarters of non-execution.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 TEAM -->
+  <section class="slide" data-n="07 / 14" id="team">
+    <p class="eyebrow">Company</p>
+    <h2>Founded June 23, 2025. Built for creators, by operators who’ve shipped fintech.</h2>
+    <div class="team-grid">
+      <div class="card team-card">
+        <img class="team-photo" src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="88" height="88" />
+        <div>
+          <p class="label">Founder &amp; CEO</p>
+          <h3>Serge Amouzou</h3>
+          <p>Award-winning fintech entrepreneur, 15+ years. Built Verza himself. Previously founded Datatrixs (AI insights) and Delect (restaurant fintech). Deep expertise scaling money tools for independent professionals.</p>
+        </div>
+      </div>
+      <div class="card team-card">
+        <img class="team-photo" src="/Nercy-Escobedo-profile.jpg" alt="Nercy Escobedo" width="88" height="88" />
+        <div>
+          <p class="label">COO</p>
+          <h3>Nercy Escobedo</h3>
+          <p>15+ years in financial systems &amp; ops — Bloomberg, Morgan Stanley, fintech. Trading systems for 75+ accounts incl. Google, Apple, Wells Fargo, BlackRock. PMP; BS Electrical/Computer Engineering. Joined early 2026.</p>
+        </div>
+      </div>
+    </div>
+    <p class="lede" style="margin-top:1.5rem;margin-bottom:0">
+      Early backers include <strong>Ross Pomerantz</strong> (Stanford MBA; Corporate Bro, 1M+ followers; Corp Capital), <strong>Jinmi O.</strong> (founder, Naija Valley Ventures; former TPM, Global at Meta), and <strong>Carlos Fraser</strong> (Enrolled Agent; Taxko) — angels who know creator ops, large-scale product, and tax from the inside.
+    </p>
+  </section>
+
+  <!-- 08 TRACTION -->
+  <section class="slide" data-n="08 / 14" id="traction">
+    <p class="eyebrow">Traction</p>
+    <h2>Paying logos, recurring SaaS, and campaigns that settle.</h2>
+    <p class="lede">
+      Live on <strong>app.tryverza.com</strong>. Growth is logo quality + retention first — then GMV. Optic sources creators so reach isn’t gated on a closed network.
+    </p>
+
+    <div class="brands" aria-label="Paying brands">
+      <div class="brand-tile">
+        <div class="logo-plate light">
+          <img src="/Illuminate-the-Arts-Logo.jpeg" alt="Illuminate logo" />
+        </div>
+        <span class="name">Illuminate</span>
+        <span class="role">Paying brand</span>
+      </div>
+      <div class="brand-tile">
+        <div class="logo-plate dark">
+          <img src="/cais-white.png" alt="Center for AI Safety logo" />
+        </div>
+        <span class="name">Center for AI Safety</span>
+        <span class="role">Paying brand · SaaS since Mar 2026 · 0 churn</span>
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      <div class="card">
+        <div class="num">36.3M</div>
+        <h3>Followers across platforms</h3>
+        <p>Creators and agencies on Verza — Optic activates reach into live campaigns.</p>
+      </div>
+      <div class="card">
+        <div class="num">$15K</div>
+        <h3>Campaign GMV</h3>
+        <p>First month of launching campaigns on the platform.</p>
+      </div>
+      <div class="card">
+        <div class="num">$5K</div>
+        <h3>Creator payouts</h3>
+        <p>Settled through Verza wallet and payout rails.</p>
+      </div>
+    </div>
+
+    <div class="timeline" aria-label="Customer growth profile">
+      <div class="timeline-item">
+        <div class="when">Jun 23, 2025</div>
+        <div class="what"><strong>Company founded</strong> — Verza incorporated; product build begins.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">2025</div>
+        <div class="what"><strong>~$54K ARR booked</strong> — early agency/creator infrastructure revenue on the books.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">Mar 2026 → now</div>
+        <div class="what"><strong>CAIS on subscription</strong> — Center for AI Safety live as a recurring customer; <strong>zero churn</strong> since start. That’s the customer-growth signal: logo retention on SaaS, not just one-off campaign spend.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">Mid 2026</div>
+        <div class="what"><strong>Campaigns + Illuminate</strong> — performance campaigns live; $15K GMV in month one; $5K paid to creators; 36.3M follower reach Optic can activate.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 FINANCIALS -->
+  <section class="slide" data-n="09 / 14" id="financials">
+    <p class="eyebrow">Financials &amp; timeline</p>
+    <h2>Revenue to date, spend, and what the $1M buys on the clock.</h2>
+    <div class="market-table-wrap">
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Figure</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Year founded</td>
+            <td class="num-cell">Jun 23, 2025</td>
+            <td class="basis">~13 months from founding to this raise.</td>
+          </tr>
+          <tr>
+            <td>Revenue / ARR booked</td>
+            <td class="num-cell">~$54K</td>
+            <td class="basis">2025 actual ARR booked (agency/creator infrastructure). Separate from campaign GMV below.</td>
+          </tr>
+          <tr>
+            <td>Campaign GMV (YTD signal)</td>
+            <td class="num-cell">$15K</td>
+            <td class="basis">First month of campaign launches on-platform. Creator payouts settled: <strong>$5K</strong>.</td>
+          </tr>
+          <tr>
+            <td>SaaS retention</td>
+            <td class="num-cell">0% churn</td>
+            <td class="basis">CAIS on subscription since <strong>March 2026</strong> — logo retention is the growth-profile proof before scale marketing spend.</td>
+          </tr>
+          <tr>
+            <td>Operational spend (to date)</td>
+            <td class="num-cell">Lean</td>
+            <td class="basis">Founder-built product (Serge); COO added early 2026. No large burn engine yet — monthly burn schedule available on request.</td>
+          </tr>
+          <tr>
+            <td>Projected spend (raise)</td>
+            <td class="num-cell">$1M / 18 mo</td>
+            <td class="basis">45% product/eng · 25% GTM · 15% supply · 10% ops · 5% reserve (see Use of funds).</td>
+          </tr>
+          <tr>
+            <td>Timeline to milestones</td>
+            <td class="num-cell">18 months</td>
+            <td class="basis"><strong>0–6 mo:</strong> deepen Optic + Store, design-partner logos. <strong>6–12 mo:</strong> GTM hire, repeatable creator→campaign playbooks. <strong>12–18 mo:</strong> Series A metrics — net revenue, retention, GMV run-rate.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 08 -->
+  <section class="slide" data-n="10 / 14" id="model">
+    <p class="eyebrow">Business model</p>
+    <h2>Take rate on money that moves to creators.</h2>
+    <ul class="list">
+      <li>Platform fees on campaign payouts and performance settlement.</li>
+      <li>Contract &amp; invoice payment rails.</li>
+      <li>SaaS: agency subscriptions, Optic credits.</li>
+      <li>Creator Store: application fee on fan checkouts.</li>
+    </ul>
+  </section>
+
+  <!-- 09 WHY $1M -->
+  <section class="slide" data-n="11 / 14" id="why-ask">
+    <p class="eyebrow">The financial ask</p>
+    <h2>Why $1M — and how we sized it.</h2>
+    <div class="ask-grid">
+      <div class="card">
+        <p class="label">Instrument</p>
+        <h3>Post-money SAFE</h3>
+        <p>Equity via SAFE — not debt. Standard seed instrument; valuation cap set with this round.</p>
+      </div>
+      <div class="card">
+        <p class="label">Amount</p>
+        <h3>$1,000,000</h3>
+        <p>Bottoms-up 18-month operating plan to ship Store + Optic scale, hire, and GTM — not a round number for optics.</p>
+      </div>
+      <div class="card">
+        <p class="label">How we got $1M</p>
+        <h3>Hire + burn math</h3>
+        <p>~$450k product/eng (2–3 hires), $250k GTM, $150k supply, $100k ops/compliance, $50k reserve ≈ 18 months to category milestones.</p>
+      </div>
+      <div class="card">
+        <p class="label">Valuation</p>
+        <h3>Cap negotiated on SAFE</h3>
+        <p>Post-money SAFE with a valuation cap agreed with investors in this raise. Happy to walk comps and ownership in diligence.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide" data-n="12 / 14" id="funds">
+    <p class="eyebrow">Use of funds · $1M</p>
+    <h2>18 months to make fast pay and fast match the default.</h2>
+    <div class="funds">
+      <div class="fund-row">
+        <span class="pct">45%</span>
+        <div>
+          <strong>Product &amp; engineering</strong>
+          <div class="bar"><i style="width:45%"></i></div>
+        </div>
+        <span class="amt">$450k</span>
+      </div>
+      <div class="fund-row">
+        <span class="pct">25%</span>
+        <div>
+          <strong>Go-to-market</strong>
+          <div class="bar"><i style="width:25%"></i></div>
+        </div>
+        <span class="amt">$250k</span>
+      </div>
+      <div class="fund-row">
+        <span class="pct">15%</span>
+        <div>
+          <strong>Creator &amp; brand supply</strong>
+          <div class="bar"><i style="width:15%"></i></div>
+        </div>
+        <span class="amt">$150k</span>
+      </div>
+      <div class="fund-row">
+        <span class="pct">10%</span>
+        <div>
+          <strong>Ops, compliance, support</strong>
+          <div class="bar"><i style="width:10%"></i></div>
+        </div>
+        <span class="amt">$100k</span>
+      </div>
+      <div class="fund-row">
+        <span class="pct">5%</span>
+        <div>
+          <strong>Runway reserve</strong>
+          <div class="bar"><i style="width:5%"></i></div>
+        </div>
+        <span class="amt">$50k</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide" data-n="13 / 14" id="wedge">
+    <p class="eyebrow">Wedge</p>
+    <h2>Why Verza compounds for creators.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Full loop</h3>
+        <p>Match → deliver → track → pay → fan Store. Most tools own one slice.</p>
+      </div>
+      <div class="card">
+        <h3>Payout DNA</h3>
+        <p>Wallets and global payout rails already shipping — including outside US-only banking.</p>
+      </div>
+      <div class="card">
+        <h3>Performance-native</h3>
+        <p>CPC/CPA and store webhooks so creators get paid for outcomes, not vibes.</p>
+      </div>
+      <div class="card">
+        <h3>Optic</h3>
+        <p>AI discovery shortens the months brands waste finding the right niche creator.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="slide" data-n="14 / 14" id="ask">
+    <p class="eyebrow">The ask</p>
+    <h2>$1M on a post-money SAFE to free creators from slow pay and slow match.</h2>
+    <p class="lede">
+      If you back infrastructure that puts creators first — settlement, matching, and audience monetization — let’s talk.
+    </p>
+    <div class="ask-pill">
+      <span class="amt">$1,000,000</span>
+      <span class="lbl">seed · post-money SAFE</span>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Verza%20Seed%20%C2%B7%20%241M%20SAFE">Email founder</a>
+      <a class="btn btn-ghost" href="https://app.tryverza.com" target="_blank" rel="noopener">Open the product</a>
+      <a class="btn btn-ghost" href="https://tryverza.com" target="_blank" rel="noopener">tryverza.com</a>
+    </div>
+    <p class="foot">
+      serge@tryverza.com · tryverza.com · app.tryverza.com · © Verza
+    </p>
+  </section>
+
+  <script>
+    (function () {
+      const progress = document.getElementById("progress");
+      const hint = document.getElementById("hint");
+      const slides = Array.from(document.querySelectorAll(".slide"));
+
+      function updateProgress() {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+        progress.style.width = pct + "%";
+        if (window.scrollY > 80) hint.style.opacity = "0";
+      }
+
+      window.addEventListener("scroll", updateProgress, { passive: true });
+      updateProgress();
+
+      function go(delta) {
+        const y = window.scrollY + window.innerHeight * 0.35;
+        let idx = slides.findIndex((s, i) => {
+          const next = slides[i + 1];
+          return y >= s.offsetTop && (!next || y < next.offsetTop);
+        });
+        if (idx < 0) idx = 0;
+        const target = slides[Math.max(0, Math.min(slides.length - 1, idx + delta))];
+        target.scrollIntoView({ behavior: "smooth" });
+      }
+
+      window.addEventListener("keydown", (e) => {
+        if (["ArrowDown", "PageDown", " ", "j"].includes(e.key)) {
+          e.preventDefault();
+          go(1);
+        } else if (["ArrowUp", "PageUp", "k"].includes(e.key)) {
+          e.preventDefault();
+          go(-1);
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          slides[0].scrollIntoView({ behavior: "smooth" });
+        } else if (e.key === "End") {
+          e.preventDefault();
+          slides[slides.length - 1].scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

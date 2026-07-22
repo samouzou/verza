@@ -14,6 +14,8 @@ import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import type { Agency, TeamMember } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { InflowPayoutCard } from "@/components/settings/inflow-payout-card";
+import { isInflowPayoutCountry } from "@/lib/inflow-corridors";
 
 const CREATE_STRIPE_CONNECTED_ACCOUNT_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_STRIPE_CONNECTED_ACCOUNT_URL!;
 const CREATE_STRIPE_ACCOUNT_LINK_FUNCTION_URL = process.env.NEXT_PUBLIC_CREATE_STRIPE_ACCOUNT_LINK_URL!;
@@ -64,6 +66,14 @@ export function StripeConnectCard() {
     { code: "GH", name: "Ghana" },
     { code: "KE", name: "Kenya" },
     { code: "ZA", name: "South Africa" },
+    { code: "UG", name: "Uganda" },
+    { code: "TZ", name: "Tanzania" },
+    { code: "RW", name: "Rwanda" },
+    { code: "ZM", name: "Zambia" },
+    { code: "BW", name: "Botswana" },
+    { code: "CI", name: "Ivory Coast" },
+    { code: "CD", name: "DR Congo" },
+    { code: "GA", name: "Gabon" },
     { code: "EG", name: "Egypt" },
     { code: "MA", name: "Morocco" },
     { code: "BR", name: "Brazil" },
@@ -112,7 +122,17 @@ export function StripeConnectCard() {
 
   if (!user) return null;
 
-  const isGlobalPayoutCountry = selectedCountry && !STRIPE_CONNECT_COUNTRIES.has(selectedCountry);
+  if (user.payoutMethod === "inflow") {
+    return <InflowPayoutCard initialCountry={user.inflowPayoutCountry || selectedCountry} />;
+  }
+
+  const isInflowCountry = isInflowPayoutCountry(selectedCountry);
+  const isGlobalPayoutCountry =
+    selectedCountry && !STRIPE_CONNECT_COUNTRIES.has(selectedCountry) && !isInflowCountry;
+
+  if ((!user.stripeAccountId || user.stripeAccountStatus === "none") && isInflowCountry) {
+    return <InflowPayoutCard initialCountry={selectedCountry} />;
+  }
 
   const isAgencyAdmin = user.role === 'agency_admin';
   const isAgencyMember = user.role === 'agency_member';
@@ -397,7 +417,7 @@ export function StripeConnectCard() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">Stripe onboarding requirements vary by country. Select the country where your bank account is located.</p>
+              <p className="text-[11px] text-muted-foreground">Stripe onboarding requirements vary by country. Inflowpay is used for supported African countries. Select the country where your bank account or mobile money wallet is located.</p>
             </div>
           </div>
         )}

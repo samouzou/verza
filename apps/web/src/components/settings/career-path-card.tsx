@@ -3,10 +3,36 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Zap, Target, Rocket, ArrowRight } from "lucide-react";
+import { Zap, Target, Rocket, ArrowRight, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 import { Badge } from "@/components/ui/badge";
+import type { UserProfile } from "@/hooks/use-auth";
+
+function pathBadge(path: UserProfile['careerPathResult']) {
+  if (path === 'monetized') {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Target className="h-3 w-3" />
+        Deal Hunter
+      </div>
+    );
+  }
+  if (path === 'community') {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Users className="h-3 w-3" />
+        Community Builder
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <Rocket className="h-3 w-3" />
+      Content Architect
+    </div>
+  );
+}
 
 export function CareerPathCard() {
   const { user } = useAuth();
@@ -17,6 +43,10 @@ export function CareerPathCard() {
   }
 
   const currentPath = user.careerPathResult;
+  const badgeClass =
+    currentPath === 'community'
+      ? "bg-violet-600/10 text-violet-600 border-violet-300"
+      : "bg-emerald-600/10 text-emerald-600 border-emerald-300";
 
   return (
     <>
@@ -25,7 +55,7 @@ export function CareerPathCard() {
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <Zap className="h-5 w-5 text-indigo-600" />
+                <Zap className="h-5 w-5 text-emerald-600" />
                 Creator Career Path
               </CardTitle>
               <CardDescription>
@@ -33,18 +63,8 @@ export function CareerPathCard() {
               </CardDescription>
             </div>
             {currentPath && (
-              <Badge variant="secondary" className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 border-indigo-200">
-                {currentPath === 'monetized' ? (
-                  <div className="flex items-center gap-1.5">
-                    <Target className="h-3 w-3" />
-                    Deal Hunter
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <Rocket className="h-3 w-3" />
-                    Content Architect
-                  </div>
-                )}
+              <Badge variant="secondary" className={`px-3 py-1 rounded-full ${badgeClass}`}>
+                {pathBadge(currentPath)}
               </Badge>
             )}
           </div>
@@ -54,7 +74,7 @@ export function CareerPathCard() {
             <div className="flex-1 space-y-2">
               <h4 className="font-bold text-lg">Want to change your focus?</h4>
               <p className="text-sm text-muted-foreground">
-                Whether you're shifting from audience growth to brand monetization, or back to building, 
+                Sell tips, courses, and downloads to your community, hunt brand deals, or grow your audience —
                 re-running the guide will help you find the right tools.
               </p>
             </div>
