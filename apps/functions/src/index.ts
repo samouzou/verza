@@ -128,6 +128,7 @@ import {
 } from "./gmail";
 import {
   upsertStoreProduct,
+  manageStoreProduct,
   createStoreCheckoutSession,
   getStoreProductContent,
   getStoreAccess,
@@ -216,6 +217,7 @@ export {
   disconnectGmail,
   createOpticGmailDraft,
   upsertStoreProduct,
+  manageStoreProduct,
   createStoreCheckoutSession,
   getStoreProductContent,
   getStoreAccess,

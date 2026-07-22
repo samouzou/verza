@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   GraduationCap,
   Link2,
+  Heart,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,10 @@ import { db, functions } from "@/lib/firebase";
 import type { StoreProduct, StorePurchase } from "@/types";
 import { chapterCount } from "@/lib/store-editor";
 import { cn } from "@/lib/utils";
+import { StoreProductManageActions } from "@/components/store/store-product-manage-actions";
+
+type ProductFilter = "live" | "draft" | "active" | "archived";
+type DialogKind = "link" | "tip";
 
 type LinkFormState = {
   title: string;
@@ -63,6 +68,7 @@ type LinkFormState = {
   priceDollars: string;
   coverImageUrl: string;
   accessUrl: string;
+  tipAmountsDollars: string;
   status: "draft" | "active" | "archived";
 };
 
@@ -72,8 +78,35 @@ const emptyLinkForm: LinkFormState = {
   priceDollars: "",
   coverImageUrl: "",
   accessUrl: "",
+  tipAmountsDollars: "3,5,10,25",
   status: "draft",
 };
+
+function parseTipAmountsCents(input: string): number[] {
+  const parts = input
+    .split(/[,\s]+/)
+    .map((part) => part.trim().replace(/^\$/, ""))
+    .filter(Boolean);
+  const cents = parts.map((part) => Math.round(parseFloat(part) * 100));
+  if (!cents.length || cents.some((value) => !Number.isFinite(value) || value < 100)) {
+    return [];
+  }
+  return [...new Set(cents)].sort((a, b) => a - b);
+}
+
+function productKindLabel(product: StoreProduct) {
+  const kind = product.kind || "link";
+  if (kind === "course") {
+    return `Course · ${chapterCount(product)} chapters`;
+  }
+  if (kind === "tip") {
+    const amounts = product.tipAmountsCents?.length
+      ? product.tipAmountsCents
+      : [product.priceCents];
+    return `Tip jar · ${amounts.map((c) => formatUsd(c)).join(", ")}`;
+  }
+  return "Download / link";
+}
 
 function formatUsd(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -90,9 +123,11 @@ export default function StorePage() {
   const [purchases, setPurchases] = useState<StorePurchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogKind, setDialogKind] = useState<DialogKind>("link");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<LinkFormState>(emptyLinkForm);
   const [saving, setSaving] = useState(false);
+  const [productFilter, setProductFilter] = useState<ProductFilter>("live");
 
   const isCreator =
     user?.role === "individual_creator" || user?.role === "talent";
@@ -103,6 +138,19 @@ export default function StorePage() {
     const revenue = products.reduce((n, p) => n + (p.revenueCents || 0), 0);
     return { sales, revenue };
   }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    switch (productFilter) {
+      case "draft":
+        return products.filter((p) => p.status === "draft");
+      case "active":
+        return products.filter((p) => p.status === "active");
+      case "archived":
+        return products.filter((p) => p.status === "archived");
+      default:
+        return products.filter((p) => p.status !== "archived");
+    }
+  }, [products, productFilter]);
 
   useEffect(() => {
     if (!user?.uid || !isCreator) {
@@ -158,44 +206,77 @@ export default function StorePage() {
 
   const openCreateLink = () => {
     setEditingId(null);
+    setDialogKind("link");
     setForm(emptyLinkForm);
     setDialogOpen(true);
   };
 
+  const openCreateTip = () => {
+    setEditingId(null);
+    setDialogKind("tip");
+    setForm({
+      ...emptyLinkForm,
+      title: "Support my work",
+      description: "Leave a tip if my content helped you. Every bit of support keeps me going.",
+    });
+    setDialogOpen(true);
+  };
+
   const openEdit = async (product: StoreProduct) => {
-    if ((product.kind || "link") === "course") {
+    const kind = product.kind || "link";
+    if (kind === "course") {
       router.push(`/store/${product.id}/edit`);
       return;
     }
     setEditingId(product.id);
+    setDialogKind(kind === "tip" ? "tip" : "link");
+    const tipAmounts = product.tipAmountsCents?.length
+      ? product.tipAmountsCents
+      : [product.priceCents];
     setForm({
       title: product.title,
       description: product.description || "",
       priceDollars: (product.priceCents / 100).toFixed(2),
       coverImageUrl: product.coverImageUrl || "",
       accessUrl: product.accessUrl || "",
+      tipAmountsDollars: tipAmounts.map((c) => String(c / 100)).join(", "),
       status: product.status,
     });
     setDialogOpen(true);
-    try {
-      const getContent = httpsCallable(functions, "getStoreProductContent");
-      const result = await getContent({ productId: product.id });
-      const data = result.data as { accessUrl?: string | null };
-      if (data.accessUrl) {
-        setForm((f) => ({ ...f, accessUrl: data.accessUrl || "" }));
+    if (kind === "link") {
+      try {
+        const getContent = httpsCallable(functions, "getStoreProductContent");
+        const result = await getContent({ productId: product.id });
+        const data = result.data as { accessUrl?: string | null };
+        if (data.accessUrl) {
+          setForm((f) => ({ ...f, accessUrl: data.accessUrl || "" }));
+        }
+      } catch {
+        // Public fields still editable
       }
-    } catch {
-      // Public fields still editable
     }
   };
 
   const handleSave = async () => {
-    const price = Math.round(parseFloat(form.priceDollars) * 100);
+    const isTip = dialogKind === "tip";
+    const tipAmountsCents = isTip ? parseTipAmountsCents(form.tipAmountsDollars) : [];
+    const price = isTip
+      ? tipAmountsCents[0] || 0
+      : Math.round(parseFloat(form.priceDollars) * 100);
     if (!form.title.trim()) {
       toast({ title: "Title required", variant: "destructive" });
       return;
     }
-    if (!Number.isFinite(price) || price < 100) {
+    if (isTip) {
+      if (!tipAmountsCents.length) {
+        toast({
+          title: "Invalid tip amounts",
+          description: "Enter comma-separated amounts (minimum $1 each), e.g. 3,5,10,25",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (!Number.isFinite(price) || price < 100) {
       toast({
         title: "Invalid price",
         description: "Minimum price is $1.00",
@@ -203,7 +284,7 @@ export default function StorePage() {
       });
       return;
     }
-    if (!form.accessUrl.trim()) {
+    if (!isTip && !form.accessUrl.trim()) {
       toast({
         title: "Access link required",
         description: "Buyers receive this URL after payment.",
@@ -228,9 +309,10 @@ export default function StorePage() {
         title: form.title.trim(),
         description: form.description.trim(),
         priceCents: price,
-        kind: "link",
+        kind: isTip ? "tip" : "link",
+        tipAmountsCents: isTip ? tipAmountsCents : undefined,
         coverImageUrl: form.coverImageUrl.trim() || null,
-        accessUrl: form.accessUrl.trim(),
+        accessUrl: isTip ? null : form.accessUrl.trim(),
         status: form.status,
       });
       toast({
@@ -283,9 +365,13 @@ export default function StorePage() {
     <div className="space-y-8">
       <PageHeader
         title="Store"
-        description="Sell downloads and courses to your audience. Fans pay once; you get paid via your payout account."
+        description="Sell tips, downloads, and courses to your audience. Fans pay once; you get paid via your payout account."
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={openCreateTip}>
+              <Heart className="mr-2 h-4 w-4" />
+              New tip jar
+            </Button>
             <Button variant="outline" onClick={() => router.push("/store/new?kind=course")}>
               <GraduationCap className="mr-2 h-4 w-4" />
               New course
@@ -332,25 +418,55 @@ export default function StorePage() {
       </div>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Products</h2>
-        {products.length === 0 ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold">Products</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ["live", "All"],
+                ["draft", "Drafts"],
+                ["active", "Active"],
+                ["archived", "Archived"],
+              ] as const
+            ).map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={productFilter === key ? "secondary" : "ghost"}
+                onClick={() => setProductFilter(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {filteredProducts.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
               <ShoppingBag className="h-10 w-10 text-muted-foreground" />
-              <p className="font-medium">No products yet</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Sell a download, invite link, or a multi-lesson course. Share the
-                product URL anywhere your audience already is.
+              <p className="font-medium">
+                {products.length === 0
+                  ? "No products yet"
+                  : "No products in this view"}
               </p>
-              <Button onClick={openCreateLink}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create your first product
-              </Button>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                {products.length === 0
+                  ? "Accept tips, sell a download, or launch a multi-lesson course. Share the link anywhere your audience already is."
+                  : productFilter === "archived"
+                    ? "Archived products are hidden from your storefront."
+                    : "Try another filter or create a new product."}
+              </p>
+              {products.length === 0 && (
+                <Button onClick={openCreateLink}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create your first product
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <Card key={product.id} className="overflow-hidden">
                 {product.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -362,7 +478,7 @@ export default function StorePage() {
                 )}
                 <CardHeader className="space-y-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <CardTitle className="text-lg leading-snug">
                         {product.title}
                       </CardTitle>
@@ -370,26 +486,34 @@ export default function StorePage() {
                         <Badge variant="outline" className="gap-1 font-normal">
                           {(product.kind || "link") === "course" ? (
                             <GraduationCap className="h-3 w-3" />
+                          ) : (product.kind || "link") === "tip" ? (
+                            <Heart className="h-3 w-3" />
                           ) : (
                             <Link2 className="h-3 w-3" />
                           )}
-                          {(product.kind || "link") === "course"
-                            ? `Course · ${chapterCount(product)} chapters`
-                            : "Download / link"}
+                          {productKindLabel(product)}
                         </Badge>
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        product.status === "active" ? "default" : "secondary"
-                      }
-                      className={cn(
-                        product.status === "active" &&
-                          "bg-emerald-600 hover:bg-emerald-600"
-                      )}
-                    >
-                      {product.status}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge
+                        variant={
+                          product.status === "active" ? "default" : "secondary"
+                        }
+                        className={cn(
+                          product.status === "active" &&
+                            "bg-emerald-600 hover:bg-emerald-600",
+                          product.status === "archived" && "opacity-70"
+                        )}
+                      >
+                        {product.status}
+                      </Badge>
+                      <StoreProductManageActions
+                        productId={product.id}
+                        status={product.status}
+                        salesCount={product.salesCount || 0}
+                      />
+                    </div>
                   </div>
                   <CardDescription className="line-clamp-2">
                     {product.description || "No description"}
@@ -477,11 +601,18 @@ export default function StorePage() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Edit download" : "New download"}
+              {editingId
+                ? dialogKind === "tip"
+                  ? "Edit tip jar"
+                  : "Edit download"
+                : dialogKind === "tip"
+                  ? "New tip jar"
+                  : "New download"}
             </DialogTitle>
             <DialogDescription>
-              One-time purchase. After payment, buyers get your access link by
-              email (10% Verza fee + card processing).
+              {dialogKind === "tip"
+                ? "Fans pick a preset amount and send support — no delivery link required (10% Verza fee + card processing)."
+                : "One-time purchase. After payment, buyers get your access link by email (10% Verza fee + card processing)."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -510,7 +641,7 @@ export default function StorePage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, title: e.target.value }))
                 }
-                placeholder="Creator pack, Discord invite…"
+                placeholder={dialogKind === "tip" ? "Support my work" : "Creator pack, Discord invite…"}
                 maxLength={120}
               />
             </div>
@@ -522,26 +653,43 @@ export default function StorePage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, description: e.target.value }))
                 }
-                placeholder="What buyers get"
+                placeholder={dialogKind === "tip" ? "Tell fans why tips help you keep creating" : "What buyers get"}
                 rows={3}
                 maxLength={2000}
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="store-price">Price (USD)</Label>
-                <Input
-                  id="store-price"
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  value={form.priceDollars}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, priceDollars: e.target.value }))
-                  }
-                  placeholder="29.00"
-                />
-              </div>
+              {dialogKind === "link" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="store-price">Price (USD)</Label>
+                  <Input
+                    id="store-price"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={form.priceDollars}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, priceDollars: e.target.value }))
+                    }
+                    placeholder="29.00"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="store-tip-amounts">Tip amounts (USD)</Label>
+                  <Input
+                    id="store-tip-amounts"
+                    value={form.tipAmountsDollars}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, tipAmountsDollars: e.target.value }))
+                    }
+                    placeholder="3,5,10,25"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated presets fans can choose from (minimum $1 each).
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
@@ -564,6 +712,7 @@ export default function StorePage() {
               </div>
             </div>
 
+            {dialogKind === "link" && (
             <div className="space-y-2">
               <Label htmlFor="store-access">Access / delivery link</Label>
               <Input
@@ -579,6 +728,7 @@ export default function StorePage() {
                 paying.
               </p>
             </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

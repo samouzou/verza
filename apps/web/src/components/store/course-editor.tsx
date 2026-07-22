@@ -32,6 +32,7 @@ import {
   CourseChapterAiGenerator,
   CourseOutlineAiGenerator,
 } from "@/components/store/course-ai-generator";
+import { StoreProductManageActions } from "@/components/store/store-product-manage-actions";
 import {
   type ChapterFormRow,
   type CourseFormState,
@@ -57,6 +58,7 @@ type EditorView = "settings" | string;
 
 type CourseEditorProps = {
   productId: string | null;
+  salesCount?: number;
   form: CourseFormState;
   onFormChange: (updater: (prev: CourseFormState) => CourseFormState) => void;
   onSave: (chapters?: ChapterFormRow[]) => Promise<void>;
@@ -68,6 +70,7 @@ type CourseEditorProps = {
 
 export function CourseEditor({
   productId,
+  salesCount = 0,
   form,
   onFormChange,
   onSave,
@@ -392,6 +395,18 @@ export function CourseEditor({
                     /s/{productId}
                   </Link>
                 </p>
+              )}
+
+              {productId && (
+                <StoreProductManageActions
+                  productId={productId}
+                  status={form.status}
+                  salesCount={salesCount}
+                  variant="panel"
+                  onStatusChange={(status) =>
+                    onFormChange((f) => ({ ...f, status }))
+                  }
+                />
               )}
 
               <CourseOutlineAiGenerator

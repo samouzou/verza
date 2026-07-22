@@ -109,6 +109,7 @@ export interface UserProfile {
   niche?: string;
   contentType?: CreatorMarketplaceProfile['contentType'] | null;
   hasCompletedCareerPath?: boolean;
+  careerPathResult?: 'monetized' | 'emerging' | 'community' | null;
   hasCompletedBrandJourney?: boolean;
 
   /** Optic: Gmail connected for saving outreach drafts (tokens stored server-side). */
@@ -443,6 +444,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               inflowPayoutAccountId: firestoreUserData.inflowPayoutAccountId,
               hasCompletedOnboarding: firestoreUserData.hasCompletedOnboarding || false,
               hasCompletedCareerPath: firestoreUserData.hasCompletedCareerPath || false,
+              careerPathResult: firestoreUserData.careerPathResult ?? null,
               hasCompletedBrandJourney: firestoreUserData.hasCompletedBrandJourney || false,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,

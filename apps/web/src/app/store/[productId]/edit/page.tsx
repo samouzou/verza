@@ -29,6 +29,7 @@ export default function StoreCourseEditPage() {
   const { toast } = useToast();
 
   const [form, setForm] = useState<CourseFormState>(emptyCourseForm);
+  const [salesCount, setSalesCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,6 +88,7 @@ export default function StoreCourseEditPage() {
           ),
           status: product.status,
         });
+        setSalesCount(product.salesCount || 0);
 
         setLoadingContent(true);
         const getContent = httpsCallable(functions, "getStoreProductContent");
@@ -197,6 +199,7 @@ export default function StoreCourseEditPage() {
   return (
     <CourseEditor
       productId={productId}
+      salesCount={salesCount}
       form={form}
       onFormChange={setForm}
       onSave={handleSave}

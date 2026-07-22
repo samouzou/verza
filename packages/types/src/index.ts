@@ -301,7 +301,7 @@ export interface UserProfileFirestoreData {
   niche?: string;
   contentType?: 'Tech' | 'Fashion' | 'Comedy' | 'Gaming' | 'Lifestyle' | 'Food' | null;
   hasCompletedCareerPath?: boolean;
-  careerPathResult?: "monetized" | "emerging" | null;
+  careerPathResult?: "monetized" | "emerging" | "community" | null;
   hasCompletedBrandJourney?: boolean;
 
   /** Public storefront slug for creator Store (/c/{storeSlug}). */
@@ -311,8 +311,8 @@ export interface UserProfileFirestoreData {
 /** Creator-sold digital product (fan commerce / Whop-style Store). */
 export type StoreProductStatus = "draft" | "active" | "archived";
 
-/** Single download/invite link vs multi-lesson course. */
-export type StoreProductKind = "link" | "course";
+/** Single download/invite link vs multi-lesson course vs fan tip jar. */
+export type StoreProductKind = "link" | "course" | "tip";
 
 /** Public curriculum row (titles only — no body or delivery URLs). */
 export interface StoreChapterOutline {
@@ -375,6 +375,8 @@ export interface StoreProduct {
   currency: "usd";
   /** Defaults to "link" for products created before kinds existed. */
   kind?: StoreProductKind;
+  /** Preset tip amounts in cents (kind=tip). priceCents is the default / minimum display. */
+  tipAmountsCents?: number[];
   coverImageUrl?: string | null;
   /** Public course curriculum (titles/summaries only). */
   chapterOutline?: StoreChapterOutline[];

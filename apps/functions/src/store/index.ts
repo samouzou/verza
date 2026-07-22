@@ -263,6 +263,39 @@ function courseChaptersFromContent(
   return [];
 }
 
+function sanitizeTipAmountsCents(
+  raw: unknown,
+  fallbackCents: number
+): number[] {
+  if (!Array.isArray(raw)) {
+    return [fallbackCents];
+  }
+  const amounts = raw
+    .map((value) => (typeof value === "number" ? Math.round(value) : Number.NaN))
+    .filter(
+      (value) =>
+        Number.isFinite(value) &&
+        value >= MIN_PRICE_CENTS &&
+        value <= MAX_PRICE_CENTS
+    );
+  const unique = [...new Set(amounts)].sort((a, b) => a - b);
+  if (!unique.length) {
+    return [fallbackCents];
+  }
+  if (unique.length > 6) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Tip jars support up to 6 preset amounts."
+    );
+  }
+  return unique;
+}
+
+function parseProductKind(data: Record<string, unknown>): StoreProductKind {
+  if (data.kind === "course") return "course";
+  if (data.kind === "tip") return "tip";
+  return "link";
+}
 function sanitizeProductInput(data: Record<string, unknown>): {
   title: string;
   description: string;
@@ -272,6 +305,7 @@ function sanitizeProductInput(data: Record<string, unknown>): {
   coverImageUrl: string | null;
   accessUrl: string | null;
   chapters: StoreChapterContent[];
+  tipAmountsCents: number[];
 } {
   const title = typeof data.title === "string" ? data.title.trim() : "";
   const description =
@@ -286,8 +320,7 @@ function sanitizeProductInput(data: Record<string, unknown>): {
     data.status === "archived"
       ? data.status
       : "draft";
-  const kind: StoreProductKind =
-    data.kind === "course" ? "course" : "link";
+  const kind = parseProductKind(data);
   const coverImageUrl = sanitizeOptionalUrl(data.coverImageUrl, "Cover image");
   if (coverImageUrl && !isHttpUrl(coverImageUrl)) {
     throw new HttpsError(
@@ -336,6 +369,25 @@ function sanitizeProductInput(data: Record<string, unknown>): {
       coverImageUrl,
       accessUrl,
       chapters: [],
+      tipAmountsCents: [],
+    };
+  }
+
+  if (kind === "tip") {
+    const tipAmountsCents = sanitizeTipAmountsCents(
+      data.tipAmountsCents,
+      priceCents
+    );
+    return {
+      title,
+      description,
+      priceCents: tipAmountsCents[0],
+      status,
+      kind,
+      coverImageUrl,
+      accessUrl: null,
+      chapters: [],
+      tipAmountsCents,
     };
   }
 
@@ -349,6 +401,7 @@ function sanitizeProductInput(data: Record<string, unknown>): {
     coverImageUrl,
     accessUrl: null,
     chapters,
+    tipAmountsCents: [],
   };
 }
 
@@ -390,6 +443,9 @@ function resolveDelivery(
   if (kind === "course") {
     const chapters = courseChaptersFromContent(content);
     return {kind, accessUrl: null, chapters};
+  }
+  if (kind === "tip") {
+    return {kind: "tip", accessUrl: null, chapters: []};
   }
   const accessUrl =
     content?.accessUrl || product.accessUrl || null;
@@ -456,6 +512,9 @@ export const upsertStoreProduct = onCall(async (request) => {
     updatedAt: now,
     // Stop exposing paid URLs on the public product doc.
     accessUrl: FieldValue.delete(),
+    ...(fields.kind === "tip"
+      ? {tipAmountsCents: fields.tipAmountsCents}
+      : {tipAmountsCents: FieldValue.delete()}),
   };
 
   const writeContent = async (id: string, chapters: StoreChapterContent[]) => {
@@ -499,6 +558,9 @@ export const upsertStoreProduct = onCall(async (request) => {
     priceCents: fields.priceCents,
     currency: "usd",
     kind: fields.kind,
+    ...(fields.kind === "tip"
+      ? {tipAmountsCents: fields.tipAmountsCents}
+      : {}),
     coverImageUrl: fields.coverImageUrl,
     chapterOutline,
     status: fields.status,
@@ -509,6 +571,89 @@ export const upsertStoreProduct = onCall(async (request) => {
   });
   await writeContent(ref.id, courseChapters);
   return {id: ref.id};
+});
+
+type ManageStoreProductAction = "archive" | "restore" | "delete";
+
+/**
+ * Archive, restore to draft, or permanently delete a Store product.
+ * Delete is only allowed when the product has no sales (buyers keep access via purchases).
+ */
+export const manageStoreProduct = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to manage your Store.");
+  }
+
+  const creatorId = request.auth.uid;
+  const userSnap = await db.collection("users").doc(creatorId).get();
+  const userData = userSnap.data() as UserProfileFirestoreData | undefined;
+  if (!userData) {
+    throw new HttpsError("not-found", "User profile not found.");
+  }
+  assertCreatorRole(userData.role);
+
+  const productId =
+    typeof request.data?.productId === "string" ? request.data.productId.trim() : "";
+  const action = request.data?.action as ManageStoreProductAction;
+
+  if (!productId) {
+    throw new HttpsError("invalid-argument", "productId is required.");
+  }
+  if (action !== "archive" && action !== "restore" && action !== "delete") {
+    throw new HttpsError(
+      "invalid-argument",
+      "action must be archive, restore, or delete."
+    );
+  }
+
+  const ref = db.collection("storeProducts").doc(productId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Product not found.");
+  }
+  const product = {id: snap.id, ...snap.data()} as StoreProduct;
+  if (product.creatorId !== creatorId) {
+    throw new HttpsError("permission-denied", "Not your product.");
+  }
+
+  const now = FieldValue.serverTimestamp();
+
+  if (action === "archive") {
+    if (product.status === "archived") {
+      return {id: productId, status: "archived" as const};
+    }
+    await ref.update({status: "archived", updatedAt: now});
+    logger.info("[store] Product archived", {productId, creatorId});
+    return {id: productId, status: "archived" as const};
+  }
+
+  if (action === "restore") {
+    if (product.status !== "archived") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Only archived products can be restored."
+      );
+    }
+    await ref.update({status: "draft", updatedAt: now});
+    logger.info("[store] Product restored to draft", {productId, creatorId});
+    return {id: productId, status: "draft" as const};
+  }
+
+  const salesCount = product.salesCount || 0;
+  if (salesCount > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Products with sales cannot be deleted. Archive the product instead — buyers keep access."
+    );
+  }
+
+  const contentRef = db.collection("storeProductContent").doc(productId);
+  const batch = db.batch();
+  batch.delete(ref);
+  batch.delete(contentRef);
+  await batch.commit();
+  logger.info("[store] Product deleted", {productId, creatorId});
+  return {id: productId, deleted: true as const};
 });
 
 /**
@@ -618,6 +763,14 @@ export const getStoreAccess = onCall({
     };
   }
 
+  if (delivery.kind === "tip") {
+    return {
+      kind: "tip" as const,
+      productTitle: product.title,
+      creatorDisplayName: product.creatorDisplayName || null,
+    };
+  }
+
   if (!delivery.accessUrl) {
     throw new HttpsError(
       "failed-precondition",
@@ -671,7 +824,20 @@ export const createStoreCheckoutSession = onCall({
     );
   }
 
-  const amountCents = product.priceCents;
+  const productKind = product.kind || "link";
+  const tipAmounts =
+    product.tipAmountsCents?.length ? product.tipAmountsCents : [product.priceCents];
+  let amountCents = product.priceCents;
+  if (productKind === "tip") {
+    const requested =
+      typeof request.data?.amountCents === "number"
+        ? Math.round(request.data.amountCents)
+        : tipAmounts[0];
+    if (!tipAmounts.includes(requested)) {
+      throw new HttpsError("invalid-argument", "Choose one of the listed tip amounts.");
+    }
+    amountCents = requested;
+  }
   const platformFee = Math.round(amountCents * STORE_PLATFORM_FEE_FRACTION);
   const stripeFee = Math.round(amountCents * 0.029) + 30;
   const totalFee = platformFee + stripeFee;
@@ -729,6 +895,7 @@ export const createStoreCheckoutSession = onCall({
           productId,
           creatorId: product.creatorId,
           buyerEmail,
+          amountCents: String(amountCents),
           platformFeeCents: String(totalFee),
           creatorNetCents: String(creatorNet),
           ...connectTransferMetadata(creator.stripeAccountId, creatorNet),
@@ -739,6 +906,7 @@ export const createStoreCheckoutSession = onCall({
         productId,
         creatorId: product.creatorId,
         buyerEmail,
+        amountCents: String(amountCents),
         platformFeeCents: String(totalFee),
         creatorNetCents: String(creatorNet),
         ...connectTransferMetadata(creator.stripeAccountId, creatorNet),
@@ -799,7 +967,8 @@ export async function fulfillStoreSale(
   const content = await loadPrivateContent(productId);
   const delivery = resolveDelivery(product, content);
 
-  const amountCents = product.priceCents;
+  const amountCents =
+    parseInt(metadata.amountCents || "0", 10) || product.priceCents;
   const platformFeeCents = parseInt(metadata.platformFeeCents || "0", 10) || 0;
   const creatorNetCents =
     parseInt(metadata.creatorNetCents || "0", 10) ||
@@ -851,6 +1020,7 @@ export async function fulfillStoreSale(
       "your creator";
 
     const isCourse = delivery.kind === "course";
+    const isTip = delivery.kind === "tip";
     const bodyHtml = isCourse
       ? `
         <p>Thanks for buying <strong>${product.title}</strong> from ${creatorName}.</p>
@@ -858,7 +1028,14 @@ export async function fulfillStoreSale(
         <p><a href="${accessPageUrl}">Open your course</a></p>
         <p style="color:#718096;font-size:12px;">Powered by Verza Store</p>
       `
-      : `
+      : isTip
+        ? `
+        <p>Thanks for supporting <strong>${creatorName}</strong> with a tip!</p>
+        <p>Your generosity means a lot. You can view your receipt anytime:</p>
+        <p><a href="${accessPageUrl}">View your tip</a></p>
+        <p style="color:#718096;font-size:12px;">Powered by Verza Store</p>
+      `
+        : `
         <p>Thanks for buying <strong>${product.title}</strong> from ${creatorName}.</p>
         <p>Your access link:</p>
         <p><a href="${delivery.accessUrl || accessPageUrl}">${

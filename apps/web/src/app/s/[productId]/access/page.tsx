@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink,
   GraduationCap,
+  Heart,
   Loader2,
   Lock,
 } from "lucide-react";
@@ -37,6 +38,11 @@ type AccessPayload =
       kind: "link";
       productTitle: string;
       accessUrl: string;
+    }
+  | {
+      kind: "tip";
+      productTitle: string;
+      creatorDisplayName?: string | null;
     }
   | {
       kind: "course";
@@ -160,6 +166,34 @@ export default function StoreAccessPage() {
                 className="underline underline-offset-2"
               >
                 Back to product
+              </Link>
+            </p>
+          </div>
+        )}
+
+        {access?.kind === "tip" && (
+          <div className="space-y-6 rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
+            <div className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm">
+              <Heart className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" />
+              <p>
+                Thanks for supporting{" "}
+                {access.creatorDisplayName || "this creator"} with a tip on{" "}
+                <strong>{access.productTitle}</strong>.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setAccess(null)}
+            >
+              Use a different email
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              <Link
+                href={`/s/${productId}`}
+                className="underline underline-offset-2"
+              >
+                Back to tip jar
               </Link>
             </p>
           </div>

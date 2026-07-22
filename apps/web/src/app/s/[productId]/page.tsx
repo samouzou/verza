@@ -9,6 +9,7 @@ import { httpsCallable } from "firebase/functions";
 import {
   AlertTriangle,
   GraduationCap,
+  Heart,
   Loader2,
   ShoppingBag,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { db, functions } from "@/lib/firebase";
 import type { StoreProduct } from "@/types";
+import { cn } from "@/lib/utils";
 
 function formatUsd(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -37,6 +39,7 @@ export default function PublicStoreProductPage() {
   const [buyerEmail, setBuyerEmail] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [selectedTipCents, setSelectedTipCents] = useState<number | null>(null);
 
   useEffect(() => {
     if (!productId) return;
@@ -51,6 +54,12 @@ export default function PublicStoreProductPage() {
           return;
         }
         const data = { id: snap.id, ...snap.data() } as StoreProduct;
+        if ((data.kind || "link") === "tip") {
+          const amounts = data.tipAmountsCents?.length
+            ? data.tipAmountsCents
+            : [data.priceCents];
+          setSelectedTipCents(amounts[0]);
+        }
         if (data.status !== "active" && purchaseState !== "success") {
           setError("This product is not currently for sale.");
           setProduct(data);
@@ -80,6 +89,9 @@ export default function PublicStoreProductPage() {
       const result = await createCheckout({
         productId: product.id,
         buyerEmail: buyerEmail.trim(),
+        ...(product.kind === "tip" && selectedTipCents
+          ? { amountCents: selectedTipCents }
+          : {}),
       });
       const url = (result.data as { url?: string })?.url;
       if (!url) throw new Error("No checkout URL returned");
@@ -115,7 +127,15 @@ export default function PublicStoreProductPage() {
     );
   }
 
-  const isCourse = (product.kind || "link") === "course";
+  const productKind = product.kind || "link";
+  const isCourse = productKind === "course";
+  const isTip = productKind === "tip";
+  const tipAmounts = product.tipAmountsCents?.length
+    ? product.tipAmountsCents
+    : [product.priceCents];
+  const checkoutAmountCents = isTip
+    ? selectedTipCents || tipAmounts[0]
+    : product.priceCents;
   const outline =
     product.chapterOutline?.length
       ? product.chapterOutline
@@ -177,6 +197,12 @@ export default function PublicStoreProductPage() {
                   Course · {outline.length} chapters
                 </p>
               )}
+              {isTip && (
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-violet-700 dark:text-violet-400">
+                  <Heart className="h-3.5 w-3.5" />
+                  Tip jar
+                </p>
+              )}
               <h1 className="text-3xl font-bold tracking-tight">
                 {product.title}
               </h1>
@@ -210,9 +236,30 @@ export default function PublicStoreProductPage() {
                 </div>
               )}
 
-            <p className="text-4xl font-bold tabular-nums tracking-tight">
-              {formatUsd(product.priceCents)}
-            </p>
+            {isTip ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Choose an amount</p>
+                <div className="flex flex-wrap gap-2">
+                  {tipAmounts.map((amount) => (
+                    <Button
+                      key={amount}
+                      type="button"
+                      variant={selectedTipCents === amount ? "default" : "outline"}
+                      className={cn(
+                        selectedTipCents === amount && "bg-violet-600 hover:bg-violet-700"
+                      )}
+                      onClick={() => setSelectedTipCents(amount)}
+                    >
+                      {formatUsd(amount)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-4xl font-bold tabular-nums tracking-tight">
+                {formatUsd(product.priceCents)}
+              </p>
+            )}
 
             {purchaseState === "cancelled" && (
               <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
@@ -222,7 +269,9 @@ export default function PublicStoreProductPage() {
 
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="buyer-email">Email for delivery</Label>
+                <Label htmlFor="buyer-email">
+                  {isTip ? "Email for receipt" : "Email for delivery"}
+                </Label>
                 <Input
                   id="buyer-email"
                   type="email"
@@ -236,28 +285,36 @@ export default function PublicStoreProductPage() {
                 <p className="text-sm text-destructive">{checkoutError}</p>
               )}
               <Button
-                className="w-full"
+                className={cn("w-full", isTip && "bg-violet-600 hover:bg-violet-700")}
                 size="lg"
                 onClick={handleBuy}
-                disabled={checkingOut || !buyerEmail.trim()}
+                disabled={checkingOut || !buyerEmail.trim() || (isTip && !checkoutAmountCents)}
               >
                 {checkingOut && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Buy now
+                {isTip
+                  ? `Send ${formatUsd(checkoutAmountCents)} tip`
+                  : "Buy now"}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Secure checkout powered by Stripe.{" "}
                 {isCourse
                   ? "Course access emailed after payment."
-                  : "Access link emailed after payment."}{" "}
-                Already purchased?{" "}
-                <Link
-                  href={`/s/${product.id}/access`}
-                  className="underline underline-offset-2"
-                >
-                  Open access
-                </Link>
+                  : isTip
+                    ? "Receipt emailed after payment."
+                    : "Access link emailed after payment."}{" "}
+                {!isTip && (
+                  <>
+                    Already purchased?{" "}
+                    <Link
+                      href={`/s/${product.id}/access`}
+                      className="underline underline-offset-2"
+                    >
+                      Open access
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
           </div>
