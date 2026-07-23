@@ -1,8 +1,14 @@
 import {HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import {INFLOW_API_KEY, INFLOW_MARKETPLACE_USER_ID} from "../config/params";
+import {
+  INFLOW_API_BASE_URL,
+  INFLOW_API_KEY,
+  INFLOW_MARKETPLACE_USER_ID,
+} from "../config/params";
 
-const INFLOW_API_BASE = "https://api.inflowpay.xyz";
+function getInflowApiBase(): string {
+  return INFLOW_API_BASE_URL.value().replace(/\/+$/, "");
+}
 
 type InflowRequestOptions = {
   method?: "GET" | "POST" | "PATCH";
@@ -31,7 +37,7 @@ export async function inflowRequest<T = Record<string, unknown>>(
     );
   }
 
-  const url = new URL(`${INFLOW_API_BASE}${path}`);
+  const url = new URL(`${getInflowApiBase()}${path}`);
   if (options.query) {
     for (const [key, value] of Object.entries(options.query)) {
       url.searchParams.set(key, value);
