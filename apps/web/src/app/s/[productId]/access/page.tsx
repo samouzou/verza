@@ -285,10 +285,10 @@ export default function StoreAccessPage() {
                   <AccordionItem
                     key={chapter.id}
                     value={chapter.id}
-                    className="overflow-hidden rounded-xl border border-b bg-card px-4 shadow-sm data-[state=open]:ring-1 data-[state=open]:ring-border sm:px-5"
+                    className="rounded-xl border border-b bg-card px-4 shadow-sm data-[state=open]:ring-1 data-[state=open]:ring-border sm:px-5"
                   >
                     <AccordionTrigger className="py-5 hover:no-underline">
-                      <div className="min-w-0 pr-4 text-left">
+                      <div className="min-w-0 flex-1 pr-4 text-left">
                         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Chapter {i + 1}
                         </p>
@@ -302,11 +302,13 @@ export default function StoreAccessPage() {
                         )}
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pb-5">
-                      <div
-                        className="prose prose-sm dark:prose-invert max-w-none border-t pt-5 sm:prose-base"
-                        dangerouslySetInnerHTML={{ __html: chapter.body }}
-                      />
+                    <AccordionContent className="min-w-0 pb-5">
+                      <div className="min-w-0 w-full max-w-full">
+                        <div
+                          className="store-course-content prose prose-sm prose-slate dark:prose-invert max-w-none w-full min-w-0 break-words border-t pt-5 sm:prose-base text-foreground"
+                          dangerouslySetInnerHTML={{ __html: chapter.body }}
+                        />
+                      </div>
                       {chapter.contentUrl && (
                         <Button
                           asChild

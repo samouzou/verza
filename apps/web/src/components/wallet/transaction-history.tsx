@@ -19,7 +19,9 @@ export function TransactionHistory({ transactions, currentUserId }: TransactionH
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle>Earnings History</CardTitle>
-        <CardDescription>Recent payouts received into your Verza wallet.</CardDescription>
+        <CardDescription>
+          Payouts from brands and agencies into your Verza Wallet.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
