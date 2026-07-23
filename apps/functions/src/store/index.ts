@@ -13,7 +13,12 @@ import type {
   StoreProductKind,
   UserProfileFirestoreData,
 } from "../types";
-import {connectTransferMetadata, transferToConnectAccountIfNeeded} from "../payments/stripeConnect";
+import {
+  connectTransferMetadata,
+  needsRecipientServiceAgreement,
+  resolveLatestChargeId,
+  transferToConnectAccountIfNeeded,
+} from "../payments/stripeConnect";
 
 /** Verza take rate on creator Store sales (Stripe card fees deducted separately). */
 export const STORE_PLATFORM_FEE_FRACTION = 0.1;
@@ -833,8 +838,15 @@ export const createStoreCheckoutSession = onCall({
       typeof request.data?.amountCents === "number"
         ? Math.round(request.data.amountCents)
         : tipAmounts[0];
-    if (!tipAmounts.includes(requested)) {
-      throw new HttpsError("invalid-argument", "Choose one of the listed tip amounts.");
+    if (
+      !Number.isFinite(requested) ||
+      requested < MIN_PRICE_CENTS ||
+      requested > MAX_PRICE_CENTS
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Tip must be between $${MIN_PRICE_CENTS / 100} and $${MAX_PRICE_CENTS / 100}.`
+      );
     }
     amountCents = requested;
   }
@@ -865,6 +877,34 @@ export const createStoreCheckoutSession = onCall({
       ? [product.coverImageUrl]
       : undefined;
 
+  const creatorCountry = creator.country || "US";
+  const useDestinationCharge = !needsRecipientServiceAgreement(creatorCountry);
+  const storePayoutMode = useDestinationCharge ? "destination" : "transfer";
+  const saleMetadata = {
+    purchaseType: "storeSale",
+    productId,
+    creatorId: product.creatorId,
+    buyerEmail,
+    amountCents: String(amountCents),
+    platformFeeCents: String(totalFee),
+    creatorNetCents: String(creatorNet),
+    storePayoutMode,
+    ...(useDestinationCharge
+      ? {}
+      : connectTransferMetadata(creator.stripeAccountId, creatorNet)),
+  };
+
+  const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData =
+    {
+      metadata: saleMetadata,
+      ...(useDestinationCharge
+        ? {
+            application_fee_amount: totalFee,
+            transfer_data: {destination: creator.stripeAccountId},
+          }
+        : {}),
+    };
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -889,28 +929,8 @@ export const createStoreCheckoutSession = onCall({
         `${appUrl}/s/${productId}/access?purchase=success&email=` +
         encodeURIComponent(buyerEmail),
       cancel_url: `${appUrl}/s/${productId}?purchase=cancelled`,
-      payment_intent_data: {
-        metadata: {
-          purchaseType: "storeSale",
-          productId,
-          creatorId: product.creatorId,
-          buyerEmail,
-          amountCents: String(amountCents),
-          platformFeeCents: String(totalFee),
-          creatorNetCents: String(creatorNet),
-          ...connectTransferMetadata(creator.stripeAccountId, creatorNet),
-        },
-      },
-      metadata: {
-        purchaseType: "storeSale",
-        productId,
-        creatorId: product.creatorId,
-        buyerEmail,
-        amountCents: String(amountCents),
-        platformFeeCents: String(totalFee),
-        creatorNetCents: String(creatorNet),
-        ...connectTransferMetadata(creator.stripeAccountId, creatorNet),
-      },
+      payment_intent_data: paymentIntentData,
+      metadata: saleMetadata,
     });
 
     if (!session.url) {
@@ -955,7 +975,13 @@ export async function fulfillStoreSale(
     return;
   }
 
-  await transferToConnectAccountIfNeeded(stripe, metadata, latestChargeId);
+  if (metadata.storePayoutMode !== "destination") {
+    await transferToConnectAccountIfNeeded(
+      stripe,
+      metadata,
+      await resolveLatestChargeId(stripe, paymentIntentId, latestChargeId)
+    );
+  }
 
   const productRef = db.collection("storeProducts").doc(productId);
   const productSnap = await productRef.get();

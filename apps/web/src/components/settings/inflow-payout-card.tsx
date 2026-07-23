@@ -33,7 +33,10 @@ import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import {
   INFLOW_COUNTRY_OPTIONS,
+  getInflowCountryDisplayName,
   isInflowPayoutCountry,
+  iso2ForInflowCountryInput,
+  toInflowCountryCode,
 } from "@/lib/inflow-corridors";
 import { isPayoutReady } from "@/lib/payout";
 
@@ -67,8 +70,8 @@ type InflowPayoutCardProps = {
 export function InflowPayoutCard({ initialCountry = "NG" }: InflowPayoutCardProps) {
   const { user, refreshAuthUser } = useAuth();
   const { toast } = useToast();
-  const [country, setCountry] = useState(
-    user?.inflowPayoutCountry || initialCountry
+  const [country, setCountry] = useState(() =>
+    iso2ForInflowCountryInput(user?.inflowPayoutCountry || initialCountry)
   );
   const [busy, setBusy] = useState(false);
   const [bankForm, setBankForm] = useState<Record<string, unknown> | null>(null);
@@ -121,10 +124,12 @@ export function InflowPayoutCard({ initialCountry = "NG" }: InflowPayoutCardProp
       });
       return;
     }
+    const inflowCode = toInflowCountryCode(country);
+    if (!inflowCode) return;
     setBusy(true);
     try {
       const callable = httpsCallable(functions, "createInflowSubMerchant");
-      const res = await callable({ country });
+      const res = await callable({ country: inflowCode });
       const data = res.data as {
         nextUrl?: string | null;
         kycReady?: boolean;
@@ -254,7 +259,9 @@ export function InflowPayoutCard({ initialCountry = "NG" }: InflowPayoutCardProp
           {statusBadge}
           {user.inflowPayoutCountry && (
             <p className="text-xs text-muted-foreground">
-              Payout country: {user.inflowPayoutCountry}
+              Payout country:{" "}
+              {getInflowCountryDisplayName(user.inflowPayoutCountry) ||
+                user.inflowPayoutCountry}
             </p>
           )}
           {kycReady ? (
@@ -280,7 +287,7 @@ export function InflowPayoutCard({ initialCountry = "NG" }: InflowPayoutCardProp
                 </SelectTrigger>
                 <SelectContent>
                   {INFLOW_COUNTRY_OPTIONS.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
+                    <SelectItem key={c.iso2} value={c.iso2}>
                       {c.name}
                     </SelectItem>
                   ))}

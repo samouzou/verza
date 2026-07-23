@@ -68,10 +68,18 @@ export async function transferToConnectAccountIfNeeded(
 ): Promise<void> {
   const destination = metadata.connectTransferDestination;
   const amountStr = metadata.connectTransferAmount;
-  if (!destination || !amountStr || !latestChargeId) return;
+  if (!destination || !amountStr) return;
 
   const amount = parseInt(amountStr, 10);
   if (!Number.isFinite(amount) || amount <= 0) return;
+
+  if (!latestChargeId) {
+    logger.error(
+      "Connect transfer skipped: missing latest_charge on payment",
+      {destination, amount}
+    );
+    return;
+  }
 
   await stripe.transfers.create({
     amount,
@@ -80,4 +88,25 @@ export async function transferToConnectAccountIfNeeded(
     source_transaction: latestChargeId,
   });
   logger.info(`Transferred ${amount} cents to Connect account ${destination}`);
+}
+
+/** Resolve Stripe charge id for post-checkout Connect transfers. */
+export async function resolveLatestChargeId(
+  stripe: Stripe,
+  paymentIntentId: string,
+  latestChargeId?: string
+): Promise<string | undefined> {
+  if (latestChargeId) return latestChargeId;
+  try {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const charge = paymentIntent.latest_charge;
+    if (!charge) return undefined;
+    return typeof charge === "string" ? charge : charge.id;
+  } catch (error) {
+    logger.error("Failed to resolve latest_charge for payment intent", {
+      paymentIntentId,
+      error,
+    });
+    return undefined;
+  }
 }

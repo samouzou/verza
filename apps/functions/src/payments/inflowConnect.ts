@@ -3,7 +3,11 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {APP_URL, INFLOW_API_KEY} from "../config/params";
 import type {UserProfileFirestoreData} from "../types";
-import {isInflowPayoutCountry} from "./inflowCorridors";
+import {
+  isInflowPayoutCountry,
+  normalizeInflowPayoutCountry,
+  toInflowCountryCode,
+} from "./inflowCorridors";
 import {inflowRequest} from "./inflowClient";
 
 type KycStatusResponse = {
@@ -51,16 +55,15 @@ export const createInflowSubMerchant = onCall(
       throw new HttpsError("unauthenticated", "Sign in to connect payouts.");
     }
     const userId = request.auth.uid;
-    const country =
-      typeof request.data?.country === "string"
-        ? request.data.country.trim().toUpperCase()
-        : "";
-    if (!isInflowPayoutCountry(country)) {
+    const rawCountry =
+      typeof request.data?.country === "string" ? request.data.country.trim() : "";
+    if (!isInflowPayoutCountry(rawCountry)) {
       throw new HttpsError(
         "invalid-argument",
         "Inflowpay payouts are not available for this country yet."
       );
     }
+    const country = normalizeInflowPayoutCountry(rawCountry);
 
     const userRef = db.collection("users").doc(userId);
     const userSnap = await userRef.get();
@@ -86,7 +89,7 @@ export const createInflowSubMerchant = onCall(
         kycStatus: status.kycStatus || user.inflowKycStatus || "pending",
         nextUrl: status.nextUrl || null,
         nextSteps: status.nextSteps || [],
-        country: user.inflowPayoutCountry || country,
+        country: toInflowCountryCode(user.inflowPayoutCountry) || country,
       };
     }
 
@@ -184,7 +187,7 @@ export const getInflowBankForm = onCall(
       );
     }
 
-    const country = user.inflowPayoutCountry || "";
+    const country = toInflowCountryCode(user.inflowPayoutCountry) || "";
     const form = await inflowRequest<Record<string, unknown>>("/api/account/bank-form", {
       onBehalfOf: user.inflowSubMerchantId,
       query: country ? {country} : undefined,
@@ -223,7 +226,7 @@ export const registerInflowBankAccount = onCall(
       );
     }
 
-    const country = user.inflowPayoutCountry || "";
+    const country = toInflowCountryCode(user.inflowPayoutCountry) || "";
     const registered = await inflowRequest<{id?: string; accountId?: string}>(
       "/api/account/bank",
       {

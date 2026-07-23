@@ -27,6 +27,11 @@ function formatUsd(cents: number) {
   }).format(cents / 100);
 }
 
+const MIN_TIP_CENTS = 100;
+const MAX_TIP_CENTS = 10_000_00;
+
+type TipMode = "preset" | "custom";
+
 export default function PublicStoreProductPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -40,6 +45,8 @@ export default function PublicStoreProductPage() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [selectedTipCents, setSelectedTipCents] = useState<number | null>(null);
+  const [tipMode, setTipMode] = useState<TipMode>("preset");
+  const [customTipDollars, setCustomTipDollars] = useState("");
 
   useEffect(() => {
     if (!productId) return;
@@ -80,6 +87,29 @@ export default function PublicStoreProductPage() {
   const handleBuy = async () => {
     if (!product) return;
     setCheckoutError(null);
+
+    const isTipProduct = (product.kind || "link") === "tip";
+    const tipAmounts = product.tipAmountsCents?.length
+      ? product.tipAmountsCents
+      : [product.priceCents];
+    const customTipCents = Math.round(parseFloat(customTipDollars) * 100);
+    const tipAmountCents = isTipProduct
+      ? tipMode === "custom"
+        ? customTipCents
+        : selectedTipCents || tipAmounts[0]
+      : null;
+
+    if (
+      isTipProduct &&
+      (!tipAmountCents ||
+        !Number.isFinite(tipAmountCents) ||
+        tipAmountCents < MIN_TIP_CENTS ||
+        tipAmountCents > MAX_TIP_CENTS)
+    ) {
+      setCheckoutError("Enter a tip between $1.00 and $10,000.00.");
+      return;
+    }
+
     setCheckingOut(true);
     try {
       const createCheckout = httpsCallable(
@@ -89,8 +119,8 @@ export default function PublicStoreProductPage() {
       const result = await createCheckout({
         productId: product.id,
         buyerEmail: buyerEmail.trim(),
-        ...(product.kind === "tip" && selectedTipCents
-          ? { amountCents: selectedTipCents }
+        ...(isTipProduct && tipAmountCents
+          ? { amountCents: tipAmountCents }
           : {}),
       });
       const url = (result.data as { url?: string })?.url;
@@ -133,9 +163,21 @@ export default function PublicStoreProductPage() {
   const tipAmounts = product.tipAmountsCents?.length
     ? product.tipAmountsCents
     : [product.priceCents];
+  const customTipCents = Math.round(parseFloat(customTipDollars) * 100);
+  const isValidCustomTip =
+    Number.isFinite(customTipCents) &&
+    customTipCents >= MIN_TIP_CENTS &&
+    customTipCents <= MAX_TIP_CENTS;
   const checkoutAmountCents = isTip
-    ? selectedTipCents || tipAmounts[0]
+    ? tipMode === "custom"
+      ? isValidCustomTip
+        ? customTipCents
+        : 0
+      : selectedTipCents || tipAmounts[0]
     : product.priceCents;
+  const canCheckoutTip =
+    !isTip ||
+    (tipMode === "custom" ? isValidCustomTip : Boolean(selectedTipCents));
   const outline =
     product.chapterOutline?.length
       ? product.chapterOutline
@@ -237,22 +279,72 @@ export default function PublicStoreProductPage() {
               )}
 
             {isTip ? (
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Choose an amount</p>
-                <div className="flex flex-wrap gap-2">
-                  {tipAmounts.map((amount) => (
-                    <Button
-                      key={amount}
-                      type="button"
-                      variant={selectedTipCents === amount ? "default" : "outline"}
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Choose an amount</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tipAmounts.map((amount) => (
+                      <Button
+                        key={amount}
+                        type="button"
+                        variant={
+                          tipMode === "preset" && selectedTipCents === amount
+                            ? "default"
+                            : "outline"
+                        }
+                        className={cn(
+                          tipMode === "preset" &&
+                            selectedTipCents === amount &&
+                            "bg-violet-600 hover:bg-violet-700"
+                        )}
+                        onClick={() => {
+                          setTipMode("preset");
+                          setSelectedTipCents(amount);
+                        }}
+                      >
+                        {formatUsd(amount)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="custom-tip-amount">Or enter a custom amount</Label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      $
+                    </span>
+                    <Input
+                      id="custom-tip-amount"
+                      type="number"
+                      min="1"
+                      max="10000"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="15.00"
+                      value={customTipDollars}
+                      onChange={(e) => {
+                        setTipMode("custom");
+                        setCustomTipDollars(e.target.value);
+                      }}
+                      onFocus={() => setTipMode("custom")}
                       className={cn(
-                        selectedTipCents === amount && "bg-violet-600 hover:bg-violet-700"
+                        "pl-7",
+                        tipMode === "custom" &&
+                          "ring-2 ring-violet-600 ring-offset-2 ring-offset-background"
                       )}
-                      onClick={() => setSelectedTipCents(amount)}
-                    >
-                      {formatUsd(amount)}
-                    </Button>
-                  ))}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Minimum $1.00 · maximum $10,000.00
+                  </p>
+                  {tipMode === "custom" &&
+                    customTipDollars.trim() &&
+                    !isValidCustomTip && (
+                      <p className="text-xs text-destructive">
+                        Enter an amount between $1.00 and $10,000.00.
+                      </p>
+                    )}
                 </div>
               </div>
             ) : (
@@ -288,14 +380,16 @@ export default function PublicStoreProductPage() {
                 className={cn("w-full", isTip && "bg-violet-600 hover:bg-violet-700")}
                 size="lg"
                 onClick={handleBuy}
-                disabled={checkingOut || !buyerEmail.trim() || (isTip && !checkoutAmountCents)}
+                disabled={checkingOut || !buyerEmail.trim() || !canCheckoutTip}
               >
                 {checkingOut && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isTip
+                {isTip && checkoutAmountCents > 0
                   ? `Send ${formatUsd(checkoutAmountCents)} tip`
-                  : "Buy now"}
+                  : isTip
+                    ? "Send tip"
+                    : "Buy now"}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Secure checkout powered by Stripe.{" "}
