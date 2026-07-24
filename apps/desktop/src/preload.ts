@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld("optic", {
           }>;
           paySourceCampaignId: string | null;
           paySourceCampaignTitle: string | null;
+          paySourceCampaignType: string | null;
         })
       | { ok: false; error: string }
     >,

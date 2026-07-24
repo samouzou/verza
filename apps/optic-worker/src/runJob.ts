@@ -3,7 +3,7 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {loadAgencyOpticBilling, requestLowCreditCheck, requestPilotTopUp} from "./billing";
 import {loadExistingProfileUrlKeys, normalizeProfileUrl} from "./dedup";
 import {saveLeadWithOpticCreditCharge} from "./credits";
-import {OPTIC_MAX_SAVED_PER_RUN, urlPoolCap, vetDelayMs} from "./limits";
+import {urlPoolCap, vetDelayMs, workerSaveTarget} from "./limits";
 import {Log} from "./logCopy";
 import {generateSeedLeads, findCreators} from "./search";
 import {createVetBrowserContext, scrapeCreatorProfileInContext} from "./scraper";
@@ -43,7 +43,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
     return;
   }
 
-  const targetSaved = Math.min(OPTIC_MAX_SAVED_PER_RUN, Math.max(1, job.maxProfiles));
+  const targetSaved = workerSaveTarget(job.maxProfiles);
   const delayMs = vetDelayMs(targetSaved);
 
   await ref.update({
@@ -67,6 +67,12 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
   const brand = job.brandContext ?? undefined;
 
   try {
+    if (job.maxProfiles > targetSaved) {
+      await appendLog(
+        "worker",
+        `Requested ${job.maxProfiles} creators — vetting ${targetSaved} this run. Continue the mission for more.`
+      );
+    }
     const allUrls = new Set<string>();
     await appendLog("search", Log.shortlist());
     const seedLeads = await generateSeedLeads(

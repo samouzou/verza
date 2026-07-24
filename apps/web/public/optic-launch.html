@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza Optic — Launch graphic</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0a0e0c;
+      color: var(--paper);
+      font-family: "DM Sans", system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 1.5rem 1rem 2.5rem;
+    }
+
+    .toolbar {
+      width: min(1200px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .toolbar p {
+      font-size: 0.85rem;
+      color: var(--mist);
+    }
+
+    .toolbar button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.7rem 1.15rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .toolbar button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    /* LinkedIn-friendly square canvas */
+    .artboard {
+      position: relative;
+      width: min(1080px, 100%);
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      isolation: isolate;
+      background:
+        radial-gradient(ellipse 70% 55% at 15% 20%, rgba(14, 124, 90, 0.55), transparent 60%),
+        radial-gradient(ellipse 55% 45% at 90% 10%, rgba(22, 192, 136, 0.22), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 70% 90%, rgba(14, 124, 90, 0.28), transparent 50%),
+        linear-gradient(160deg, #07110d 0%, #0B100E 45%, #0f1c17 100%);
+      box-shadow:
+        0 0 0 1px rgba(152, 162, 156, 0.12),
+        0 40px 80px rgba(0, 0, 0, 0.45);
+    }
+
+    .artboard::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232, 238, 234, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232, 238, 234, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black, transparent 75%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow {
+      position: absolute;
+      width: 42%;
+      height: 42%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(22, 192, 136, 0.35), transparent 70%);
+      filter: blur(40px);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .glow.a { top: -8%; left: -6%; }
+    .glow.b { bottom: 8%; right: -10%; width: 50%; height: 50%; opacity: 0.7; }
+
+    .brand {
+      position: absolute;
+      top: 5.5%;
+      left: 6%;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .brand img {
+      width: 2.1rem;
+      height: auto;
+    }
+
+    .brand span {
+      font-weight: 700;
+      font-size: clamp(1rem, 2.2vw, 1.35rem);
+      letter-spacing: -0.03em;
+    }
+
+    .brand em {
+      font-style: normal;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-left: 0.15rem;
+    }
+
+    .copy {
+      position: absolute;
+      top: 14%;
+      left: 6%;
+      right: 42%;
+      z-index: 5;
+      max-width: 22rem;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: clamp(0.65rem, 1.3vw, 0.78rem);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 0.85rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.1rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    .copy h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(2rem, 4.6vw, 3.35rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.85rem;
+      color: #f2f7f4;
+    }
+
+    .copy p {
+      font-size: clamp(0.85rem, 1.7vw, 1.05rem);
+      line-height: 1.45;
+      color: rgba(184, 196, 190, 0.95);
+      max-width: 20rem;
+    }
+
+    .float {
+      position: absolute;
+      z-index: 3;
+      border-radius: 0.85rem;
+      overflow: hidden;
+      background: #fff;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 18px 40px rgba(0, 0, 0, 0.35),
+        0 4px 12px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .float img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* Composition — floating product UI */
+    .shot-main {
+      width: 52%;
+      right: 4%;
+      top: 12%;
+      transform: rotate(2.5deg);
+      z-index: 4;
+    }
+
+    .shot-progress {
+      width: 34%;
+      left: 5%;
+      bottom: 20%;
+      transform: rotate(-4deg);
+      z-index: 5;
+    }
+
+    .shot-missions {
+      width: 28%;
+      right: 8%;
+      bottom: 16%;
+      transform: rotate(3.5deg);
+      z-index: 6;
+    }
+
+    .shot-email {
+      width: 30%;
+      left: 38%;
+      bottom: 14%;
+      transform: rotate(-1.5deg);
+      z-index: 7;
+      box-shadow:
+        0 22px 48px rgba(0, 0, 0, 0.4),
+        0 4px 14px rgba(0, 0, 0, 0.28);
+    }
+
+    .footer-mark {
+      position: absolute;
+      bottom: 4.5%;
+      left: 6%;
+      z-index: 5;
+      font-size: clamp(0.7rem, 1.4vw, 0.85rem);
+      color: rgba(150, 162, 156, 0.85);
+      letter-spacing: 0.02em;
+    }
+
+    .footer-mark strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    @media (max-width: 720px) {
+      .copy {
+        right: 8%;
+        max-width: none;
+      }
+      .shot-main { width: 58%; top: 26%; }
+      .shot-progress { width: 42%; bottom: 22%; }
+      .shot-missions { width: 36%; bottom: 18%; }
+      .shot-email { width: 40%; left: 30%; bottom: 16%; }
+    }
+
+    @media print {
+      body { background: #000; padding: 0; }
+      .toolbar { display: none; }
+      .artboard {
+        width: 1080px;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <p>Open full size → screenshot the square, or click download PNG.</p>
+    <button type="button" id="download">Download PNG</button>
+  </div>
+
+  <div class="artboard" id="artboard" aria-label="Verza Optic launch graphic">
+    <div class="glow a" aria-hidden="true"></div>
+    <div class="glow b" aria-hidden="true"></div>
+
+    <div class="brand">
+      <img src="/verza-icon.svg" alt="" width="34" height="25" />
+      <span>Verza <em>Optic</em></span>
+    </div>
+
+    <div class="copy">
+      <p class="eyebrow">Now live</p>
+      <h1>Scout creators. Draft outreach. Fill the vault.</h1>
+      <p>Optic runs discovery missions for your campaigns — shortlist, review, and save leads with tailored notes ready to send.</p>
+    </div>
+
+    <figure class="float shot-main">
+      <img src="/optic-full-capture.png" alt="Optic mission workspace" />
+    </figure>
+
+    <figure class="float shot-progress">
+      <img src="/starting-mission-snippet.png" alt="Live mission progress reviewing profiles" />
+    </figure>
+
+    <figure class="float shot-missions">
+      <img src="/completed-missions-snippet.png" alt="Completed Optic missions list" />
+    </figure>
+
+    <figure class="float shot-email">
+      <img src="/optic-outreach-snipet.png" alt="Drafted outreach email snippet" />
+    </figure>
+
+    <p class="footer-mark">tryverza.com/products/optic · <strong>Creator discovery for brands</strong></p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    (function () {
+      const btn = document.getElementById("download");
+      const board = document.getElementById("artboard");
+
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Rendering…";
+        try {
+          const canvas = await html2canvas(board, {
+            backgroundColor: null,
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+          });
+          const link = document.createElement("a");
+          link.download = "verza-optic-launch.png";
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        } catch (err) {
+          console.error(err);
+          alert("Download failed — screenshot the square instead.");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Download PNG";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

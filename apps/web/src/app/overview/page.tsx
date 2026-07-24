@@ -150,7 +150,7 @@ export default function BrandOverviewDeck() {
         platform: "tiktok",
         matchScore: 89,
         reason: "Active workouts, high fitness enthusiast conversion rate.",
-        avatarColor: "bg-indigo-500",
+        avatarColor: "bg-emerald-600",
         status: "pending",
       },
       {
@@ -272,22 +272,22 @@ export default function BrandOverviewDeck() {
   }, [campaignType, ratePerCreator, creatorsNeeded]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500/30 selection:text-indigo-200 overflow-x-hidden font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-600/30 selection:text-emerald-300 overflow-x-hidden font-sans">
       {/* Dynamic Background Glows */}
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-teal-600/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Floating Sales Header */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <div className="h-9 w-9 bg-gradient-to-tr from-emerald-600 to-teal-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-600/20">
             <Sparkles className="h-5 w-5 text-white animate-pulse" />
           </div>
           <div>
-            <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-indigo-400 bg-clip-text text-transparent">
+            <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-500 bg-clip-text text-transparent">
               VERZA
             </span>
-            <span className="text-[10px] text-indigo-400 font-bold tracking-widest uppercase ml-2 px-1.5 py-0.5 bg-indigo-500/10 rounded border border-indigo-500/20">
+            <span className="text-[10px] text-emerald-500 font-bold tracking-widest uppercase ml-2 px-1.5 py-0.5 bg-emerald-600/10 rounded border border-emerald-600/20">
               Overview Deck
             </span>
           </div>
@@ -299,7 +299,7 @@ export default function BrandOverviewDeck() {
             onClick={() => setViewMode("deck")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
               viewMode === "deck"
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
                 : "text-slate-400 hover:text-slate-200"
             }`}
           >
@@ -310,7 +310,7 @@ export default function BrandOverviewDeck() {
             onClick={() => setViewMode("scroll")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
               viewMode === "scroll"
-                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
                 : "text-slate-400 hover:text-slate-200"
             }`}
           >
@@ -367,7 +367,7 @@ export default function BrandOverviewDeck() {
                   <div
                     key={idx}
                     className={`h-full flex-1 transition-all duration-300 ${
-                      idx <= activeSlide ? "bg-indigo-500" : "bg-slate-800"
+                      idx <= activeSlide ? "bg-emerald-600" : "bg-slate-800"
                     }`}
                   />
                 ))}
@@ -464,7 +464,7 @@ export default function BrandOverviewDeck() {
                     </button>
                     <button
                       onClick={nextSlide}
-                      className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center hover:bg-indigo-500 shadow-md shadow-indigo-600/20 transition-all"
+                      className="h-10 w-10 rounded-lg bg-emerald-600 flex items-center justify-center hover:bg-emerald-600 shadow-md shadow-emerald-600/20 transition-all"
                     >
                       <ChevronRight className="h-5 w-5 text-white" />
                     </button>
@@ -491,7 +491,7 @@ export default function BrandOverviewDeck() {
                     onClick={() => setActiveSlide(idx)}
                     className={`p-3 border rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-all ${
                       activeSlide === idx
-                        ? "bg-indigo-600/10 border-indigo-500 text-indigo-400"
+                        ? "bg-emerald-600/10 border-emerald-600 text-emerald-500"
                         : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
                     }`}
                   >
@@ -511,7 +511,7 @@ export default function BrandOverviewDeck() {
           <div className="space-y-16 py-8 animate-in fade-in duration-300">
             {/* OS Overview */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 1
               </div>
               <SlideOSOverview />
@@ -519,7 +519,7 @@ export default function BrandOverviewDeck() {
 
             {/* Optic Scout */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 2
               </div>
               <SlideOpticAI
@@ -537,7 +537,7 @@ export default function BrandOverviewDeck() {
 
             {/* Smart Campaigns */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 3
               </div>
               <SlideSmartCampaigns
@@ -559,7 +559,7 @@ export default function BrandOverviewDeck() {
 
             {/* Verza Score */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 4
               </div>
               <SlideVerzaScore
@@ -572,7 +572,7 @@ export default function BrandOverviewDeck() {
 
             {/* Contract Audits */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 5
               </div>
               <SlideAIContracts
@@ -585,7 +585,7 @@ export default function BrandOverviewDeck() {
 
             {/* Budget & Payout Wallet */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 6
               </div>
               <SlideWalletBudget
@@ -609,7 +609,7 @@ export default function BrandOverviewDeck() {
 
             {/* Comparison CTA */}
             <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 md:p-12 relative shadow-lg">
-              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-indigo-400 font-extrabold bg-indigo-500/10 px-2 py-0.5 rounded">
+              <div className="absolute top-3 right-4 text-[10px] uppercase tracking-widest text-emerald-500 font-extrabold bg-emerald-600/10 px-2 py-0.5 rounded">
                 Section 7
               </div>
               <SlideCTA />
@@ -642,12 +642,12 @@ function SlideOSOverview() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
       <div className="lg:col-span-7 space-y-6">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider">
           <Sparkles className="h-3 w-3 animate-spin" /> Unifying The Creator Economy
         </div>
         <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
           The Operating System for{" "}
-          <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 bg-clip-text text-transparent">
             Creator Marketing
           </span>
         </h1>
@@ -681,7 +681,7 @@ function SlideOSOverview() {
             },
           ].map((item, idx) => (
             <div key={idx} className="flex gap-3 items-start p-3 rounded-lg bg-slate-900/40 border border-slate-800">
-              <Check className="h-5 w-5 text-indigo-400 shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
               <div>
                 <h4 className="text-sm font-bold text-slate-100">{item.title}</h4>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">{item.desc}</p>
@@ -693,10 +693,10 @@ function SlideOSOverview() {
 
       {/* Visual Mock Dashboard */}
       <div className="lg:col-span-5 relative">
-        <div className="absolute inset-0 bg-indigo-500/20 rounded-2xl filter blur-xl opacity-30 pointer-events-none" />
+        <div className="absolute inset-0 bg-emerald-600/20 rounded-2xl filter blur-xl opacity-30 pointer-events-none" />
         <div className="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Verza Brand Center</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Verza Brand Center</span>
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
           </div>
 
@@ -727,7 +727,7 @@ function SlideOSOverview() {
               </span>
             </div>
             <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full w-2/3 bg-indigo-500 rounded-full animate-pulse" />
+              <div className="h-full w-2/3 bg-emerald-600 rounded-full animate-pulse" />
             </div>
             <p className="text-[10px] text-slate-500 italic">
               "Finding creators matching beauty, organic, wellness niche..."
@@ -791,7 +791,7 @@ function SlideOpticAI({
       {/* Pitch & Inputs */}
       <div className="lg:col-span-5 flex flex-col justify-between space-y-6">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
             <Search className="h-3.5 w-3.5" /> Optic AI Scouting Engine
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight text-white">
@@ -824,7 +824,7 @@ function SlideOpticAI({
                   onClick={() => !isScouting && setBrief(item.id as any)}
                   className={`p-2 border rounded-lg text-left transition-all ${
                     brief === item.id
-                      ? "border-indigo-500 bg-indigo-500/5 text-white"
+                      ? "border-emerald-600 bg-emerald-600/5 text-white"
                       : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700"
                   }`}
                   disabled={isScouting}
@@ -839,7 +839,7 @@ function SlideOpticAI({
           <button
             onClick={runScout}
             disabled={isScouting}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-indigo-600/10 transition-all hover:scale-102"
+            className="w-full bg-emerald-600 hover:bg-emerald-600 disabled:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-emerald-600/10 transition-all hover:scale-102"
           >
             {isScouting ? (
               <>
@@ -863,8 +863,8 @@ function SlideOpticAI({
           <div className="flex justify-between items-center border-b border-slate-850 pb-3">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isScouting ? 'bg-indigo-400' : 'bg-slate-500'}`}></span>
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${isScouting ? 'bg-indigo-500' : 'bg-slate-500'}`}></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isScouting ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isScouting ? 'bg-emerald-600' : 'bg-slate-500'}`}></span>
               </span>
               Scout Timeline
             </span>
@@ -874,12 +874,12 @@ function SlideOpticAI({
           </div>
 
           {/* Log Window */}
-          <div className="flex-1 min-h-[220px] bg-slate-950 border border-slate-900 rounded-lg p-3 font-mono text-[10px] text-indigo-400 leading-normal overflow-y-auto space-y-1.5 scrollbar-thin">
+          <div className="flex-1 min-h-[220px] bg-slate-950 border border-slate-900 rounded-lg p-3 font-mono text-[10px] text-emerald-500 leading-normal overflow-y-auto space-y-1.5 scrollbar-thin">
             {logs.length === 0 ? (
               <p className="text-slate-600 italic">Select a brief and click 'Run AI Scout Mission' to watch the AI search, vet, and draft pitches live...</p>
             ) : (
               logs.map((log, i) => (
-                <div key={i} className="flex gap-1.5 border-l-2 border-indigo-500/40 pl-2">
+                <div key={i} className="flex gap-1.5 border-l-2 border-emerald-600/40 pl-2">
                   <span className="text-slate-600 shrink-0 select-none">&gt;</span>
                   <span className="text-slate-300">{log}</span>
                 </div>
@@ -901,7 +901,7 @@ function SlideOpticAI({
                     className={`flex items-center justify-between p-2 rounded border text-xs transition-all cursor-pointer ${
                       p.status === "matched"
                         ? selectedEmail === p.handle
-                          ? "bg-indigo-500/10 border-indigo-500 text-white"
+                          ? "bg-emerald-600/10 border-emerald-600 text-white"
                           : "bg-slate-950 border-slate-850 text-slate-300 hover:border-slate-700"
                         : p.status === "skipped"
                         ? "bg-slate-950/40 border-slate-900 text-slate-600"
@@ -920,7 +920,7 @@ function SlideOpticAI({
                           <span className="text-[9px] px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold rounded">
                             {p.matchScore}% Match
                           </span>
-                          <Eye className="h-3 w-3 text-indigo-400" />
+                          <Eye className="h-3 w-3 text-emerald-500" />
                         </>
                       )}
                       {p.status === "skipped" && (
@@ -929,7 +929,7 @@ function SlideOpticAI({
                         </span>
                       )}
                       {p.status === "scanning" && (
-                        <RefreshCw className="h-3 w-3 text-indigo-400 animate-spin" />
+                        <RefreshCw className="h-3 w-3 text-emerald-500 animate-spin" />
                       )}
                       {p.status === "pending" && (
                         <span className="h-1.5 w-1.5 rounded-full bg-slate-700" />
@@ -946,9 +946,9 @@ function SlideOpticAI({
         <div className="md:col-span-6 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
           <div className="flex justify-between items-center border-b border-slate-850 pb-3">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Mail className="h-4 w-4 text-indigo-400" /> AI Outreach Sequence
+              <Mail className="h-4 w-4 text-emerald-500" /> AI Outreach Sequence
             </span>
-            <span className="text-[10px] text-indigo-400 font-bold uppercase">
+            <span className="text-[10px] text-emerald-500 font-bold uppercase">
               Draft
             </span>
           </div>
@@ -1028,7 +1028,7 @@ function SlideSmartCampaigns({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
       {/* Campaign Details & Swaps */}
       <div className="lg:col-span-6 space-y-6">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider">
           <Target className="h-3.5 w-3.5" /> Escrow & Smart Campaigns
         </div>
         <h2 className="text-3xl font-extrabold tracking-tight text-white">
@@ -1077,7 +1077,7 @@ function SlideSmartCampaigns({
               onClick={() => setType(item.id as any)}
               className={`p-4 border rounded-xl cursor-pointer transition-all flex justify-between items-start gap-4 ${
                 type === item.id
-                  ? "border-indigo-500 bg-indigo-500/5 shadow-md shadow-indigo-500/5"
+                  ? "border-emerald-600 bg-emerald-600/5 shadow-md shadow-emerald-600/5"
                   : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
               }`}
             >
@@ -1086,7 +1086,7 @@ function SlideSmartCampaigns({
                   type="radio"
                   checked={type === item.id}
                   onChange={() => {}}
-                  className="mt-1 accent-indigo-500 shrink-0"
+                  className="mt-1 accent-emerald-600 shrink-0"
                 />
                 <div>
                   <h4 className="text-sm font-bold text-slate-100">{item.title}</h4>
@@ -1103,12 +1103,12 @@ function SlideSmartCampaigns({
 
       {/* Interactive Escrow Calculator Panel */}
       <div className="lg:col-span-6 relative">
-        <div className="absolute inset-0 bg-indigo-500/10 rounded-2xl filter blur-xl opacity-20 pointer-events-none" />
+        <div className="absolute inset-0 bg-emerald-600/10 rounded-2xl filter blur-xl opacity-20 pointer-events-none" />
         <div className="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Campaign Escrow Calculator</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Campaign Escrow Calculator</span>
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Lock className="h-3.5 w-3.5 text-indigo-400" /> Escrow Secure
+              <Lock className="h-3.5 w-3.5 text-emerald-500" /> Escrow Secure
             </div>
           </div>
 
@@ -1127,7 +1127,7 @@ function SlideSmartCampaigns({
                     type="number"
                     value={rate}
                     onChange={(e) => setRate(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-7 pr-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-7 pr-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-600"
                   />
                 </div>
               </div>
@@ -1151,7 +1151,7 @@ function SlideSmartCampaigns({
                   type="number"
                   value={creators}
                   onChange={(e) => setCreators(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-600"
                 />
               ) : (
                 <div className="bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-500 font-bold flex items-center gap-1.5 h-[38px]">
@@ -1175,7 +1175,7 @@ function SlideSmartCampaigns({
                   type="checkbox"
                   checked={isAffiliate}
                   onChange={(e) => setIsAffiliate(e.target.checked)}
-                  className="accent-indigo-500 h-4 w-4"
+                  className="accent-emerald-600 h-4 w-4"
                 />
               </div>
 
@@ -1230,14 +1230,14 @@ function SlideSmartCampaigns({
             </div>
           ) : (
             <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-900 text-center text-xs text-slate-500">
-              <Sparkles className="h-4 w-4 text-indigo-400 mx-auto mb-1 animate-pulse" />
+              <Sparkles className="h-4 w-4 text-emerald-500 mx-auto mb-1 animate-pulse" />
               Barter campaigns operate entirely on non-cash terms. Quality gates, analytical tracking, and contract terms still apply.
             </div>
           )}
 
           {/* Consolidated Escrow Total */}
-          <div className="bg-gradient-to-r from-indigo-950/60 to-slate-900 border border-indigo-500/20 p-5 rounded-xl text-center space-y-2">
-            <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider block">
+          <div className="bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-600/20 p-5 rounded-xl text-center space-y-2">
+            <span className="text-xs text-emerald-500 font-bold uppercase tracking-wider block">
               Required Escrow Funding (Stripe held)
             </span>
             <span className="text-4xl font-black text-white block">
@@ -1328,7 +1328,7 @@ function SlideVerzaScore({ threshold, setThreshold, score, setScore }: QualityPr
           <div className="space-y-3 pt-4 border-t border-slate-850">
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400 font-semibold">Simulated Video Score</span>
-              <span className="font-bold text-indigo-400 font-mono text-sm">{score}%</span>
+              <span className="font-bold text-emerald-500 font-mono text-sm">{score}%</span>
             </div>
             <input
               type="range"
@@ -1336,7 +1336,7 @@ function SlideVerzaScore({ threshold, setThreshold, score, setScore }: QualityPr
               max="98"
               value={score}
               onChange={(e) => setScore(parseInt(e.target.value))}
-              className="w-full accent-indigo-500 cursor-ew-resize bg-slate-950 rounded-lg appearance-none h-1.5"
+              className="w-full accent-emerald-600 cursor-ew-resize bg-slate-950 rounded-lg appearance-none h-1.5"
             />
             <p className="text-[10px] text-slate-500 leading-normal">
               Slide to simulate a creator submitting content with different scores to test the gate.
@@ -1447,7 +1447,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
       {/* Left Pitch */}
       <div className="lg:col-span-5 space-y-6">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider">
           <Scale className="h-3.5 w-3.5" /> AI Contract Audits
         </div>
         <h2 className="text-3xl font-extrabold tracking-tight text-white">
@@ -1468,7 +1468,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
         <button
           onClick={runAudit}
           disabled={isAuditing}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-indigo-600/10 transition-all"
+          className="bg-emerald-600 hover:bg-emerald-600 text-white font-extrabold text-xs px-5 py-3 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-emerald-600/10 transition-all"
         >
           <RefreshCw className={`h-4 w-4 ${isAuditing ? 'animate-spin' : ''}`} />
           {isAuditing ? "Auditing Contract Clauses..." : "Upload & Analyze Contract"}
@@ -1481,7 +1481,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
         <div className="md:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between min-h-[360px]">
           <div className="flex items-center justify-between border-b border-slate-850 pb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <FileText className="h-4 w-4 text-indigo-400" /> contract_brief_sandra.docx
+              <FileText className="h-4 w-4 text-emerald-500" /> contract_brief_sandra.docx
             </span>
             <span className="text-[10px] text-slate-500">
               Page 1 of 3
@@ -1495,7 +1495,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
             </p>
             <p>
               This Influencer Collaboration Agreement (the "Agreement") is entered into as of May 22, 2026, by and between
-              <span className={`px-1.5 rounded transition-all ${auditStep >= 1 ? 'bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30' : 'bg-slate-900'}`}>
+              <span className={`px-1.5 rounded transition-all ${auditStep >= 1 ? 'bg-emerald-600/20 text-emerald-400 font-bold border border-emerald-600/30' : 'bg-slate-900'}`}>
                 Verza Beauty Corp (Client)
               </span>
               and sandra.green (Creator).
@@ -1530,7 +1530,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
               <ShieldCheck className="h-4 w-4 text-emerald-400" /> AI Audited Intel
             </span>
             {isAuditing && (
-              <RefreshCw className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
+              <RefreshCw className="h-3.5 w-3.5 text-emerald-500 animate-spin" />
             )}
           </div>
 
@@ -1578,8 +1578,8 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
 
             {/* Step 4: AI Recommendations */}
             {auditStep >= 4 && (
-              <div className="p-2.5 bg-slate-950 border border-indigo-500/20 rounded-lg text-[10px] space-y-1 animate-in slide-in-from-top-2 duration-300">
-                <span className="text-indigo-400 font-bold uppercase tracking-wider block">Audit Action Summary</span>
+              <div className="p-2.5 bg-slate-950 border border-emerald-600/20 rounded-lg text-[10px] space-y-1 animate-in slide-in-from-top-2 duration-300">
+                <span className="text-emerald-500 font-bold uppercase tracking-wider block">Audit Action Summary</span>
                 <p className="text-slate-400 leading-normal">
                   ✔ 30-day Whitelisting matches brief. <br />
                   ✔ Milestone payment gates align with Escrow rules. <br />
@@ -1592,7 +1592,7 @@ function SlideAIContracts({ isAuditing, auditComplete, auditStep, runAudit }: Co
           {/* Auto sign indicators */}
           {auditComplete && (
             <div className="mt-4 pt-3 border-t border-slate-850 flex gap-2">
-              <button className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] py-2 rounded-lg transition-colors">
+              <button className="flex-1 bg-emerald-600 hover:bg-emerald-600 text-white font-extrabold text-[10px] py-2 rounded-lg transition-colors">
                 Apply AI Revisions
               </button>
               <button className="flex-1 border border-slate-700 hover:bg-slate-800 text-slate-200 font-extrabold text-[10px] py-2 rounded-lg transition-colors">
@@ -1676,7 +1676,7 @@ function SlideWalletBudget({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
       {/* Wallet Pitch */}
       <div className="lg:col-span-5 space-y-6">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider">
           <Wallet className="h-3.5 w-3.5" /> Campaign Wallet Control
         </div>
         <h2 className="text-3xl font-extrabold tracking-tight text-white">
@@ -1702,7 +1702,7 @@ function SlideWalletBudget({
         <div className="md:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col justify-between space-y-6">
           <div className="flex justify-between items-center border-b border-slate-850 pb-2.5">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Building className="h-4 w-4 text-indigo-400" /> Verza Brand Wallet
+              <Building className="h-4 w-4 text-emerald-500" /> Verza Brand Wallet
             </span>
             <span className="text-[10px] text-slate-500 font-mono">
               Liquidity Console
@@ -1727,8 +1727,8 @@ function SlideWalletBudget({
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   Available: ${available.toLocaleString()}
                 </span>
-                <span className="flex items-center gap-1 text-indigo-400">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                <span className="flex items-center gap-1 text-emerald-500">
+                  <span className="h-2 w-2 rounded-full bg-emerald-600" />
                   Escrowed: ${escrow.toLocaleString()}
                 </span>
               </div>
@@ -1738,7 +1738,7 @@ function SlideWalletBudget({
                   style={{ width: `${availableRatio}%` }}
                 />
                 <div
-                  className="bg-indigo-500 h-full transition-all duration-500"
+                  className="bg-emerald-600 h-full transition-all duration-500"
                   style={{ width: `${escrowRatio}%` }}
                 />
               </div>
@@ -1763,7 +1763,7 @@ function SlideWalletBudget({
           {/* Top-up Panel */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex-1 flex flex-col justify-between space-y-3">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-              <Plus className="h-4 w-4 text-indigo-400" /> Top Up Wallet
+              <Plus className="h-4 w-4 text-emerald-500" /> Top Up Wallet
             </span>
 
             {showTopUpSuccess ? (
@@ -1786,7 +1786,7 @@ function SlideWalletBudget({
                 </div>
                 <button
                   onClick={handleTopUp}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] px-3 py-1 rounded transition-colors"
+                  className="bg-emerald-600 hover:bg-emerald-600 text-white font-extrabold text-[10px] px-3 py-1 rounded transition-colors"
                 >
                   Load
                 </button>
@@ -1801,7 +1801,7 @@ function SlideWalletBudget({
           {/* Pay Creator Panel */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex-1 flex flex-col justify-between space-y-3">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-              <Send className="h-3.5 w-3.5 text-indigo-400" /> Pay Creator
+              <Send className="h-3.5 w-3.5 text-emerald-500" /> Pay Creator
             </span>
 
             {showPaySuccess ? (
@@ -1862,7 +1862,7 @@ function SlideCTA() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div className="text-center max-w-2xl mx-auto space-y-4">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 border border-emerald-600/20 text-emerald-500 rounded-full text-xs font-bold uppercase tracking-wider">
           <Zap className="h-3.5 w-3.5" /> Return on Investment
         </div>
         <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
@@ -1881,7 +1881,7 @@ function SlideCTA() {
             <tr className="bg-slate-950 border-b border-slate-850 text-xs font-bold uppercase tracking-wider text-slate-400">
               <th className="p-4 md:p-5">Campaign Lifecycle Stage</th>
               <th className="p-4 md:p-5 text-rose-400">Legacy Agency / Manual Model</th>
-              <th className="p-4 md:p-5 text-indigo-400 bg-indigo-500/5">Verza Operating System</th>
+              <th className="p-4 md:p-5 text-emerald-500 bg-emerald-600/5">Verza Operating System</th>
             </tr>
           </thead>
           <tbody className="text-xs md:text-sm text-slate-300 divide-y divide-slate-850">
@@ -1915,9 +1915,9 @@ function SlideCTA() {
               <tr key={i} className="hover:bg-slate-850/30 transition-colors">
                 <td className="p-4 font-bold text-slate-100">{row.stage}</td>
                 <td className="p-4 text-slate-400 leading-relaxed">{row.legacy}</td>
-                <td className="p-4 text-indigo-200/90 leading-relaxed bg-indigo-500/5">
+                <td className="p-4 text-emerald-300/90 leading-relaxed bg-emerald-600/5">
                   <div className="flex gap-2 items-start">
-                    <Check className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{row.verza}</span>
                   </div>
                 </td>
@@ -1928,14 +1928,14 @@ function SlideCTA() {
       </div>
 
       {/* Dynamic CTA box */}
-      <div className="bg-gradient-to-r from-indigo-650 via-indigo-600 to-violet-700 rounded-2xl p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600 rounded-2xl p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
         {/* Glow */}
         <div className="absolute -top-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
 
         <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
           Ready to scale your creator strategy with zero operational friction?
         </h3>
-        <p className="text-indigo-100 text-sm max-w-xl mx-auto leading-relaxed">
+        <p className="text-emerald-100 text-sm max-w-xl mx-auto leading-relaxed">
           Create a free account or book a live 15-minute onboarding call with our technical team to see
           how Verza can automate your creator workflows.
         </p>
@@ -1945,7 +1945,7 @@ function SlideCTA() {
             href="https://app.tryverza.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full sm:w-auto bg-white hover:bg-slate-100 text-indigo-950 font-black text-sm px-8 py-3.5 rounded-lg flex items-center justify-center gap-1.5 shadow-lg transition-transform hover:-translate-y-0.5"
+            className="w-full sm:w-auto bg-white hover:bg-slate-100 text-emerald-950 font-black text-sm px-8 py-3.5 rounded-lg flex items-center justify-center gap-1.5 shadow-lg transition-transform hover:-translate-y-0.5"
           >
             Create Your Account <ArrowRight className="h-4 w-4" />
           </a>

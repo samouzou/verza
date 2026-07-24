@@ -8,6 +8,8 @@ export type DraftBrandContext = {
   userDisplayName: string | null;
   campaignPaySummary: string | null;
   paySourceCampaignTitle: string | null;
+  /** From selected gig when mission is scoped to one campaign (e.g. cause_campaign). */
+  paySourceCampaignType?: string | null;
 };
 
 export interface GeminiAnalysisResult {
@@ -18,6 +20,10 @@ export interface GeminiAnalysisResult {
   draftEmail?: string | null;
   draftEmailSubject?: string | null;
   draftDm?: string | null;
+}
+
+function isCauseOrBarterCampaignType(ct: string | null | undefined): boolean {
+  return ct === "cause_campaign" || ct === "barter_campaign";
 }
 
 function dmStyleHint(platform: string): string {
@@ -53,11 +59,20 @@ export async function analyzeProfileWithGemini(
     ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
     ${
       brand.campaignPaySummary
-        ? `
+        ? isCauseOrBarterCampaignType(brand.paySourceCampaignType)
+          ? `
+    Campaign partnership context (this outreach is for a cause or in-kind style campaign — do not imply a cash sponsorship unless the facts below include an explicit USD per-creator amount):
+    ${brand.campaignPaySummary}
+
+    In drafts: Do not use the words "compensation", "fee", "rate", "paid", or "dollars" in a way that suggests cash payment unless a concrete USD per-creator figure appears in the facts above. Frame the opportunity around mission alignment${
+            brand.paySourceCampaignType === "barter_campaign" ? " or a mutually agreed product/exchange" : ""
+          }. You may invite them to review details on Verza; do not suggest they will receive a cash payout unless the facts state it clearly.
+    `
+          : `
     Pay transparency (from their live Verza campaigns — creators often ignore outreach when budget is unclear):
     ${brand.campaignPaySummary}
 
-    In drafts: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers. If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list.
+    In drafts: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers. If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list. If any line describes a cause or in-kind barter with no USD figure, do not imply cash compensation for that campaign.
     `
         : ""
     }

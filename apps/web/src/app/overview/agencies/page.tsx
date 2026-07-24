@@ -59,20 +59,20 @@ export default function AgencyOverviewDeck() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-violet-500/30 selection:text-violet-100 overflow-x-hidden font-sans">
-      <div className="absolute top-0 right-1/4 h-[480px] w-[480px] rounded-full bg-violet-600/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 h-[520px] w-[520px] rounded-full bg-indigo-500/10 blur-[130px] pointer-events-none" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-teal-500/30 selection:text-teal-100 overflow-x-hidden font-sans">
+      <div className="absolute top-0 right-1/4 h-[480px] w-[480px] rounded-full bg-teal-600/10 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 h-[520px] w-[520px] rounded-full bg-emerald-600/10 blur-[130px] pointer-events-none" />
 
       <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/80 px-4 py-4 backdrop-blur-md sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 shadow-lg shadow-violet-500/20">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-teal-600 to-emerald-600 shadow-lg shadow-teal-500/20">
             <Building2 className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <span className="bg-gradient-to-r from-white via-slate-100 to-violet-300 bg-clip-text text-lg font-extrabold tracking-tight text-transparent sm:text-xl">
+            <span className="bg-gradient-to-r from-white via-slate-100 to-teal-400 bg-clip-text text-lg font-extrabold tracking-tight text-transparent sm:text-xl">
               VERZA
             </span>
-            <span className="ml-2 whitespace-nowrap rounded border border-violet-500/20 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-violet-400">
+            <span className="ml-2 whitespace-nowrap rounded border border-teal-500/20 bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-teal-500">
               Agency deck
             </span>
           </div>
@@ -85,7 +85,7 @@ export default function AgencyOverviewDeck() {
               onClick={() => setViewMode("deck")}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all sm:px-3 ${
                 viewMode === "deck"
-                  ? "bg-violet-600 text-white shadow-md shadow-violet-600/25"
+                  ? "bg-teal-600 text-white shadow-md shadow-teal-600/25"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -97,7 +97,7 @@ export default function AgencyOverviewDeck() {
               onClick={() => setViewMode("scroll")}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all sm:px-3 ${
                 viewMode === "scroll"
-                  ? "bg-violet-600 text-white shadow-md shadow-violet-600/25"
+                  ? "bg-teal-600 text-white shadow-md shadow-teal-600/25"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -149,7 +149,7 @@ export default function AgencyOverviewDeck() {
                   <div
                     key={idx}
                     className={`h-full flex-1 transition-all duration-300 ${
-                      idx <= activeSlide ? "bg-violet-500" : "bg-slate-800"
+                      idx <= activeSlide ? "bg-teal-500" : "bg-slate-800"
                     }`}
                   />
                 ))}
@@ -187,7 +187,7 @@ export default function AgencyOverviewDeck() {
                     <button
                       type="button"
                       onClick={next}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600 shadow-md shadow-violet-600/20 transition-colors hover:bg-violet-500"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 shadow-md shadow-teal-600/20 transition-colors hover:bg-teal-500"
                       aria-label="Next slide"
                     >
                       <ChevronRight className="h-5 w-5 text-white" />
@@ -207,11 +207,11 @@ export default function AgencyOverviewDeck() {
                     onClick={() => setActiveSlide(idx)}
                     className={`flex flex-col items-center gap-1.5 rounded-xl border p-2 text-center transition-all sm:p-3 ${
                       activeSlide === idx
-                        ? "border-violet-500/60 bg-violet-500/10 shadow-lg shadow-violet-500/10"
+                        ? "border-teal-500/60 bg-teal-500/10 shadow-lg shadow-teal-500/10"
                         : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${activeSlide === idx ? "text-violet-400" : "text-slate-500"}`} />
+                    <Icon className={`h-4 w-4 ${activeSlide === idx ? "text-teal-500" : "text-slate-500"}`} />
                     <span className="line-clamp-2 text-[9px] font-bold leading-tight text-slate-400 sm:text-[10px]">
                       {t.label}
                     </span>
@@ -264,12 +264,12 @@ function SlideAgencyHero() {
   return (
     <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12">
       <div className="space-y-5 lg:col-span-7">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-violet-400">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-500">
           <Timer className="h-3 w-3" /> Built for agency velocity
         </div>
         <h1 className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
           Roster talent faster.{" "}
-          <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-300 bg-clip-text text-transparent">
             Collect from brands faster.
           </span>
         </h1>
@@ -286,7 +286,7 @@ function SlideAgencyHero() {
             "Contracts, e-sign, and audit trail tied to each program",
           ].map((line) => (
             <li key={line} className="flex gap-2 text-sm text-slate-300">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal-500" />
               <span>{line}</span>
             </li>
           ))}
@@ -295,7 +295,7 @@ function SlideAgencyHero() {
       <div className="lg:col-span-5">
         <div className="relative space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-violet-400">What agencies optimize</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-500">What agencies optimize</span>
             <span className="text-[10px] font-semibold text-emerald-400">Live programs</span>
           </div>
           <div className="space-y-3 text-xs">
@@ -383,7 +383,7 @@ function SlideRoster() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-3 text-center">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-fuchsia-400">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-500">
           <Users className="h-3.5 w-3.5" /> Roster management
         </div>
         <h2 className="text-2xl font-black text-white md:text-4xl">One roster. Every client program.</h2>
@@ -417,7 +417,7 @@ function SlideSplits() {
   return (
     <div className="mx-auto grid max-w-5xl items-center gap-8 lg:grid-cols-2">
       <div className="space-y-4">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-violet-400">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-500">
           <Percent className="h-3.5 w-3.5" /> Splits & payouts
         </div>
         <h2 className="text-2xl font-black leading-tight text-white md:text-4xl">
@@ -440,9 +440,9 @@ function SlideSplits() {
             <span className="block text-slate-500">Creator gross</span>
             <span className="text-lg font-black text-white">$2,000</span>
           </div>
-          <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3">
-            <span className="block text-violet-300/80">Agency commission (e.g. 20%)</span>
-            <span className="text-lg font-black text-violet-200">$400</span>
+          <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 p-3">
+            <span className="block text-teal-400/80">Agency commission (e.g. 20%)</span>
+            <span className="text-lg font-black text-teal-300">$400</span>
           </div>
         </div>
         <p className="mt-4 text-[11px] leading-relaxed text-slate-500">
@@ -457,7 +457,7 @@ function SlideContracts() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-3 text-center">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-400">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/20 bg-emerald-600/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-500">
           <FileText className="h-3.5 w-3.5" /> Contract management
         </div>
         <h2 className="text-2xl font-black text-white md:text-4xl">Paperwork that keeps pace with pitches</h2>
@@ -579,7 +579,7 @@ function SlideAgencyCTA() {
             <tr className="border-b border-slate-800 bg-slate-950 text-[10px] font-bold uppercase tracking-wider text-slate-500 md:text-xs">
               <th className="p-3 md:p-4">Motion</th>
               <th className="p-3 md:p-4 text-rose-400">Typical shop</th>
-              <th className="bg-violet-500/5 p-3 md:p-4 text-violet-300">Verza</th>
+              <th className="bg-teal-500/5 p-3 md:p-4 text-teal-400">Verza</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 text-slate-300">
@@ -608,9 +608,9 @@ function SlideAgencyCTA() {
               <tr key={r.motion} className="hover:bg-slate-850/30">
                 <td className="p-3 align-top font-bold text-slate-100 md:p-4">{r.motion}</td>
                 <td className="p-3 align-top leading-relaxed text-slate-500 md:p-4">{r.legacy}</td>
-                <td className="bg-violet-500/5 p-3 align-top leading-relaxed text-violet-100/90 md:p-4">
+                <td className="bg-teal-500/5 p-3 align-top leading-relaxed text-teal-100/90 md:p-4">
                   <div className="flex gap-2">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal-500" />
                     <span>{r.verza}</span>
                   </div>
                 </td>
@@ -644,7 +644,7 @@ function SlideAgencyCTA() {
       </div>
       <p className="pt-4 text-[11px] text-slate-600">
         Creator-facing product story?{" "}
-        <Link href="/overview" className="font-semibold text-violet-400 hover:underline">
+        <Link href="/overview" className="font-semibold text-teal-500 hover:underline">
           Brand overview deck
         </Link>
         .

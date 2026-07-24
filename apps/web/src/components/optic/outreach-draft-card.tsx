@@ -22,7 +22,7 @@ export function OutreachDraftCard({ draft, compact, className }: Props) {
         "rounded-lg border text-left",
         isEmail
           ? "border-primary/20 bg-primary/[0.04]"
-          : "border-violet-500/25 bg-violet-500/[0.06] dark:bg-violet-500/10",
+          : "border-teal-500/25 bg-teal-500/[0.06] dark:bg-teal-500/10",
         compact ? "p-2.5 space-y-1.5" : "p-3 space-y-2",
         className
       )}
@@ -32,7 +32,7 @@ export function OutreachDraftCard({ draft, compact, className }: Props) {
           variant="secondary"
           className={cn(
             "gap-1 text-[10px] font-medium uppercase tracking-wide",
-            isEmail ? "bg-primary/10 text-primary" : "bg-violet-500/15 text-violet-700 dark:text-violet-300"
+            isEmail ? "bg-primary/10 text-primary" : "bg-teal-500/15 text-teal-600 dark:text-teal-400"
           )}
         >
           {isEmail ? (

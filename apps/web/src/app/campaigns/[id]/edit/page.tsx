@@ -38,6 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { allowsNoPlatformCashCompensation, isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
+import { CampaignAiCopyGenerator } from '@/components/campaigns/campaign-ai-copy-generator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
@@ -182,7 +183,7 @@ export default function EditGigPage() {
     }
 
     if (!allowsNoPlatformCashCompensation(campaignType) && !isBaseRateEnabled && !isAffiliateEnabled) {
-      toast({ title: 'Payment Strategy Required', description: 'Enable either a Fixed Base Rate or Performance Rewards.', variant: 'destructive' });
+      toast({ title: 'Payment Strategy Required', description: 'Enable Performance Rewards or a Fixed Base Rate.', variant: 'destructive' });
       return;
     }
 
@@ -374,6 +375,22 @@ export default function EditGigPage() {
                 <CardDescription>Update the details for your campaign.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <CampaignAiCopyGenerator
+                campaignType={campaignType}
+                platforms={selectedPlatforms}
+                disabled={isSubmitting}
+                isSubmitting={isSubmitting}
+                ratePerCreator={
+                  isCauseCampaignType(campaignType) || !isBaseRateEnabled ? undefined : ratePerCreator
+                }
+                creatorsNeeded={isCauseCampaignType(campaignType) ? undefined : creatorsNeeded}
+                videosPerCreator={videosPerCreator}
+                affiliateEnabled={isAffiliateEnabled}
+                onApply={(t, html) => {
+                  setTitle(t);
+                  setDescription(html);
+                }}
+              />
               <div className="space-y-2">
                   <Label htmlFor="title">Campaign Title</Label>
                   <Input id="title" value={title} onChange={e => setTitle(e.target.value)} required disabled={isSubmitting} />
@@ -439,50 +456,12 @@ export default function EditGigPage() {
             </CardContent>
           </Card>
 
-          {campaignType === 'cause_campaign' ? (
-            <Card className="border-rose-500/20 bg-rose-50/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Heart className="h-5 w-5 text-rose-500" /> 3. Compensation</CardTitle>
-                <CardDescription>How creators are rewarded for amplifying your cause.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/20 text-sm text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Cause campaigns have no fixed base rate.</p>
-                  <p>Creators join voluntarily to support your mission. You can optionally enable Performance Rewards below to incentivize actions like link clicks or sign-ups.</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="border-primary/10">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 3. Fixed Base Rate</CardTitle>
-                    <CardDescription>A guaranteed one-time payment for every creator who completes the brief.</CardDescription>
-                  </div>
-                  <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
-                </div>
-              </CardHeader>
-              {isBaseRateEnabled && (
-                <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
-                  <div className="space-y-2">
-                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
-                    </div>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
-
           <Card className="border-blue-500/20 bg-blue-50/5">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 4. Performance Rewards</CardTitle>
-                  <CardDescription>Enable affiliate tracking and performance-based bonuses.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-blue-500" /> 3. Performance Rewards</CardTitle>
+                  <CardDescription>Trackable links, promo codes, and performance-based bonuses per creator.</CardDescription>
                 </div>
                 <Switch checked={isAffiliateEnabled ?? false} onCheckedChange={setIsAffiliateEnabled} disabled={isLocked || isSubmitting} />
               </div>
@@ -551,6 +530,44 @@ export default function EditGigPage() {
               </CardContent>
             )}
           </Card>
+
+          {campaignType === 'cause_campaign' ? (
+            <Card className="border-rose-500/20 bg-rose-50/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Heart className="h-5 w-5 text-rose-500" /> 4. Compensation</CardTitle>
+                <CardDescription>How creators are rewarded for amplifying your cause.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 rounded-lg bg-rose-500/5 border border-rose-500/20 text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Cause campaigns have no fixed base rate.</p>
+                  <p>Creators join voluntarily to support your mission. Performance Rewards above incentivize link clicks or sign-ups when you need measurable impact.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-primary/10">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Fixed Base Rate (Optional)</CardTitle>
+                    <CardDescription>Optional guaranteed payment for every creator who completes the brief.</CardDescription>
+                  </div>
+                  <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
+                </div>
+              </CardHeader>
+              {isBaseRateEnabled && (
+                <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-2">
+                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
           <Card className="border-orange-500/20 bg-orange-50/5">
             <CardHeader>

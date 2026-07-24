@@ -11,6 +11,11 @@ export default {
   theme: {
   	extend: {
   		colors: {
+  			'brand-purple': '#0E7C5A',
+  			'brand-magenta': '#16C088',
+  			'brand-green': '#0E7C5A',
+  			'brand-emerald': '#16C088',
+  			'brand-ink': '#0B100E',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

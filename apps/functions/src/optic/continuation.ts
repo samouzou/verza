@@ -9,6 +9,7 @@ type OpticJobBrandContext = {
   userDisplayName: string | null;
   campaignPaySummary: string | null;
   paySourceCampaignTitle: string | null;
+  paySourceCampaignType?: string | null;
 };
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
@@ -21,6 +22,7 @@ type SourceJob = {
   objectives: string;
   maxProfiles: number;
   status?: string;
+  runner?: string | null;
   campaignId?: string | null;
   brandContext?: OpticJobBrandContext | null;
   batchIndex?: number;
@@ -93,6 +95,7 @@ export async function enqueueOpticContinuationJob(
     rootJobId: rootJobId || jobRef.id,
     continuedFromJobId: opts?.fromJobId ?? null,
     smsNotify: opts?.smsNotify ?? true,
+    runner: source.runner === "extension" ? "extension" : "worker",
     logs: [
       {
         ts: Timestamp.now(),
@@ -124,9 +127,13 @@ export async function loadLatestContinuableJob(uid: string): Promise<SourceJob &
     throw new HttpsError("permission-denied", "Optic continuation requires a brand team account.");
   }
 
+  // Query by uid only (mirrors how the completion SMS recipient is resolved in
+  // onJobUpdated.ts). Filtering additionally by agencyId here caused false
+  // "no completed mission" replies whenever a job's stored agencyId no longer
+  // matched the user's current primaryAgencyId (e.g. continuation chains or a
+  // changed primary agency).
   const snap = await db
     .collection("optic_jobs")
-    .where("agencyId", "==", primary)
     .where("uid", "==", uid)
     .orderBy("createdAt", "desc")
     .limit(15)

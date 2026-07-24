@@ -4,7 +4,15 @@ import {
   TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN,
   TWILIO_PHONE_NUMBER,
+  TWILIO_SMS_WEBHOOK_URL,
 } from "../config/params";
+
+type TwilioWebhookRequest = {
+  protocol: string;
+  originalUrl?: string;
+  url?: string;
+  get(name: string): string | undefined;
+};
 
 /**
  * Normalizes a phone string to E.164 when possible.
@@ -62,22 +70,55 @@ export async function sendOpticSms(to: string, body: string): Promise<boolean> {
 }
 
 /**
+ * Candidate URLs Twilio may have signed (proxy proto/host vs console URL).
+ * @param {TwilioWebhookRequest} req Inbound HTTP request.
+ * @return {string[]} De-duplicated URLs to try for signature validation.
+ */
+export function buildTwilioWebhookValidationUrls(req: TwilioWebhookRequest): string[] {
+  const candidates = new Set<string>();
+  const configured = TWILIO_SMS_WEBHOOK_URL.value().trim();
+  if (configured) candidates.add(configured);
+
+  const project = process.env.GCLOUD_PROJECT?.trim();
+  const region = process.env.FUNCTION_REGION?.trim() || "us-central1";
+  if (project) {
+    candidates.add(
+      `https://${region}-${project}.cloudfunctions.net/opticTwilioSmsWebhook`
+    );
+  }
+
+  const host = req.get("host");
+  const path = req.originalUrl || req.url || "";
+  if (host) {
+    const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const protos = new Set<string>(["https"]);
+    if (forwardedProto) protos.add(forwardedProto);
+    if (req.protocol) protos.add(req.protocol);
+    for (const proto of protos) {
+      candidates.add(`${proto}://${host}${path}`);
+    }
+  }
+
+  return [...candidates];
+}
+
+/**
  * Validates an inbound Twilio webhook signature.
  * @param {string|undefined} signature X-Twilio-Signature header value.
- * @param {string} url Full request URL Twilio signed.
+ * @param {string|string[]} urls Full request URL(s) Twilio may have signed.
  * @param {Object.<string, string>} params POST body fields.
  * @return {boolean} True if the signature is valid.
  */
 export function validateTwilioWebhook(
   signature: string | undefined,
-  url: string,
+  urls: string | string[],
   params: Record<string, string>
 ): boolean {
-  if (!signature || !twilioReady()) return false;
-  return twilio.validateRequest(
-    TWILIO_AUTH_TOKEN.value().trim(),
-    signature,
-    url,
-    params
+  const authToken = TWILIO_AUTH_TOKEN.value().trim();
+  if (!signature || !authToken) return false;
+
+  const list = Array.isArray(urls) ? urls : [urls];
+  return list.some((url) =>
+    twilio.validateRequest(authToken, signature, url, params)
   );
 }

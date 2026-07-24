@@ -6,7 +6,7 @@
 
 ```
 You (Serge, signed in)
-    → httpsCallable("enqueueLinkedInOsDraftJob") { weekLabel, reviewer, items[] }
+    → httpsCallable("enqueueLinkedInOsDraftJob") { weekLabel, reviewer, items[], optional weeklyBrief… }
         → Firestore linkedin_os_jobs/{jobId} { status: "queued", items, … }
 
 onCreate linkedin_os_jobs
@@ -57,6 +57,10 @@ Deploy Cloud Functions so `enqueueLinkedInOsDraftJob` and `dispatchLinkedInOsJob
 - `weekLabel` (string, optional)
 - `reviewer` (string, optional, default `"Serge"`)
 - `items` (array, required): same shape as `marketing/verza-linkedin/queue.example.json` (`id`, `pillar`, `format`, `hook`, `productTruth`, `cta`, optional `notes`)
+- Optional **per-job context** (stored on the job doc and merged by the worker into Gemini system context):
+  - `weeklyBrief` (string, markdown ok, max 6000 chars) — audience, campaign, or narrative not in the global prompt pack.
+  - `mustMention` (string, max 500) — phrase the drafts should reflect.
+  - `neverMention` (string, max 500) — topics or names to avoid.
 
 ## Reading results
 

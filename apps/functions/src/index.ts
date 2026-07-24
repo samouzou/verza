@@ -108,6 +108,12 @@ import {
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
 import {
+  claimOpticExtensionJob,
+  submitOpticExtensionLead,
+  completeOpticExtensionJob,
+  reportOpticExtensionProgress,
+} from "./optic/extension";
+import {
   createOpticSubscriptionCheckoutSession,
   createOpticBillingPortalSession,
   opticInternalTopUp,
@@ -201,6 +207,10 @@ export {
   setOpticLeadEmail,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
+  claimOpticExtensionJob,
+  submitOpticExtensionLead,
+  completeOpticExtensionJob,
+  reportOpticExtensionProgress,
   createOpticSubscriptionCheckoutSession,
   createOpticBillingPortalSession,
   opticInternalTopUp,

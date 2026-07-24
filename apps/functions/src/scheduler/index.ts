@@ -9,6 +9,7 @@ import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract, Gig} from "./../types";
 import {sendEmailSequence, sendAgencyEmailSequence, sendDeploymentEmailSequence} from "../notifications";
 import * as params from "../config/params";
+import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
 
 // Send reminders for overdue invoices
 export const sendOverdueInvoiceReminders = onSchedule("every 24 hours", async () => {
@@ -201,7 +202,7 @@ export const sendUpcomingPaymentReminders = onSchedule("every 24 hours", async (
                   <p>This is a friendly reminder that a payment of <strong>$${milestone.amount.toLocaleString()}</strong>
                   for milestone "<strong>${milestone.description}</strong>" is due on <strong>${dueDateFormatted}</strong>.</p>
                   <div style="text-align: center; margin: 30px 0;">
-                    <a href="${paymentLink}" style="background-color: #6B37FF; color: #ffffff; text-decoration: none; 
+                    <a href="${paymentLink}" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: #ffffff; text-decoration: none; 
                     padding: 14px 28px; border-radius: 6px; font-size: 16px; font-weight: bold;">Pay Now</a>
                   </div>
                   <p>Thank you,<br/><strong>${creatorName}</strong></p>

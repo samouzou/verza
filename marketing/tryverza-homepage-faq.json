@@ -1,0 +1,261 @@
+{
+  "meta": {
+    "page": "tryverza.com",
+    "section": "faq",
+    "title": "Frequently asked questions",
+    "intro": "Everything you need to know about trackable creator campaigns, attribution, and performance payouts.",
+    "positioning": "performance_campaigns",
+    "lastUpdated": "2026-07-08",
+    "accuracyNotes": [
+      "Do not claim foot-traffic or in-store beacon tracking as a first-class product feature.",
+      "Conversions require Shopify or WooCommerce order webhooks matching Verza promo codes.",
+      "Creator affiliate payouts batch periodically; rewards accrue in real time from wallet.",
+      "Link format: https://app.tryverza.com/l/{linkId}"
+    ]
+  },
+  "items": [
+    {
+      "id": "what-is-verza",
+      "category": "getting_started",
+      "categoryLabel": "Getting started",
+      "question": "What is Verza?",
+      "answer": "Verza is creator campaign infrastructure for brands and agencies. You run campaigns with creators, give each person their own tracking link and/or promo code, see clicks and conversions in one dashboard, and pay for performance—not just posts."
+    },
+    {
+      "id": "who-is-verza-for",
+      "category": "getting_started",
+      "categoryLabel": "Getting started",
+      "question": "Who is Verza for?",
+      "answer": "Brands, agencies, and marketing teams that spend on creators and want to know which partnerships actually drive traffic and sales. It fits teams tired of flat fees with no attribution and ad platforms that optimize for impressions, not your outcomes."
+    },
+    {
+      "id": "pay-upfront",
+      "category": "getting_started",
+      "categoryLabel": "Getting started",
+      "question": "Do I need to pay upfront to launch a performance campaign?",
+      "answer": "Not necessarily. You can launch a pure performance campaign with $0 base rate locked upfront. You fund a wallet balance that pays creators as clicks or conversions accrue. You can also run hybrid campaigns: fixed sponsorship fee plus performance bonuses."
+    },
+    {
+      "id": "how-to-start",
+      "category": "getting_started",
+      "categoryLabel": "Getting started",
+      "question": "How do I start?",
+      "answer": "Sign up, create a campaign, enable Performance Rewards, set your destination URL and reward type (per click or per conversion), then invite or accept creators. Each creator gets unique tracking when they join."
+    },
+    {
+      "id": "how-tracking-works",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "How does Verza track creator performance?",
+      "answer": "Two ways—you choose per campaign: (1) Affiliate links—each creator gets a unique Verza link (app.tryverza.com/l/...) that counts clicks and redirects to your destination URL. (2) Promo codes—each creator gets a unique code (e.g. SARAH30); when a customer uses it at checkout, Verza attributes the conversion to that creator. You can use links only, codes only, or both."
+    },
+    {
+      "id": "clicks-vs-conversions",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "What's the difference between clicks and conversions?",
+      "answer": "Clicks mean someone used the creator's tracking link. Conversions mean a verified outcome—today, an order on your connected store that matches a Verza promo code via Shopify or WooCommerce webhook. Both are shown per creator on your campaign dashboard."
+    },
+    {
+      "id": "per-creator-dashboard",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "Can I see performance for each creator individually?",
+      "answer": "Yes. On the campaign page, every creator has their own row: promo code (if enabled), clicks, conversions, and estimated bonus earned. Creators see the same stats for their own link and code."
+    },
+    {
+      "id": "foot-traffic",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "Does Verza track foot traffic or in-store visits?",
+      "answer": "Verza does not have dedicated foot-traffic or beacon tracking. Conversions come from e-commerce orders (Shopify/WooCommerce) tied to promo codes. If you use the same codes in-store via a POS integrated with your online store, those orders may count—but Verza is not a separate retail analytics product.",
+      "marketingSafe": false,
+      "internalOnly": false
+    },
+    {
+      "id": "vs-utm",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "How is this different from UTM links in Google Analytics?",
+      "answer": "UTMs show aggregate traffic in analytics tools; they don't tie payouts to creators, manage wallet funding, or issue unique codes per creator inside a campaign workflow. Verza is campaign management, attribution, and payouts in one place."
+    },
+    {
+      "id": "shared-promo-codes",
+      "category": "tracking",
+      "categoryLabel": "Tracking & attribution",
+      "question": "Can multiple creators share the same promo code?",
+      "answer": "No. Each creator gets a unique code and/or link so attribution stays clean."
+    },
+    {
+      "id": "reward-models",
+      "category": "payouts",
+      "categoryLabel": "Rewards & payouts",
+      "question": "What reward models does Verza support?",
+      "answer": "CPC (cost per click)—you set a dollar amount per verified link click. CPA (cost per conversion)—you set a dollar amount per verified conversion (order with matching code). You can combine performance rewards with a fixed per-creator sponsorship in a hybrid model."
+    },
+    {
+      "id": "when-creators-paid",
+      "category": "payouts",
+      "categoryLabel": "Rewards & payouts",
+      "question": "When do creators get paid?",
+      "answer": "Performance rewards accrue as clicks and conversions happen, deducted from your agency wallet. Creator payouts run on Verza's payout schedule—accumulated affiliate earnings are processed periodically, not necessarily the instant a sale completes. Creators receive funds via Stripe Connect or Global Payouts, depending on setup."
+    },
+    {
+      "id": "wallet-runs-out",
+      "category": "payouts",
+      "categoryLabel": "Rewards & payouts",
+      "question": "What happens if my wallet runs out?",
+      "answer": "If your available balance can't cover the next reward, the campaign can be marked budget exhausted and performance rewards pause until you top up. You'll get a notification to add funds."
+    },
+    {
+      "id": "platform-fee",
+      "category": "payouts",
+      "categoryLabel": "Rewards & payouts",
+      "question": "Is there a platform fee?",
+      "answer": "Performance payouts are subject to Verza's platform service fee (shown in campaign terms in the product). Fixed sponsorship payouts follow the same marketplace fee structure."
+    },
+    {
+      "id": "creator-account-required",
+      "category": "payouts",
+      "categoryLabel": "Rewards & payouts",
+      "question": "Do creators need a Verza account?",
+      "answer": "Yes. They join the campaign on Verza, get their link and code, submit content if required, and receive earnings in their Verza wallet."
+    },
+    {
+      "id": "store-integrations",
+      "category": "integrations",
+      "categoryLabel": "Store & integrations",
+      "question": "Which platforms work for conversion tracking?",
+      "answer": "Today: Shopify and WooCommerce, via order-creation webhooks to your Verza conversion endpoint. Setup guides are in your agency settings."
+    },
+    {
+      "id": "promo-code-match",
+      "category": "integrations",
+      "categoryLabel": "Store & integrations",
+      "question": "Do my Verza promo codes need to match my store?",
+      "answer": "Yes. Codes Verza generates for creators must exist as active discount codes in Shopify (or equivalent in WooCommerce) or orders won't match."
+    },
+    {
+      "id": "no-shopify",
+      "category": "integrations",
+      "categoryLabel": "Store & integrations",
+      "question": "What if I don't use Shopify or WooCommerce?",
+      "answer": "You can still run campaigns with link tracking (CPC). Conversion (CPA) tracking requires a webhook integration or a custom build—contact us for enterprise setups."
+    },
+    {
+      "id": "destination-url",
+      "category": "integrations",
+      "categoryLabel": "Store & integrations",
+      "question": "Where do tracking links send people?",
+      "answer": "Wherever you set as the destination URL at campaign launch—your shop, product page, landing page, booking flow, etc."
+    },
+    {
+      "id": "content-required",
+      "category": "campaigns",
+      "categoryLabel": "Campaigns & content",
+      "question": "Do I still need creator content, or is this links-only?",
+      "answer": "You define the campaign. Many brands run UGC and sponsorship campaigns with a performance layer—creators post and share their link or code. You can also emphasize performance when content is lighter; your brief defines deliverables."
+    },
+    {
+      "id": "verza-score",
+      "category": "campaigns",
+      "categoryLabel": "Campaigns & content",
+      "question": "What is Verza Score?",
+      "answer": "An optional quality gate: creators' videos can be scored against a threshold before submission counts. It's separate from performance tracking—useful for quality, not a replacement for clicks and conversions."
+    },
+    {
+      "id": "optic-and-other-tools",
+      "category": "campaigns",
+      "categoryLabel": "Campaigns & content",
+      "question": "What about Optic, contracts, and agency tools?",
+      "answer": "Verza also includes creator discovery (Optic), contracts, invoicing, and global payouts. Performance tracking is the economic engine; those tools support running campaigns end-to-end."
+    },
+    {
+      "id": "vs-meta-ads",
+      "category": "alternatives",
+      "categoryLabel": "vs. alternatives",
+      "question": "How is Verza different from Facebook or Instagram ads?",
+      "answer": "Paid social charges for delivery and optimizes for the platform's objectives. Verza attributes results to named creators, uses your CPC or CPA rules, and pays creators from your wallet based on tracked clicks or store conversions—not opaque platform metrics."
+    },
+    {
+      "id": "vs-affiliate-networks",
+      "category": "alternatives",
+      "categoryLabel": "vs. alternatives",
+      "question": "How is Verza different from affiliate networks (Impact, Refersion, etc.)?",
+      "answer": "Classic affiliate tools focus on link and code tracking for affiliates. Verza is built for creator campaigns: briefs, submissions, optional sponsorship fees, agency workflows, and payouts to creators globally—not just coupon sites and bloggers."
+    },
+    {
+      "id": "vs-manual-payments",
+      "category": "alternatives",
+      "categoryLabel": "vs. alternatives",
+      "question": "How is Verza different from paying creators manually?",
+      "answer": "Manual deals mean spreadsheets, shared codes, screenshot proof, and delayed invoicing. Verza automates per-creator links and codes, live stats, and wallet-backed rewards tied to your store."
+    },
+    {
+      "id": "flat-fee-sponsorships",
+      "category": "alternatives",
+      "categoryLabel": "vs. alternatives",
+      "question": "Can I run traditional flat-fee sponsorships too?",
+      "answer": "Yes. Performance rewards are optional. You can fund fixed-rate campaigns through escrow at launch and add CPC or CPA on top—or run sponsorship-only with no performance layer."
+    },
+    {
+      "id": "payment-security",
+      "category": "trust",
+      "categoryLabel": "Trust, compliance & support",
+      "question": "Is creator payment secure?",
+      "answer": "Sponsorship funds can be escrowed at campaign launch. Performance rewards draw from your funded wallet. Creator payouts go through Stripe-backed infrastructure."
+    },
+    {
+      "id": "platform-compliance",
+      "category": "trust",
+      "categoryLabel": "Trust, compliance & support",
+      "question": "Will this get me in trouble with creators or platforms?",
+      "answer": "You set rates and briefs; creators opt in to campaigns. Use tracking and outreach in line with platform rules and disclosure requirements (e.g. #ad). Verza provides infrastructure—not legal advice on FTC or social platform policies."
+    },
+    {
+      "id": "payout-markets",
+      "category": "trust",
+      "categoryLabel": "Trust, compliance & support",
+      "question": "What markets do you support for payouts?",
+      "answer": "Creators can get paid via Stripe Connect (many countries) or Global Payouts where supported. Availability depends on creator country and onboarding."
+    },
+    {
+      "id": "support",
+      "category": "trust",
+      "categoryLabel": "Trust, compliance & support",
+      "question": "Where do I get help?",
+      "answer": "Contact support@tryverza.com or use in-app support. Agency teams can configure webhooks and wallet from the Verza dashboard."
+    }
+  ],
+  "quickReference": [
+    { "question": "Track per creator?", "answer": "Yes — unique link and/or code" },
+    { "question": "Track clicks?", "answer": "Yes — Verza redirect links" },
+    { "question": "Track sales?", "answer": "Yes — Shopify/WooCommerce + promo codes" },
+    { "question": "Pay per click?", "answer": "Yes — CPC" },
+    { "question": "Pay per sale?", "answer": "Yes — CPA" },
+    { "question": "$0 upfront?", "answer": "Yes — pure performance campaigns" },
+    { "question": "Replace Meta Ads?", "answer": "Complement or alternative for creator-led performance" },
+    { "question": "Foot traffic?", "answer": "No dedicated product; use code redemptions via store" }
+  ],
+  "categories": [
+    { "id": "getting_started", "label": "Getting started", "order": 1 },
+    { "id": "tracking", "label": "Tracking & attribution", "order": 2 },
+    { "id": "payouts", "label": "Rewards & payouts", "order": 3 },
+    { "id": "integrations", "label": "Store & integrations", "order": 4 },
+    { "id": "campaigns", "label": "Campaigns & content", "order": 5 },
+    { "id": "alternatives", "label": "vs. alternatives", "order": 6 },
+    { "id": "trust", "label": "Trust, compliance & support", "order": 7 }
+  ],
+  "uiHints": {
+    "layout": "accordion",
+    "groupByCategory": true,
+    "showQuickReference": true,
+    "quickReferencePlacement": "below_accordion",
+    "defaultOpenFirst": false,
+    "ctaBelowSection": {
+      "label": "Launch a trackable campaign",
+      "href": "https://app.tryverza.com/campaigns/post",
+      "variant": "primary"
+    }
+  }
+}

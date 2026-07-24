@@ -1,17 +1,17 @@
 import type {ParsedCarouselSlide} from "./parseCarouselMarkdown";
+import {
+  VERZA_CHEVRON_PATH,
+  VERZA_EMERALD,
+  VERZA_EVERGREEN,
+  VERZA_INK,
+  VERZA_MUTED_ON_INK,
+  VERZA_WHITE,
+} from "../brandColors";
 
 const W = 1080;
 const H = 1080;
 const PAD = 88;
 const CONTENT_W = W - PAD * 2;
-
-const COLORS = {
-  bg: "#120E19",
-  white: "#FFFFFF",
-  muted: "#94A3B8",
-  purple: "#6B37FF",
-  magenta: "#EE488E",
-};
 
 /**
  * Escapes text for safe inclusion in SVG.
@@ -68,6 +68,17 @@ function tspans(x: number, startY: number, lineHeight: number, lines: string[]):
     .join("");
 }
 
+/** Shared gradient defs — matches apps/web/public/verza-icon.svg. */
+function brandGradientDefs(): string {
+  return `
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${VERZA_EVERGREEN}"/>
+      <stop offset="100%" stop-color="${VERZA_EMERALD}"/>
+    </linearGradient>
+  </defs>`;
+}
+
 /**
  * Renders a pill CTA button with vertically centered, wrapped label text.
  * @param {string} label Button label.
@@ -89,19 +100,19 @@ function renderCtaButton(label: string, topY: number): string {
 
   return `
       <rect x="${PAD}" y="${topY}" width="${CONTENT_W}" height="${btnHeight}" rx="${btnRadius}" fill="url(#brandGrad)" opacity="0.95"/>
-      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${COLORS.white}" text-anchor="middle">
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${VERZA_WHITE}" text-anchor="middle">
         ${tspans(W / 2, firstBaseline, lineHeight, lines)}
       </text>`;
 }
 
 /**
- * Verza chevron mark (from brand icon).
+ * Verza chevron mark — same path and gradient as verza-icon.svg.
  * @return {string} SVG path group.
  */
 function verzaMark(): string {
   return `
     <g transform="translate(${PAD}, ${PAD - 8}) scale(0.14)">
-      <path d="M24 24L152 194.666L280 24" stroke="url(#brandGrad)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="${VERZA_CHEVRON_PATH}" stroke="url(#brandGrad)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     </g>`;
 }
 
@@ -152,7 +163,7 @@ export function renderSlideSvg(
     }
 
     bodySvg = `
-      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="${COLORS.muted}">
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="${VERZA_MUTED_ON_INK}">
         ${tspans(PAD, bodyStartY, 46, bulletLines.slice(0, 8))}
       </text>`;
   } else if (isCover) {
@@ -168,25 +179,20 @@ export function renderSlideSvg(
   }
 
   const footer = `
-    <text x="${W - PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${COLORS.muted}" text-anchor="end">
+    <text x="${W - PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${VERZA_MUTED_ON_INK}" text-anchor="end">
       ${slideNum} / ${totalSlides}
     </text>
-    <text x="${PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" fill="${COLORS.purple}">
+    <text x="${PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" fill="${VERZA_EMERALD}">
       tryverza.com
     </text>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>
-    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="${COLORS.purple}"/>
-      <stop offset="100%" stop-color="${COLORS.magenta}"/>
-    </linearGradient>
-  </defs>
-  <rect width="${W}" height="${H}" fill="${COLORS.bg}"/>
+  ${brandGradientDefs()}
+  <rect width="${W}" height="${H}" fill="${VERZA_INK}"/>
   ${verzaMark()}
   ${accentBar}
-  <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleSize}" font-weight="700" fill="${COLORS.white}">
+  <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleSize}" font-weight="700" fill="${VERZA_WHITE}">
     ${tspans(PAD, titleStartY, titleLineHeight, visibleTitleLines)}
   </text>
   ${bodySvg}

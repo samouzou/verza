@@ -198,14 +198,20 @@ ipcMain.handle(
             userDisplayName: full.userDisplayName,
             campaignPaySummary: full.campaignPaySummary,
             paySourceCampaignTitle: full.paySourceCampaignTitle,
+            paySourceCampaignType: full.paySourceCampaignType,
           };
           agencyMeta = { agencyId: full.agencyId, agencyName: full.agencyName };
           event.sender.send("log", "search", `Signed in: drafts will use "${full.agencyName}".`);
           if (full.paySourceCampaignId && full.paySourceCampaignTitle) {
+            const soft =
+              full.paySourceCampaignType === "cause_campaign" ||
+              full.paySourceCampaignType === "barter_campaign";
             event.sender.send(
               "log",
               "search",
-              `Pay + scope locked to campaign: "${full.paySourceCampaignTitle}".`
+              soft ?
+                `Partnership scoped to campaign: "${full.paySourceCampaignTitle}".` :
+                `Pay + scope locked to campaign: "${full.paySourceCampaignTitle}".`
             );
           } else if (full.activePaidCampaignCount > 0) {
             event.sender.send(

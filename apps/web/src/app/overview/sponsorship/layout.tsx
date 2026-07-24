@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Verza — event sponsorship",
   description:
-    "Sponsorship overview for an exclusive San Francisco evening: audience, VIP dinner, and partnership tiers.",
+    "Sponsorship overview for a private San Francisco brief on automating the creator pipeline: audience, fireside, and partnership tiers.",
   robots: { index: false, follow: false },
   openGraph: {
-    title: "Verza × Stripe — sponsorship",
+    title: "Verza × Google Gemini — sponsorship",
     description:
-      "Creator ops, AI, and global payouts—San Francisco, June 17, 2026. Sponsorship packages and audience overview.",
+      "High-Velocity Growth: Automating the Creator Pipeline—Verza HQ, San Francisco, June 25, 2026. Sponsorship packages and audience overview.",
     type: "website",
   },
 };

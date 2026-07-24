@@ -8,7 +8,11 @@ import {
   loadLatestContinuableJob,
   parseSmsCommand,
 } from "./continuation";
-import {normalizeSmsPhone, validateTwilioWebhook} from "./twilio";
+import {
+  buildTwilioWebhookValidationUrls,
+  normalizeSmsPhone,
+  validateTwilioWebhook,
+} from "./twilio";
 import {TWILIO_AUTH_TOKEN} from "../config/params";
 
 /**
@@ -39,9 +43,15 @@ export const opticTwilioSmsWebhook = onRequest(
     }
 
     const signature = req.get("x-twilio-signature");
-    const url = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
-    if (!validateTwilioWebhook(signature, url, params)) {
-      logger.warn("[Optic SMS] Invalid Twilio signature");
+    const validationUrls = buildTwilioWebhookValidationUrls(req);
+    if (!validateTwilioWebhook(signature, validationUrls, params)) {
+      logger.warn("[Optic SMS] Invalid Twilio signature", {
+        host: req.get("host"),
+        protocol: req.protocol,
+        forwardedProto: req.get("x-forwarded-proto"),
+        originalUrl: req.originalUrl,
+        triedUrls: validationUrls,
+      });
       res.status(403).send("Forbidden");
       return;
     }

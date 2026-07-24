@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Verza Optic Scout",
+  "version": "0.1.0",
+  "description": "Run Instagram creator discovery in your logged-in browser for follower counts, bios, and contact info.",
+  "permissions": ["tabs", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "https://instagram.com/*",
+    "https://app.tryverza.com/*",
+    "https://dev-app.tryverza.com/*",
+    "https://us-central1-verza-canvas-dev.cloudfunctions.net/*",
+    "https://us-central1-verza-canvas.cloudfunctions.net/*"
+  ],
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.tryverza.com/*",
+        "https://dev-app.tryverza.com/*"
+      ],
+      "js": ["dist/verza-bridge.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Verza Optic"
+  }
+}

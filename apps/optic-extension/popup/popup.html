@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verza Optic</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 14px;
+        width: 280px;
+        color: #111;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 6px;
+      }
+      p {
+        font-size: 12px;
+        color: #555;
+        margin: 0 0 10px;
+        line-height: 1.4;
+      }
+      .status {
+        font-size: 12px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #f4f4f5;
+      }
+      .running {
+        background: #ecfdf5;
+        color: #065f46;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Verza Optic Scout</h1>
+    <p>Instagram missions run in your logged-in browser so we can read follower counts, bios, and contact info.</p>
+    <div id="status" class="status">Checking status…</div>
+    <script type="module" src="../dist/popup.js"></script>
+  </body>
+</html>

@@ -6,6 +6,7 @@ import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
+import {EMAIL_BRAND_PRIMARY, emailButtonStyle} from "../emailBrand";
 
 /**
  * Verifies the Firebase ID token from the Authorization header
@@ -227,7 +228,7 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        <a href="${actionUrl}" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: white; padding: 12px 24px; 
         text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
       </div>
     `;
@@ -240,7 +241,7 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
       ${isExistingUser ? "Log in to your account to view and accept your invitation." :
     "Create your free Verza account to accept the invitation and start collaborating."}</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${actionUrl}" style="background-color: #6B37FF; color: white; padding: 12px 24px; 
+        <a href="${actionUrl}" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: white; padding: 12px 24px; 
         text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${actionText}</a>
       </div>
     `;
@@ -302,8 +303,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     </p>
   `;
 
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
 
   switch (step) {
   case 0: // Welcome & Deployment Network
@@ -391,7 +391,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>
@@ -534,7 +534,7 @@ export async function sendSubscriptionReceiptEmail(
             </tr>
             <tr style="border-top: 2px solid #edf2f7;">
               <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Amount Paid</td>
-              <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800;
+              <td style="padding: 20px 0 0 0; color: ${EMAIL_BRAND_PRIMARY}; font-weight: 800;
                 text-align: right; font-size: 24px;">${amountFormatted}</td>
             </tr>
           </table>
@@ -548,7 +548,7 @@ export async function sendSubscriptionReceiptEmail(
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-          <a href="${appUrl}/settings" style="background-color: #6B37FF; color: white;
+          <a href="${appUrl}/settings" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: white;
             padding: 12px 28px; text-decoration: none; border-radius: 8px;
             font-weight: bold; font-size: 15px; display: inline-block;">Manage Subscription</a>
         </div>
@@ -696,7 +696,7 @@ export async function sendOpticSubscriptionReceiptEmail(
             </tr>
             <tr style="border-top: 2px solid #edf2f7;">
               <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Amount Paid</td>
-              <td style="padding: 20px 0 0 0; color: #6B37FF; font-weight: 800;
+              <td style="padding: 20px 0 0 0; color: ${EMAIL_BRAND_PRIMARY}; font-weight: 800;
                 text-align: right; font-size: 24px;">${amountFormatted}</td>
             </tr>
           </table>
@@ -710,7 +710,7 @@ export async function sendOpticSubscriptionReceiptEmail(
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-          <a href="${appUrl}/optic" style="background-color: #6B37FF; color: white;
+          <a href="${appUrl}/optic" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: white;
             padding: 12px 28px; text-decoration: none; border-radius: 8px;
             font-weight: bold; font-size: 15px; display: inline-block;">Open Optic</a>
         </div>
@@ -814,7 +814,7 @@ export async function sendOpticLowCreditsEmail(
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Remaining</td>
-              <td style="padding: 12px 0; color: #6B37FF; font-size: 22px;
+              <td style="padding: 12px 0; color: ${EMAIL_BRAND_PRIMARY}; font-size: 22px;
               font-weight: 800; text-align: right;">${balanceLabel}</td>
             </tr>
             <tr>
@@ -833,11 +833,11 @@ export async function sendOpticLowCreditsEmail(
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-          <a href="${appUrl}/optic" style="background-color: #6B37FF; color: white;
+          <a href="${appUrl}/optic" style="background-color: ${EMAIL_BRAND_PRIMARY}; color: white;
             padding: 12px 28px; text-decoration: none; border-radius: 8px;
             font-weight: bold; font-size: 15px; display: inline-block;">Open Optic</a>
           <p style="margin-top: 16px; font-size: 13px;">
-            <a href="${appUrl}/optic/pricing" style="color: #6B37FF;">Manage billing</a>
+            <a href="${appUrl}/optic/pricing" style="color: ${EMAIL_BRAND_PRIMARY};">Manage billing</a>
           </p>
         </div>
 
@@ -906,8 +906,7 @@ export async function sendDeploymentEmailSequence(
     </p>
   `;
 
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
 
   switch (step) {
   case 0: // Immediate — campaign is live
@@ -1049,7 +1048,7 @@ export async function sendDeploymentEmailSequence(
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>
@@ -1114,8 +1113,7 @@ export async function sendAgencyEmailSequence(
     </p>
   `;
 
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
 
   switch (step) {
   case 0: // Immediate — agency is live
@@ -1268,7 +1266,7 @@ export async function sendAgencyEmailSequence(
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>
@@ -1396,8 +1394,7 @@ export async function sendCreatorSecuredEmail(
     </div>
   `;
 
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
 
   let subject: string;
   let headline: string;
@@ -1456,7 +1453,7 @@ export async function sendCreatorSecuredEmail(
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>
@@ -1514,8 +1511,7 @@ export async function sendBrandCampaignApplicantEmails(
         vertical-align: middle; font-family: sans-serif;">Verza</span>
     </div>
   `;
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
   const subject = isAgencyAcceptance ?
     `New applicant (agency) on "${gigTitle}"` :
     `New applicant on "${gigTitle}"`;
@@ -1547,7 +1543,7 @@ export async function sendBrandCampaignApplicantEmails(
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>
@@ -1607,8 +1603,7 @@ export async function sendBrandSubmissionReceivedEmail(
     </div>
   `;
 
-  const btnStyle = "background-color: #6B37FF; color: white; padding: 12px 24px; " +
-    "text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;";
+  const btnStyle = emailButtonStyle("6px");
 
   const assetLabel = submissionKind === "link" ? "a video link" : "a new video";
   const subject = `New submission on "${gigTitle}"`;
@@ -1641,7 +1636,7 @@ export async function sendBrandSubmissionReceivedEmail(
             Verza &copy; ${new Date().getFullYear()} | The operating system for the creator economy.
           </p>
           <div style="margin-top: 10px;">
-            <a href="${appUrl}/profile" style="font-size: 11px; color: #6B37FF; text-decoration: none;">Notification Settings</a>
+            <a href="${appUrl}/profile" style="font-size: 11px; color: ${EMAIL_BRAND_PRIMARY}; text-decoration: none;">Notification Settings</a>
           </div>
         </div>
       </div>

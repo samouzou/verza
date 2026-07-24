@@ -13,6 +13,7 @@ import {
   Linkedin,
   Loader2,
   Mail,
+  NotebookPen,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -399,15 +400,15 @@ function BeehiivNewsletterPanel({
         {beehiivNewsletter ? (
           <div className="rounded-lg border p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">Newsletter markdown</p>
+              <p className="text-sm font-medium">Newsletter draft</p>
               <Button size="sm" variant="outline" onClick={() => void copyNewsletter()}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
             {(beehiivNewsletter.slideImageUrls?.length ?? 0) > 0 && (
               <p className="text-xs text-muted-foreground">
-                Includes signed image URLs for each slide—paste into Beehiiv between sections (URLs
-                expire in ~7 days).
+                Slide images are included as links you can paste into Beehiiv. Those links stop
+                working after about a week—copy the newsletter soon if you need the images.
               </p>
             )}
             <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-96 overflow-y-auto">
@@ -416,7 +417,7 @@ function BeehiivNewsletterPanel({
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Uses the carousel outline and PNG slides from your Thursday product-receipts slot.
+            Builds from your Thursday product-receipts carousel text and slide images when they exist.
           </p>
         )}
       </CardContent>
@@ -441,6 +442,9 @@ export default function LinkedInOsPage() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [inspirationId, setInspirationId] = useState("");
+  const [weeklyBrief, setWeeklyBrief] = useState("");
+  const [mustMention, setMustMention] = useState("");
+  const [neverMention, setNeverMention] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -482,6 +486,9 @@ export default function LinkedInOsPage() {
 
   const handleResetQueue = () => {
     setInspirationId("");
+    setWeeklyBrief("");
+    setMustMention("");
+    setNeverMention("");
     setItems(DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x })));
   };
 
@@ -499,12 +506,16 @@ export default function LinkedInOsPage() {
         weekLabel,
         reviewer: user.displayName || user.email || "Reviewer",
         items: valid,
+        ...(weeklyBrief.trim() ? { weeklyBrief: weeklyBrief.trim() } : {}),
+        ...(mustMention.trim() ? { mustMention: mustMention.trim() } : {}),
+        ...(neverMention.trim() ? { neverMention: neverMention.trim() } : {}),
       });
       const data = result.data as { jobId?: string };
       if (data.jobId) setSelectedJobId(data.jobId);
       toast({
         title: "Draft job queued",
-        description: "Gemini will write first passes—check Recent jobs when status is completed.",
+        description:
+          "We'll draft your posts next—watch Recent jobs for when they're ready.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to enqueue job.";
@@ -562,7 +573,7 @@ export default function LinkedInOsPage() {
     <div className="flex flex-col gap-8 pb-16">
       <PageHeader
         title="LinkedIn OS"
-        description="First-pass LinkedIn drafts for Verza—Gemini writes, you approve and publish."
+        description="First-pass LinkedIn drafts for Verza—we generate a starting point, you edit and publish."
         actions={
           <Button variant="outline" asChild>
             <Link href="/optic">Optic (separate)</Link>
@@ -588,10 +599,59 @@ export default function LinkedInOsPage() {
               This week&apos;s queue
             </CardTitle>
             <CardDescription>
-              Hooks and product truths only—Gemini fills the body from your Firestore prompt pack.
+              Add hooks and product truths—we draft the rest from your team&apos;s saved brand voice.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="rounded-lg border p-4 space-y-4 bg-muted/5">
+              <div className="flex items-start gap-2">
+                <NotebookPen className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Context for this run</p>
+                  <p className="text-xs text-muted-foreground">
+                    Optional. If this week is different—new audience, launch, or angle—say it here
+                    before you pick inspiration or generate. We fold this into every post in the run,
+                    together with your usual brand guardrails.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="weekly-brief">Weekly brief / narrative</Label>
+                <Textarea
+                  id="weekly-brief"
+                  rows={4}
+                  value={weeklyBrief}
+                  onChange={(e) => setWeeklyBrief(e.target.value.slice(0, 6000))}
+                  placeholder="Who you're talking to this week, what changed, what to stress or avoid…"
+                />
+                <p className="text-xs text-muted-foreground text-right">
+                  {weeklyBrief.length}/6000
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="must-mention">Must mention (optional)</Label>
+                  <Input
+                    id="must-mention"
+                    value={mustMention}
+                    onChange={(e) => setMustMention(e.target.value.slice(0, 500))}
+                    placeholder="e.g. a product line you want threaded through"
+                    maxLength={500}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="never-mention">Never mention (optional)</Label>
+                  <Input
+                    id="never-mention"
+                    value={neverMention}
+                    onChange={(e) => setNeverMention(e.target.value.slice(0, 500))}
+                    placeholder="e.g. topics or names to avoid"
+                    maxLength={500}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-lg border border-dashed p-4 space-y-3 bg-muted/10">
               <div className="flex items-start gap-2">
                 <Lightbulb className="h-4 w-4 mt-0.5 text-primary shrink-0" />
@@ -766,7 +826,7 @@ export default function LinkedInOsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Recent jobs</CardTitle>
-              <CardDescription>Status updates live from Firestore.</CardDescription>
+              <CardDescription>Job status updates here as soon as they change.</CardDescription>
             </CardHeader>
             <CardContent>
               {jobsError && (
@@ -822,6 +882,30 @@ export default function LinkedInOsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {(selectedJob.weeklyBrief ||
+                  selectedJob.mustMention ||
+                  selectedJob.neverMention) && (
+                  <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs space-y-1">
+                    <p className="font-medium text-muted-foreground">Run context for this job</p>
+                    {selectedJob.weeklyBrief && (
+                      <pre className="whitespace-pre-wrap font-sans text-muted-foreground max-h-24 overflow-y-auto">
+                        {selectedJob.weeklyBrief}
+                      </pre>
+                    )}
+                    {selectedJob.mustMention && (
+                      <p>
+                        <span className="text-muted-foreground">Must mention:</span>{" "}
+                        {selectedJob.mustMention}
+                      </p>
+                    )}
+                    {selectedJob.neverMention && (
+                      <p>
+                        <span className="text-muted-foreground">Never mention:</span>{" "}
+                        {selectedJob.neverMention}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {selectedJob.status === "completed" &&
                   (selectedJob.outputs ?? []).map((out) => (
                     <div key={out.id} className="rounded-lg border p-4 space-y-2">
@@ -855,7 +939,7 @@ export default function LinkedInOsPage() {
                 {selectedJob.status === "running" && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Gemini is writing…
+                    Still writing your drafts…
                   </div>
                 )}
               </CardContent>

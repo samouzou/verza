@@ -19,6 +19,19 @@ export type OpticCampaignOption = {
   description?: string;
 };
 
+export type OpticExtensionProgress = {
+  phase?: string;
+  message?: string;
+  discovered?: number;
+  target?: number;
+  hashtag?: string;
+  searchQuery?: string;
+  searchSummary?: string;
+  hashtags?: string[];
+  searchQueries?: string[];
+  updatedAt?: Timestamp | null;
+};
+
 export type OpticJobRow = {
   id: string;
   status?: string;
@@ -27,10 +40,15 @@ export type OpticJobRow = {
   batchIndex?: number;
   maxProfiles?: number;
   processedCount?: number;
+  runner?: string;
+  extensionProgress?: OpticExtensionProgress | null;
   error?: string | null;
   createdAt?: Timestamp | null;
   agencyName?: string;
-  brandContext?: { paySourceCampaignTitle?: string | null };
+  brandContext?: {
+    paySourceCampaignTitle?: string | null;
+    paySourceCampaignType?: string | null;
+  };
   logs?: Array<{ phase?: string; message?: string; ts?: Timestamp }>;
 };
 

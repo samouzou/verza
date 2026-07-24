@@ -12,7 +12,12 @@ const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
 export type OpticJobBrandContext = Pick<
   AgencyBrandContext,
-  "agencyName" | "brandSummary" | "userDisplayName" | "campaignPaySummary" | "paySourceCampaignTitle"
+  | "agencyName"
+  | "brandSummary"
+  | "userDisplayName"
+  | "campaignPaySummary"
+  | "paySourceCampaignTitle"
+  | "paySourceCampaignType"
 >;
 
 /** Subset of agency context stored on each Optic job for the worker.
@@ -26,6 +31,7 @@ function toJobBrandContext(full: AgencyBrandContext): OpticJobBrandContext {
     userDisplayName: full.userDisplayName,
     campaignPaySummary: full.campaignPaySummary,
     paySourceCampaignTitle: full.paySourceCampaignTitle,
+    paySourceCampaignType: full.paySourceCampaignType,
   };
 }
 
@@ -63,12 +69,14 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const uid = request.auth.uid;
   await assertAgencyTeam(uid);
 
-  const {platform, objectives, maxProfiles, campaignId, smsNotify} = request.data as {
+  const {platform, objectives, maxProfiles, campaignId, smsNotify, useBrowserExtension} =
+    request.data as {
     platform?: unknown;
     objectives?: unknown;
     maxProfiles?: unknown;
     campaignId?: unknown;
     smsNotify?: unknown;
+    useBrowserExtension?: unknown;
   };
 
   if (typeof platform !== "string" || !OPTIC_PLATFORMS.has(platform)) {
@@ -101,6 +109,9 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const campaignIdStr =
     typeof campaignId === "string" && campaignId.trim() ? campaignId.trim() : null;
 
+  const wantsExtension =
+    platform === "instagram" && useBrowserExtension === true;
+
   let fullBrand: AgencyBrandContext;
   try {
     fullBrand = await loadAgencyBrandContextForUid(uid, {campaignId: campaignIdStr});
@@ -132,11 +143,14 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     continuedFromJobId: null,
     smsNotify: wantSms,
     smsCompletionSent: false,
+    runner: wantsExtension ? "extension" : "worker",
     logs: [
       {
         ts: Timestamp.now(),
         phase: "enqueue",
-        message: "Your scout is queued and will start shortly.",
+        message: wantsExtension
+          ? "Mission queued — open Instagram in Chrome with the Optic extension installed."
+          : "Your scout is queued and will start shortly.",
       },
     ],
     error: null,

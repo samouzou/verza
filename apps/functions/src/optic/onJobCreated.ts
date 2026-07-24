@@ -18,6 +18,12 @@ export const dispatchOpticJobToWorker = onDocumentCreated(
     if (!snap) return;
     const data = snap.data();
     if (!data || data.status !== "queued") return;
+    if (data.runner === "extension") {
+      logger.info("[Optic] Extension job queued — skipping Cloud Run worker", {
+        jobId: event.params.jobId,
+      });
+      return;
+    }
 
     const workerUrl = OPTIC_WORKER_URL.value().trim();
     const secret = OPTIC_WORKER_SHARED_SECRET.value().trim();

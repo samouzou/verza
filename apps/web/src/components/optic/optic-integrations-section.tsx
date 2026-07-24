@@ -17,6 +17,8 @@ type Props = {
   gmailEmail: string | null;
   smsEnabled: boolean;
   smsPhone: string | null;
+  /** Public /sms-opt-in page: expanded integrations UI, no OAuth / save. */
+  preview?: boolean;
 };
 
 function integrationsNeedSetup(
@@ -63,21 +65,30 @@ function IntegrationSummary({
 }
 
 export function OpticIntegrationsSection(props: Props) {
+  const { preview = false } = props;
   const needsSetup = useMemo(
     () => integrationsNeedSetup(props.gmailConnected, props.smsEnabled, props.smsPhone),
     [props.gmailConnected, props.smsEnabled, props.smsPhone]
   );
 
-  const [open, setOpen] = useState(needsSetup);
+  const [open, setOpen] = useState(preview || needsSetup);
 
   useEffect(() => {
-    setOpen(needsSetup);
-  }, [needsSetup]);
+    if (!preview) setOpen(needsSetup);
+  }, [needsSetup, preview]);
+
+  const isOpen = preview ? true : open;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={isOpen} onOpenChange={preview ? () => {} : setOpen}>
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-        <CollapsibleTrigger className="flex w-full items-center gap-3 rounded-lg p-4 text-left hover:bg-muted/40 [&[data-state=open]>svg.chevron]:rotate-180">
+        <CollapsibleTrigger
+          className={
+            preview
+              ? "flex w-full cursor-default items-center gap-3 rounded-lg p-4 text-left [&[data-state=open]>svg.chevron]:rotate-180"
+              : "flex w-full items-center gap-3 rounded-lg p-4 text-left hover:bg-muted/40 [&[data-state=open]>svg.chevron]:rotate-180"
+          }
+        >
           <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">Integrations</p>
@@ -93,8 +104,13 @@ export function OpticIntegrationsSection(props: Props) {
             <GmailConnectCard
               connected={props.gmailConnected}
               email={props.gmailEmail}
+              disabled={preview}
             />
-            <OpticSmsCard enabled={props.smsEnabled} phone={props.smsPhone} />
+            <OpticSmsCard
+              enabled={props.smsEnabled}
+              phone={props.smsPhone}
+              preview={preview}
+            />
           </div>
         </CollapsibleContent>
       </div>

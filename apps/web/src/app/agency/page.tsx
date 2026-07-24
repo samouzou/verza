@@ -213,7 +213,7 @@ export default function AgencyPage() {
                 </CardHeader>
                 <CardContent className="pb-4">
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {isOwner && <Badge className="bg-purple-500">Owner</Badge>}
+                    {isOwner && <Badge className="bg-emerald-600">Owner</Badge>}
                     {isPending && <Badge variant="secondary" className="animate-pulse">Pending Invite</Badge>}
                     {isTalent && <Badge variant="outline">Talent</Badge>}
                     {membership && !isTalent && !isOwner && !isPending && <Badge variant="secondary">{membership.role}</Badge>}

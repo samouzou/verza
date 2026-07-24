@@ -176,7 +176,7 @@ export default function ClientPaymentPage() {
   const appearance = {
     theme: 'stripe' as const,
     variables: {
-      colorPrimary: '#6B37FF',
+      colorPrimary: '#0E7C5A',
     },
   };
   const elementsOptions = clientSecret ? { clientSecret, appearance } : undefined;

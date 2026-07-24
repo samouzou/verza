@@ -42,6 +42,15 @@ function humanizeLogMessage(message: string): string {
     const name = m.replace(/^Saved lead:\s*/i, "").trim();
     return name ? `Added ${name} to your vault.` : "Added a creator to your vault.";
   }
+  if (/Chrome extension connected/i.test(m)) return "Chrome extension connected — searching Instagram in your browser.";
+  if (/AI shortlist:/i.test(m)) return m.replace(/^AI shortlist:\s*/i, "AI shortlist: ");
+  if (/Browsing #/i.test(m)) return m;
+  if (/Keyword search/i.test(m)) return m;
+  if (/Saved @/i.test(m)) {
+    const rest = m.replace(/^Saved @/i, "").trim();
+    return `Added @${rest}`;
+  }
+  if (/^Done — saved/i.test(m)) return m;
   if (/Completed\.\s*Saved/i.test(m)) {
     const n = m.match(/(\d+)/)?.[1];
     return n ? `All set — ${n} creator${n === "1" ? "" : "s"} are ready in your vault.` : m;
@@ -111,15 +120,33 @@ function tsToDate(ts: Timestamp | undefined): Date | null {
 function stepState(
   stepId: string,
   status: string | undefined,
-  logs: OpticJobRow["logs"]
+  logs: OpticJobRow["logs"],
+  runner?: string
 ): "idle" | "active" | "done" {
-  const hasPhase = (p: string) => logs?.some((l) => l.phase === p);
+  const isExtension = runner === "extension";
+  const hasPhase = (p: string) =>
+    logs?.some((l) => l.phase === p || (isExtension && p === "search" && l.phase === "extension"));
   if (status === "completed") return "done";
   if (status === "failed" || status === "cancelled") {
     if (stepId === "done") return "idle";
     return hasPhase(stepId === "prepare" ? "worker" : stepId) ? "done" : "idle";
   }
   if (status === "running") {
+    if (isExtension) {
+      if (stepId === "prepare" && (hasPhase("extension") || hasPhase("enqueue"))) return "done";
+      if (stepId === "search" && hasPhase("extension")) {
+        const extensionLogs = logs?.filter((l) => l.phase === "extension") ?? [];
+        const last = extensionLogs[extensionLogs.length - 1]?.message ?? "";
+        if (/Reviewing @|saved \d+ of/i.test(last)) return "done";
+        return "active";
+      }
+      if (stepId === "vet" && hasPhase("extension")) {
+        const extensionLogs = logs?.filter((l) => l.phase === "extension") ?? [];
+        const last = extensionLogs[extensionLogs.length - 1]?.message ?? "";
+        if (/Reviewing @|Saved @/i.test(last)) return "active";
+      }
+      if (stepId === "prepare") return hasPhase("extension") ? "done" : "active";
+    }
     if (stepId === "prepare" && (hasPhase("worker") || hasPhase("search"))) return "done";
     if (stepId === "search" && hasPhase("vet")) return "done";
     if (stepId === "search" && hasPhase("search")) return "active";
@@ -144,12 +171,22 @@ export function DiscoveryTimeline({ job }: Props) {
   return (
     <div className="space-y-4">
       {STEPS.map((step) => {
-        const state = job ? stepState(step.id, status, logs) : "idle";
+        const state = job ? stepState(step.id, status, logs, job.runner) : "idle";
         const mini =
           step.id === "search"
-            ? logsForPhase("search")
+            ? logsForPhase("search").concat(
+                job?.runner === "extension" ? logsForPhase("extension") : []
+              )
             : step.id === "vet"
-              ? logsForPhase("vet")
+              ? logsForPhase("vet").concat(
+                  job?.runner === "extension"
+                    ? (logs ?? []).filter(
+                        (l) =>
+                          l.phase === "extension" &&
+                          (l.message?.includes("Saved @") || l.message?.includes("Reviewing @"))
+                      )
+                    : []
+                )
               : [];
         return (
           <div key={step.id} className="flex gap-3">

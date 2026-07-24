@@ -9,6 +9,8 @@ import {uploadCarouselAssets} from "./carousel/uploadCarousel";
 const db = getFirestore();
 
 const MAX_CTX = 14000;
+const MAX_RUN_BRIEF = 6000;
+const MAX_RUN_CONSTRAINT = 500;
 
 type JobItem = {
   id: string;
@@ -46,9 +48,24 @@ function truncate(s: string, max: number): string {
  * @param {string} brief Brand brief markdown.
  * @param {string} strategy Social strategy markdown.
  * @param {string} banned Banned-claims markdown.
+ * @param {object} run Optional per-job author context.
+ * @param {string} run.weeklyBrief Markdown for this run only.
+ * @param {string} run.mustMention Phrase to reflect.
+ * @param {string} run.neverMention Phrase to avoid.
  * @return {string} System prompt.
  */
-function buildSystemPrompt(brief: string, strategy: string, banned: string): string {
+function buildSystemPrompt(
+  brief: string,
+  strategy: string,
+  banned: string,
+  run: {weeklyBrief: string; mustMention: string; neverMention: string}
+): string {
+  const runBrief =
+    run.weeklyBrief ||
+    "(none — rely on global brief and each queue item's productTruth / hook / notes only)";
+  const runMust = run.mustMention || "(none)";
+  const runNever = run.neverMention || "(none)";
+
   return `You are a LinkedIn ghostwriter for Verza (tryverza). Verza is the operating system for the creator economy.
 
 VOICE: operator-insider, concrete, respectful, no hype. Short lines. No hashtag spam (max 3 if any).
@@ -56,6 +73,7 @@ VOICE: operator-insider, concrete, respectful, no hype. Short lines. No hashtag 
 RULES:
 - Use ONLY the product facts implied by the CONTEXT below plus the user's "productTruth" line for each task. Do not invent fees, thresholds, features, or legal outcomes.
 - Obey the BANNED / sensitive list literally.
+- Honor CONTEXT — THIS RUN when it conflicts with generic Verza copy (e.g. another brand voice, a launch week); never contradict explicit "never mention" lines.
 - LinkedIn: strong first line (hook). Use whitespace. Optional short numbered list (max 3 bullets).
 - Never guarantee income, ROI, or virality. No legal/tax advice.
 
@@ -68,6 +86,15 @@ CONTEXT — SOCIAL STRATEGY:
 ---
 ${strategy || "(not configured)"}
 ---
+
+CONTEXT — THIS RUN (submitted with the job; combine with each item's productTruth, hook, and notes):
+---
+${runBrief}
+---
+
+RUN CONSTRAINTS (treat as hard filters when non-empty):
+- Must reflect or mention: ${runMust}
+- Must not mention or imply: ${runNever}
 
 BANNED / SENSITIVE:
 ---
@@ -196,7 +223,14 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
     const brief = truncate(String(prompts.brandBrief ?? ""), MAX_CTX);
     const strategy = truncate(String(prompts.socialStrategy ?? ""), MAX_CTX);
     const banned = truncate(String(prompts.bannedClaims ?? ""), MAX_CTX);
-    const system = buildSystemPrompt(brief, strategy, banned);
+    const weeklyBrief = truncate(String(data.weeklyBrief ?? ""), MAX_RUN_BRIEF);
+    const mustMention = truncate(String(data.mustMention ?? ""), MAX_RUN_CONSTRAINT);
+    const neverMention = truncate(String(data.neverMention ?? ""), MAX_RUN_CONSTRAINT);
+    const system = buildSystemPrompt(brief, strategy, banned, {
+      weeklyBrief,
+      mustMention,
+      neverMention,
+    });
 
     const items = (data.items || []) as JobItem[];
     if (!Array.isArray(items) || items.length === 0) {

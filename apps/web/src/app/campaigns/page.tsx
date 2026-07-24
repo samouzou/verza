@@ -90,7 +90,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
               </Badge>
             )}
             {gig.brandId === currentUserId && (
-              <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 gap-1">
+              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 gap-1">
                 <Briefcase className="h-3 w-3" /> Brand Team
               </Badge>
             )}

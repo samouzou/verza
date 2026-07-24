@@ -4,7 +4,7 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 
 ## Flow
 
-1. Authorized caller invokes Firebase callable **`enqueueLinkedInOsDraftJob`** → creates `linkedin_os_jobs/{id}` with `status: "queued"`.
+1. Authorized caller invokes Firebase callable **`enqueueLinkedInOsDraftJob`** → creates `linkedin_os_jobs/{id}` with `status: "queued"` (optional `weeklyBrief`, `mustMention`, `neverMention` on the doc).
 2. **`dispatchLinkedInOsJobToWorker`** (Firestore onCreate) POSTs to this service `/internal/run-job` with `x-verza-linkedin-os-secret`.
 3. Worker loads prompt context from **`linkedin_os_prompts/default`** and writes **`outputs`** on the job doc.
 4. For **carousel** items, the worker also renders **1080×1080 branded PNG slides**, a **multi-page PDF** (LinkedIn document upload), and a PNG ZIP — uploaded to Storage under `linkedin_os_carousels/{agencyId}/…`.

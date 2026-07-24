@@ -29,9 +29,16 @@ type Props = {
   enabled: boolean;
   phone: string | null;
   disabled?: boolean;
+  /** Public /sms-opt-in page: same UI, no Firebase save. */
+  preview?: boolean;
 };
 
-export function OpticSmsCard({ enabled: enabledInitial, phone: phoneInitial, disabled }: Props) {
+export function OpticSmsCard({
+  enabled: enabledInitial,
+  phone: phoneInitial,
+  disabled,
+  preview = false,
+}: Props) {
   const { toast } = useToast();
   const [consent, setConsent] = useState(enabledInitial);
   const [phone, setPhone] = useState(phoneInitial ?? "");
@@ -51,6 +58,10 @@ export function OpticSmsCard({ enabled: enabledInitial, phone: phoneInitial, dis
       });
       return;
     }
+    if (preview) {
+      toast({ title: "Text settings saved" });
+      return;
+    }
     setSaving(true);
     try {
       const callable = httpsCallable(functions, "setOpticSmsSettings");
@@ -62,7 +73,7 @@ export function OpticSmsCard({ enabled: enabledInitial, phone: phoneInitial, dis
     } finally {
       setSaving(false);
     }
-  }, [consent, phone, toast]);
+  }, [consent, phone, preview, toast]);
 
   return (
     <Card>

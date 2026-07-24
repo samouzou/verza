@@ -67,6 +67,12 @@ export type LinkedInOsJobRow = {
   agencyId?: string;
   weekLabel?: string;
   reviewer?: string;
+  /** Optional markdown: audience, campaign, or non-Verza context for this run only. */
+  weeklyBrief?: string;
+  /** Optional one-line constraint the model should reflect. */
+  mustMention?: string;
+  /** Optional one-line topic to avoid. */
+  neverMention?: string;
   items?: LinkedInOsJobItem[];
   outputs?: LinkedInOsJobOutput[];
   videoScripts?: LinkedInOsVideoScript[];

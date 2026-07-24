@@ -6,6 +6,21 @@ import {assertAgencyTeamForLinkedInOs} from "./access";
 import type {LinkedInOsJobItem} from "./types";
 
 const MAX_ITEMS = 8;
+const MAX_WEEKLY_BRIEF = 6000;
+const MAX_RUN_CONSTRAINT = 500;
+
+/**
+ * Trims and caps optional user-supplied run context.
+ * @param {unknown} raw Raw value from the client.
+ * @param {number} max Max length.
+ * @return {string} Normalized string (may be empty).
+ */
+function parseOptionalRunText(raw: unknown, max: number): string {
+  if (typeof raw !== "string") return "";
+  const t = raw.trim();
+  if (!t) return "";
+  return t.length <= max ? t : t.slice(0, max);
+}
 
 /**
  * Validates one queue item from the client.
@@ -53,10 +68,13 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
   const uid = request.auth.uid;
   const agencyId = await assertAgencyTeamForLinkedInOs(uid);
 
-  const {weekLabel, reviewer, items} = request.data as {
+  const {weekLabel, reviewer, items, weeklyBrief, mustMention, neverMention} = request.data as {
     weekLabel?: unknown;
     reviewer?: unknown;
     items?: unknown;
+    weeklyBrief?: unknown;
+    mustMention?: unknown;
+    neverMention?: unknown;
   };
 
   const week =
@@ -73,6 +91,10 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
 
   const parsed: LinkedInOsJobItem[] = items.map((x) => parseJobItem(x));
 
+  const runBrief = parseOptionalRunText(weeklyBrief, MAX_WEEKLY_BRIEF);
+  const runMust = parseOptionalRunText(mustMention, MAX_RUN_CONSTRAINT);
+  const runNever = parseOptionalRunText(neverMention, MAX_RUN_CONSTRAINT);
+
   const jobRef = db.collection("linkedin_os_jobs").doc();
   const jobId = jobRef.id;
 
@@ -85,6 +107,9 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
     reviewer: reviewerName,
     items: parsed,
     outputs: [],
+    ...(runBrief ? {weeklyBrief: runBrief} : {}),
+    ...(runMust ? {mustMention: runMust} : {}),
+    ...(runNever ? {neverMention: runNever} : {}),
   });
 
   logger.info("[LinkedIn OS] Job queued", {jobId, itemCount: parsed.length, createdBy: uid, agencyId});

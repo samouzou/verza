@@ -87,12 +87,12 @@ export function BrandJourneyGuide({ onClose }: BrandJourneyGuideProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-6 rounded-3xl bg-muted/50 border border-muted flex flex-col gap-3">
-                  <Users className="h-6 w-6 text-indigo-600" />
+                  <Users className="h-6 w-6 text-emerald-600" />
                   <h4 className="font-bold">Centralized Talent</h4>
                   <p className="text-sm text-muted-foreground">Manage your entire roster and inbound applications in one secure place.</p>
                 </div>
                 <div className="p-6 rounded-3xl bg-muted/50 border border-muted flex flex-col gap-3">
-                  <Zap className="h-6 w-6 text-purple-600" />
+                  <Zap className="h-6 w-6 text-emerald-700" />
                   <h4 className="font-bold">Portfolio Logic</h4>
                   <p className="text-sm text-muted-foreground">Run recruitment, seeding, and performance-based hybrid campaigns simultaneously.</p>
                 </div>
@@ -121,8 +121,8 @@ export function BrandJourneyGuide({ onClose }: BrandJourneyGuideProps) {
                   onClick={() => handleComplete('/agency')}
                   className="w-full p-6 rounded-3xl border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left group flex items-center gap-6"
                 >
-                  <div className="h-14 w-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <Users className="h-7 w-7 text-indigo-600" />
+                  <div className="h-14 w-14 rounded-2xl bg-emerald-600/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                    <Users className="h-7 w-7 text-emerald-600" />
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-lg">Onboard Talent</h4>
@@ -135,8 +135,8 @@ export function BrandJourneyGuide({ onClose }: BrandJourneyGuideProps) {
                   onClick={() => handleComplete('/campaigns')}
                   className="w-full p-6 rounded-3xl border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left group flex items-center gap-6"
                 >
-                  <div className="h-14 w-14 rounded-2xl bg-purple-500/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <Target className="h-7 w-7 text-purple-600" />
+                  <div className="h-14 w-14 rounded-2xl bg-emerald-600/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                    <Target className="h-7 w-7 text-emerald-700" />
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-lg">Launch Campaign Portfolio</h4>
@@ -202,7 +202,7 @@ export function BrandJourneyGuide({ onClose }: BrandJourneyGuideProps) {
                   <p className="text-[10px] font-bold uppercase">Automated Tax Forms</p>
                 </div>
                 <div className="p-4 rounded-2xl border bg-card flex flex-col items-center text-center gap-2">
-                  <BrainCircuit className="h-5 w-5 text-purple-600" />
+                  <BrainCircuit className="h-5 w-5 text-emerald-700" />
                   <p className="text-[10px] font-bold uppercase">Smart Contract Audit</p>
                 </div>
               </div>

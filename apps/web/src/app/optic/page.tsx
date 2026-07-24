@@ -13,6 +13,8 @@ import { formatDistanceToNow } from "date-fns";
 
 import { BrandContextStrip } from "@/components/optic/brand-context-strip";
 import { OpticIntegrationsSection } from "@/components/optic/optic-integrations-section";
+import { OpticBrowserExtensionCard } from "@/components/optic/optic-browser-extension-card";
+import { OpticExtensionProgressCard } from "@/components/optic/optic-extension-progress";
 import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
 import { OpticNoCreditsCard } from "@/components/optic/optic-no-credits-card";
 import { DiscoveryTimeline } from "@/components/optic/discovery-timeline";
@@ -46,6 +48,11 @@ import { useOpticJobs } from "@/hooks/use-optic-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import {
+  OPTIC_DEFAULT_BATCH_SIZE,
+  OPTIC_MAX_BATCH_SIZE,
+} from "@/lib/optic/constants";
+import { startOpticExtensionJob } from "@/lib/optic/extension-bridge";
+import {
   firstOpticPlatformFromCampaign,
   OPTIC_PLATFORMS,
 } from "@/lib/optic/platforms";
@@ -65,7 +72,7 @@ function tsToDate(ts: Timestamp | undefined | null): Date | null {
 }
 
 export default function OpticDiscoveryPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, isLoading: authLoading, isAgencyTeam, getUserIdToken } = useAuth();
   const { toast } = useToast();
 
   const agencyId = user?.primaryAgencyId ?? null;
@@ -83,7 +90,8 @@ export default function OpticDiscoveryPage() {
 
   const [platform, setPlatform] = useState("youtube");
   const [objectives, setObjectives] = useState("");
-  const [maxProfiles, setMaxProfiles] = useState(10);
+  const [maxProfiles, setMaxProfiles] = useState(OPTIC_DEFAULT_BATCH_SIZE);
+  const [useInstagramExtension, setUseInstagramExtension] = useState(true);
   const [continuing, setContinuing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(() => {
@@ -176,19 +184,39 @@ export default function OpticDiscoveryPage() {
     setSubmitting(true);
     try {
       const enqueue = httpsCallable(functions, "enqueueOpticDiscoveryJob");
+      const wantsExtension = platform === "instagram" && useInstagramExtension;
       const res = await enqueue({
         platform,
         objectives: objectives.trim(),
         maxProfiles,
         campaignId: campaignId || null,
         smsNotify: Boolean(user.opticSmsEnabled && user.opticSmsPhone),
+        useBrowserExtension: wantsExtension,
       });
       const data = res.data as { jobId?: string };
       if (!data?.jobId) throw new Error("No jobId returned");
       selectJob(data.jobId);
+
+      if (wantsExtension) {
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        const idToken = await getUserIdToken();
+        if (!projectId || !idToken) {
+          throw new Error("Could not authenticate the Chrome extension.");
+        }
+        await startOpticExtensionJob({
+          jobId: data.jobId,
+          idToken,
+          projectId,
+          useFunctionsEmulator:
+            typeof window !== "undefined" && window.location.hostname === "localhost",
+        });
+      }
+
       toast({
-        title: "Mission started",
-        description: "Track progress here — we’ll add creators to your vault as we go.",
+        title: wantsExtension ? "Mission started in Chrome" : "Mission started",
+        description: wantsExtension
+          ? "Keep this Chrome profile open — Optic is searching Instagram in background tabs."
+          : "Track progress here — we’ll add creators to your vault as we go.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -196,7 +224,7 @@ export default function OpticDiscoveryPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [agencyId, campaignId, canRun, maxProfiles, objectives, platform, selectJob, toast, user]);
+  }, [agencyId, campaignId, canRun, getUserIdToken, maxProfiles, objectives, platform, selectJob, toast, useInstagramExtension, user]);
 
   const continueNextBatch = useCallback(async () => {
     if (!activeJobId) return;
@@ -403,19 +431,30 @@ export default function OpticDiscoveryPage() {
                 id="optic-max"
                 type="number"
                 min={1}
-                max={15}
+                max={OPTIC_MAX_BATCH_SIZE}
                 value={maxProfiles}
                 onChange={(e) =>
                   setMaxProfiles(
-                    Math.min(15, Math.max(1, Number.parseInt(e.target.value || "10", 10)))
+                    Math.min(
+                      OPTIC_MAX_BATCH_SIZE,
+                      Math.max(1, Number.parseInt(e.target.value || String(OPTIC_DEFAULT_BATCH_SIZE), 10))
+                    )
                   )
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Small batches finish faster and keep quality high. Run another batch from here or
-                reply <strong>CONTINUE</strong> by text when you have alerts on.
+                Up to {OPTIC_MAX_BATCH_SIZE} per batch. Instagram extension missions can use the full
+                batch in your browser. Cloud platform searches vet up to 25 per run — use{" "}
+                <strong>Continue</strong> or reply <strong>CONTINUE</strong> by text to scale to
+                thousands over multiple batches.
               </p>
             </div>
+
+            <OpticBrowserExtensionCard
+              instagramSelected={platform === "instagram"}
+              useExtension={useInstagramExtension}
+              onUseExtensionChange={setUseInstagramExtension}
+            />
 
             {inFlightCount > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -541,6 +580,7 @@ export default function OpticDiscoveryPage() {
                     onVault={goToVault}
                   />
                 )}
+                <OpticExtensionProgressCard job={jobRow} />
                 <DiscoveryTimeline job={jobRow} />
               </div>
             )}

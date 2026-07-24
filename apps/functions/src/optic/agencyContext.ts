@@ -22,6 +22,8 @@ export type AgencyBrandContext = {
   campaignOptions: AgencyCampaignOption[];
   paySourceCampaignId: string | null;
   paySourceCampaignTitle: string | null;
+  /** Firestore gig `campaignType` when pay is scoped to one selected campaign (e.g. cause_campaign). */
+  paySourceCampaignType: string | null;
 };
 
 type GigPayFields = {
@@ -80,6 +82,10 @@ function gigToOption(g: GigRow): AgencyCampaignOption {
   };
 }
 
+function gigCampaignTypeRaw(g: GigRow): string {
+  return typeof g.campaignType === "string" ? g.campaignType.trim() : "";
+}
+
 /** One bullet line describing pay and scope for Gemini / outreach context.
  * @param {GigRow} g Gig row.
  * @return {string} Single formatted line.
@@ -88,12 +94,18 @@ function formatGigPayLine(g: GigRow): string {
   const title =
     typeof g.title === "string" && g.title.trim() ? g.title.trim().slice(0, 90) : "Campaign";
   const rate = numOrZero(g.ratePerCreator);
-  const rateStr =
-    rate > 0 ?
-      `$${rate.toLocaleString("en-US")} USD per creator (listed on Verza)` :
-      "compensation set in campaign (see Verza)";
-  const type =
-    typeof g.campaignType === "string" ? g.campaignType.replace(/_/g, " ") : "sponsorship";
+  const ct = gigCampaignTypeRaw(g);
+  let rateStr: string;
+  if (rate > 0) {
+    rateStr = `$${rate.toLocaleString("en-US")} USD per creator (listed on Verza)`;
+  } else if (ct === "cause_campaign") {
+    rateStr = "cause / mission partnership — no per-creator cash fee listed on Verza";
+  } else if (ct === "barter_campaign") {
+    rateStr = "in-kind or product exchange — no cash rate listed on Verza";
+  } else {
+    rateStr = "compensation set in campaign (see Verza)";
+  }
+  const type = ct ? ct.replace(/_/g, " ") : "sponsorship";
   const plat = Array.isArray(g.platforms) ? g.platforms.join(", ") : "";
   const need = numOrZero(g.creatorsNeeded);
   const vids = numOrZero(g.videosPerCreator);
@@ -119,6 +131,7 @@ async function loadCampaignRecruitingData(
   activePaidCampaignCount: number;
   paySourceCampaignId: string | null;
   paySourceCampaignTitle: string | null;
+  paySourceCampaignType: string | null;
 }> {
   const empty = (): {
     campaignOptions: AgencyCampaignOption[];
@@ -126,12 +139,14 @@ async function loadCampaignRecruitingData(
     activePaidCampaignCount: number;
     paySourceCampaignId: string | null;
     paySourceCampaignTitle: string | null;
+    paySourceCampaignType: string | null;
   } => ({
     campaignOptions: [],
     campaignPaySummary: null,
     activePaidCampaignCount: 0,
     paySourceCampaignId: null,
     paySourceCampaignTitle: null,
+    paySourceCampaignType: null,
   });
 
   try {
@@ -172,9 +187,13 @@ async function loadCampaignRecruitingData(
         } else {
           const title =
             typeof g.title === "string" && g.title.trim() ? g.title.trim().slice(0, 120) : "Campaign";
+          const ct = gigCampaignTypeRaw(g);
           const summaryIntro =
-            "The recruiting team selected this Verza campaign for this outreach mission. " +
-            "Use ONLY this campaign's pay and scope (do not blend other campaigns):\n";
+            ct === "cause_campaign" || ct === "barter_campaign" ?
+              "The recruiting team selected this Verza campaign for this outreach mission. " +
+                "Use ONLY this campaign's partnership details (do not blend other campaigns):\n" :
+              "The recruiting team selected this Verza campaign for this outreach mission. " +
+                "Use ONLY this campaign's pay and scope (do not blend other campaigns):\n";
           const summary = summaryIntro + formatGigPayLine(g);
           return {
             campaignOptions,
@@ -182,6 +201,7 @@ async function loadCampaignRecruitingData(
             activePaidCampaignCount: activeRows.length,
             paySourceCampaignId: g.id,
             paySourceCampaignTitle: title,
+            paySourceCampaignType: ct || null,
           };
         }
       }
@@ -193,8 +213,9 @@ async function loadCampaignRecruitingData(
 
     const lines = activeRows.slice(0, 6).map(formatGigPayLine);
     const summary =
-      "Factual pay from this brand's current Verza campaigns (use ONLY these figures; do not invent rates):\n" +
-      lines.join("\n");
+      "Factual campaign details from this brand's current Verza listings (use ONLY these facts; do not invent USD amounts):\n" +
+      lines.join("\n") +
+      "\n\nWhen a line describes a cause or in-kind barter with no USD figure, do not imply cash compensation for that campaign.";
 
     return {
       campaignOptions,
@@ -202,6 +223,7 @@ async function loadCampaignRecruitingData(
       activePaidCampaignCount: activeRows.length,
       paySourceCampaignId: null,
       paySourceCampaignTitle: null,
+      paySourceCampaignType: null,
     };
   } catch (e) {
     logger.warn(
@@ -253,6 +275,7 @@ export async function loadAgencyBrandContextForUid(
     activePaidCampaignCount,
     paySourceCampaignId,
     paySourceCampaignTitle,
+    paySourceCampaignType,
   } = await loadCampaignRecruitingData(db, agencyId, opts?.campaignId);
 
   let authEmail: string | null = null;
@@ -278,6 +301,7 @@ export async function loadAgencyBrandContextForUid(
     campaignOptions,
     paySourceCampaignId,
     paySourceCampaignTitle,
+    paySourceCampaignType,
   };
 
   logger.info(
