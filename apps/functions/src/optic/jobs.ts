@@ -3,7 +3,13 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {loadAgencyBrandContextForUid, type AgencyBrandContext} from "./agencyContext";
-import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE, OPTIC_PLATFORMS} from "./constants";
+import {
+  OPTIC_DEFAULT_AUDIENCE_TIER,
+  OPTIC_DEFAULT_BATCH_SIZE,
+  OPTIC_MAX_BATCH_SIZE,
+  OPTIC_PLATFORMS,
+  isOpticAudienceTier,
+} from "./constants";
 import {continueMissionForUid} from "./continuation";
 import {assertSufficientOpticCredits} from "./credits";
 import {normalizeSmsPhone} from "./twilio";
@@ -69,14 +75,22 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const uid = request.auth.uid;
   await assertAgencyTeam(uid);
 
-  const {platform, objectives, maxProfiles, campaignId, smsNotify, useBrowserExtension} =
-    request.data as {
+  const {
+    platform,
+    objectives,
+    maxProfiles,
+    campaignId,
+    smsNotify,
+    useBrowserExtension,
+    audienceTier,
+  } = request.data as {
     platform?: unknown;
     objectives?: unknown;
     maxProfiles?: unknown;
     campaignId?: unknown;
     smsNotify?: unknown;
     useBrowserExtension?: unknown;
+    audienceTier?: unknown;
   };
 
   if (typeof platform !== "string" || !OPTIC_PLATFORMS.has(platform)) {
@@ -112,6 +126,13 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const wantsExtension =
     platform === "instagram" && useBrowserExtension === true;
 
+  // Only the extension runner enforces size bands today, so a tier on a worker
+  // mission would be a promise we do not keep.
+  const tier =
+    wantsExtension && isOpticAudienceTier(audienceTier) ?
+      audienceTier :
+      OPTIC_DEFAULT_AUDIENCE_TIER;
+
   let fullBrand: AgencyBrandContext;
   try {
     fullBrand = await loadAgencyBrandContextForUid(uid, {campaignId: campaignIdStr});
@@ -138,6 +159,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     maxProfiles: mp,
     campaignId: campaignIdStr,
     brandContext,
+    audienceTier: tier,
     batchIndex: 1,
     rootJobId: jobId,
     continuedFromJobId: null,
@@ -189,13 +211,21 @@ export const cancelOpticDiscoveryJob = onCall(async (request) => {
     throw new HttpsError("permission-denied", "You cannot cancel this job.");
   }
 
+  // A queued extension job is only ever claimed by an explicit browser hand-off, so
+  // no runner will observe cancelRequested. Close it out here or it stays in flight
+  // forever and blocks the next batch.
+  const abandonedExtensionJob = d.status === "queued" && d.runner === "extension";
+
   await ref.update({
     cancelRequested: true,
+    ...(abandonedExtensionJob ?
+      {status: "cancelled", workerCompletedAt: FieldValue.serverTimestamp()} :
+      {}),
     updatedAt: FieldValue.serverTimestamp(),
     logs: FieldValue.arrayUnion({
       ts: Timestamp.now(),
       phase: "cancel",
-      message: "Cancellation requested.",
+      message: abandonedExtensionJob ? "Mission cancelled." : "Cancellation requested.",
     }),
   });
   return {ok: true as const};
@@ -338,9 +368,9 @@ export const continueOpticDiscoveryJob = onCall(async (request) => {
   const uid = request.auth.uid;
   await assertAgencyTeam(uid);
   const {fromJobId} = request.data as {fromJobId?: unknown};
-  const jobId = await continueMissionForUid(
+  const {jobId, runner} = await continueMissionForUid(
     uid,
     typeof fromJobId === "string" ? fromJobId : undefined
   );
-  return {jobId};
+  return {jobId, runner};
 });

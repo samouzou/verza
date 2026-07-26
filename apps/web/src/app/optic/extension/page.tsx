@@ -15,7 +15,6 @@ import {
   getOpticExtensionPrimaryInstallUrl,
   isChromeWebStoreInstall,
   OPTIC_EXTENSION_CHROME_STORE_URL,
-  OPTIC_EXTENSION_DOWNLOAD_URL,
 } from "@/lib/optic/extension-install";
 
 export default function OpticExtensionInstallPage() {
@@ -37,18 +36,19 @@ export default function OpticExtensionInstallPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Verza Optic Scout</h1>
         </div>
         <p className="text-muted-foreground">
-          Chrome extension for Instagram creator discovery in your logged-in browser.
-          Required for follower counts, bios, and contact info that headless search cannot access.
+          A small Chrome add-on that lets Optic find Instagram creators through your own
+          signed-in browser. Instagram only shows follower counts, bios, and contact
+          details to people who are signed in, so this is what gets you the real numbers.
         </p>
       </div>
 
       <Card className="border-violet-200/80 bg-violet-50/40 dark:border-violet-900/50 dark:bg-violet-950/20">
         <CardHeader>
-          <CardTitle className="text-lg">Install the extension</CardTitle>
+          <CardTitle className="text-lg">Add it to Chrome</CardTitle>
           <CardDescription>
             {fromStore
-              ? "One click from the Chrome Web Store — recommended for all users."
-              : "Early access: download the extension package, then load it in Chrome."}
+              ? "One click from the Chrome Web Store."
+              : "Early access — a one-time setup that takes about a minute."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -63,7 +63,7 @@ export default function OpticExtensionInstallPage() {
                 ) : (
                   <>
                     <Download className="mr-2 h-4 w-4" />
-                    Download extension (.zip)
+                    Download for Chrome
                   </>
                 )}
               </a>
@@ -72,31 +72,31 @@ export default function OpticExtensionInstallPage() {
 
           {!fromStore && (
             <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>Download and unzip <code className="text-xs">verza-optic-scout.zip</code></li>
-              <li>Open <code className="text-xs">chrome://extensions</code></li>
-              <li>Enable <strong>Developer mode</strong> (top right)</li>
-              <li>Click <strong>Load unpacked</strong> and select the unzipped folder</li>
-              <li>Log into Instagram in the same Chrome profile</li>
+              <li>Download the file above, then unzip it. On a Mac, double-click it. On Windows, right-click and choose <strong>Extract All</strong>.</li>
+              <li>Open a new tab in Chrome and go to <code className="text-xs">chrome://extensions</code></li>
+              <li>Turn on <strong>Developer mode</strong> with the switch in the top-right corner</li>
+              <li>Choose <strong>Load unpacked</strong>, then pick the folder you just unzipped</li>
+              <li>Sign in to Instagram in this same Chrome window</li>
               <li>
-                Return to{" "}
+                Come back to{" "}
                 <Link href="/optic" className="text-primary underline-offset-4 hover:underline">
                   Optic
                 </Link>
-                , choose Instagram, and click Recheck extension
+                , pick Instagram, and choose <strong>Check again</strong>
               </li>
             </ol>
           )}
 
           {fromStore && (
             <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>Click <strong>Add to Chrome</strong> above and confirm the install</li>
-              <li>Log into Instagram in the same Chrome profile</li>
+              <li>Choose <strong>Add to Chrome</strong> above and confirm</li>
+              <li>Sign in to Instagram in this same Chrome window</li>
               <li>
                 Open{" "}
                 <Link href="/optic" className="text-primary underline-offset-4 hover:underline">
                   Optic
                 </Link>
-                , choose Instagram, and enable <strong>Use my browser for Instagram search</strong>
+                , pick Instagram, and tick <strong>Search Instagram using my browser</strong>
               </li>
             </ol>
           )}
@@ -105,32 +105,33 @@ export default function OpticExtensionInstallPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">What it does</CardTitle>
+          <CardTitle className="text-base">How it works</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            When you start an Instagram mission from Optic, the extension opens hashtag and profile
-            pages in background Chrome tabs using your existing Instagram login. Scraped profiles are
-            enriched and saved to your Optic vault through Verza&apos;s cloud APIs.
+            When you start an Instagram mission in Optic, the add-on opens a few Instagram
+            pages in Chrome and reads what&apos;s publicly on each creator&apos;s profile —
+            their follower count, bio, and any contact details they&apos;ve shared. Good
+            matches get a personalized outreach draft and land in your creator vault.
+          </p>
+          <p>
+            It works through the Instagram account you&apos;re already signed in to, so you
+            never share your password with Verza. It only reads profiles: it never posts,
+            comments, follows, or messages anyone on your behalf.
           </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary">Instagram only</Badge>
             <Badge variant="secondary">Runs in your browser</Badge>
-            <Badge variant="secondary">No password sharing</Badge>
+            <Badge variant="secondary">Never sees your password</Badge>
+            <Badge variant="secondary">Reads only — never posts</Badge>
           </div>
         </CardContent>
       </Card>
 
       {!fromStore && OPTIC_EXTENSION_CHROME_STORE_URL === "" && (
         <p className="text-xs text-muted-foreground">
-          A Chrome Web Store listing is coming soon. Until then, use the download above.
-          {OPTIC_EXTENSION_DOWNLOAD_URL.startsWith("/") && (
-            <>
-              {" "}
-              Package URL:{" "}
-              <code className="text-xs">{OPTIC_EXTENSION_DOWNLOAD_URL}</code>
-            </>
-          )}
+          A one-click version is coming to the Chrome Web Store soon. Until then, please
+          use the download above.
         </p>
       )}
     </div>

@@ -9,6 +9,7 @@ export type ExtensionProfileInput = {
   displayName?: string | null;
   bio?: string | null;
   followerCount?: string | null;
+  postCount?: string | null;
   externalUrl?: string | null;
 };
 
@@ -70,6 +71,16 @@ const GENERIC_HASHTAGS = new Set([
   "socialmedia",
 ]);
 
+/** Prompt block listing creators already in the vault, so later batches surface new names. */
+function formatExcludeBlock(excludeUsernames: string[] | undefined): string {
+  if (!excludeUsernames?.length) return "";
+  const handles = excludeUsernames.map((u) => `@${u}`).join(", ");
+  return `
+
+Already saved from earlier batches of this mission — do NOT suggest these again, and prefer creators in the same niche who are not on this list:
+${handles}`;
+}
+
 function formatExtensionBriefContext(
   objectives: string,
   agencyName: string,
@@ -127,14 +138,22 @@ export async function planInstagramExtensionSearch(
   objectives: string,
   agencyName: string,
   brand: OpticJobBrandContext | null | undefined,
-  maxProfiles: number
+  maxProfiles: number,
+  excludeUsernames?: string[],
+  audienceLabel?: string | null
 ): Promise<InstagramExtensionSearchPlan> {
   const brief = formatExtensionBriefContext(objectives, agencyName, brand);
   const seedAsk = Math.min(48, Math.max(12, maxProfiles * 2));
+  const excluded = new Set((excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  // Steering the seeds at plan time is far cheaper than scraping profiles the
+  // audience filter will reject afterwards.
+  const audienceRule = audienceLabel ?
+    `\n- Only suggest creators whose follower count fits: ${audienceLabel}` :
+    "";
 
   const prompt = `You are an expert Instagram creator scout for brand partnerships.
 
-${brief}
+${brief}${formatExcludeBlock(excludeUsernames)}
 
 Plan a discovery mission on Instagram. Be SPECIFIC to this brief — do not use generic discovery tags unless the brief is truly that broad.
 
@@ -151,7 +170,7 @@ Rules:
 - searchQueries: 2-3 distinct 3-6 word phrases for Instagram account keyword search, tailored to the brief
 - seedUsernames: up to ${seedAsk} REAL public Instagram creators who fit THIS brief (username without @)
 - Prefer creators in the niche described — micro/mid creators, not mega-celebrities unless the brief asks for fame
-- Avoid generic tags: creators, influencer, marketing, lifestyle, fitness, beauty unless explicitly in the brief`;
+- Avoid generic tags: creators, influencer, marketing, lifestyle, fitness, beauty unless explicitly in the brief${audienceRule}`;
 
   const text = await generateGeminiText(prompt, 0.35);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -192,7 +211,8 @@ Rules:
   }
 
   const seedProfiles: ExtensionSeedProfile[] = [];
-  const seedSeen = new Set<string>();
+  // Pre-seeding with already-saved handles makes the loop below skip them.
+  const seedSeen = new Set<string>(excluded);
   for (const row of parsed.seedUsernames ?? []) {
     const username = String(row.username ?? "").replace(/^@/, "").trim();
     if (!username || seedSeen.has(username.toLowerCase())) continue;
@@ -212,9 +232,14 @@ Rules:
     if (fallback) searchQueries.push(fallback);
   }
   if (seedProfiles.length === 0) {
-    seedProfiles.push(
-      ...(await generateExtensionSeedProfiles(objectives, agencyName, brand, maxProfiles))
+    const fallbackSeeds = await generateExtensionSeedProfiles(
+      objectives,
+      agencyName,
+      brand,
+      maxProfiles,
+      excludeUsernames
     );
+    seedProfiles.push(...fallbackSeeds.filter((s) => !excluded.has(s.username.toLowerCase())));
   }
 
   return {
@@ -264,14 +289,15 @@ export async function generateExtensionSeedProfiles(
   objectives: string,
   agencyName: string | null | undefined,
   brand: OpticJobBrandContext | null | undefined,
-  maxProfiles: number
+  maxProfiles: number,
+  excludeUsernames?: string[]
 ): Promise<ExtensionSeedProfile[]> {
   const ask = Math.min(48, Math.max(12, maxProfiles * 2));
   const brief = formatExtensionBriefContext(objectives, agencyName ?? "", brand);
 
   const prompt = `You are an Instagram creator scout.
 
-${brief}
+${brief}${formatExcludeBlock(excludeUsernames)}
 
 Suggest ${ask} real Instagram creators who would be a strong fit for THIS specific brief.
 Return STRICT JSON only (no markdown): an array of objects with "username" (handle without @) and "profileUrl" (full https://instagram.com/... URL).

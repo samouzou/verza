@@ -55,7 +55,8 @@ export function OpticNoCreditsCard({
         </p>
         {needsMore && (
           <p className="text-sm text-muted-foreground">
-            Each saved creator uses 1 Optic credit (profile scrape + outreach draft).
+            Each creator added to your vault costs 1 credit, which covers their profile
+            details and a ready-to-send outreach message.
           </p>
         )}
         <div className="flex flex-wrap gap-2">

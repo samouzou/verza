@@ -48,8 +48,12 @@ import { useOpticJobs } from "@/hooks/use-optic-jobs";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import {
+  OPTIC_AUDIENCE_TIERS,
+  OPTIC_AUDIENCE_TIER_SLUGS,
+  OPTIC_DEFAULT_AUDIENCE_TIER,
   OPTIC_DEFAULT_BATCH_SIZE,
   OPTIC_MAX_BATCH_SIZE,
+  type OpticAudienceTier,
 } from "@/lib/optic/constants";
 import { startOpticExtensionJob } from "@/lib/optic/extension-bridge";
 import {
@@ -92,6 +96,9 @@ export default function OpticDiscoveryPage() {
   const [objectives, setObjectives] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(OPTIC_DEFAULT_BATCH_SIZE);
   const [useInstagramExtension, setUseInstagramExtension] = useState(true);
+  const [audienceTier, setAudienceTier] = useState<OpticAudienceTier>(
+    OPTIC_DEFAULT_AUDIENCE_TIER
+  );
   const [continuing, setContinuing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(() => {
@@ -164,6 +171,36 @@ export default function OpticDiscoveryPage() {
     }
   };
 
+  const handOffToExtension = useCallback(
+    async (jobId: string) => {
+      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const idToken = await getUserIdToken();
+      if (!projectId || !idToken) {
+        throw new Error("We couldn't connect to Chrome. Refresh this page and try again.");
+      }
+      try {
+        await startOpticExtensionJob({
+          jobId,
+          idToken,
+          projectId,
+          useFunctionsEmulator:
+            typeof window !== "undefined" && window.location.hostname === "localhost",
+        });
+      } catch (e) {
+        // Nothing else ever claims an extension job, so a queued one that never
+        // started would block every later batch. Fail it instead of leaving it hanging.
+        const markFailed = httpsCallable(functions, "completeOpticExtensionJob");
+        await markFailed({
+          jobId,
+          status: "failed",
+          error: e instanceof Error ? e.message : String(e),
+        }).catch(() => {});
+        throw e;
+      }
+    },
+    [getUserIdToken]
+  );
+
   const startDiscovery = useCallback(async () => {
     if (!user) {
       toast({ title: "Sign in required", variant: "destructive" });
@@ -192,30 +229,20 @@ export default function OpticDiscoveryPage() {
         campaignId: campaignId || null,
         smsNotify: Boolean(user.opticSmsEnabled && user.opticSmsPhone),
         useBrowserExtension: wantsExtension,
+        audienceTier,
       });
       const data = res.data as { jobId?: string };
       if (!data?.jobId) throw new Error("No jobId returned");
       selectJob(data.jobId);
 
       if (wantsExtension) {
-        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-        const idToken = await getUserIdToken();
-        if (!projectId || !idToken) {
-          throw new Error("Could not authenticate the Chrome extension.");
-        }
-        await startOpticExtensionJob({
-          jobId: data.jobId,
-          idToken,
-          projectId,
-          useFunctionsEmulator:
-            typeof window !== "undefined" && window.location.hostname === "localhost",
-        });
+        await handOffToExtension(data.jobId);
       }
 
       toast({
         title: wantsExtension ? "Mission started in Chrome" : "Mission started",
         description: wantsExtension
-          ? "Keep this Chrome profile open — Optic is searching Instagram in background tabs."
+          ? "Leave Chrome open — you’ll see Instagram tabs open and close while Optic looks around."
           : "Track progress here — we’ll add creators to your vault as we go.",
       });
     } catch (e: unknown) {
@@ -224,7 +251,7 @@ export default function OpticDiscoveryPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [agencyId, campaignId, canRun, getUserIdToken, maxProfiles, objectives, platform, selectJob, toast, useInstagramExtension, user]);
+  }, [agencyId, audienceTier, campaignId, canRun, handOffToExtension, maxProfiles, objectives, platform, selectJob, toast, useInstagramExtension, user]);
 
   const continueNextBatch = useCallback(async () => {
     if (!activeJobId) return;
@@ -232,12 +259,20 @@ export default function OpticDiscoveryPage() {
     try {
       const callable = httpsCallable(functions, "continueOpticDiscoveryJob");
       const res = await callable({ fromJobId: activeJobId });
-      const data = res.data as { jobId?: string };
+      const data = res.data as { jobId?: string; runner?: string };
       if (!data?.jobId) throw new Error("No jobId returned");
       selectJob(data.jobId);
+
+      const isExtensionBatch = data.runner === "extension";
+      if (isExtensionBatch) {
+        await handOffToExtension(data.jobId);
+      }
+
       toast({
-        title: "Next batch started",
-        description: "We will add more creators to your vault when this batch finishes.",
+        title: isExtensionBatch ? "Next batch started in Chrome" : "Next batch started",
+        description: isExtensionBatch
+          ? "Leave Chrome open — Optic is looking for creators you don’t have yet."
+          : "We will add more creators to your vault when this batch finishes.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -245,7 +280,7 @@ export default function OpticDiscoveryPage() {
     } finally {
       setContinuing(false);
     }
-  }, [activeJobId, selectJob, toast]);
+  }, [activeJobId, handOffToExtension, selectJob, toast]);
 
   const cancelJob = useCallback(async () => {
     if (!activeJobId) return;
@@ -443,10 +478,10 @@ export default function OpticDiscoveryPage() {
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Up to {OPTIC_MAX_BATCH_SIZE} per batch. Instagram extension missions can use the full
-                batch in your browser. Cloud platform searches vet up to 25 per run — use{" "}
-                <strong>Continue</strong> or reply <strong>CONTINUE</strong> by text to scale to
-                thousands over multiple batches.
+                Up to {OPTIC_MAX_BATCH_SIZE} per batch when you search Instagram from your own
+                browser. Other platforms review up to 25 at a time. To build a bigger list, run
+                another batch with <strong>Continue</strong>, or reply <strong>CONTINUE</strong>{" "}
+                to the text we send you.
               </p>
             </div>
 
@@ -455,6 +490,31 @@ export default function OpticDiscoveryPage() {
               useExtension={useInstagramExtension}
               onUseExtensionChange={setUseInstagramExtension}
             />
+
+            {platform === "instagram" && useInstagramExtension && (
+              <div className="space-y-2">
+                <Label htmlFor="optic-audience">Audience size</Label>
+                <Select
+                  value={audienceTier}
+                  onValueChange={(v) => setAudienceTier(v as OpticAudienceTier)}
+                >
+                  <SelectTrigger id="optic-audience">
+                    <SelectValue placeholder="Any size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OPTIC_AUDIENCE_TIER_SLUGS.map((slug) => (
+                      <SelectItem key={slug} value={slug}>
+                        {OPTIC_AUDIENCE_TIERS[slug].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {OPTIC_AUDIENCE_TIERS[audienceTier].hint}. Anyone outside this range is passed
+                  over before they cost you a credit, and we always skip inactive accounts.
+                </p>
+              </div>
+            )}
 
             {inFlightCount > 0 && (
               <p className="text-xs text-muted-foreground">

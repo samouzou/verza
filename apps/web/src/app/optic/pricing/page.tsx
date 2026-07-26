@@ -254,7 +254,8 @@ export default function OpticPricingPage() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground max-w-2xl mx-auto">
-        1 Optic credit = 1 creator profile scraped and saved to your vault with an AI outreach draft.
+        1 Optic credit = 1 creator added to your vault, with their profile details and a
+        ready-to-send outreach message.
         Studio overage is billed automatically at $2/lead in 250-lead blocks. Enterprise overage is reviewed
         quarterly with your account manager.
       </p>

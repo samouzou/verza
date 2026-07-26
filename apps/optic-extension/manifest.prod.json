@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Verza Optic Scout",
-  "version": "0.1.0",
-  "description": "Run Instagram creator discovery in your logged-in browser for follower counts, bios, and contact info.",
+  "version": "0.1.1",
+  "description": "Find Instagram creators for your brand campaigns using your own signed-in browser. Works with Verza Optic.",
   "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": [
     "https://www.instagram.com/*",
@@ -28,6 +28,6 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Verza Optic"
+    "default_title": "Verza Optic Scout"
   }
 }

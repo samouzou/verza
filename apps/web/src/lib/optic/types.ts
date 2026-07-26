@@ -58,6 +58,9 @@ export type OpticLeadRow = {
   niche?: string;
   email?: string;
   followerCount?: string;
+  /** Numeric mirror of followerCount for sorting; absent on leads saved before this existed. */
+  followerCountNumeric?: number | null;
+  postCountNumeric?: number | null;
   profileUrl?: string;
   draftEmail?: string;
   draftEmailSubject?: string;

@@ -1,8 +1,8 @@
 {
   "name": "@verza/optic-extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
-  "description": "Verza Optic Chrome extension — Instagram discovery in the user's logged-in browser",
+  "description": "Verza Optic Chrome extension — finds Instagram creators through the user's own signed-in browser",
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:prod": "node scripts/build.mjs",

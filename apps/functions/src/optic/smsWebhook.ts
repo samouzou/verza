@@ -112,6 +112,20 @@ export const opticTwilioSmsWebhook = onRequest(
         }
 
         const source = await loadLatestContinuableJob(uid);
+
+        // Extension missions run in the user's Chrome session, so there is nothing
+        // for SMS to start. Queuing one here would just wedge the next batch.
+        if (source.runner === "extension") {
+          res
+            .type("text/xml")
+            .send(
+              twiml(
+                "This mission runs in your Chrome browser. Open Verza Optic in Chrome and tap Run next batch."
+              )
+            );
+          return;
+        }
+
         const jobId = await enqueueOpticContinuationJob(source, {
           smsNotify: true,
           fromJobId: source.id,

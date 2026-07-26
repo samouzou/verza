@@ -239,9 +239,15 @@ function scrapeInstagramProfileOnce(): import("../shared/types").ScrapedInstagra
   const followerMatch = document.body.innerText.match(/([\d,.]+[KMB]?)\s+followers/i);
   if (followerMatch) followerCount = followerMatch[1];
 
+  // Post count separates working nano creators from dead or placeholder accounts,
+  // which follower count alone cannot do.
+  let postCount: string | null = null;
+  const postMatch = document.body.innerText.match(/([\d,.]+[KMB]?)\s+posts?\b/i);
+  if (postMatch) postCount = postMatch[1];
+
   let externalUrl: string | null = null;
   const extLink = document.querySelector('header a[rel~="me"], header a[href^="http"]');
   if (extLink) externalUrl = (extLink as HTMLAnchorElement).href;
 
-  return { username, displayName, bio, followerCount, externalUrl };
+  return { username, displayName, bio, followerCount, postCount, externalUrl };
 }

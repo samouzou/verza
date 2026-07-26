@@ -36,6 +36,9 @@ export type ClaimedJob = {
   searchQueries: string[];
   searchSummary?: string;
   seedProfileUrls: string[];
+  /** Handles already in the brand's vault — skip without opening a tab. */
+  excludeUsernames?: string[];
+  audienceFilter?: ExtensionAudienceFilter;
   processedCount: number;
 };
 
@@ -44,7 +47,17 @@ export type ScrapedInstagramProfile = {
   displayName: string | null;
   bio: string | null;
   followerCount: string | null;
+  postCount: string | null;
   externalUrl: string | null;
 };
 
-export const EXTENSION_VERSION = "0.1.0";
+/** Follower bounds and quality rules the extension applies before submitting a lead. */
+export type ExtensionAudienceFilter = {
+  minFollowers: number | null;
+  maxFollowers: number | null;
+  minPostCount: number;
+  /** Candidate pool multiplier — larger when a size band rejects many profiles. */
+  poolMultiplier: number;
+};
+
+export const EXTENSION_VERSION = "0.1.1";

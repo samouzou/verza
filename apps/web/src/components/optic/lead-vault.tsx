@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Check, Copy, ExternalLink, Loader2, Send } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Send,
+} from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
@@ -123,6 +132,10 @@ export function LeadVault({
 }: LeadVaultProps) {
   const [filter, setFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [followerSort, setFollowerSort] = useState<"none" | "desc" | "asc">("none");
+
+  const toggleFollowerSort = () =>
+    setFollowerSort((prev) => (prev === "none" ? "desc" : prev === "desc" ? "asc" : "none"));
 
   const byCampaign = useMemo(() => {
     if (campaignFilter === "__all__") return leads;
@@ -153,6 +166,21 @@ export function LeadVault({
       return blob.includes(q);
     });
   }, [byCampaign, filter]);
+
+  const sorted = useMemo(() => {
+    if (followerSort === "none") return filtered;
+    // Leads saved before numeric counts existed sort last rather than as zero.
+    const rank = (lead: OpticLeadRow) =>
+      typeof lead.followerCountNumeric === "number" ? lead.followerCountNumeric : null;
+    return [...filtered].sort((a, b) => {
+      const av = rank(a);
+      const bv = rank(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return followerSort === "desc" ? bv - av : av - bv;
+    });
+  }, [filtered, followerSort]);
 
   const copyDraft = (text: string, id: string) => {
     void navigator.clipboard.writeText(text);
@@ -255,7 +283,21 @@ export function LeadVault({
                 <TableHead className="xl:w-[10%]">Creator</TableHead>
                 <TableHead className="xl:w-[9%]">Campaign</TableHead>
                 <TableHead className="xl:w-[7%]">Niche</TableHead>
-                <TableHead className="xl:w-[7%] whitespace-nowrap">Followers</TableHead>
+                <TableHead className="xl:w-[7%] whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={toggleFollowerSort}
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                    aria-label="Sort by followers"
+                  >
+                    Followers
+                    {followerSort === "desc" && <ArrowDown className="h-3 w-3" />}
+                    {followerSort === "asc" && <ArrowUp className="h-3 w-3" />}
+                    {followerSort === "none" && (
+                      <ArrowUpDown className="h-3 w-3 opacity-40" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead className="xl:w-[11%]">Email</TableHead>
                 <TableHead className="xl:w-[35%]">Outreach draft</TableHead>
                 <TableHead className="xl:w-[7%] whitespace-nowrap">Found</TableHead>
@@ -263,7 +305,7 @@ export function LeadVault({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((lead) => {
+              {sorted.map((lead) => {
                 const created = tsToDate(lead.createdAt);
                 const contacted = Boolean(lead.outreachEmailed);
                 const busy = outreachUpdatingId === lead.id;

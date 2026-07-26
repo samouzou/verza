@@ -2,7 +2,11 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
 import {assertSufficientOpticCredits} from "./credits";
-import {OPTIC_DEFAULT_BATCH_SIZE, OPTIC_MAX_BATCH_SIZE} from "./constants";
+import {
+  OPTIC_DEFAULT_AUDIENCE_TIER,
+  OPTIC_DEFAULT_BATCH_SIZE,
+  OPTIC_MAX_BATCH_SIZE,
+} from "./constants";
 type OpticJobBrandContext = {
   agencyName: string;
   brandSummary: string | null;
@@ -25,6 +29,7 @@ type SourceJob = {
   runner?: string | null;
   campaignId?: string | null;
   brandContext?: OpticJobBrandContext | null;
+  audienceTier?: string | null;
   batchIndex?: number;
   rootJobId?: string | null;
 };
@@ -91,6 +96,8 @@ export async function enqueueOpticContinuationJob(
     maxProfiles,
     campaignId: source.campaignId ?? null,
     brandContext: source.brandContext ?? null,
+    // Losing this would make batch 2 silently ignore the size band picked for batch 1.
+    audienceTier: source.audienceTier ?? OPTIC_DEFAULT_AUDIENCE_TIER,
     batchIndex,
     rootJobId: rootJobId || jobRef.id,
     continuedFromJobId: opts?.fromJobId ?? null,
@@ -172,9 +179,12 @@ async function assertNoInFlightOpticJob(uid: string): Promise<void> {
  * Callable path: continue from explicit job id or latest completed.
  * @param {string} uid Firebase Auth user id.
  * @param {string=} fromJobId Optional completed job to chain from.
- * @return {Promise<string>} New job id.
+ * @return {Promise<object>} New job id and the runner the caller must drive.
  */
-export async function continueMissionForUid(uid: string, fromJobId?: string): Promise<string> {
+export async function continueMissionForUid(
+  uid: string,
+  fromJobId?: string
+): Promise<{jobId: string; runner: "extension" | "worker"}> {
   await assertNoInFlightOpticJob(uid);
   let source: SourceJob & {id: string};
   if (fromJobId?.trim()) {
@@ -189,5 +199,6 @@ export async function continueMissionForUid(uid: string, fromJobId?: string): Pr
   } else {
     source = await loadLatestContinuableJob(uid);
   }
-  return enqueueOpticContinuationJob(source, {smsNotify: true, fromJobId: source.id});
+  const jobId = await enqueueOpticContinuationJob(source, {smsNotify: true, fromJobId: source.id});
+  return {jobId, runner: source.runner === "extension" ? "extension" : "worker"};
 }

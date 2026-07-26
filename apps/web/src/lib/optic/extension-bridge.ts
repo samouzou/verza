@@ -45,6 +45,10 @@ function postToExtension<T extends Record<string, unknown>>(
       }
       const data = event.data as BridgeResponse;
       if (data?.channel !== CHANNEL || data.requestId !== requestId) return;
+      // postMessage echoes to this same window, so the request we are about to
+      // send arrives here too, carrying the requestId we are waiting on. Only
+      // replies from the extension set `ok`, which is what tells them apart.
+      if (typeof data.ok !== "boolean") return;
       window.clearTimeout(timeout);
       window.removeEventListener("message", onMessage);
       resolve(data);

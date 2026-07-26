@@ -28,6 +28,12 @@ const STEPS = [
   },
 ] as const;
 
+/**
+ * Per-creator extension lines, in both the current wording and the wording used
+ * before the copy rewrite — jobs already in Firestore still carry the old text.
+ */
+const EXTENSION_PER_CREATOR_LOG = /(?:Added|Saved|Checking|Reviewing) @/i;
+
 /** Softens older status lines that used internal wording. */
 function humanizeLogMessage(message: string): string {
   let m = message;
@@ -42,15 +48,19 @@ function humanizeLogMessage(message: string): string {
     const name = m.replace(/^Saved lead:\s*/i, "").trim();
     return name ? `Added ${name} to your vault.` : "Added a creator to your vault.";
   }
-  if (/Chrome extension connected/i.test(m)) return "Chrome extension connected — searching Instagram in your browser.";
-  if (/AI shortlist:/i.test(m)) return m.replace(/^AI shortlist:\s*/i, "AI shortlist: ");
+  if (/Chrome extension connected/i.test(m)) return "Connected to Chrome — starting your Instagram search.";
+  if (/^AI shortlist:/i.test(m)) return m.replace(/^AI shortlist:\s*/i, "Shortlisted ");
+  if (/^Search plan:/i.test(m)) return m.replace(/^Search plan:\s*/i, "Where we're looking: ");
   if (/Browsing #/i.test(m)) return m;
-  if (/Keyword search/i.test(m)) return m;
+  if (/^Keyword search/i.test(m)) return m.replace(/^Keyword search\s*/i, "Searched ");
   if (/Saved @/i.test(m)) {
     const rest = m.replace(/^Saved @/i, "").trim();
     return `Added @${rest}`;
   }
-  if (/^Done — saved/i.test(m)) return m;
+  if (/^Done — saved (\d+)/i.test(m)) {
+    const n = m.match(/^Done — saved (\d+)/i)?.[1];
+    return n ? `Finished with ${n} creator${n === "1" ? "" : "s"} added to your vault.` : m;
+  }
   if (/Completed\.\s*Saved/i.test(m)) {
     const n = m.match(/(\d+)/)?.[1];
     return n ? `All set — ${n} creator${n === "1" ? "" : "s"} are ready in your vault.` : m;
@@ -137,13 +147,15 @@ function stepState(
       if (stepId === "search" && hasPhase("extension")) {
         const extensionLogs = logs?.filter((l) => l.phase === "extension") ?? [];
         const last = extensionLogs[extensionLogs.length - 1]?.message ?? "";
-        if (/Reviewing @|saved \d+ of/i.test(last)) return "done";
+        if (EXTENSION_PER_CREATOR_LOG.test(last) || /(?:saved|added) \d+ of/i.test(last)) {
+          return "done";
+        }
         return "active";
       }
       if (stepId === "vet" && hasPhase("extension")) {
         const extensionLogs = logs?.filter((l) => l.phase === "extension") ?? [];
         const last = extensionLogs[extensionLogs.length - 1]?.message ?? "";
-        if (/Reviewing @|Saved @/i.test(last)) return "active";
+        if (EXTENSION_PER_CREATOR_LOG.test(last)) return "active";
       }
       if (stepId === "prepare") return hasPhase("extension") ? "done" : "active";
     }
@@ -183,7 +195,7 @@ export function DiscoveryTimeline({ job }: Props) {
                     ? (logs ?? []).filter(
                         (l) =>
                           l.phase === "extension" &&
-                          (l.message?.includes("Saved @") || l.message?.includes("Reviewing @"))
+                          EXTENSION_PER_CREATOR_LOG.test(l.message ?? "")
                       )
                     : []
                 )

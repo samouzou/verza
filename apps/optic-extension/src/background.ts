@@ -1,7 +1,49 @@
-import type { ClaimedJob, ExtensionProgressPhase } from "./shared/types";
+import type {
+  ClaimedJob,
+  ExtensionAudienceFilter,
+  ExtensionProgressPhase,
+  ScrapedInstagramProfile,
+} from "./shared/types";
 import { callFunction, sleep } from "./shared/api";
-import { instagramProfileUrl, instagramUsernameFromUrl } from "./shared/instagram";
+import {
+  instagramProfileUrl,
+  instagramUsernameFromUrl,
+  parseCompactCount,
+} from "./shared/instagram";
 import { EXTENSION_VERSION } from "./shared/types";
+
+const DEFAULT_AUDIENCE_FILTER: ExtensionAudienceFilter = {
+  minFollowers: null,
+  maxFollowers: null,
+  minPostCount: 3,
+  poolMultiplier: 2,
+};
+
+/**
+ * Mirrors `checkAudienceGate` in apps/functions. Unknown counts never reject, so a
+ * flaky scrape cannot silently discard a good creator.
+ */
+function audienceRejectReason(
+  profile: ScrapedInstagramProfile,
+  filter: ExtensionAudienceFilter
+): string | null {
+  const posts = parseCompactCount(profile.postCount);
+  if (posts !== null && posts < filter.minPostCount) return "barely posts anything";
+
+  const hasBio = Boolean(profile.bio?.trim());
+  const hasLink = Boolean(profile.externalUrl?.trim());
+  if (!hasBio && !hasLink && posts === null) return "their profile is empty";
+
+  const followers = parseCompactCount(profile.followerCount);
+  if (followers === null) return null;
+  if (filter.minFollowers !== null && followers < filter.minFollowers) {
+    return "smaller than the audience size you picked";
+  }
+  if (filter.maxFollowers !== null && followers > filter.maxFollowers) {
+    return "bigger than the audience size you picked";
+  }
+  return null;
+}
 
 const OPTIC_BRIDGE_URLS = [
   "http://localhost/*",
@@ -83,7 +125,7 @@ async function waitForTabLoad(tabId: number, timeoutMs = 60_000): Promise<void> 
     }
     await sleep(500);
   }
-  throw new Error("Tab load timed out");
+  throw new Error("Instagram took too long to load. Check your connection and try again.");
 }
 
 async function injectOpticApi(tabId: number): Promise<void> {
@@ -226,7 +268,7 @@ async function discoverFromHashtag(
     const prepared = await runInTab<{ ready: boolean; reason?: string }>(tab.id, "prepareHashtagExplore");
     if (!prepared?.ready) {
       if (prepared?.reason === "login_required") {
-        throw new Error("Log into Instagram in this Chrome profile, then start the mission again.");
+        throw new Error("Please sign in to Instagram in Chrome, then start the mission again.");
       }
       return [];
     }
@@ -234,7 +276,7 @@ async function discoverFromHashtag(
     const postUrls = await runInTab<string[]>(tab.id, "collectHashtagPostUrls", [postBudget(maxProfiles)]);
     if (postUrls.length === 0) return [];
 
-    await report("hashtag", `Found ${postUrls.length} posts under #${hashtag} — resolving creators…`, {
+    await report("hashtag", `Found ${postUrls.length} posts under #${hashtag} — checking who posted them…`, {
       logMessage: `Browsing #${hashtag}: ${postUrls.length} posts to review.`,
     });
 
@@ -265,10 +307,10 @@ async function discoverFromKeyword(
       selfUsername,
     ]);
 
-    await report("keyword", `Keyword search found ${profileUrls.length} accounts for “${searchQuery}”.`, {
+    await report("keyword", `Found ${profileUrls.length} accounts matching “${searchQuery}”.`, {
       discovered: profileUrls.length,
       target,
-      logMessage: `Keyword search “${searchQuery}”: ${profileUrls.length} accounts.`,
+      logMessage: `Searched “${searchQuery}”: ${profileUrls.length} accounts found.`,
     });
 
     return profileUrls;
@@ -279,9 +321,13 @@ async function discoverFromKeyword(
 
 async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter): Promise<string[]> {
   const target = claimed.maxProfiles;
-  const minPool = Math.max(target * 2, 8);
+  const multiplier = claimed.audienceFilter?.poolMultiplier ?? DEFAULT_AUDIENCE_FILTER.poolMultiplier;
+  const minPool = Math.max(target * multiplier, 8);
   const ordered: string[] = [];
-  const seen = new Set<string>();
+  // Seeding with vault handles makes addUrls drop creators we already saved, so
+  // continuation batches keep searching until they find genuinely new profiles.
+  const seen = new Set<string>((claimed.excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  const alreadyInVault = seen.size;
 
   const addUrls = (urls: string[]) => {
     for (const url of urls) {
@@ -294,15 +340,19 @@ async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter
     }
   };
 
+  // Keeps current behaviour at multiplier 2 and widens the crawl for narrower bands.
+  const budgetTarget = Math.ceil((target * multiplier) / 2);
   let selfUsername: string | null = null;
 
   if (claimed.seedProfileUrls.length > 0) {
-    await report("seeds", `Checking ${claimed.seedProfileUrls.length} AI-suggested creators…`, { target });
+    await report("seeds", `Lining up ${claimed.seedProfileUrls.length} creators who look like a fit…`, {
+      target,
+    });
     addUrls(claimed.seedProfileUrls);
-    await report("seeds", `Shortlist ready — ${ordered.length} creators queued.`, {
+    await report("seeds", `Shortlist ready — ${ordered.length} creators to look at.`, {
       discovered: ordered.length,
       target,
-      logMessage: `AI shortlist: ${ordered.length} creator profiles for this brief.`,
+      logMessage: `Shortlisted ${ordered.length} creators who match your campaign.`,
     });
   }
 
@@ -317,7 +367,7 @@ async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter
 
     const fromHashtag = await discoverFromHashtag(
       tag,
-      claimed.maxProfiles,
+      budgetTarget,
       selfUsername,
       report,
       target,
@@ -330,13 +380,13 @@ async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter
 
   for (const query of searchQueries) {
     if (ordered.length >= minPool) break;
-    await report("keyword", `Trying keyword search: “${query}”…`, {
+    await report("keyword", `Searching Instagram for “${query}”…`, {
       discovered: ordered.length,
       target,
     });
     const fromKeyword = await discoverFromKeyword(
       query,
-      claimed.maxProfiles,
+      budgetTarget,
       selfUsername,
       report,
       target
@@ -346,14 +396,21 @@ async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter
 
   if (ordered.length === 0) {
     throw new Error(
-      "Could not find Instagram creators. Log into Instagram in Chrome and try broader campaign objectives."
+      alreadyInVault > 0
+        ? "No new creators this time — everyone we found is already in your vault. " +
+          "Try widening your campaign goals before the next batch."
+        : "We couldn't find any Instagram creators. Make sure you're signed in to Instagram " +
+          "in Chrome, and try broadening your campaign goals."
     );
   }
 
-  await report("profiles", `Reviewing ${ordered.length} creator profiles…`, {
+  await report("profiles", `Looking at ${ordered.length} creator profiles…`, {
     discovered: ordered.length,
     target,
-    logMessage: `Ready to review ${ordered.length} profiles.`,
+    logMessage:
+      alreadyInVault > 0
+        ? `Ready to review ${ordered.length} new creators (${alreadyInVault} were already in your vault).`
+        : `Ready to review ${ordered.length} creators.`,
   });
 
   return ordered;
@@ -366,7 +423,7 @@ async function runExtensionJob(
   useFunctionsEmulator: boolean
 ): Promise<void> {
   if (state.running) {
-    throw new Error("A mission is already running in the extension.");
+    throw new Error("A mission is already running in Chrome. Let it finish, then start the next one.");
   }
 
   state.running = true;
@@ -396,13 +453,15 @@ async function runExtensionJob(
     if (claimed.searchSummary) {
       await report("prepare", claimed.searchSummary, {
         target: claimed.maxProfiles,
-        logMessage: `Search plan: ${claimed.searchSummary}`,
+        logMessage: `Where we're looking: ${claimed.searchSummary}`,
       });
     }
 
     const profileUrls = await discoverProfileUrls(claimed, report);
     let saved = claimed.processedCount ?? 0;
+    let filtered = 0;
     const target = claimed.maxProfiles;
+    const audienceFilter = claimed.audienceFilter ?? DEFAULT_AUDIENCE_FILTER;
 
     for (let i = 0; i < profileUrls.length; i += 1) {
       if (saved >= target) break;
@@ -410,7 +469,7 @@ async function runExtensionJob(
       const profileUrl = profileUrls[i];
       const username = instagramUsernameFromUrl(profileUrl) ?? "creator";
 
-      await report("profiles", `Reviewing @${username} (${i + 1}/${profileUrls.length})…`, {
+      await report("profiles", `Checking @${username} (${i + 1} of ${profileUrls.length})…`, {
         discovered: saved,
         target,
       });
@@ -420,15 +479,24 @@ async function runExtensionJob(
 
       try {
         await waitForTabLoad(tab.id);
-        const profile = await runInTab<{
-          username: string;
-          displayName: string | null;
-          bio: string | null;
-          followerCount: string | null;
-          externalUrl: string | null;
-        } | null>(tab.id, "scrapeInstagramProfile");
+        const profile = await runInTab<ScrapedInstagramProfile | null>(
+          tab.id,
+          "scrapeInstagramProfile"
+        );
 
         if (!profile?.username) continue;
+
+        // Filtering before submit is what keeps a rejected profile free — credits are
+        // only charged when a lead is saved.
+        const rejectReason = audienceRejectReason(profile, audienceFilter);
+        if (rejectReason) {
+          filtered += 1;
+          await report("profiles", `Passed on @${username} — ${rejectReason}.`, {
+            discovered: saved,
+            target,
+          });
+          continue;
+        }
 
         const submit = await callFunction<{
           ok: boolean;
@@ -447,7 +515,7 @@ async function runExtensionJob(
           continue;
         }
         saved = submit.processedCount ?? saved + 1;
-        await report("profiles", `Saved ${saved} of ${target} creators to your vault.`, {
+        await report("profiles", `Added ${saved} of ${target} creators to your vault.`, {
           discovered: saved,
           target,
         });
@@ -459,10 +527,12 @@ async function runExtensionJob(
       }
     }
 
-    await report("done", `Mission complete — saved ${saved} of ${target} creators.`, {
+    const filteredNote =
+      filtered > 0 ? ` Passed on ${filtered} who didn't match your audience size.` : "";
+    await report("done", `All done — added ${saved} of ${target} creators to your vault.`, {
       discovered: saved,
       target,
-      logMessage: `Done — saved ${saved} of ${target} creators.`,
+      logMessage: `Finished with ${saved} of ${target} creators.${filteredNote}`,
     });
 
     await callFunction(
@@ -508,11 +578,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       projectId: string;
       useFunctionsEmulator?: boolean;
     };
-    runExtensionJob(jobId, idToken, projectId, useFunctionsEmulator === true)
-      .then(() => sendResponse({ ok: true }))
-      .catch((e) =>
-        sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) })
-      );
+    if (state.running) {
+      sendResponse({
+        ok: false,
+        error: "A mission is already running in Chrome. Let it finish, then start the next one.",
+      });
+      return true;
+    }
+    // A mission runs for minutes, far longer than the page will wait for this
+    // response, so acknowledge that it started rather than that it finished.
+    // runExtensionJob reports the real outcome via completeOpticExtensionJob.
+    void runExtensionJob(jobId, idToken, projectId, useFunctionsEmulator === true).catch(() => {});
+    sendResponse({ ok: true });
     return true;
   }
   return false;
