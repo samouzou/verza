@@ -13,11 +13,14 @@ import {
 import { EXTENSION_VERSION } from "./shared/types";
 
 const DEFAULT_AUDIENCE_FILTER: ExtensionAudienceFilter = {
-  minFollowers: null,
+  minFollowers: 100,
   maxFollowers: null,
   minPostCount: 3,
-  poolMultiplier: 2,
+  poolMultiplier: 3,
 };
+
+/** Why a profile was skipped. "Any size" has no bounds, so it only ever skips on quality. */
+type AudienceRejection = { reason: string; kind: "size" | "quality" };
 
 /**
  * Mirrors `checkAudienceGate` in apps/functions. Unknown counts never reject, so a
@@ -26,21 +29,25 @@ const DEFAULT_AUDIENCE_FILTER: ExtensionAudienceFilter = {
 function audienceRejectReason(
   profile: ScrapedInstagramProfile,
   filter: ExtensionAudienceFilter
-): string | null {
+): AudienceRejection | null {
   const posts = parseCompactCount(profile.postCount);
-  if (posts !== null && posts < filter.minPostCount) return "barely posts anything";
+  if (posts !== null && posts < filter.minPostCount) {
+    return { reason: "barely posts anything", kind: "quality" };
+  }
 
   const hasBio = Boolean(profile.bio?.trim());
   const hasLink = Boolean(profile.externalUrl?.trim());
-  if (!hasBio && !hasLink && posts === null) return "their profile is empty";
+  if (!hasBio && !hasLink && posts === null) {
+    return { reason: "their profile is empty", kind: "quality" };
+  }
 
   const followers = parseCompactCount(profile.followerCount);
   if (followers === null) return null;
   if (filter.minFollowers !== null && followers < filter.minFollowers) {
-    return "smaller than the audience size you picked";
+    return { reason: "smaller than the audience size you picked", kind: "size" };
   }
   if (filter.maxFollowers !== null && followers > filter.maxFollowers) {
-    return "bigger than the audience size you picked";
+    return { reason: "bigger than the audience size you picked", kind: "size" };
   }
   return null;
 }
@@ -459,7 +466,8 @@ async function runExtensionJob(
 
     const profileUrls = await discoverProfileUrls(claimed, report);
     let saved = claimed.processedCount ?? 0;
-    let filtered = 0;
+    let skippedSize = 0;
+    let skippedQuality = 0;
     const target = claimed.maxProfiles;
     const audienceFilter = claimed.audienceFilter ?? DEFAULT_AUDIENCE_FILTER;
 
@@ -488,10 +496,11 @@ async function runExtensionJob(
 
         // Filtering before submit is what keeps a rejected profile free — credits are
         // only charged when a lead is saved.
-        const rejectReason = audienceRejectReason(profile, audienceFilter);
-        if (rejectReason) {
-          filtered += 1;
-          await report("profiles", `Passed on @${username} — ${rejectReason}.`, {
+        const rejection = audienceRejectReason(profile, audienceFilter);
+        if (rejection) {
+          if (rejection.kind === "size") skippedSize += 1;
+          else skippedQuality += 1;
+          await report("profiles", `Passed on @${username} — ${rejection.reason}.`, {
             discovered: saved,
             target,
           });
@@ -527,8 +536,14 @@ async function runExtensionJob(
       }
     }
 
-    const filteredNote =
-      filtered > 0 ? ` Passed on ${filtered} who didn't match your audience size.` : "";
+    // Naming the real reason matters: "Any size" sets no bounds, so blaming audience
+    // size for a quality skip reads as a bug to anyone who picked it.
+    const skipNotes: string[] = [];
+    if (skippedSize > 0) skipNotes.push(`${skippedSize} outside your audience size`);
+    if (skippedQuality > 0) {
+      skipNotes.push(`${skippedQuality} with inactive or empty profiles`);
+    }
+    const filteredNote = skipNotes.length > 0 ? ` Passed on ${skipNotes.join(" and ")}.` : "";
     await report("done", `All done — added ${saved} of ${target} creators to your vault.`, {
       discovered: saved,
       target,

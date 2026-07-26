@@ -129,7 +129,7 @@ export const claimOpticExtensionJob = onCall(async (request) => {
       job.brandContext ?? null,
       job.maxProfiles,
       exclusions.plannerUsernames,
-      tier === "any" ? null : bounds.label
+      bounds.label
     );
 
     const seedProfileUrls = plan.seedProfiles

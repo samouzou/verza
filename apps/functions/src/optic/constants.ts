@@ -22,14 +22,16 @@ export const OPTIC_PLATFORM_SLUGS = [
 export const OPTIC_PLATFORMS = new Set<string>(OPTIC_PLATFORM_SLUGS);
 
 /**
- * Audience size bands for discovery. Nano is deliberately included by default:
- * brands run UGC with creators in the low hundreds, so `any` applies no size bound.
+ * Audience size bands for discovery. `any` still floors at 100 so hashtag noise
+ * (dead accounts, spam, brand-new profiles) is skipped; brands run UGC with
+ * creators in the low hundreds, so that is the useful lower bound.
  */
 export const OPTIC_AUDIENCE_TIERS = {
-  any: {label: "Any size", min: null, max: null},
+  any: {label: "Any size (100+)", min: 100, max: null},
   nano: {label: "Nano (100 – 10K)", min: 100, max: 10_000},
   micro: {label: "Micro (10K – 100K)", min: 10_000, max: 100_000},
   mid: {label: "Mid (100K – 500K)", min: 100_000, max: 500_000},
+  macro: {label: "Macro (500K+)", min: 500_000, max: null},
 } as const;
 
 export type OpticAudienceTier = keyof typeof OPTIC_AUDIENCE_TIERS;
@@ -51,11 +53,12 @@ export function isOpticAudienceTier(value: unknown): value is OpticAudienceTier 
 export const OPTIC_MIN_POST_COUNT = 3;
 
 /**
- * Candidate pool multiplier. A size band rejects many profiles after scraping, so
- * batches would under-deliver without a deeper pool.
- * @param {OpticAudienceTier} tier Requested audience size band.
+ * Candidate pool multiplier. Size and quality gates reject many profiles after
+ * scraping, so batches under-deliver without a deeper pool. Same depth for every
+ * tier — `any` pays the same quality attrition as the sized bands.
+ * @param {OpticAudienceTier} _tier Requested audience size band (unused; kept for call sites).
  * @return {number} Multiplier applied to the batch target.
  */
-export function opticPoolMultiplier(tier: OpticAudienceTier): number {
-  return tier === "any" ? 2 : 3;
+export function opticPoolMultiplier(_tier: OpticAudienceTier): number {
+  return 3;
 }

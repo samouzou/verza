@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza Optic Scout — Chrome Web Store graphics</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0a0e0c;
+      color: var(--paper);
+      font-family: "DM Sans", system-ui, sans-serif;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    .page {
+      max-width: 1480px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    header h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      color: var(--mist);
+      font-size: 0.92rem;
+      line-height: 1.45;
+      max-width: 40rem;
+      margin-top: 0.4rem;
+    }
+
+    .checklist {
+      font-size: 0.82rem;
+      color: rgba(184, 196, 190, 0.95);
+      line-height: 1.55;
+      background: rgba(232, 238, 234, 0.04);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: 0.85rem;
+      padding: 0.85rem 1rem;
+    }
+
+    .checklist strong { color: var(--paper); font-weight: 600; }
+
+    .grid {
+      display: flex;
+      flex-direction: column;
+      gap: 2.25rem;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+    }
+
+    .card-head h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .card-head .meta {
+      font-size: 0.78rem;
+      color: var(--mist);
+    }
+
+    .card-head button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.55rem 0.95rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .card-head button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .stage {
+      overflow: auto;
+      padding: 0.75rem;
+      border-radius: 1rem;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    /* Shared artboard surface */
+    .artboard {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(ellipse 70% 55% at 15% 20%, rgba(14, 124, 90, 0.55), transparent 60%),
+        radial-gradient(ellipse 55% 45% at 90% 10%, rgba(22, 192, 136, 0.22), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 70% 90%, rgba(14, 124, 90, 0.28), transparent 50%),
+        linear-gradient(160deg, #07110d 0%, #0B100E 45%, #0f1c17 100%);
+      box-shadow:
+        0 0 0 1px rgba(152, 162, 156, 0.12),
+        0 24px 48px rgba(0, 0, 0, 0.35);
+    }
+
+    .artboard::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232, 238, 234, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232, 238, 234, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black, transparent 75%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow {
+      position: absolute;
+      width: 42%;
+      height: 42%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(22, 192, 136, 0.35), transparent 70%);
+      filter: blur(40px);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .glow.a { top: -8%; left: -6%; }
+    .glow.b { bottom: 8%; right: -10%; width: 50%; height: 50%; opacity: 0.7; }
+
+    .brand {
+      position: absolute;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .brand img { width: 1.9rem; height: auto; }
+
+    .brand span {
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .brand em {
+      font-style: normal;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-left: 0.15rem;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    .copy {
+      position: absolute;
+      z-index: 5;
+    }
+
+    .copy h1,
+    .copy h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      color: #f2f7f4;
+      line-height: 1.05;
+    }
+
+    .copy p {
+      color: rgba(184, 196, 190, 0.95);
+      line-height: 1.4;
+    }
+
+    .float {
+      position: absolute;
+      z-index: 3;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      background: #fff;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 18px 40px rgba(0, 0, 0, 0.35),
+        0 4px 12px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .float img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: rgba(22, 192, 136, 0.14);
+      color: var(--emerald);
+      border: 1px solid rgba(22, 192, 136, 0.35);
+    }
+
+    .footer-mark {
+      position: absolute;
+      z-index: 5;
+      color: rgba(150, 162, 156, 0.85);
+      letter-spacing: 0.02em;
+    }
+
+    .footer-mark strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    /* —— Icon 128×128 —— */
+    #icon {
+      width: 128px;
+      height: 128px;
+      border-radius: 28px;
+      background:
+        radial-gradient(ellipse 80% 70% at 30% 25%, rgba(22, 192, 136, 0.35), transparent 60%),
+        linear-gradient(160deg, #07110d 0%, #0B100E 55%, #0f1c17 100%);
+    }
+
+    #icon::before { display: none; }
+
+    #icon .mark {
+      position: absolute;
+      inset: 16px;
+      display: grid;
+      place-items: center;
+      z-index: 2;
+    }
+
+    #icon .mark img {
+      width: 78%;
+      height: auto;
+      filter: drop-shadow(0 4px 12px rgba(14, 124, 90, 0.45));
+    }
+
+    /* —— Small promo 440×280 —— */
+    #promo-small {
+      width: 440px;
+      height: 280px;
+    }
+
+    /* Keep type on the dark left; product sits in a clear right pocket. */
+    #promo-small .scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(
+        90deg,
+        rgba(7, 17, 13, 0.92) 0%,
+        rgba(7, 17, 13, 0.78) 42%,
+        rgba(7, 17, 13, 0.15) 62%,
+        transparent 78%
+      );
+    }
+
+    #promo-small .brand {
+      top: 16px;
+      left: 18px;
+      font-size: 0.82rem;
+      z-index: 5;
+    }
+    #promo-small .brand img { width: 1.15rem; }
+
+    #promo-small .copy {
+      left: 18px;
+      top: 52px;
+      width: 210px;
+      right: auto;
+      z-index: 5;
+    }
+
+    #promo-small .eyebrow { font-size: 0.52rem; margin-bottom: 0.4rem; }
+
+    #promo-small .copy h2 {
+      font-size: 1.28rem;
+      line-height: 1.08;
+      margin-bottom: 0.4rem;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+    }
+
+    #promo-small .copy p {
+      font-size: 0.7rem;
+      line-height: 1.35;
+      max-width: 12.5rem;
+      color: rgba(200, 210, 204, 0.95);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    #promo-small .shot {
+      width: 48%;
+      right: -6%;
+      bottom: -8%;
+      top: auto;
+      transform: rotate(4deg);
+      z-index: 1;
+    }
+
+    /* —— Marquee 1400×560 —— */
+    #marquee {
+      width: 1400px;
+      height: 560px;
+    }
+
+    #marquee .brand { top: 40px; left: 56px; font-size: 1.35rem; }
+    #marquee .brand img { width: 2.1rem; }
+
+    #marquee .copy {
+      top: 120px;
+      left: 56px;
+      width: 480px;
+    }
+
+    #marquee .eyebrow { font-size: 0.78rem; margin-bottom: 0.9rem; }
+
+    #marquee .copy h1 {
+      font-size: 3.4rem;
+      margin-bottom: 0.85rem;
+    }
+
+    #marquee .copy p {
+      font-size: 1.1rem;
+      max-width: 26rem;
+      margin-bottom: 1.1rem;
+    }
+
+    #marquee .shot-main {
+      width: 46%;
+      right: 48px;
+      top: 72px;
+      transform: rotate(2deg);
+      z-index: 4;
+    }
+
+    #marquee .shot-side {
+      width: 28%;
+      right: 52px;
+      bottom: 48px;
+      transform: rotate(-3deg);
+      z-index: 6;
+    }
+
+    #marquee .footer-mark {
+      bottom: 36px;
+      left: 56px;
+      font-size: 0.9rem;
+    }
+
+    /* —— Screenshots 1280×800 —— */
+    .shot-board {
+      width: 1280px;
+      height: 800px;
+    }
+
+    .shot-board .brand { top: 40px; left: 52px; font-size: 1.25rem; }
+    .shot-board .brand img { width: 2rem; }
+
+    .shot-board .copy {
+      top: 110px;
+      left: 52px;
+      width: 420px;
+    }
+
+    .shot-board .eyebrow { font-size: 0.72rem; margin-bottom: 0.8rem; }
+
+    .shot-board .copy h1 {
+      font-size: 3rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .shot-board .copy p {
+      font-size: 1.05rem;
+      max-width: 22rem;
+      margin-bottom: 1rem;
+    }
+
+    .shot-board .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .shot-board .shot-main {
+      width: 52%;
+      right: 44px;
+      top: 90px;
+      transform: rotate(2deg);
+      z-index: 4;
+    }
+
+    .shot-board .shot-side {
+      width: 30%;
+      left: 52px;
+      bottom: 56px;
+      transform: rotate(-3.5deg);
+      z-index: 6;
+    }
+
+    .shot-board .shot-side-alt {
+      width: 28%;
+      right: 64px;
+      bottom: 52px;
+      transform: rotate(3deg);
+      z-index: 6;
+    }
+
+    .shot-board .footer-mark {
+      bottom: 36px;
+      left: 52px;
+      font-size: 0.85rem;
+      z-index: 8;
+    }
+
+    /* Screenshot 1 — clear the footer under the missions card */
+    #shot-1 .shot-side {
+      bottom: 96px;
+    }
+
+    /* Screenshot 2 — keep pills clear; product UI stays in the right half */
+    #shot-2 .copy {
+      width: 400px;
+      z-index: 8;
+    }
+    #shot-2 .shot-main {
+      width: 34%;
+      right: 48px;
+      top: 88px;
+      z-index: 5;
+    }
+    #shot-2 .shot-side {
+      width: 40%;
+      left: 48%;
+      right: auto;
+      bottom: 52px;
+      transform: rotate(-2.5deg);
+      z-index: 4;
+    }
+
+    /* Screenshot 3 — vault / outreach */
+    #shot-3 .shot-main {
+      width: 48%;
+      right: 48px;
+      top: 100px;
+    }
+    #shot-3 .shot-side {
+      width: 32%;
+      left: auto;
+      right: 52%;
+      bottom: 64px;
+      transform: rotate(-2deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <h1>Chrome Web Store graphics</h1>
+        <p>
+          Same visual language as the Optic launch square. Download each PNG at the exact
+          size Chrome asks for, then upload them in the Developer Dashboard listing tab.
+        </p>
+      </div>
+      <div class="checklist">
+        <strong>Recommended set (6)</strong><br />
+        1. Store icon — 128×128<br />
+        2. Small promo tile — 440×280<br />
+        3. Marquee promo — 1400×560<br />
+        4–6. Three screenshots — 1280×800<br />
+        Optional later: a short Loom walkthrough as the promo video.
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Icon -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Store icon</h2>
+            <p class="meta">128×128 · required · 16px padding around the mark</p>
+          </div>
+          <button type="button" data-target="icon" data-name="verza-optic-scout-icon-128.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard" id="icon" aria-label="Store icon">
+            <div class="mark">
+              <img src="/verza-icon.svg" alt="" width="96" height="69" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Small promo -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Small promotional tile</h2>
+            <p class="meta">440×280 · required · shows in search & category pages</p>
+          </div>
+          <button type="button" data-target="promo-small" data-name="verza-optic-scout-promo-440x280.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard" id="promo-small" aria-label="Small promo tile">
+            <div class="glow a" aria-hidden="true"></div>
+            <figure class="float shot">
+              <img src="/starting-mission-snippet.png" alt="" />
+            </figure>
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="brand">
+              <img src="/verza-icon.svg" alt="" />
+              <span>Verza <em>Optic Scout</em></span>
+            </div>
+            <div class="copy">
+              <p class="eyebrow">Chrome add-on</p>
+              <h2>Find Instagram creators from your browser</h2>
+              <p>Real follower counts &amp; contact details for Optic missions.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Marquee -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Marquee promotional tile</h2>
+            <p class="meta">1400×560 · optional · needed if Chrome features you</p>
+          </div>
+          <button type="button" data-target="marquee" data-name="verza-optic-scout-marquee-1400x560.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard" id="marquee" aria-label="Marquee promo tile">
+            <div class="glow a" aria-hidden="true"></div>
+            <div class="glow b" aria-hidden="true"></div>
+            <div class="brand">
+              <img src="/verza-icon.svg" alt="" />
+              <span>Verza <em>Optic Scout</em></span>
+            </div>
+            <div class="copy">
+              <p class="eyebrow">For brand teams</p>
+              <h1>Scout Instagram creators with real numbers</h1>
+              <p>
+                Runs Optic missions in your signed-in Chrome session — follower counts,
+                bios, and contact details Instagram only shows people who are logged in.
+              </p>
+              <span class="pill">Never posts or messages · Never sees your password</span>
+            </div>
+            <figure class="float shot-main">
+              <img src="/optic-full-capture.png" alt="" />
+            </figure>
+            <figure class="float shot-side">
+              <img src="/starting-mission-snippet.png" alt="" />
+            </figure>
+            <p class="footer-mark">Works with Verza Optic · <strong>app.tryverza.com</strong></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screenshot 1 -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Screenshot 1 — The job</h2>
+            <p class="meta">1280×800 · “Find Instagram creators from your own browser”</p>
+          </div>
+          <button type="button" data-target="shot-1" data-name="verza-optic-scout-shot-1.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard shot-board" id="shot-1" aria-label="Screenshot 1">
+            <div class="glow a" aria-hidden="true"></div>
+            <div class="glow b" aria-hidden="true"></div>
+            <div class="brand">
+              <img src="/verza-icon.svg" alt="" />
+              <span>Verza <em>Optic Scout</em></span>
+            </div>
+            <div class="copy">
+              <p class="eyebrow">How it works</p>
+              <h1>Find Instagram creators from your own browser</h1>
+              <p>
+                Start a mission in Optic. Scout opens Instagram in Chrome and reads what’s
+                publicly on each profile.
+              </p>
+              <div class="pills">
+                <span class="pill">Signed-in session</span>
+                <span class="pill">Works with Optic</span>
+              </div>
+            </div>
+            <figure class="float shot-main">
+              <img src="/optic-full-capture.png" alt="" />
+            </figure>
+            <figure class="float shot-side">
+              <img src="/completed-missions-snippet.png" alt="" />
+            </figure>
+            <p class="footer-mark">tryverza.com · <strong>Creator discovery for brands</strong></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screenshot 2 -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Screenshot 2 — Real data</h2>
+            <p class="meta">1280×800 · “Real follower counts & contact details”</p>
+          </div>
+          <button type="button" data-target="shot-2" data-name="verza-optic-scout-shot-2.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard shot-board" id="shot-2" aria-label="Screenshot 2">
+            <div class="glow a" aria-hidden="true"></div>
+            <div class="glow b" aria-hidden="true"></div>
+            <div class="brand">
+              <img src="/verza-icon.svg" alt="" />
+              <span>Verza <em>Optic Scout</em></span>
+            </div>
+            <div class="copy">
+              <p class="eyebrow">Why the add-on</p>
+              <h1>Real follower counts & contact details</h1>
+              <p>
+                Instagram hides those from headless tools. Scout looks through the account
+                you’re already signed in to — so Optic gets the real numbers.
+              </p>
+              <div class="pills">
+                <span class="pill">Audience size filters</span>
+                <span class="pill">Quality gating</span>
+              </div>
+            </div>
+            <figure class="float shot-main">
+              <img src="/starting-mission-snippet.png" alt="" />
+            </figure>
+            <figure class="float shot-side">
+              <img src="/optic-full-capture.png" alt="" />
+            </figure>
+            <p class="footer-mark">Never sees your Instagram password</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screenshot 3 -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Screenshot 3 — Outcome</h2>
+            <p class="meta">1280×800 · “Vault + outreach drafts · never posts for you”</p>
+          </div>
+          <button type="button" data-target="shot-3" data-name="verza-optic-scout-shot-3.png">Download PNG</button>
+        </div>
+        <div class="stage">
+          <div class="artboard shot-board" id="shot-3" aria-label="Screenshot 3">
+            <div class="glow a" aria-hidden="true"></div>
+            <div class="glow b" aria-hidden="true"></div>
+            <div class="brand">
+              <img src="/verza-icon.svg" alt="" />
+              <span>Verza <em>Optic Scout</em></span>
+            </div>
+            <div class="copy">
+              <p class="eyebrow">What you get</p>
+              <h1>Creators land in your vault, draft ready</h1>
+              <p>
+                Matching profiles are saved with a personalized outreach note. Scout only
+                reads — it never posts, comments, follows, or messages anyone.
+              </p>
+              <div class="pills">
+                <span class="pill">Read-only</span>
+                <span class="pill">Ready-to-send drafts</span>
+              </div>
+            </div>
+            <figure class="float shot-main">
+              <img src="/optic-outreach-snipet.png" alt="" />
+            </figure>
+            <figure class="float shot-side">
+              <img src="/completed-missions-snippet.png" alt="" />
+            </figure>
+            <p class="footer-mark">Requires a Verza Optic account · <strong>app.tryverza.com</strong></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    (function () {
+      async function downloadBoard(id, filename, button) {
+        const board = document.getElementById(id);
+        if (!board) return;
+        button.disabled = true;
+        const label = button.textContent;
+        button.textContent = "Rendering…";
+        try {
+          const canvas = await html2canvas(board, {
+            backgroundColor: id === "icon" ? null : "#0B100E",
+            scale: 1,
+            width: board.offsetWidth,
+            height: board.offsetHeight,
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+          });
+          // Force exact pixel dimensions Chrome expects
+          const out = document.createElement("canvas");
+          out.width = board.offsetWidth;
+          out.height = board.offsetHeight;
+          const ctx = out.getContext("2d");
+          ctx.drawImage(canvas, 0, 0, out.width, out.height);
+          const link = document.createElement("a");
+          link.download = filename;
+          link.href = out.toDataURL("image/png");
+          link.click();
+        } catch (err) {
+          console.error(err);
+          alert("Download failed — screenshot the artboard instead.");
+        } finally {
+          button.disabled = false;
+          button.textContent = label;
+        }
+      }
+
+      document.querySelectorAll("button[data-target]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          void downloadBoard(btn.dataset.target, btn.dataset.name, btn);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

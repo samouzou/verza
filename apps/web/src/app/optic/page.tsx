@@ -499,7 +499,7 @@ export default function OpticDiscoveryPage() {
                   onValueChange={(v) => setAudienceTier(v as OpticAudienceTier)}
                 >
                   <SelectTrigger id="optic-audience">
-                    <SelectValue placeholder="Any size" />
+                    <SelectValue placeholder="Any size (100+)" />
                   </SelectTrigger>
                   <SelectContent>
                     {OPTIC_AUDIENCE_TIER_SLUGS.map((slug) => (
