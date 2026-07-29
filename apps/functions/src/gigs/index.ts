@@ -239,7 +239,8 @@ async function initDeploymentEmailSequence(gigId: string, gigData: Gig): Promise
     });
 
     await sendDeploymentEmailSequence(
-      ownerData.email, ownerData.displayName || "there", gigData.title, gigId, 0
+      ownerData.email, ownerData.displayName || "there", gigData.title, gigId, 0,
+      {hasOpticMission: false}
     );
   } catch (error) {
     logger.error(`Failed to init deployment email sequence for gig ${gigId}:`, error);

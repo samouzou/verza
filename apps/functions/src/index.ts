@@ -90,7 +90,7 @@ import {
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {generateScene} from "./scenes";
 import {generateImage} from "./images";
-import {analyzeBrand} from "./brand-research";
+import {analyzeBrand, suggestBrandGuideFromUrl} from "./brand-research";
 import {
   syncInstagramStats,
   syncYouTubeStats,
@@ -195,6 +195,7 @@ export {
   generateScene,
   generateImage,
   analyzeBrand,
+  suggestBrandGuideFromUrl,
   syncInstagramStats,
   syncYouTubeStats,
   syncTikTokStats,

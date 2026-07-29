@@ -14,7 +14,6 @@ import {
 import {
   getOpticExtensionPrimaryInstallUrl,
   isChromeWebStoreInstall,
-  OPTIC_EXTENSION_CHROME_STORE_URL,
 } from "@/lib/optic/extension-install";
 
 export default function OpticExtensionInstallPage() {
@@ -127,13 +126,6 @@ export default function OpticExtensionInstallPage() {
           </div>
         </CardContent>
       </Card>
-
-      {!fromStore && OPTIC_EXTENSION_CHROME_STORE_URL === "" && (
-        <p className="text-xs text-muted-foreground">
-          A one-click version is coming to the Chrome Web Store soon. Until then, please
-          use the download above.
-        </p>
-      )}
     </div>
   );
 }

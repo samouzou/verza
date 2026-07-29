@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #000; }
+    #icon {
+      width: 512px;
+      height: 512px;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse 80% 70% at 30% 25%, rgba(22, 192, 136, 0.35), transparent 60%),
+        linear-gradient(160deg, #07110d 0%, #0B100E 55%, #0f1c17 100%);
+    }
+    #icon .mark {
+      position: absolute;
+      inset: 64px;
+      display: grid;
+      place-items: center;
+    }
+    #icon .mark img {
+      width: 78%;
+      height: auto;
+      filter: drop-shadow(0 16px 48px rgba(14, 124, 90, 0.45));
+    }
+  </style>
+</head>
+<body>
+  <div id="icon">
+    <div class="mark">
+      <!-- Inline brand V so headless needs no network -->
+      <svg width="304" height="219" viewBox="0 0 304 219" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M24 24L152 194.666L280 24" stroke="url(#paint0)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs>
+          <linearGradient id="paint0" x1="24" y1="24" x2="280" y2="24.333" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#0E7C5A"/>
+            <stop offset="1" stop-color="#16C088"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

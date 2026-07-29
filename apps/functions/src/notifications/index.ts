@@ -876,14 +876,23 @@ export async function sendOpticLowCreditsEmail(
 /**
  * Sends an email from the deployment onboarding sequence to the brand who posted it.
  * Step 0 is sent immediately when the deployment goes live. Steps 1–4 are drip emails.
+ *
+ * Steps 0–2 lead with Optic when the brand has not yet run a discovery mission for this
+ * campaign; once they have, those steps shift to managing applicants and submissions.
  * @param {string} toEmail The recipient's email address.
  * @param {string} name The recipient's name.
  * @param {string} gigTitle The title of the deployment.
  * @param {string} gigId The Firestore ID of the deployment (for deep links).
  * @param {number} step The step number (0–4).
+ * @param {{hasOpticMission?: boolean}} [opts] Whether an Optic job already exists for this campaign.
  */
 export async function sendDeploymentEmailSequence(
-  toEmail: string, name: string, gigTitle: string, gigId: string, step: number
+  toEmail: string,
+  name: string,
+  gigTitle: string,
+  gigId: string,
+  step: number,
+  opts?: {hasOpticMission?: boolean}
 ): Promise<void> {
   const sendgridKey = params.SENDGRID_API_KEY.value();
   if (!sendgridKey) {
@@ -894,6 +903,8 @@ export async function sendDeploymentEmailSequence(
 
   const appUrl = params.APP_URL.value();
   const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
+  const opticUrl = `${appUrl}/optic?campaignId=${encodeURIComponent(gigId)}`;
+  const hasOpticMission = opts?.hasOpticMission === true;
 
   let subject = "";
   let content = "";
@@ -907,69 +918,123 @@ export async function sendDeploymentEmailSequence(
   `;
 
   const btnStyle = emailButtonStyle("6px");
+  const secondaryLinkStyle =
+    `color: ${EMAIL_BRAND_PRIMARY}; font-size: 14px; text-decoration: underline;`;
 
   switch (step) {
-  case 0: // Immediate — campaign is live
-    subject = `Your campaign "${gigTitle}" is live`;
+  case 0: // Immediate — campaign is live → Optic first
+    subject = `Your campaign "${gigTitle}" is live — fill it with Optic`;
     content = `
       <h1 style="color: #333; font-size: 22px;">Your campaign is live, ${name}!</h1>
-      <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is now visible to creators
-      in the Verza marketplace. Here's what happens next:</p>
+      <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is now open on Verza.
+      Creators in the network can still apply — but the brands that fill campaigns fastest
+      <strong>source the right creators themselves with Optic</strong>.</p>
+      <p style="color: #555; line-height: 1.6;">Optic finds creators who match your brief (by platform,
+      audience size, and niche), drafts outreach, and saves them to your vault so you can invite
+      the ones you want.</p>
       <ul style="color: #555; line-height: 2;">
-        <li>Creators will discover your campaign and apply for spots</li>
-        <li>You review and accept the creators you want</li>
-        <li>Accepted creators submit their work for your approval</li>
-        <li>You approve and pay — funds go straight to their bank account</li>
+        <li>Start an Optic mission attached to this campaign</li>
+        <li>Review leads in your vault and reach out</li>
+        <li>Accept creators on the campaign page when they’re ready to produce</li>
       </ul>
-      <p style="color: #555; line-height: 1.6;">Over the next week I'll walk you through each step as your
-      campaign runs. Head to your campaign now to see who's applying.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${deploymentUrl}" style="${btnStyle}">View Your Campaign</a>
+        <a href="${opticUrl}" style="${btnStyle}">Source creators with Optic</a>
       </div>
+      <p style="text-align: center; margin: 0;">
+        <a href="${deploymentUrl}" style="${secondaryLinkStyle}">Or view your campaign</a>
+      </p>
       ${signature}
     `;
     break;
 
-  case 1: // Day 2 — managing applications
-    subject = `Creators are applying to "${gigTitle}" — here's how to manage them`;
-    content = `
-      <h1 style="color: #333; font-size: 22px;">Your first applications are in</h1>
-      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-      <p style="color: #555; line-height: 1.6;">Creators are discovering <strong>"${gigTitle}"</strong> in
-      the marketplace. Here's how the acceptance flow works:</p>
-      <ul style="color: #555; line-height: 2;">
-        <li>Open your campaign and scroll to the creator list</li>
-        <li>Review each applicant's profile, follower count, and engagement rate</li>
-        <li>Accept the creators you want — they'll be notified immediately and get access to submit work</li>
-      </ul>
-      <p style="color: #555; line-height: 1.6;">Tip: the best creators move fast and take multiple campaigns
-      at once. Fill your spots early.</p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${deploymentUrl}" style="${btnStyle}">Review Applications</a>
-      </div>
-      ${signature}
-    `;
+  case 1: // Day 2
+    if (!hasOpticMission) {
+      subject = `Still waiting on applicants for "${gigTitle}"? Source them with Optic`;
+      content = `
+        <h1 style="color: #333; font-size: 22px;">Don’t wait for the right creators to find you</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is live, but we haven’t
+        seen an Optic search tied to it yet. Marketplace applications are helpful — Optic is how
+        you go find creators who actually fit the brief.</p>
+        <ul style="color: #555; line-height: 2;">
+          <li>Pick Instagram, TikTok, YouTube, and more</li>
+          <li>Filter by audience size (nano → macro)</li>
+          <li>Get vault leads with ready-to-send outreach drafts</li>
+        </ul>
+        <p style="color: #555; line-height: 1.6;">A short batch (5–10 creators) is enough to start
+        filling spots this week.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${opticUrl}" style="${btnStyle}">Start an Optic mission</a>
+        </div>
+        <p style="text-align: center; margin: 0;">
+          <a href="${deploymentUrl}" style="${secondaryLinkStyle}">Review applications on your campaign</a>
+        </p>
+        ${signature}
+      `;
+    } else {
+      subject = `Creators for "${gigTitle}" — review applications & Optic leads`;
+      content = `
+        <h1 style="color: #333; font-size: 22px;">Your pipeline is moving</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;">You’ve already started sourcing for
+        <strong>"${gigTitle}"</strong> with Optic — nice. Here’s how to keep filling spots:</p>
+        <ul style="color: #555; line-height: 2;">
+          <li>Review Optic vault leads and send the drafted outreach</li>
+          <li>Accept marketplace applicants you like on the campaign page</li>
+          <li>Run another Optic batch if you still need more fits</li>
+        </ul>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${deploymentUrl}" style="${btnStyle}">Open your campaign</a>
+        </div>
+        <p style="text-align: center; margin: 0;">
+          <a href="${opticUrl}" style="${secondaryLinkStyle}">Run another Optic batch</a>
+        </p>
+        ${signature}
+      `;
+    }
     break;
 
-  case 2: // Day 4 — submissions and Verza Score
-    subject = "How submissions and the Verza Score work";
-    content = `
-      <h1 style="color: #333; font-size: 22px;">Your creators are submitting work</h1>
-      <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-      <p style="color: #555; line-height: 1.6;">Once a creator has claimed a spot in <strong>"${gigTitle}"</strong>,
-      they can upload their videos or links directly on the campaign page. Here's what you'll see:</p>
-      <ul style="color: #555; line-height: 2;">
-        <li><strong>Verza Score</strong> — an AI simulation of how the content performs with a real audience.
-        If you required a score threshold, creators must hit it before their submission counts</li>
-        <li><strong>AI Feedback</strong> — a breakdown of what's working and what isn't, so creators
-        can improve before resubmitting</li>
-        <li>You can see all scores and feedback before deciding to approve</li>
-      </ul>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${deploymentUrl}" style="${btnStyle}">Review Submissions</a>
-      </div>
-      ${signature}
-    `;
+  case 2: // Day 4
+    if (!hasOpticMission) {
+      subject = `Fill "${gigTitle}" before production stalls — Optic`;
+      content = `
+        <h1 style="color: #333; font-size: 22px;">Empty seats slow everything down</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;">It’s been a few days since
+        <strong>"${gigTitle}"</strong> went live, and there’s still no Optic mission for it.
+        Waiting on inbound applications alone often means under-filled campaigns and delayed
+        content.</p>
+        <p style="color: #555; line-height: 1.6;">Spend 10 minutes in Optic: attach this campaign,
+        run a small batch, and invite the best fits. That’s the path most brands use to hit
+        roster size on time.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${opticUrl}" style="${btnStyle}">Source with Optic now</a>
+        </div>
+        <p style="text-align: center; margin: 0;">
+          <a href="${deploymentUrl}" style="${secondaryLinkStyle}">View campaign</a>
+        </p>
+        ${signature}
+      `;
+    } else {
+      subject = "How submissions and the Verza Score work";
+      content = `
+        <h1 style="color: #333; font-size: 22px;">Your creators are submitting work</h1>
+        <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
+        <p style="color: #555; line-height: 1.6;">Once a creator has claimed a spot in <strong>"${gigTitle}"</strong>,
+        they can upload their videos or links directly on the campaign page. Here's what you'll see:</p>
+        <ul style="color: #555; line-height: 2;">
+          <li><strong>Verza Score</strong> — an AI simulation of how the content performs with a real audience.
+          If you required a score threshold, creators must hit it before their submission counts</li>
+          <li><strong>AI Feedback</strong> — a breakdown of what's working and what isn't, so creators
+          can improve before resubmitting</li>
+          <li>You can see all scores and feedback before deciding to approve</li>
+        </ul>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${deploymentUrl}" style="${btnStyle}">Review Submissions</a>
+        </div>
+        ${signature}
+      `;
+    }
     break;
 
   case 3: // Day 7 — approving and paying
@@ -1003,7 +1068,7 @@ export async function sendDeploymentEmailSequence(
       <ul style="color: #555; line-height: 2;">
         <li><strong>Clicks and conversions</strong> per creator — see who actually drove results</li>
         <li><strong>Earned rewards</strong> — tracked automatically against each creator's link</li>
-        <li>Use this data to know exactly who to bring back for your next campaign</li>
+        <li>Use this data to know exactly who to bring back for your next campaign — or source lookalikes in Optic</li>
       </ul>
       <p style="color: #555; line-height: 1.6;">The brands that win at performance marketing are the ones
       who double down on what worked. Your data is waiting.</p>
@@ -1074,6 +1139,9 @@ export async function sendDeploymentEmailSequence(
       subject,
       html,
       type: "deployment_onboarding",
+      gigId,
+      step,
+      hasOpticMission,
       timestamp: Timestamp.now(),
       status: "sent",
     });

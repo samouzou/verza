@@ -343,44 +343,66 @@ export async function enrichExtensionInstagramLead(
   const creatorName = profile.displayName?.trim() || profile.username;
   const followerCount = profile.followerCount?.trim() || "Unknown";
 
+  // Mirror optic-worker vision.ts brand + draft instructions so IG extension
+  // drafts match web-worker quality (text profile instead of screenshot).
   const brandBlock = brand
     ? `
-Brand context:
-- Agency: "${brand.agencyName}"
-${brand.brandSummary ? `- Brand summary: "${brand.brandSummary}"` : ""}
-${brand.paySourceCampaignTitle ? `- Campaign: "${brand.paySourceCampaignTitle}"` : ""}
-${brand.campaignPaySummary ? `- Pay facts: ${brand.campaignPaySummary}` : ""}
-${isCauseOrBarter(brand.paySourceCampaignType) ? "- This is a cause/barter campaign — do not imply cash pay unless stated in pay facts." : ""}
-`
-    : "";
+    Outreach sender context (use for draft tone and sign-off; do not invent a different company name):
+    - Agency / team name: "${brand.agencyName}"
+    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
+    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    ${
+      brand.campaignPaySummary
+        ? isCauseOrBarter(brand.paySourceCampaignType)
+          ? `
+    Campaign partnership context (this outreach is for a cause or in-kind style campaign — do not imply a cash sponsorship unless the facts below include an explicit USD per-creator amount):
+    ${brand.campaignPaySummary}
+
+    In drafts: Do not use the words "compensation", "fee", "rate", "paid", or "dollars" in a way that suggests cash payment unless a concrete USD per-creator figure appears in the facts above. Frame the opportunity around mission alignment${
+            brand.paySourceCampaignType === "barter_campaign" ? " or a mutually agreed product/exchange" : ""
+          }. You may invite them to review details on Verza; do not suggest they will receive a cash payout unless the facts state it clearly.
+    `
+          : `
+    Pay transparency (from their live Verza campaigns — creators often ignore outreach when budget is unclear):
+    ${brand.campaignPaySummary}
+
+    In drafts: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers. If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list. If any line describes a cause or in-kind barter with no USD figure, do not imply cash compensation for that campaign.
+    `
+        : ""
+    }
+
+    Drafts must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where natural, align with Campaign Objectives, and invite the creator to learn more.
+    `
+    : `
+    Drafts invite the creator to explore the Verza network, aligned with Campaign Objectives.
+    `;
 
   const prompt = `
-You are helping a brand outreach scout on Instagram.
+    You are an elite marketing agent powering Verza Optic.
+    Write personalized Instagram outreach for this creator based on Campaign Objectives:
+    "${objectives}"
+    ${brandBlock}
 
-Campaign objectives: "${objectives}"
-${brandBlock}
+    Creator profile (scraped from a logged-in Instagram session — treat these fields as ground truth; do not invent contact info):
+    - Username: @${profile.username}
+    - Display name: ${creatorName}
+    - Followers: ${followerCount}
+    - Bio: ${profile.bio || "(empty)"}
+    - External link: ${profile.externalUrl || "(none)"}
+    - Email visible in bio: ${emailFromBio || "(none)"}
+    - Posts: ${profile.postCount || "(unknown)"}
 
-Creator profile (scraped from their logged-in Instagram session):
-- Username: @${profile.username}
-- Display name: ${creatorName}
-- Followers: ${followerCount}
-- Bio: ${profile.bio || "(empty)"}
-- External link: ${profile.externalUrl || "(none)"}
-- Email visible in bio: ${emailFromBio || "(none)"}
+    Return strictly a JSON object with these keys:
+    1. niche (string, e.g. tech, beauty, gaming)
+    2. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    3. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
+    4. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint("instagram")} Personalized pitch the brand can paste into Instagram DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
 
-Return STRICT JSON only (no markdown) with keys:
-{
-  "niche": "short niche label",
-  "draftEmail": string or null,
-  "draftEmailSubject": string or null,
-  "draftDm": string or null
-}
+    If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
 
-Rules:
-- If email is visible in bio, write draftEmail + draftEmailSubject and set draftDm to null.
-- If no email, set draftEmail and draftEmailSubject to null and write draftDm (${dmStyleHint("instagram")}).
-- Do not invent contact info not present in the profile.
-`;
+    Personalize using the bio and display name where natural. Do not invent emails, follower counts, or facts not listed above.
+    Do not include markdown outside the JSON. Use null for unknown fields.
+  `;
 
   const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);

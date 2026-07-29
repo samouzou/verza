@@ -444,8 +444,25 @@ export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", asy
       const ownerData = ownerSnap.data() as UserProfileFirestoreData;
       if (!ownerData.email) continue;
 
+      // Optic follow-ups (steps 1–2) change copy when the brand already sourced for this campaign.
+      let hasOpticMission = false;
+      try {
+        const opticSnap = await db.collection("optic_jobs")
+          .where("campaignId", "==", gigDoc.id)
+          .limit(1)
+          .get();
+        hasOpticMission = !opticSnap.empty;
+      } catch (opticErr) {
+        logger.warn(`Could not check Optic jobs for gig ${gigDoc.id}:`, opticErr);
+      }
+
       await sendDeploymentEmailSequence(
-        ownerData.email, ownerData.displayName || "there", gig.title, gigDoc.id, step
+        ownerData.email,
+        ownerData.displayName || "there",
+        gig.title,
+        gigDoc.id,
+        step,
+        {hasOpticMission}
       );
 
       const nextStep = step + 1;

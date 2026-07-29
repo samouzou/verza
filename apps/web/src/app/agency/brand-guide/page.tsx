@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle, Target } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle, Target, Globe, Wand2 } from 'lucide-react';
+import { db, functions } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import type { Agency, BrandGuide } from '@/types';
 import { MediaUpload } from '@/components/ui/media-upload';
@@ -23,11 +24,30 @@ import {
   DialogTrigger 
 } from '@/components/ui/dialog';
 
+type BrandGuideSuggestion = {
+  success: boolean;
+  brandName?: string;
+  guide: Partial<BrandGuide> & {
+    missionStatement?: string;
+    toneOfVoice?: string;
+    typography?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    accentColor?: string;
+    neutralColor?: string;
+    logoUrl?: string;
+    dos?: string[];
+    donts?: string[];
+  };
+};
+
 export default function BrandGuidePage() {
   const { user, isLoading: authLoading } = useAuth();
   const [agency, setAgency] = useState<Agency | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const { toast } = useToast();
 
@@ -100,6 +120,59 @@ export default function BrandGuidePage() {
     }
   };
 
+  const handleLookupFromUrl = async () => {
+    const url = websiteUrl.trim();
+    if (!url) {
+      toast({
+        title: "Add a website",
+        description: "Paste your brand homepage URL first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLookingUp(true);
+    try {
+      const suggest = httpsCallable(functions, "suggestBrandGuideFromUrl");
+      const res = await suggest({ brandUrl: url });
+      const data = res.data as BrandGuideSuggestion;
+      if (!data?.success || !data.guide) {
+        throw new Error("No brand details came back.");
+      }
+
+      setGuide((prev) => ({
+        ...prev,
+        missionStatement: data.guide.missionStatement || prev.missionStatement,
+        toneOfVoice: data.guide.toneOfVoice || prev.toneOfVoice,
+        typography: data.guide.typography || prev.typography,
+        primaryColor: data.guide.primaryColor || prev.primaryColor,
+        secondaryColor: data.guide.secondaryColor || prev.secondaryColor,
+        accentColor: data.guide.accentColor || prev.accentColor,
+        neutralColor: data.guide.neutralColor || prev.neutralColor,
+        logoUrl: data.guide.logoUrl || prev.logoUrl,
+        dos: data.guide.dos?.length ? data.guide.dos : prev.dos,
+        donts: data.guide.donts?.length ? data.guide.donts : prev.donts,
+      }));
+
+      toast({
+        title: data.brandName ? `Drafted from ${data.brandName}` : "Brand draft ready",
+        description: "Review the fields below, edit anything, then save.",
+      });
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: string }).message)
+          : "Could not look up that website.";
+      toast({
+        title: "Lookup failed",
+        description: message.replace(/^Firebase:\s*/i, "").replace(/\s*\([^)]*\)\.?$/, ""),
+        variant: "destructive",
+      });
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const addItem = (field: 'dos' | 'donts') => {
     setGuide({ ...guide, [field]: [...(guide[field] || []), ''] });
   };
@@ -141,6 +214,54 @@ export default function BrandGuidePage() {
       <div className="flex-1 flex gap-8 overflow-hidden pt-4">
         {/* Left Side: Configuration (Scrollable) */}
         <div className="flex-1 overflow-y-auto pr-4 space-y-6 pb-20 scrollbar-thin">
+           <Card className="border border-border/80 bg-muted/30 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                  <Globe className="h-5 w-5 text-primary" />
+                  Start from your website
+                </CardTitle>
+                <CardDescription>
+                  Paste your homepage and we&apos;ll draft colors, voice, mission, and do&apos;s / don&apos;ts.
+                  Everything stays editable — nothing saves until you hit Save Changes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Label htmlFor="brand-website-url" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Website URL
+                </Label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="brand-website-url"
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://yourbrand.com"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleLookupFromUrl();
+                      }
+                    }}
+                    disabled={lookingUp}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => void handleLookupFromUrl()}
+                    disabled={lookingUp || !websiteUrl.trim()}
+                    className="sm:shrink-0"
+                  >
+                    {lookingUp ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="mr-2 h-4 w-4" />
+                    )}
+                    {lookingUp ? "Looking up…" : "Look up branding"}
+                  </Button>
+                </div>
+              </CardContent>
+           </Card>
+
            {/* Visual Identity */}
            <Card className="border-none shadow-none bg-transparent">
               <CardHeader className="px-0">

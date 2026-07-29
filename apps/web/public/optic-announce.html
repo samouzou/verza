@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza Optic — Announcement animation</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #050806;
+      color: var(--paper);
+      font-family: "DM Sans", system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.25rem 1rem 2rem;
+    }
+
+    .toolbar {
+      width: min(1120px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .toolbar .copy h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      font-size: 1.45rem;
+      letter-spacing: -0.02em;
+    }
+
+    .toolbar .copy p {
+      color: var(--mist);
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .actions button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.65rem 1.1rem;
+      border-radius: 999px;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+    }
+
+    .actions button.secondary {
+      background: transparent;
+      color: var(--paper);
+      border: 1px solid rgba(152, 162, 156, 0.35);
+    }
+
+    .actions button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .status {
+      font-size: 0.78rem;
+      color: var(--mist);
+      min-width: 7rem;
+    }
+
+    .stage-wrap {
+      width: min(1120px, 100%);
+      aspect-ratio: 16 / 9;
+      border-radius: 0.85rem;
+      overflow: hidden;
+      background: #000;
+      box-shadow:
+        0 0 0 1px rgba(152, 162, 156, 0.14),
+        0 32px 80px rgba(0, 0, 0, 0.55);
+      position: relative;
+    }
+
+    .stage-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #0B100E;
+    }
+
+    .hint {
+      width: min(1120px, 100%);
+      font-size: 0.8rem;
+      color: rgba(150, 162, 156, 0.9);
+      line-height: 1.45;
+    }
+
+    .hint a { color: var(--emerald); }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="copy">
+      <h1>Optic announcement</h1>
+      <p>Landscape 1920×1080 · ~22s · silent WebM download</p>
+    </div>
+    <div class="actions">
+      <span class="status" id="status">Loading assets…</span>
+      <button type="button" class="secondary" id="btn-play" disabled>Play</button>
+      <button type="button" id="btn-download" disabled>Download video</button>
+    </div>
+  </div>
+
+  <div class="stage-wrap">
+    <canvas id="stage" width="1920" height="1080" aria-label="Verza Optic announcement animation"></canvas>
+  </div>
+
+  <p class="hint">
+    Preview plays in the browser. Hero + top mission card use stills;
+    vault keeps <code>optic-vault.mov</code>; outreach stays the static draft image.
+    Download records the same timeline to
+    <strong>verza-optic-announce.webm</strong> (Chrome recommended for .mov playback).
+    Store graphics: <a href="/optic-extension-store.html">optic-extension-store.html</a>.
+  </p>
+
+  <script>
+    (function () {
+      const W = 1920;
+      const H = 1080;
+      const DURATION = 22;
+      const FPS = 30;
+
+      const canvas = document.getElementById("stage");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const statusEl = document.getElementById("status");
+      const btnPlay = document.getElementById("btn-play");
+      const btnDownload = document.getElementById("btn-download");
+
+      const assets = {
+        full: null, // optic-full-capture.png (right hero)
+        progress: null, // starting-mission-snippet.png (top left)
+        vault: null, // optic-vault.mov (bottom left)
+        outreach: null, // optic-outreach-snipet.png
+      };
+
+      let fontsReady = false;
+      let playing = false;
+      let recording = false;
+      let rafId = 0;
+      let playStart = 0;
+      let playOffset = 0;
+
+      function clamp(v, a, b) {
+        return Math.max(a, Math.min(b, v));
+      }
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function easeInOut(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      }
+
+      /** Segment progress 0–1 inside [start, end] seconds. */
+      function seg(t, start, end) {
+        if (t <= start) return 0;
+        if (t >= end) return 1;
+        return (t - start) / (end - start);
+      }
+
+      function loadImage(src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.decoding = "async";
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error("Failed to load " + src));
+          img.src = src;
+        });
+      }
+
+      function loadVideo(src) {
+        return new Promise((resolve, reject) => {
+          const v = document.createElement("video");
+          v.muted = true;
+          v.playsInline = true;
+          v.preload = "auto";
+          v.crossOrigin = "anonymous";
+          const onReady = () => {
+            v.removeEventListener("loadeddata", onReady);
+            resolve(v);
+          };
+          v.addEventListener("loadeddata", onReady);
+          v.addEventListener("error", () => reject(new Error("Failed to load " + src)));
+          v.src = src;
+          v.load();
+        });
+      }
+
+      function mediaSize(media) {
+        if (!media) return { w: 1, h: 1 };
+        if (media.videoWidth) return { w: media.videoWidth, h: media.videoHeight };
+        return { w: media.width || 1, h: media.height || 1 };
+      }
+
+      function videoLocalTime(video, localT) {
+        if (!video) return 0;
+        const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+        return clamp(localT, 0, Math.max(0, dur - 0.04));
+      }
+
+      /** Preview: play/pause vault clip so canvas can sample live frames. */
+      function syncVideosPreview(t) {
+        const v = assets.vault;
+        if (!v) return;
+        const active = t >= 13.0 && t < 17.8;
+        if (!active) {
+          if (!v.paused) v.pause();
+          return;
+        }
+        const local = videoLocalTime(v, t - 13.0);
+        if (v.paused) {
+          try {
+            v.currentTime = local;
+          } catch (_) {}
+          v.play().catch(() => {});
+        } else if (Math.abs(v.currentTime - local) > 0.4) {
+          try {
+            v.currentTime = local;
+          } catch (_) {}
+        }
+      }
+
+      function pauseAllVideos() {
+        const v = assets.vault;
+        if (v && !v.paused) v.pause();
+      }
+
+      async function seekVideo(video, localT) {
+        if (!video) return;
+        const target = videoLocalTime(video, localT);
+        if (Math.abs(video.currentTime - target) < 0.025) return;
+        await new Promise((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            video.removeEventListener("seeked", finish);
+            resolve();
+          };
+          video.addEventListener("seeked", finish);
+          try {
+            video.currentTime = target;
+          } catch (_) {
+            finish();
+            return;
+          }
+          setTimeout(finish, 120);
+        });
+      }
+
+      async function syncVideosRecord(t) {
+        if (t >= 13.0 && t < 17.8 && assets.vault) {
+          await seekVideo(assets.vault, t - 13.0);
+        }
+      }
+
+      async function boot() {
+        try {
+          await document.fonts.load("700 48px 'DM Sans'");
+          await document.fonts.load("600 48px 'DM Sans'");
+          await document.fonts.load("400 72px 'Instrument Serif'");
+          fontsReady = true;
+        } catch (_) {
+          fontsReady = true;
+        }
+
+        statusEl.textContent = "Loading assets…";
+        const [full, progress, vault, outreach] = await Promise.all([
+          loadImage("/optic-full-capture.png"),
+          loadImage("/starting-mission-snippet.png"),
+          loadVideo("/optic-vault.mov"),
+          loadImage("/optic-outreach-snipet.png"),
+        ]);
+        assets.full = full;
+        assets.progress = progress;
+        assets.vault = vault;
+        assets.outreach = outreach;
+
+        statusEl.textContent = "Ready";
+        btnPlay.disabled = false;
+        btnDownload.disabled = false;
+        drawFrame(0);
+      }
+
+      function drawAtmosphere(t) {
+        const g = ctx.createLinearGradient(0, 0, W * 0.35, H);
+        g.addColorStop(0, "#07110d");
+        g.addColorStop(0.45, "#0B100E");
+        g.addColorStop(1, "#0f1c17");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        // Left emerald bloom
+        const pulse = 0.85 + 0.15 * Math.sin(t * 1.4);
+        const lg = ctx.createRadialGradient(
+          W * 0.18, H * 0.32, 0,
+          W * 0.18, H * 0.32, W * 0.42
+        );
+        lg.addColorStop(0, `rgba(22, 192, 136, ${0.38 * pulse})`);
+        lg.addColorStop(1, "rgba(22, 192, 136, 0)");
+        ctx.fillStyle = lg;
+        ctx.fillRect(0, 0, W, H);
+
+        // Right softer bloom (stronger mid-film)
+        const rightAmp = 0.12 + 0.18 * seg(t, 6, 12);
+        const rg = ctx.createRadialGradient(
+          W * 0.78, H * 0.48, 0,
+          W * 0.78, H * 0.48, W * 0.4
+        );
+        rg.addColorStop(0, `rgba(22, 192, 136, ${rightAmp})`);
+        rg.addColorStop(1, "rgba(22, 192, 136, 0)");
+        ctx.fillStyle = rg;
+        ctx.fillRect(0, 0, W, H);
+
+        // Technical grid
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, W, H);
+        ctx.clip();
+        ctx.globalAlpha = 0.045;
+        ctx.strokeStyle = "#E8EEEA";
+        ctx.lineWidth = 1;
+        const step = 48;
+        for (let x = 0; x <= W; x += step) {
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, 0);
+          ctx.lineTo(x + 0.5, H);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= H; y += step) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + 0.5);
+          ctx.lineTo(W, y + 0.5);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      /** Draw Verza V chevron centered at (cx, cy) with given width. */
+      function drawV(cx, cy, width, alpha, scale) {
+        const s = scale || 1;
+        const w = width * s;
+        const h = w * (219 / 304);
+        const stroke = w * (48 / 304);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(cx, cy);
+        ctx.beginPath();
+        // Path in local coords matching SVG viewBox scaled
+        const sx = w / 304;
+        const sy = h / 219;
+        ctx.moveTo((24 - 152) * sx, (24 - 109.5) * sy);
+        ctx.lineTo(0, (194.666 - 109.5) * sy);
+        ctx.lineTo((280 - 152) * sx, (24 - 109.5) * sy);
+        const grad = ctx.createLinearGradient((-128) * sx, 0, (128) * sx, 0);
+        grad.addColorStop(0, "#0E7C5A");
+        grad.addColorStop(1, "#16C088");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = stroke;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawRoundedMedia(media, x, y, w, h, r, alpha, shadow) {
+        if (!media) return;
+        const { w: iw, h: ih } = mediaSize(media);
+        if (!iw || !ih) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        if (shadow) {
+          ctx.shadowColor = "rgba(0,0,0,0.45)";
+          ctx.shadowBlur = 40;
+          ctx.shadowOffsetY = 18;
+        }
+        ctx.beginPath();
+        const rr = Math.min(r, w / 2, h / 2);
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+        ctx.clip();
+        const ir = iw / ih;
+        const br = w / h;
+        let dw = w, dh = h, dx = x, dy = y;
+        if (ir > br) {
+          dw = h * ir;
+          dx = x - (dw - w) / 2;
+        } else {
+          dh = w / ir;
+          dy = y - (dh - h) / 2;
+        }
+        ctx.drawImage(media, dx, dy, dw, dh);
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.strokeStyle = "rgba(232, 238, 234, 0.18)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawFrame(tRaw) {
+        const t = clamp(tRaw, 0, DURATION);
+        drawAtmosphere(t);
+
+        // Shared lockup geometry (intro settle = outro end card)
+        const lockVx = W * 0.38;
+        const lockVy = H * 0.44;
+        const lockVSize = 160;
+        const lockTextX = lockVx + 110;
+        const lockTextY = lockVy;
+
+        // —— 0–3s: V mark ——
+        const vIn = easeOutCubic(seg(t, 0.35, 2.4));
+        const vHold = 1 - easeInOut(seg(t, 5.6, 7.2)) * 0.15;
+        const vAlpha = vIn * (t < 20.2 ? 1 : 1 - seg(t, 20.2, 20.8));
+        // Early: center large V; later: settle into outro lockup position
+        const vToLock = easeInOut(seg(t, 2.8, 4.2));
+        const vCx = W * 0.5 + (lockVx - W * 0.5) * vToLock;
+        const vCy = H * 0.46 + (lockVy - H * 0.46) * vToLock;
+        const vSize = 280 + (lockVSize - 280) * vToLock;
+        if (vAlpha > 0.01 && t < 20.4) {
+          drawV(vCx, vCy, vSize, vAlpha * vHold, 0.92 + 0.08 * vIn);
+        }
+
+        // —— 3–6s: Wordmark (same spacing/size as outro) ——
+        const verzaIn = easeOutCubic(seg(t, 3.0, 4.2));
+        const opticIn = easeOutCubic(seg(t, 3.8, 5.0));
+        const markFade = t < 8.6 ? 1 : 1 - easeInOut(seg(t, 8.6, 9.4));
+
+        if ((verzaIn > 0 || opticIn > 0) && markFade > 0.01 && t < 9.5) {
+          ctx.save();
+          ctx.font = "700 64px 'DM Sans', system-ui, sans-serif";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#F4F7F5";
+          const verza = "Verza";
+          const optic = "Optic";
+          const gap = 16;
+          const verzaW = ctx.measureText(verza).width;
+          ctx.globalAlpha = markFade * verzaIn;
+          ctx.fillText(verza, lockTextX, lockTextY);
+          ctx.globalAlpha = markFade * opticIn;
+          ctx.fillStyle = "#16C088";
+          ctx.shadowColor = "rgba(22, 192, 136, 0.35)";
+          ctx.shadowBlur = 24;
+          ctx.fillText(optic, lockTextX + verzaW + gap, lockTextY);
+          ctx.restore();
+        }
+
+        // —— 6–9s: Tagline ——
+        const tagIn = easeOutCubic(seg(t, 6.0, 7.2));
+        const tagOut = 1 - easeInOut(seg(t, 8.7, 9.5));
+        const tagA = tagIn * tagOut;
+        if (tagA > 0.01) {
+          ctx.save();
+          ctx.globalAlpha = tagA;
+          ctx.font = "400 56px 'Instrument Serif', Georgia, serif";
+          ctx.fillStyle = "#E8EEEA";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const ty = H * 0.62 + (1 - tagIn) * 24;
+          ctx.fillText("Scout creators. Draft outreach. Fill the vault.", W / 2, ty);
+          ctx.restore();
+        }
+
+        // —— 9–13s (+ hold): Main UI screenshot ——
+        const mainIn = easeOutCubic(seg(t, 9.2, 10.8));
+        const mainOut = 1 - easeInOut(seg(t, 16.6, 17.6));
+        const mainA = mainIn * (t < 16.6 ? 1 : mainOut);
+        if (mainA > 0.01 && assets.full) {
+          const mw = 980;
+          const mh = 620;
+          const mx = W - mw - 72 + (1 - mainIn) * 80;
+          const my = 120 + (1 - mainIn) * 40;
+          const dim = 1 - 0.35 * seg(t, 13.0, 14.0);
+          drawRoundedMedia(assets.full, mx, my, mw, mh, 22, mainA * dim, true);
+        }
+
+        // —— 13–17s: Mission screenshot + vault recording ——
+        const sideIn = easeOutCubic(seg(t, 13.0, 14.4));
+        const sideOut = 1 - easeInOut(seg(t, 16.8, 17.8));
+        const sideA = sideIn * sideOut;
+        if (sideA > 0.01) {
+          const cardW = 440;
+          const cardH = 290;
+          drawRoundedMedia(
+            assets.progress,
+            64 - (1 - sideIn) * 60,
+            180,
+            cardW,
+            cardH,
+            18,
+            sideA,
+            true
+          );
+          drawRoundedMedia(
+            assets.vault,
+            100 - (1 - sideIn) * 40,
+            500,
+            cardW * 0.96,
+            cardH * 0.88,
+            18,
+            sideA * 0.98,
+            true
+          );
+
+          ctx.save();
+          ctx.globalAlpha = sideA;
+          ctx.font = "600 22px 'DM Sans', system-ui, sans-serif";
+          ctx.fillStyle = "#16C088";
+          ctx.fillText("MISSIONS + VAULT", 64, 150);
+          ctx.restore();
+        }
+
+        // —— 17–20s: Outreach (static image) ——
+        const outIn = easeOutCubic(seg(t, 17.2, 18.4));
+        const outOut = 1 - easeInOut(seg(t, 19.6, 20.4));
+        const outA = outIn * outOut;
+        if (outA > 0.01 && assets.outreach) {
+          const ow = 640;
+          const oh = 360;
+          drawRoundedMedia(
+            assets.outreach,
+            (W - ow) / 2,
+            H * 0.28 - (1 - outIn) * 30,
+            ow,
+            oh,
+            20,
+            outA,
+            true
+          );
+          ctx.save();
+          ctx.globalAlpha = outA;
+          ctx.font = "400 36px 'Instrument Serif', Georgia, serif";
+          ctx.fillStyle = "#E8EEEA";
+          ctx.textAlign = "center";
+          ctx.fillText("Tailored outreach drafts — ready to send.", W / 2, H * 0.72);
+          ctx.restore();
+        }
+
+        // —— 20–22s: End card ——
+        const endIn = easeOutCubic(seg(t, 20.0, 21.0));
+        if (endIn > 0.01) {
+          // Soft vignette plate
+          ctx.save();
+          ctx.globalAlpha = endIn * 0.55;
+          ctx.fillStyle = "#050806";
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+
+          drawV(lockVx, lockVy, lockVSize, endIn, 1);
+
+          ctx.save();
+          ctx.globalAlpha = endIn;
+          ctx.font = "700 64px 'DM Sans', system-ui, sans-serif";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#F4F7F5";
+          const ex = lockTextX;
+          const ey = lockTextY;
+          ctx.fillText("Verza", ex, ey);
+          const vw = ctx.measureText("Verza").width;
+          ctx.fillStyle = "#16C088";
+          ctx.shadowColor = "rgba(22, 192, 136, 0.4)";
+          ctx.shadowBlur = 20;
+          ctx.fillText("Optic", ex + vw + 16, ey);
+          ctx.shadowBlur = 0;
+
+          ctx.font = "500 26px 'DM Sans', system-ui, sans-serif";
+          ctx.fillStyle = "#96A29C";
+          ctx.textAlign = "center";
+          ctx.fillText("tryverza.com/products/optic", W / 2, H * 0.62);
+          ctx.font = "600 20px 'DM Sans', system-ui, sans-serif";
+          ctx.fillStyle = "rgba(22, 192, 136, 0.95)";
+          ctx.fillText("Creator discovery for brands", W / 2, H * 0.68);
+          ctx.restore();
+        }
+
+        // Progress bar (preview only — still fine in export as subtle)
+        if (!recording) {
+          ctx.save();
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = "rgba(232,238,234,0.15)";
+          ctx.fillRect(48, H - 28, W - 96, 4);
+          ctx.fillStyle = "#16C088";
+          ctx.fillRect(48, H - 28, (W - 96) * (t / DURATION), 4);
+          ctx.restore();
+        }
+      }
+
+      function startPlay() {
+        if (recording) return;
+        cancelAnimationFrame(rafId);
+        playing = true;
+        playOffset = 0;
+        playStart = performance.now();
+        btnPlay.textContent = "Playing…";
+        btnPlay.disabled = true;
+        btnDownload.disabled = true;
+
+        function onTick(now) {
+          if (!playing) return;
+          const t = playOffset + (now - playStart) / 1000;
+          if (t >= DURATION) {
+            pauseAllVideos();
+            drawFrame(DURATION);
+            playing = false;
+            statusEl.textContent = "Done";
+            btnPlay.textContent = "Play";
+            btnPlay.disabled = false;
+            btnDownload.disabled = false;
+            return;
+          }
+          syncVideosPreview(t);
+          drawFrame(t);
+          statusEl.textContent = t.toFixed(1) + "s / " + DURATION + "s";
+          rafId = requestAnimationFrame(onTick);
+        }
+        rafId = requestAnimationFrame(onTick);
+      }
+
+      function pickMime() {
+        const candidates = [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+        ];
+        for (const c of candidates) {
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+        }
+        return "video/webm";
+      }
+
+      async function downloadVideo() {
+        if (recording || !window.MediaRecorder) {
+          alert("MediaRecorder is not available in this browser. Try Chrome.");
+          return;
+        }
+        cancelAnimationFrame(rafId);
+        playing = false;
+        pauseAllVideos();
+        recording = true;
+        btnPlay.disabled = true;
+        btnDownload.disabled = true;
+        btnDownload.textContent = "Recording…";
+        statusEl.textContent = "Recording 0s…";
+
+        const stream = canvas.captureStream(FPS);
+        const mime = pickMime();
+        const chunks = [];
+        let recorder;
+        try {
+          recorder = new MediaRecorder(stream, {
+            mimeType: mime,
+            videoBitsPerSecond: 8_000_000,
+          });
+        } catch (_) {
+          recorder = new MediaRecorder(stream);
+        }
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size) chunks.push(e.data);
+        };
+
+        const done = new Promise((resolve) => {
+          recorder.onstop = resolve;
+        });
+
+        recorder.start(100);
+
+        const frameCount = Math.round(DURATION * FPS);
+        const frameMs = 1000 / FPS;
+        const t0 = performance.now();
+
+        for (let i = 0; i <= frameCount; i++) {
+          const t = Math.min(i / FPS, DURATION);
+          await syncVideosRecord(t);
+          drawFrame(t);
+          statusEl.textContent = "Recording " + t.toFixed(1) + "s…";
+          const target = t0 + i * frameMs;
+          const wait = target - performance.now();
+          if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+          else await new Promise((r) => requestAnimationFrame(r));
+        }
+
+        pauseAllVideos();
+        recorder.stop();
+        stream.getTracks().forEach((tr) => tr.stop());
+        await done;
+
+        const blob = new Blob(chunks, { type: mime.split(";")[0] });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "verza-optic-announce.webm";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+        recording = false;
+        btnDownload.textContent = "Download video";
+        btnDownload.disabled = false;
+        btnPlay.disabled = false;
+        statusEl.textContent = "Downloaded · " + Math.round(blob.size / 1024) + " KB";
+        drawFrame(DURATION);
+      }
+
+      btnPlay.addEventListener("click", startPlay);
+      btnDownload.addEventListener("click", () => {
+        void downloadVideo();
+      });
+
+      boot().catch((err) => {
+        console.error(err);
+        statusEl.textContent = "Failed to load assets (use Chrome for .mov)";
+      });
+    })();
+  </script>
+</body>
+</html>

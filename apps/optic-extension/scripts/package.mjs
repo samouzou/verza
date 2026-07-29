@@ -20,7 +20,7 @@ execSync("node scripts/build.mjs", { cwd: root, stdio: "inherit" });
 rmSync(staging, { recursive: true, force: true });
 mkdirSync(staging, { recursive: true });
 
-for (const path of ["dist", "popup"]) {
+for (const path of ["dist", "popup", "icons"]) {
   cpSync(join(root, path), join(staging, path), { recursive: true });
 }
 cpSync(join(root, "manifest.prod.json"), join(staging, "manifest.json"));

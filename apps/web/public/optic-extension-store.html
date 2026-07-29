@@ -272,30 +272,141 @@
       font-weight: 600;
     }
 
-    /* —— Icon 128×128 —— */
+    /* —— Icon 128×128 —— launch art with soft corners baked into PNG —— */
     #icon {
       width: 128px;
       height: 128px;
-      border-radius: 28px;
-      background:
-        radial-gradient(ellipse 80% 70% at 30% 25%, rgba(22, 192, 136, 0.35), transparent 60%),
-        linear-gradient(160deg, #07110d 0%, #0B100E 55%, #0f1c17 100%);
+      border-radius: 0;
+      overflow: visible;
+      background: transparent !important;
+      box-shadow: none;
     }
 
-    #icon::before { display: none; }
+    #icon::before {
+      display: none !important;
+      content: none !important;
+    }
 
-    #icon .mark {
+    #icon img.icon-asset {
       position: absolute;
-      inset: 16px;
-      display: grid;
-      place-items: center;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
       z-index: 2;
+      /* PNG already has rounded transparent corners — don't double-clip */
+      border-radius: 0;
+      filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.35));
     }
 
-    #icon .mark img {
-      width: 78%;
+    #icon .mark { display: none; }
+
+    /* —— Verza Optic logo lockups (no Scout) —— */
+    #logo-optic,
+    #logo-optic-clear {
+      width: 720px;
+      height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 1.35rem;
+    }
+
+    /* Dark plate — match launch lockup: framed plate, soft grid, left glow + right streak */
+    #logo-optic {
+      background:
+        radial-gradient(ellipse 55% 80% at 18% 35%, rgba(22, 192, 136, 0.42), transparent 62%),
+        radial-gradient(ellipse 48% 55% at 78% 48%, rgba(22, 192, 136, 0.18), transparent 70%),
+        linear-gradient(160deg, #07110d 0%, #0B100E 48%, #0d1612 100%) !important;
+      box-shadow:
+        0 0 0 1px rgba(152, 162, 156, 0.14),
+        inset 0 0 0 10px #050806,
+        0 28px 56px rgba(0, 0, 0, 0.45);
+    }
+
+    #logo-optic::before {
+      display: block !important;
+      content: "" !important;
+      background-image:
+        linear-gradient(rgba(232, 238, 234, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232, 238, 234, 0.045) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse 85% 75% at 50% 45%, black, transparent 78%);
+      opacity: 1;
+    }
+
+    #logo-optic .glow.plate-left {
+      top: -18%;
+      left: -8%;
+      width: 52%;
+      height: 70%;
+      background: radial-gradient(circle, rgba(22, 192, 136, 0.45), transparent 68%);
+      filter: blur(36px);
+      opacity: 0.95;
+    }
+
+    #logo-optic .glow.plate-right {
+      top: 18%;
+      right: -6%;
+      left: auto;
+      width: 46%;
+      height: 58%;
+      background: radial-gradient(ellipse, rgba(22, 192, 136, 0.28), transparent 72%);
+      filter: blur(42px);
+      opacity: 0.85;
+    }
+
+    #logo-optic-clear {
+      background: transparent !important;
+      box-shadow: none;
+    }
+
+    #logo-optic-clear::before {
+      display: none !important;
+      content: none !important;
+    }
+
+    .logo-lockup {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 1.15rem;
+    }
+
+    .logo-lockup img {
+      width: 3.85rem;
       height: auto;
-      filter: drop-shadow(0 4px 12px rgba(14, 124, 90, 0.45));
+      flex-shrink: 0;
+      filter: drop-shadow(0 6px 18px rgba(14, 124, 90, 0.55));
+    }
+
+    .logo-lockup span {
+      font-weight: 700;
+      font-size: 2.65rem;
+      letter-spacing: -0.035em;
+      line-height: 1;
+      color: #f4f7f5;
+      text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .logo-lockup em {
+      font-style: normal;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-left: 0.22rem;
+      text-shadow: 0 0 28px rgba(22, 192, 136, 0.35);
+    }
+
+    .logo-pair {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .logo-pair .stage {
+      flex: 1 1 340px;
     }
 
     /* —— Small promo 440×280 —— */
@@ -524,6 +635,7 @@
         <p>
           Same visual language as the Optic launch square. Download each PNG at the exact
           size Chrome asks for, then upload them in the Developer Dashboard listing tab.
+          Also: <a href="/optic-announce.html" style="color:#16C088">announcement animation</a> (22s landscape WebM).
         </p>
       </div>
       <div class="checklist">
@@ -532,7 +644,8 @@
         2. Small promo tile — 440×280<br />
         3. Marquee promo — 1400×560<br />
         4–6. Three screenshots — 1280×800<br />
-        Optional later: a short Loom walkthrough as the promo video.
+        Optional later: a short Loom walkthrough as the promo video.<br />
+        Bonus: Verza Optic logo lockups (no Scout) below.
       </div>
     </header>
 
@@ -542,14 +655,50 @@
         <div class="card-head">
           <div>
             <h2>Store icon</h2>
-            <p class="meta">128×128 · required · 16px padding around the mark</p>
+            <p class="meta">128×128 · launch Verza V + soft rounded corners</p>
           </div>
           <button type="button" data-target="icon" data-name="verza-optic-scout-icon-128.png">Download PNG</button>
         </div>
         <div class="stage">
           <div class="artboard" id="icon" aria-label="Store icon">
-            <div class="mark">
-              <img src="/verza-icon.svg" alt="" width="96" height="69" />
+            <img class="icon-asset" src="/optic-scout-icon-128.png" alt="Verza Optic Scout icon" width="128" height="128" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Verza Optic logo (product — no Scout) -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Verza Optic logo</h2>
+            <p class="meta">Same lockup as the launch graphics · V mark + wordmark · Scout not included</p>
+          </div>
+        </div>
+        <div class="logo-pair">
+          <div class="stage">
+            <div class="card-head" style="margin-bottom: 0.55rem;">
+              <p class="meta">720×240 · dark plate</p>
+              <button type="button" data-target="logo-optic" data-name="verza-optic-logo-720x240.png">Download PNG</button>
+            </div>
+            <div class="artboard" id="logo-optic" aria-label="Verza Optic logo on dark">
+              <div class="glow plate-left" aria-hidden="true"></div>
+              <div class="glow plate-right" aria-hidden="true"></div>
+              <div class="logo-lockup">
+                <img src="/verza-icon.svg" alt="" width="62" height="45" />
+                <span>Verza <em>Optic</em></span>
+              </div>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="card-head" style="margin-bottom: 0.55rem;">
+              <p class="meta">720×240 · transparent</p>
+              <button type="button" data-target="logo-optic-clear" data-name="verza-optic-logo-transparent-720x240.png">Download PNG</button>
+            </div>
+            <div class="artboard" id="logo-optic-clear" aria-label="Verza Optic logo transparent">
+              <div class="logo-lockup">
+                <img src="/verza-icon.svg" alt="" width="58" height="42" />
+                <span>Verza <em>Optic</em></span>
+              </div>
             </div>
           </div>
         </div>
@@ -753,8 +902,16 @@
         const label = button.textContent;
         button.textContent = "Rendering…";
         try {
+          // Icon: serve the pre-rendered PNG (html2canvas baked in a grainy grid)
+          if (id === "icon") {
+            const link = document.createElement("a");
+            link.download = filename;
+            link.href = "/optic-scout-icon-128.png";
+            link.click();
+            return;
+          }
           const canvas = await html2canvas(board, {
-            backgroundColor: id === "icon" ? null : "#0B100E",
+            backgroundColor: id === "logo-optic-clear" ? null : "#0B100E",
             scale: 1,
             width: board.offsetWidth,
             height: board.offsetHeight,

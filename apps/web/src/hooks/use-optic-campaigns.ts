@@ -25,10 +25,15 @@ export function useOpticCampaigns(agencyId: string | null | undefined, userDispl
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem(OPTIC_CAMPAIGN_STORAGE_KEY);
-      if (stored) setCampaignIdState(stored);
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("campaignId");
+    if (fromUrl?.trim()) {
+      setCampaignIdState(fromUrl.trim());
+      sessionStorage.setItem(OPTIC_CAMPAIGN_STORAGE_KEY, fromUrl.trim());
+      return;
     }
+    const stored = sessionStorage.getItem(OPTIC_CAMPAIGN_STORAGE_KEY);
+    if (stored) setCampaignIdState(stored);
   }, []);
 
   const setCampaignId = useCallback((id: string) => {
