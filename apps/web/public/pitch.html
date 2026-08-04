@@ -356,6 +356,10 @@
       .brands { grid-template-columns: 1fr 1fr; }
     }
 
+    @media (min-width: 960px) {
+      .brands { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
     .brand-tile {
       display: flex;
       flex-direction: column;
@@ -593,7 +597,8 @@
       .ask-grid { grid-template-columns: 1fr 1fr; }
     }
 
-    .ask-grid .card .label {
+    .ask-grid .card .label,
+    .grid-3 .card .label {
       font-size: 0.68rem;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -933,6 +938,13 @@
         <span class="name">Center for AI Safety</span>
         <span class="role">Paying brand · SaaS since Mar 2026 · 0 churn</span>
       </div>
+      <div class="brand-tile">
+        <div class="logo-plate dark">
+          <img src="/beginly-health.png" alt="Beginly Health logo" />
+        </div>
+        <span class="name">Beginly Health</span>
+        <span class="role">Paying brand</span>
+      </div>
     </div>
 
     <div class="metric-grid">
@@ -1027,16 +1039,33 @@
     </div>
   </section>
 
-  <!-- 08 -->
+  <!-- 10 BUSINESS MODEL -->
   <section class="slide" data-n="10 / 14" id="model">
     <p class="eyebrow">Business model</p>
-    <h2>Take rate on money that moves to creators.</h2>
-    <ul class="list">
-      <li>Platform fees on campaign payouts and performance settlement.</li>
-      <li>Contract &amp; invoice payment rails.</li>
-      <li>SaaS: agency subscriptions, Optic credits.</li>
-      <li>Creator Store: application fee on fan checkouts.</li>
-    </ul>
+    <h2>We monetize when brands find creators, when money moves, and when creators sell to fans.</h2>
+    <p class="lede">
+      Three motions — subscription for the operating system, take rate when Verza settles creator pay, marketplace fee on fan checkouts.
+    </p>
+    <div class="grid-3" aria-label="Revenue motions">
+      <div class="card">
+        <p class="label">Infrastructure SaaS</p>
+        <div class="num">Recurring</div>
+        <h3>Brand + Optic</h3>
+        <p>Brand subscriptions and Optic discovery plans. Credits sit under Optic — full rate card in diligence.</p>
+      </div>
+      <div class="card">
+        <p class="label">Money in motion</p>
+        <div class="num">15%</div>
+        <h3>Campaigns &amp; invoices</h3>
+        <p>Take rate when Verza pays creators — campaign payouts and contract/invoice settlement on the same rails.</p>
+      </div>
+      <div class="card">
+        <p class="label">Creator Store</p>
+        <div class="num">10%</div>
+        <h3>Fan checkouts</h3>
+        <p>Application fee on Store sales when creators monetize their own audience.</p>
+      </div>
+    </div>
   </section>
 
   <!-- 09 WHY $1M -->
