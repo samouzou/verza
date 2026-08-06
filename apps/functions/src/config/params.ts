@@ -87,6 +87,13 @@ export const INFLOW_MARKETPLACE_USER_ID = defineString("INFLOW_MARKETPLACE_USER_
   default: "",
 });
 
+/** Inflowpay REST API host. Sandbox uses a different base URL than production. */
+export const INFLOW_API_BASE_URL = defineString("INFLOW_API_BASE_URL", {
+  description:
+    "Inflowpay API base URL. Production: https://api.inflowpay.xyz. Sandbox: https://sandbox.api.inflowpay.xyz",
+  default: "https://api.inflowpay.xyz",
+});
+
 /** Base URL of the Cloud Run (or local) Optic worker that runs Playwright discovery. */
 export const OPTIC_WORKER_URL = defineString("OPTIC_WORKER_URL", {
   default: "",

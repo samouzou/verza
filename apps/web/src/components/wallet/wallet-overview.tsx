@@ -36,7 +36,8 @@ export function WalletOverview({
           </CardTitle>
         </div>
         <CardDescription>
-          Earnings from approved campaigns. Connect a bank account to withdraw funds.
+          Earnings from approved campaigns. Withdraw to your bank when you are
+          ready — Store sales are paid out separately.
         </CardDescription>
       </CardHeader>
       <CardContent>

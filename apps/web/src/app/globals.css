@@ -8,136 +8,130 @@ body {
 
 @layer base {
   :root {
-    /* New Verza Theme HSL Variables */
-    --verza-purple-h: 255;
-    --verza-purple-s: 100%;
-    --verza-purple-l: 61%; /* #6B37FF */
-  
-    --verza-magenta-h: 331;
-    --verza-magenta-s: 86%;
-    --verza-magenta-l: 64%; /* #EE488E */
-  
-    --verza-midnight-h: 264;
-    --verza-midnight-s: 30%;
-    --verza-midnight-l: 8%; /* #120E19 */
+    /* Ink + Evergreen brand system */
+    --verza-evergreen-h: 161;
+    --verza-evergreen-s: 84%;
+    --verza-evergreen-l: 26%; /* #0E7C5A */
 
-    --verza-accent-gray-h: 215;
-    --verza-accent-gray-s: 16%;
-    --verza-accent-gray-l: 65%; /* #94A3B8 */
+    --verza-emerald-h: 156;
+    --verza-emerald-s: 79%;
+    --verza-emerald-l: 42%; /* #16C088 */
+
+    --verza-ink-h: 170;
+    --verza-ink-s: 14%;
+    --verza-ink-l: 7%; /* #0B100E */
+
+    --verza-accent-gray-h: 170;
+    --verza-accent-gray-s: 6%;
+    --verza-accent-gray-l: 40%;
 
     --verza-success-h: 142;
     --verza-success-s: 63%;
-    --verza-success-l: 45%; /* #22C55E */
+    --verza-success-l: 45%;
 
     --verza-warning-h: 38;
     --verza-warning-s: 92%;
-    --verza-warning-l: 53%; /* #F59E0B */
-  
+    --verza-warning-l: 53%;
+
     --verza-destructive-h: 0;
     --verza-destructive-s: 84%;
-    --verza-destructive-l: 60%; /* #EF4444 */
-  
-    /* Verza Light Theme */
-    --background: 0 0% 100%; /* White */
-    --foreground: 224 71.4% 4.1%; /* Near Black */
-  
+    --verza-destructive-l: 60%;
+
+    --background: 60 24% 98%;
+    --foreground: 170 14% 7%;
+
     --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
-  
+    --card-foreground: 170 14% 7%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
-    --secondary: 220 14.3% 95.9%; /* Light Gray */
-    --secondary-foreground: 220 14.3% 34.1%;
-  
-    --muted: var(--verza-accent-gray-h) 25% 95%; /* Lighter version of accent gray */
-    --muted-foreground: var(--verza-accent-gray-h) 10% 45%;
-  
-    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --accent-foreground: 0 0% 100%;
-  
+    --popover-foreground: 170 14% 7%;
+
+    --primary: var(--verza-evergreen-h) var(--verza-evergreen-s) var(--verza-evergreen-l);
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 160 14% 95%;
+    --secondary-foreground: 170 14% 12%;
+
+    --muted: 150 12% 95%;
+    --muted-foreground: var(--verza-accent-gray-h) var(--verza-accent-gray-s) var(--verza-accent-gray-l);
+
+    --accent: 155 32% 93%;
+    --accent-foreground: 161 84% 18%;
+
     --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-  
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 150 12% 89%;
+    --input: 150 12% 89%;
+    --ring: var(--verza-evergreen-h) var(--verza-evergreen-s) var(--verza-evergreen-l);
+
     --radius: 0.5rem;
-  
-    /* Chart colors */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --chart-3: var(--verza-accent-gray-h) var(--verza-accent-gray-s) var(--verza-accent-gray-l);
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
-  
-    /* Sidebar (Light) */
-    --sidebar-background: 220 20% 97%;
-    --sidebar-foreground: 222 10% 25%;
-    --sidebar-border: 220 14% 92%;
-  
-    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --sidebar-primary-foreground: 0 0% 100%;
-  
-    --sidebar-accent: var(--verza-purple-h) 95% 96%; /* Very light purple */
-    --sidebar-accent-foreground: var(--verza-purple-h) 100% 50%;
-  
-    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 170 10% 20%;
+    --sidebar-border: 150 12% 89%;
+
+    --sidebar-primary: var(--verza-evergreen-h) var(--verza-evergreen-s) var(--verza-evergreen-l);
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 155 32% 93%;
+    --sidebar-accent-foreground: 161 84% 18%;
+
+    --sidebar-ring: var(--verza-evergreen-h) var(--verza-evergreen-s) var(--verza-evergreen-l);
   }
-  
+
   .dark {
-    /* Dark Theme based on Verza Midnight */
-    --background: var(--verza-midnight-h) var(--verza-midnight-s) var(--verza-midnight-l);
-    --foreground: 210 20% 98%; /* #E2E8F0 */
-  
-    --card: 264 25% 10%;
-    --card-foreground: 210 20% 98%;
-  
-    --popover: 264 30% 8%;
-    --popover-foreground: 210 20% 98%;
-  
-    --primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --primary-foreground: 0 0% 100%;
-  
-    --secondary: 264 20% 14%;
-    --secondary-foreground: 210 20% 85%;
-  
-    --muted: var(--verza-accent-gray-h) 10% 30%;
-    --muted-foreground: var(--verza-accent-gray-h) 10% 60%;
-  
-    --accent: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --accent-foreground: 0 0% 100%;
-  
+    --background: 170 20% 7%;
+    --foreground: 150 14% 92%;
+
+    --card: 170 20% 10%;
+    --card-foreground: 150 14% 92%;
+
+    --popover: 170 20% 7%;
+    --popover-foreground: 150 14% 92%;
+
+    --primary: 156 64% 43%;
+    --primary-foreground: 160 40% 6%;
+
+    --secondary: 170 18% 14%;
+    --secondary-foreground: 150 14% 92%;
+
+    --muted: 170 18% 14%;
+    --muted-foreground: 150 10% 62%;
+
+    --accent: 170 18% 17%;
+    --accent-foreground: 150 14% 95%;
+
     --destructive: var(--verza-destructive-h) var(--verza-destructive-s) var(--verza-destructive-l);
-    --destructive-foreground: 0 0% 100%;
-  
-    --border: 264 20% 14%;
-    --input: 264 20% 14%;
-    --ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-  
-    /* Chart colors for dark theme */
-    --chart-1: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --chart-2: var(--verza-magenta-h) var(--verza-magenta-s) var(--verza-magenta-l);
-    --chart-3: var(--verza-accent-gray-h) 10% 50%;
-    --chart-4: var(--verza-warning-h) var(--verza-warning-s) var(--verza-warning-l);
-    --chart-5: var(--verza-success-h) var(--verza-success-s) var(--verza-success-l);
-  
-    /* Sidebar (Dark theme) */
-    --sidebar-background: 264 30% 6%; /* Slightly darker than main bg */
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-border: 264 30% 10%;
-  
-    --sidebar-primary: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
-    --sidebar-primary-foreground: 0 0% 100%;
-  
-    --sidebar-accent: var(--verza-purple-h) 50% 20%;
-    --sidebar-accent-foreground: 210 20% 98%;
-  
-    --sidebar-ring: var(--verza-purple-h) var(--verza-purple-s) var(--verza-purple-l);
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 170 18% 14%;
+    --input: 170 18% 14%;
+    --ring: 156 64% 43%;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 170 20% 6%;
+    --sidebar-foreground: 150 14% 92%;
+    --sidebar-border: 170 18% 14%;
+
+    --sidebar-primary: 156 64% 43%;
+    --sidebar-primary-foreground: 160 40% 6%;
+
+    --sidebar-accent: 170 18% 17%;
+    --sidebar-accent-foreground: 150 14% 95%;
+
+    --sidebar-ring: 156 64% 43%;
   }
 }
 
@@ -179,6 +173,78 @@ body {
 }
 .dark .ql-editor.ql-blank::before {
   color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Fan-facing Store course HTML (Quill / AI chapter bodies) */
+.store-course-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  box-sizing: border-box;
+}
+
+.store-course-content :where(p, li, h1, h2, h3, h4, h5, h6, blockquote, span, strong, em, a, div) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal !important;
+  max-width: 100%;
+}
+
+.store-course-content :where(ul, ol) {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  padding-left: 1.5rem;
+  padding-right: 0;
+  list-style-position: outside;
+}
+
+.store-course-content :where(li) {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+  padding-right: 0;
+}
+
+.store-course-content :where(li > p) {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.store-course-content :where(blockquote) {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 1rem;
+  padding-right: 0;
+  border-left: 4px solid hsl(var(--border));
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.store-course-content :where(pre, code) {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.store-course-content :where(img, video, iframe) {
+  max-width: 100%;
+  height: auto;
+}
+
+.store-course-content :where(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Quill indent helpers sometimes saved in chapter HTML */
+.store-course-content :where([class*="ql-indent"]) {
+  padding-right: 0 !important;
 }
 
 /* Print specific styles */

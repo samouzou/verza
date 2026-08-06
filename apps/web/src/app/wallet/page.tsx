@@ -3,6 +3,7 @@
 
 import { PageHeader } from "@/components/page-header";
 import { WalletOverview } from "@/components/wallet/wallet-overview";
+import { StoreEarningsCard } from "@/components/wallet/store-earnings-card";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { PayoutHistoryCard } from "@/components/agency/payout-history-card";
 import { CommissionHistoryCard } from "@/components/agency/commission-history-card";
@@ -11,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import type { InternalPayout, Agency } from "@/types";
-import { db, collection, query, where, onSnapshot, orderBy, doc } from '@/lib/firebase';
+import { db, collection, query, where, onSnapshot, orderBy, doc, functions } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { httpsCallable } from "firebase/functions";
 import { isPayoutReady } from "@/lib/payout";
@@ -25,7 +26,12 @@ export default function WalletPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isPayingOut, setIsPayingOut] = useState(false);
 
-  const isAgencyManager = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const isAgencyManager =
+    user?.role === "agency_owner" ||
+    user?.role === "agency_admin" ||
+    user?.role === "agency_member";
+  const isCreator =
+    user?.role === "individual_creator" || user?.role === "talent";
   const payoutReady = isPayoutReady(user);
   const walletBalance = user?.walletBalance ?? 0;
 
@@ -129,7 +135,7 @@ export default function WalletPage() {
     <>
       <PageHeader
         title="Wallet"
-        description="View your earnings, manage agency budgets, and track transaction history."
+        description="Campaign earnings in your Verza Wallet, Store sales paid to your bank, and agency budgets."
       />
       <div className="space-y-8">
         {isAgencyManager && agency && (
@@ -142,7 +148,7 @@ export default function WalletPage() {
         )}
 
         <div className="space-y-4">
-          <h3 className="text-lg font-bold">Personal Earnings</h3>
+          <h3 className="text-lg font-bold">Campaign wallet</h3>
           <WalletOverview
             walletBalance={walletBalance}
             isLoading={false}
@@ -152,9 +158,15 @@ export default function WalletPage() {
           />
         </div>
 
+        {isCreator && user && (
+          <div className="space-y-4">
+            <StoreEarningsCard creatorId={user.uid} />
+          </div>
+        )}
+
         <div className="space-y-6">
           <div id="personal-earnings-section">
-            <h3 className="text-lg font-semibold mb-4">Earnings History</h3>
+            <h3 className="text-lg font-semibold mb-4">Campaign earnings history</h3>
             <TransactionHistory transactions={sortedEarnings} currentUserId={user.uid} />
           </div>
 
