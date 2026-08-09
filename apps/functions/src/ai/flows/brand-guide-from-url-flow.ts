@@ -71,7 +71,7 @@ export async function extractBrandGuideFromUrl(
 
 const prompt = ai.definePrompt({
   name: "brandGuideFromUrlPrompt",
-  model: googleAI.model("gemini-3-flash-preview"),
+  model: googleAI.model("gemini-3.6-flash"),
   input: {schema: BrandGuideFromUrlInputSchema},
   output: {schema: BrandGuideFromUrlOutputSchema},
   prompt: `You are a brand strategist filling a Brand Guide for influencer / UGC campaigns.

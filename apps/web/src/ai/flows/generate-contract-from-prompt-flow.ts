@@ -22,7 +22,7 @@ export async function generateContractFromPrompt(input: GenerateContractFromProm
 
 const contractPrompt = ai.definePrompt({
   name: 'generateContractFromPromptPrompt',
-  model: googleAI.model('gemini-3-flash-preview'),
+  model: googleAI.model('gemini-3.6-flash'),
   input: { schema: GenerateContractFromPromptInputSchema },
   output: { schema: GenerateContractFromPromptOutputSchema },
   prompt: `You are an expert legal AI that drafts professional contracts for creators and brands.

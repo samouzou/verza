@@ -28,7 +28,7 @@ Set Firebase **string params** (same names as local `.env` for emulators if you 
 
 **Access:** Any signed-in **agency owner, admin, or member** with a primary agency can use **`/linkedin-os`** in the web app or call `enqueueLinkedInOsDraftJob`. No UID allowlist required.
 
-Worker env (Cloud Run): `LINKEDIN_OS_WORKER_SHARED_SECRET`, `GEMINI_API_KEY`, optional `GEMINI_MODEL` (default `gemini-3-flash-preview`). **`OPENAI_*` vars are no longer used.**
+Worker env (Cloud Run): `LINKEDIN_OS_WORKER_SHARED_SECRET`, `GEMINI_API_KEY`, optional `GEMINI_MODEL` (default `gemini-3.6-flash`). **`OPENAI_*` vars are no longer used.**
 
 ### 2) Seed prompt pack (Firestore)
 

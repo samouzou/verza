@@ -4,7 +4,7 @@ import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
 import {db} from "../config/firebase";
 
-const MODEL = "gemini-3-flash-preview";
+const MODEL = "gemini-3.6-flash";
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
 const ALLOWED_TYPES = new Set([

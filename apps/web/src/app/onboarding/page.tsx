@@ -82,15 +82,6 @@ export default function OnboardingPage() {
             <CardDescription>Select your role to personalize your experience.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button onClick={() => handleRoleSelection('agency')} className="group text-left p-0">
-              <Card className="h-full hover:border-primary hover:shadow-lg transition-all">
-                <CardHeader>
-                  <Building className="h-8 w-8 mb-2 text-primary" />
-                  <CardTitle>I run an Agency</CardTitle>
-                  <CardDescription>I want to manage my roster of talent, facilitate payments, and streamline contracts.</CardDescription>
-                </CardHeader>
-              </Card>
-            </button>
             <button onClick={() => handleRoleSelection('brand')} className="group text-left p-0">
               <Card className="h-full hover:border-primary hover:shadow-lg transition-all">
                 <CardHeader>
@@ -106,6 +97,15 @@ export default function OnboardingPage() {
                   <User className="h-8 w-8 mb-2 text-primary" />
                   <CardTitle>I'm a Creator</CardTitle>
                   <CardDescription>I want to use AI tools to create content, manage my own brand deals, and get paid.</CardDescription>
+                </CardHeader>
+              </Card>
+            </button>
+            <button onClick={() => handleRoleSelection('agency')} className="group text-left p-0">
+              <Card className="h-full hover:border-primary hover:shadow-lg transition-all">
+                <CardHeader>
+                  <Building className="h-8 w-8 mb-2 text-primary" />
+                  <CardTitle>I run an Agency</CardTitle>
+                  <CardDescription>I want to manage my roster of talent, facilitate payments, and streamline contracts.</CardDescription>
                 </CardHeader>
               </Card>
             </button>

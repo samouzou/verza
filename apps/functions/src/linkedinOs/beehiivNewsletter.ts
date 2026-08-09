@@ -14,7 +14,7 @@ import {
 import {parseCarouselMarkdown} from "./parseCarouselMarkdown";
 import type {LinkedInOsBeehiivNewsletter, LinkedInOsCarouselSlideAsset} from "./types";
 
-const MODEL = "gemini-3-flash-preview";
+const MODEL = "gemini-3.6-flash";
 const SIGNED_URL_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 
 /**

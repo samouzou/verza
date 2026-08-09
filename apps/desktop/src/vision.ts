@@ -43,7 +43,7 @@ export async function analyzeProfileWithGemini(
 ): Promise<GeminiAnalysisResult> {
   logger.log(`[Optic] Analyzing with Gemini (Objectives: ${objectives.slice(0, 50)}...)...`);
 
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
   const brandBlock = brand
     ? `

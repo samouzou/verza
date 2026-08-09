@@ -2,7 +2,7 @@ import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
 import type {OpticJobBrandContext} from "./jobs";
 
-const MODEL = "gemini-3-flash-preview";
+const MODEL = "gemini-3.6-flash";
 
 export type ExtensionProfileInput = {
   username: string;

@@ -27,7 +27,7 @@ export async function generateSeedLeads(
   agencyName: string | null | undefined,
   targetSaved: number
 ): Promise<{name: string; url: string}[]> {
-  const model = genAI.getGenerativeModel({model: "gemini-3-flash-preview"});
+  const model = genAI.getGenerativeModel({model: "gemini-3.6-flash"});
   const {seedAsk} = searchBudget(targetSaved);
 
   const clientLine = agencyName
@@ -55,7 +55,7 @@ export async function generateSeedLeads(
 }
 
 async function generateSearchQuery(platform: string, objectives: string): Promise<string> {
-  const model = genAI.getGenerativeModel({model: "gemini-3-flash-preview"});
+  const model = genAI.getGenerativeModel({model: "gemini-3.6-flash"});
   const prompt = `Based on these campaign objectives: "${objectives}", generate a single, highly effective search query to find relevant creators on ${platform}. Return only the query string.`;
 
   const result = await model.generateContent(prompt);

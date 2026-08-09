@@ -88,7 +88,7 @@ import {
   extendCreatorDeadline,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
-import {generateScene} from "./scenes";
+import {generateScene, editScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand, suggestBrandGuideFromUrl} from "./brand-research";
 import {
@@ -140,6 +140,8 @@ import {
   getStoreAccess,
 } from "./store";
 import {generateStoreCourseContent} from "./store/generateCourseContent";
+import {writeFromYouTubeVideo} from "./youtube-writer/writeFromYouTubeVideo";
+import {adaptYouTubeWriterDraft} from "./youtube-writer/adaptYouTubeWriterDraft";
 
 // Export v2 functions
 export {
@@ -193,6 +195,7 @@ export {
   extendCreatorDeadline,
   generateCampaignCopy,
   generateScene,
+  editScene,
   generateImage,
   analyzeBrand,
   suggestBrandGuideFromUrl,
@@ -233,6 +236,8 @@ export {
   getStoreProductContent,
   getStoreAccess,
   generateStoreCourseContent,
+  writeFromYouTubeVideo,
+  adaptYouTubeWriterDraft,
 };
 
 // Import and export v1 auth trigger using require/exports

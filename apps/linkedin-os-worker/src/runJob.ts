@@ -210,7 +210,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set on the worker.");
   }
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3-flash-preview";
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
 
   await ref.update({
     status: "running",

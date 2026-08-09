@@ -48,7 +48,7 @@ export async function analyzeProfileWithGemini(
   brand?: DraftBrandContext | null,
   platform: string = "youtube"
 ): Promise<GeminiAnalysisResult> {
-  const model = genAI.getGenerativeModel({model: "gemini-3-flash-preview"});
+  const model = genAI.getGenerativeModel({model: "gemini-3.6-flash"});
   const platLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
 
   const brandBlock = brand

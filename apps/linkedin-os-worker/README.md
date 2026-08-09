@@ -15,7 +15,7 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 | -------- | -------- | ----------- |
 | `LINKEDIN_OS_WORKER_SHARED_SECRET` | yes | Must match Firebase param `LINKEDIN_OS_WORKER_SHARED_SECRET` |
 | `GEMINI_API_KEY` | yes | Google AI Studio / Gemini API key (same name as `apps/functions/src/config/params.ts` `GEMINI_API_KEY`) |
-| `GEMINI_MODEL` | no | Default `gemini-3-flash-preview` (aligned with `apps/optic-worker`) |
+| `GEMINI_MODEL` | no | Default `gemini-3.6-flash` (aligned with `apps/optic-worker`) |
 | `APP_STORAGE_BUCKET` | no | Firebase Storage bucket. If unset, worker uses `{GOOGLE_CLOUD_PROJECT}.firebasestorage.app` (set automatically on Cloud Run). |
 | `PORT` | no | Default `8080` |
 
@@ -74,7 +74,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 \
   --max-instances=5 \
   --allow-unauthenticated \
-  --set-env-vars="GEMINI_MODEL=gemini-3-flash-preview,LINKEDIN_OS_WORKER_SHARED_SECRET=${LINKEDIN_OS_WORKER_SHARED_SECRET}" \
+  --set-env-vars="GEMINI_MODEL=gemini-3.6-flash,LINKEDIN_OS_WORKER_SHARED_SECRET=${LINKEDIN_OS_WORKER_SHARED_SECRET}" \
   --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest"
 ```
 
@@ -89,7 +89,7 @@ gcloud run deploy "$SERVICE" \
   --memory=512Mi \
   --timeout=300 \
   --allow-unauthenticated \
-  --set-env-vars="GEMINI_API_KEY=YOUR_KEY,GEMINI_MODEL=gemini-3-flash-preview,LINKEDIN_OS_WORKER_SHARED_SECRET=${LINKEDIN_OS_WORKER_SHARED_SECRET}"
+  --set-env-vars="GEMINI_API_KEY=YOUR_KEY,GEMINI_MODEL=gemini-3.6-flash,LINKEDIN_OS_WORKER_SHARED_SECRET=${LINKEDIN_OS_WORKER_SHARED_SECRET}"
 ```
 
 Get the service URL:

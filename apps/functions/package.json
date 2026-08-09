@@ -15,8 +15,11 @@
   },
   "main": "lib/index.js",
   "dependencies": {
+    "@firebase/app": "^0.13.2",
+    "@firebase/app-compat": "^0.5.16",
     "@genkit-ai/firebase": "^1.28.0",
     "@genkit-ai/google-genai": "^1.28.0",
+    "@google/genai": "^2.16.0",
     "@sendgrid/mail": "^8.1.5",
     "@types/stripe": "^8.0.417",
     "@verza/types": "file:./packages-local/types",

@@ -156,6 +156,13 @@ service cloud.firestore {
       allow read, update, delete: if isOwner(resource.data.uid);
       allow create: if isOwner(resource.data.uid);
     }
+
+    // YouTube Writer saved drafts (creators)
+    match /youtube_writer_drafts/{draftId} {
+      allow read, update, delete: if isOwner(resource.data.uid);
+      allow create: if isOwner(request.resource.data.uid)
+        && request.resource.data.keys().hasAll(['uid', 'videoId', 'youtubeUrl', 'prompt', 'text', 'createdAt', 'updatedAt']);
+    }
     
     // Rules for credit transactions collection
     match /credit_transactions/{transactionId} {

@@ -23,7 +23,7 @@ Reads markdown from `docs/` on disk. For the **cloud agent** (callable + Firesto
 
 ```bash
 export GEMINI_API_KEY="..."
-# optional: export GEMINI_MODEL="gemini-3-flash-preview"
+# optional: export GEMINI_MODEL="gemini-3.6-flash"
 
 node marketing/verza-linkedin/scripts/generate-drafts.mjs
 ```

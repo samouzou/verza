@@ -31,7 +31,7 @@ export async function runVerzaScore(input: VerzaScoreInput): Promise<VerzaScoreO
 
 const shortFormPrompt = ai.definePrompt({
   name: 'shortFormPrompt',
-  model: googleAI.model('gemini-3-flash-preview'),
+  model: googleAI.model('gemini-3.6-flash'),
   input: { schema: VerzaScoreInputSchema },
   output: { schema: VerzaScoreOutputSchema },
   prompt: `You are the "Verza Score" algorithm, a simulation of 10,000 Gen Z distractable social media scrollers. 
@@ -57,7 +57,7 @@ const shortFormPrompt = ai.definePrompt({
 
 const longFormPrompt = ai.definePrompt({
   name: 'longFormPrompt',
-  model: googleAI.model('gemini-3-flash-preview'),
+  model: googleAI.model('gemini-3.6-flash'),
   input: { schema: VerzaScoreInputSchema },
   output: { schema: VerzaScoreOutputSchema },
   prompt: `You are the "Verza Score" algorithm, designed to evaluate long-form YouTube integrations and dedicated videos.

@@ -7,7 +7,7 @@ import {db} from "../config/firebase";
 import {loadCompletedLinkedInOsJob} from "./jobAccess";
 import type {LinkedInOsJobOutput, LinkedInOsVideoPlatform, LinkedInOsVideoScript} from "./types";
 
-const MODEL = "gemini-3-flash-preview";
+const MODEL = "gemini-3.6-flash";
 const MAX_SOURCE = 24000;
 
 const PLATFORMS = new Set<LinkedInOsVideoPlatform>(["tiktok", "instagram_reels", "youtube"]);

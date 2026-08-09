@@ -30,7 +30,7 @@ export async function analyzeCreatorProfile(input: CreatorAnalysisInput): Promis
 
 const prompt = ai.definePrompt({
   name: 'creatorAnalysisPrompt',
-  model: googleAI.model('gemini-3-flash-preview'),
+  model: googleAI.model('gemini-3.6-flash'),
   input: { schema: CreatorAnalysisInputSchema },
   output: { schema: CreatorAnalysisOutputSchema },
   prompt: `You are a world-class brand strategist and talent manager for content creators.

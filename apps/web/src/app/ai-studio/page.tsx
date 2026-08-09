@@ -114,7 +114,14 @@ function SceneSpawnerContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   
-  const [generatedMedia, setGeneratedMedia] = useState<{ url: string; type: 'video' | 'image' } | null>(null);
+  const [generatedMedia, setGeneratedMedia] = useState<{
+    url: string;
+    type: 'video' | 'image';
+    generationId?: string;
+    interactionId?: string | null;
+  } | null>(null);
+  const [editPrompt, setEditPrompt] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
   const [history, setHistory] = useState<Generation[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -263,11 +270,18 @@ function SceneSpawnerContent() {
 
     setIsGenerating(true);
     setGeneratedMedia(null);
+    setEditPrompt("");
     toast({ title: "Generating...", description: "AI is generating your media. This may take a minute or two." });
 
     try {
       let result;
-      let data: { imageUrl?: string; videoUrl?: string; remainingCredits: number };
+      let data: {
+        imageUrl?: string;
+        videoUrl?: string;
+        remainingCredits: number;
+        generationId?: string;
+        interactionId?: string | null;
+      };
       let imageDataUri: string | undefined;
       let referenceImageUrl: string | undefined;
       let effectivePrompt = currentPrompt;
@@ -276,15 +290,18 @@ function SceneSpawnerContent() {
         effectivePrompt = applyCharacterToPrompt(
           currentPrompt,
           selectedCharacter,
-          selectedCharacter.imageUrl && !imageFile ? "image-reference" : "text"
+          selectedCharacter.imageUrl ? "image-reference" : "text"
         );
       }
 
       if (isImageMode && imageFile) {
         imageDataUri = await fileToDataUri(imageFile);
-      } else if (
+      }
+
+      // Character portrait → Omni reference (works with text-to-video and image-to-video)
+      if (
         selectedCharacter?.imageUrl &&
-        (mode === "text-to-video" || mode === "text-to-image")
+        (mode === "text-to-video" || mode === "image-to-video" || mode === "text-to-image" || mode === "image-to-image")
       ) {
         referenceImageUrl = selectedCharacter.imageUrl;
       }
@@ -298,9 +315,26 @@ function SceneSpawnerContent() {
         setGeneratedMedia({ url: data.imageUrl, type: 'image' });
       } else {
         const generateSceneCallable = httpsCallable(functions, 'generateScene');
-        result = await generateSceneCallable({ prompt: effectivePrompt, style, orientation, imageDataUri, referenceImageUrl });
-        data = result.data as { videoUrl: string, remainingCredits: number };
-        setGeneratedMedia({ url: data.videoUrl, type: 'video' });
+        result = await generateSceneCallable({
+          prompt: effectivePrompt,
+          style,
+          orientation,
+          imageDataUri,
+          referenceImageUrl,
+          characterId: selectedCharacter?.id,
+        });
+        data = result.data as {
+          videoUrl: string;
+          remainingCredits: number;
+          generationId?: string;
+          interactionId?: string | null;
+        };
+        setGeneratedMedia({
+          url: data.videoUrl,
+          type: 'video',
+          generationId: data.generationId,
+          interactionId: data.interactionId ?? null,
+        });
       }
 
       trackEvent({ action: 'spawn_scene_success', category: 'ai_tool', label: mode });
@@ -313,6 +347,81 @@ function SceneSpawnerContent() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleEditVideo = async () => {
+    if (!user || !generatedMedia?.generationId || generatedMedia.type !== "video") return;
+    if (!generatedMedia.interactionId) {
+      toast({
+        title: "Can't edit this clip",
+        description: "Generate a new video with Omni to unlock refine.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!editPrompt.trim()) {
+      toast({ title: "Missing edit", description: "Describe what to change.", variant: "destructive" });
+      return;
+    }
+    const credits = user.credits ?? 0;
+    if (credits < VIDEO_COST) {
+      toast({
+        title: "No Credits",
+        description: `Editing costs ${VIDEO_COST} credits. You have ${credits}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsEditing(true);
+    toast({ title: "Editing…", description: "Omni is refining your video." });
+    try {
+      const editSceneCallable = httpsCallable(functions, "editScene");
+      const result = await editSceneCallable({
+        generationId: generatedMedia.generationId,
+        editPrompt: editPrompt.trim(),
+      });
+      const data = result.data as {
+        videoUrl: string;
+        generationId: string;
+        interactionId?: string | null;
+        remainingCredits: number;
+      };
+      setGeneratedMedia({
+        url: data.videoUrl,
+        type: "video",
+        generationId: data.generationId,
+        interactionId: data.interactionId ?? generatedMedia.interactionId,
+      });
+      setEditPrompt("");
+      trackEvent({ action: "edit_scene_success", category: "ai_tool", label: "omni_edit" });
+      toast({
+        title: "Edit complete",
+        description: `Updated clip ready. ${data.remainingCredits} credits left.`,
+      });
+      await refreshAuthUser();
+    } catch (error: unknown) {
+      console.error("Error editing video:", error);
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "Could not edit video.";
+      toast({ title: "Edit failed", description: message, variant: "destructive" });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const loadHistoryItem = (item: Generation) => {
+    const url = item.videoUrl || item.imageUrl;
+    if (!url) return;
+    setGeneratedMedia({
+      url,
+      type: item.videoUrl ? "video" : "image",
+      generationId: item.id,
+      interactionId: item.interactionId ?? null,
+    });
+    setEditPrompt("");
   };
 
   const handleSaveCharacter = async () => {
@@ -646,10 +755,15 @@ function SceneSpawnerContent() {
                         <SelectContent>
                             <SelectItem value="none">No character</SelectItem>
                             {characters.map(char => (
-                                <SelectItem key={char.id} value={char.id}>{char.name}</SelectItem>
+                                <SelectItem key={char.id} value={char.id}>
+                                  {char.name}{char.imageUrl ? "" : " (no portrait)"}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Portrait characters lock likeness in Omni video via reference.
+                      </p>
                       {selectedCharacter && (
                         <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/30 p-2">
                           {selectedCharacter.imageUrl ? (
@@ -729,30 +843,72 @@ function SceneSpawnerContent() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6 text-primary" />Generated Media</CardTitle>
+              <CardDescription>
+                Pick a character with a portrait for likeness-locked Omni video. After a clip is ready, refine it with a follow-up edit.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-center bg-black rounded-b-lg aspect-video">
-              {isGenerating ? (
-                <div className="text-center text-primary-foreground">
-                  <Loader2 className="h-12 w-12 animate-spin mx-auto" />
-                  <p className="mt-4">Generating... may take up to 2 mins</p>
-                </div>
-              ) : generatedMedia ? (
-                <div className="relative w-full h-full">
-                  {generatedMedia.type === 'video' ? (
-                     <video src={generatedMedia.url} controls autoPlay loop className="w-full h-full object-contain" />
-                  ) : (
-                     <Image src={generatedMedia.url} alt="Generated Image" fill className="object-contain" />
-                  )}
-                  <Button asChild size="sm" className="absolute top-2 right-2">
-                    <a href={generatedMedia.url} download target="_blank" rel="noopener noreferrer">
-                      <Download className="mr-2 h-4 w-4" /> Download
-                    </a>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-center bg-black rounded-lg aspect-video relative overflow-hidden">
+                {isGenerating || isEditing ? (
+                  <div className="text-center text-primary-foreground">
+                    <Loader2 className="h-12 w-12 animate-spin mx-auto" />
+                    <p className="mt-4">{isEditing ? "Editing… may take up to 2 mins" : "Generating... may take up to 2 mins"}</p>
+                  </div>
+                ) : generatedMedia ? (
+                  <div className="relative w-full h-full">
+                    {generatedMedia.type === 'video' ? (
+                       <video src={generatedMedia.url} controls autoPlay loop className="w-full h-full object-contain" />
+                    ) : (
+                       <Image src={generatedMedia.url} alt="Generated Image" fill className="object-contain" />
+                    )}
+                    <Button asChild size="sm" className="absolute top-2 right-2">
+                      <a href={generatedMedia.url} download target="_blank" rel="noopener noreferrer">
+                        <Download className="mr-2 h-4 w-4" /> Download
+                      </a>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground p-6">
+                    <p>Your generated video or image will appear here.</p>
+                  </div>
+                )}
+              </div>
+
+              {generatedMedia?.type === "video" && generatedMedia.interactionId && (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div>
+                    <Label htmlFor="omni-edit-prompt">Edit this video</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Omni keeps the clip in context — e.g. “slow the camera” or “keep the character, change the background to a cafe”.
+                    </p>
+                  </div>
+                  <Textarea
+                    id="omni-edit-prompt"
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="Describe the change…"
+                    rows={3}
+                    disabled={isEditing || isGenerating}
+                  />
+                  <Button
+                    onClick={handleEditVideo}
+                    disabled={isEditing || isGenerating || !editPrompt.trim() || (user?.credits ?? 0) < VIDEO_COST}
+                    className="w-full"
+                  >
+                    {isEditing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Apply edit ({VIDEO_COST} credits)
                   </Button>
                 </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <p>Your generated video or image will appear here.</p>
-                </div>
+              )}
+
+              {generatedMedia?.type === "video" && !generatedMedia.interactionId && (
+                <p className="text-xs text-muted-foreground">
+                  This clip can&apos;t be refined (no Omni session). Generate a new video to unlock editing.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -910,11 +1066,16 @@ function SceneSpawnerContent() {
                  : history.length > 0 ? (
                   <div className="space-y-4">
                     {history.map(item => (
-                      <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => setGeneratedMedia({ url: (item.videoUrl || item.imageUrl)!, type: item.videoUrl ? 'video' : 'image' })}>
+                      <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => loadHistoryItem(item)}>
                         <p className="text-sm truncate">{item.prompt}</p>
-                        <p className="text-xs text-muted-foreground flex items-center justify-between">
-                          <span>{item.style} • {item.imageUrl ? 'Image' : 'Video'} • {item.orientation || 'N/A'}</span>
-                          <span>{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
+                        <p className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            {item.style} • {item.imageUrl ? 'Image' : 'Video'}
+                            {item.parentGenerationId ? ' • Edit' : ''}
+                            {item.interactionId && item.videoUrl ? ' • Refinable' : ''}
+                            {' '}• {item.orientation || 'N/A'}
+                          </span>
+                          <span className="shrink-0">{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
                         </p>
                       </div>
                     ))}

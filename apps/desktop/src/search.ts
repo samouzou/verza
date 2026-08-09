@@ -19,7 +19,7 @@ export async function generateSeedLeads(
   agencyName?: string | null
 ): Promise<{ name: string; url: string }[]> {
   logger.log(`[Optic] Generating seed leads from AI knowledge...`);
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
   const clientLine = agencyName
     ? `The outreach is on behalf of the brand/agency "${agencyName}" (via Verza); prefer creators who would realistically work with that kind of partner.`
@@ -46,7 +46,7 @@ export async function generateSeedLeads(
  * Uses Gemini to transform objectives into a search query for a specific platform.
  */
 async function generateSearchQuery(platform: string, objectives: string): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
   const prompt = `Based on these campaign objectives: "${objectives}", generate a single, highly effective search query to find relevant creators on ${platform}. Return only the query string.`;
   
   const result = await model.generateContent(prompt);

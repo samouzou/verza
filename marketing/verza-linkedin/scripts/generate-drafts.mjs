@@ -8,7 +8,7 @@
  *
  * Env:
  *   GEMINI_API_KEY (required unless --dry-run; same secret name as Firebase `params.ts`)
- *   GEMINI_MODEL (optional, default gemini-3-flash-preview — matches apps/optic-worker)
+ *   GEMINI_MODEL (optional, default gemini-3.6-flash — matches apps/optic-worker)
  */
 
 import fs from "node:fs";
@@ -25,7 +25,7 @@ const STRATEGY_PATH = path.join(REPO_ROOT, "docs", "VERZA_SOCIAL_CREATOR_STRATEG
 const BANNED_PATH = path.join(LINKEDIN_ROOT, "BANNED_CLAIMS.md");
 
 const DRY = process.argv.includes("--dry-run");
-const MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const MAX_CTX = 14000;
 
 function readTruncated(filePath) {

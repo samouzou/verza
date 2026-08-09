@@ -5,7 +5,7 @@ import {ai} from "../ai/genkit";
 import {db} from "../config/firebase";
 import type {UserProfileFirestoreData} from "../types";
 
-const MODEL = "gemini-3-flash-preview";
+const MODEL = "gemini-3.6-flash";
 const MAX_PROMPT = 4000;
 const MAX_CHAPTERS = 20;
 const DEFAULT_CHAPTER_COUNT = 5;

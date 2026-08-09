@@ -622,6 +622,11 @@ export interface Generation {
   videoUrl?: string;
   imageUrl?: string;
   sourceImageUrl?: string | null;
+  /** Gemini Omni Interactions API id — required to refine/edit the video. */
+  interactionId?: string | null;
+  /** Parent generation when this clip was produced via Omni edit. */
+  parentGenerationId?: string | null;
+  characterId?: string | null;
   timestamp: Timestamp;
   orientation?: '16:9' | '9:16' | '1:1';
   cost: number;
@@ -660,6 +665,20 @@ export interface BrandResearch {
   };
   error?: string;
   createdAt: Timestamp;
+}
+
+/** Saved freeform draft from YouTube Writer (creator workflow). */
+export interface YouTubeWriterDraft {
+  id: string;
+  uid: string;
+  videoId: string;
+  youtubeUrl: string;
+  prompt: string;
+  text: string;
+  linkedInText?: string | null;
+  instagramText?: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface GigAssignment {

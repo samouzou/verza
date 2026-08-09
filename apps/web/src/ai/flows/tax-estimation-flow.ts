@@ -58,7 +58,7 @@ export async function estimateTaxes(input: TaxEstimationInput): Promise<TaxEstim
 
 const prompt = ai.definePrompt({
   name: 'taxEstimationPrompt',
-  model: googleAI.model('gemini-3-flash-preview'),
+  model: googleAI.model('gemini-3.6-flash'),
   input: { schema: TaxEstimationInputSchema },
   output: { schema: TaxEstimationOutputSchema },
   prompt: `
