@@ -13,7 +13,7 @@ export const OPTIC_TOP_UP_LEADS = 250;
 export const OPTIC_TOP_UP_AMOUNT_CENTS = 50_000;
 export const OPTIC_MAX_TOP_UP_BLOCKS_PER_MONTH = 8;
 
-export type OpticPlanTier = "none" | "pilot" | "enterprise";
+export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
 export type OpticPlanId =
   | "optic_pilot_monthly"
   | "optic_pilot_yearly"
@@ -182,11 +182,13 @@ export async function loadAgencyOpticBilling(agencyId: string): Promise<AgencyOp
   }
   const d = snap.data()!;
   const status = String(d.opticSubscriptionStatus ?? "");
-  const subscriptionActive = status === "active" || status === "trialing";
   const plan = (d.opticPlan as OpticPlanTier) || "none";
+  const isAppSumo = d.opticBillingSource === "appsumo" || plan === "appsumo";
+  const subscriptionActive =
+    status === "active" || status === "trialing" || isAppSumo;
   return {
     agencyId,
-    plan: subscriptionActive ? plan : "none",
+    plan: subscriptionActive ? (isAppSumo ? "appsumo" : plan) : "none",
     subscriptionActive,
     balance: parseBalance(d.opticCreditsBalance),
     allowance: parseBalance(d.opticMonthlyAllowance),
@@ -326,6 +328,15 @@ export const createOpticSubscriptionCheckoutSession = onCall(async (request) => 
   }
   await assertAgencyBillingAdmin(uid, agencyId);
 
+  const agencySnap = await db.collection("agencies").doc(agencyId).get();
+  const agency = agencySnap.data();
+  if (agency?.opticBillingSource === "appsumo" || agency?.opticPlan === "appsumo") {
+    throw new HttpsError(
+      "failed-precondition",
+      "This workspace uses AppSumo Optic. Redeem more codes for a higher monthly allowance, or contact support to switch to a paid plan."
+    );
+  }
+
   const stripe = new Stripe(params.STRIPE_SECRET_KEY.value(), {apiVersion: "2026-04-22.dahlia" as any});
   const priceId = opticPriceIdForPlan(planId);
   if (!priceId) {
@@ -398,6 +409,9 @@ export async function chargeOpticPilotTopUpBlock(agencyId: string): Promise<{ok:
     return {ok: false, reason: "agency_not_found"};
   }
   const agency = agencySnap.data()!;
+  if (agency.opticBillingSource === "appsumo" || agency.opticPlan === "appsumo") {
+    return {ok: false, reason: "appsumo_no_top_up"};
+  }
   if (agency.opticPlan !== "pilot" || agency.opticSubscriptionStatus !== "active") {
     return {ok: false, reason: "not_pilot_active"};
   }

@@ -119,6 +119,10 @@ import {
   opticInternalTopUp,
   opticInternalLowCreditCheck,
 } from "./optic/billing";
+import {
+  redeemAppSumoOpticCode,
+  resetAppSumoOpticMonthlyAllowances,
+} from "./optic/appsumo";
 import {dispatchOpticJobToWorker} from "./optic/onJobCreated";
 import {opticJobSmsOnComplete} from "./optic/onJobUpdated";
 import {opticTwilioSmsWebhook} from "./optic/smsWebhook";
@@ -219,6 +223,8 @@ export {
   createOpticBillingPortalSession,
   opticInternalTopUp,
   opticInternalLowCreditCheck,
+  redeemAppSumoOpticCode,
+  resetAppSumoOpticMonthlyAllowances,
   opticJobSmsOnComplete,
   opticTwilioSmsWebhook,
   dispatchOpticJobToWorker,

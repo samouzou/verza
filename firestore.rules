@@ -217,9 +217,16 @@ service cloud.firestore {
           'opticMonthlyAllowance',
           'opticOverageLeadsThisPeriod',
           'opticTopUpBlocksThisPeriod',
-          'opticLowCreditWarningPeriodKey'
+          'opticLowCreditWarningPeriodKey',
+          'opticBillingSource',
+          'appsumoOpticCodeCount',
+          'opticAppsumoPeriodKey'
         ]);
       allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
+    }
+
+    match /appsumo_optic_codes/{codeId} {
+      allow read, write: if false;
     }
     
     match /internalPayouts/{payoutId} {

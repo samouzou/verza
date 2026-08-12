@@ -47,3 +47,6 @@ marketing/verza-linkedin/queue.json
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# Local secrets / generated AppSumo codes (do not commit)
+.local/

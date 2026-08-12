@@ -551,7 +551,7 @@ export interface Agency {
   /** Optic discovery: 1 credit = 1 scraped profile + AI draft saved to vault. */
   opticCreditsBalance?: number;
   /** Optic SaaS tier (separate from Verza agency subscription on the owner user). */
-  opticPlan?: 'none' | 'pilot' | 'enterprise';
+  opticPlan?: 'none' | 'pilot' | 'enterprise' | 'appsumo';
   opticSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
   opticStripeSubscriptionId?: string | null;
   opticBillingInterval?: 'month' | 'year' | null;
@@ -564,6 +564,12 @@ export interface Agency {
   opticTopUpBlocksThisPeriod?: number;
   /** Server-only: dedupe key for 80% low-credit warning email per billing period. */
   opticLowCreditWarningPeriodKey?: string | null;
+  /** When set to appsumo, Optic is billed via stacked AppSumo codes (no Stripe top-up). */
+  opticBillingSource?: 'stripe' | 'appsumo' | null;
+  /** Number of AppSumo Optic codes redeemed on this workspace (50 leads/mo each). */
+  appsumoOpticCodeCount?: number;
+  /** UTC YYYY-MM key for the current AppSumo Optic credit period. */
+  opticAppsumoPeriodKey?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   talent: Talent[];

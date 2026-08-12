@@ -1,6 +1,6 @@
 import type {Firestore} from "firebase-admin/firestore";
 
-export type OpticPlanTier = "none" | "pilot" | "enterprise";
+export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
 
 export type AgencyOpticBilling = {
   plan: OpticPlanTier;
@@ -25,10 +25,12 @@ export async function loadAgencyOpticBilling(
   }
   const d = snap.data()!;
   const status = String(d.opticSubscriptionStatus ?? "");
-  const subscriptionActive = status === "active" || status === "trialing";
   const plan = (d.opticPlan as OpticPlanTier) || "none";
+  const isAppSumo = d.opticBillingSource === "appsumo" || plan === "appsumo";
+  const subscriptionActive =
+    status === "active" || status === "trialing" || isAppSumo;
   return {
-    plan: subscriptionActive ? plan : "none",
+    plan: subscriptionActive ? (isAppSumo ? "appsumo" : plan) : "none",
     subscriptionActive,
     balance: parseBalance(d.opticCreditsBalance),
   };

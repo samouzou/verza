@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-export type OpticPlanTier = "none" | "pilot" | "enterprise";
+
+export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
 
 function parseBalance(raw: unknown): number {
   if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -20,6 +21,8 @@ export function useOpticCredits(agencyId: string | null | undefined) {
   const [overageLeads, setOverageLeads] = useState(0);
   const [topUpBlocks, setTopUpBlocks] = useState(0);
   const [billingInterval, setBillingInterval] = useState<"month" | "year" | null>(null);
+  const [billingSource, setBillingSource] = useState<"stripe" | "appsumo" | null>(null);
+  const [appsumoCodeCount, setAppsumoCodeCount] = useState(0);
   const [loading, setLoading] = useState(Boolean(agencyId));
 
   useEffect(() => {
@@ -31,6 +34,8 @@ export function useOpticCredits(agencyId: string | null | undefined) {
       setOverageLeads(0);
       setTopUpBlocks(0);
       setBillingInterval(null);
+      setBillingSource(null);
+      setAppsumoCodeCount(0);
       setLoading(false);
       return;
     }
@@ -42,6 +47,8 @@ export function useOpticCredits(agencyId: string | null | undefined) {
         if (!snap.exists()) {
           setBalance(0);
           setPlan("none");
+          setBillingSource(null);
+          setAppsumoCodeCount(0);
           setLoading(false);
           return;
         }
@@ -52,9 +59,22 @@ export function useOpticCredits(agencyId: string | null | undefined) {
         setAllowance(parseBalance(d.opticMonthlyAllowance));
         setOverageLeads(parseBalance(d.opticOverageLeadsThisPeriod));
         setTopUpBlocks(parseBalance(d.opticTopUpBlocksThisPeriod));
+        setAppsumoCodeCount(parseBalance(d.appsumoOpticCodeCount));
+        const source =
+          d.opticBillingSource === "appsumo" || d.opticPlan === "appsumo"
+            ? "appsumo"
+            : d.opticBillingSource === "stripe"
+              ? "stripe"
+              : null;
+        setBillingSource(source);
         const tier = d.opticPlan as OpticPlanTier | undefined;
-        const active = status === "active" || status === "trialing";
-        setPlan(active && tier ? tier : "none");
+        const active =
+          status === "active" || status === "trialing" || source === "appsumo";
+        if (active && source === "appsumo") {
+          setPlan("appsumo");
+        } else {
+          setPlan(active && tier ? tier : "none");
+        }
         setBillingInterval(
           d.opticBillingInterval === "year" || d.opticBillingInterval === "month"
             ? d.opticBillingInterval
@@ -65,13 +85,18 @@ export function useOpticCredits(agencyId: string | null | undefined) {
       () => {
         setBalance(0);
         setPlan("none");
+        setBillingSource(null);
+        setAppsumoCodeCount(0);
         setLoading(false);
       }
     );
     return () => unsub();
   }, [agencyId]);
 
-  const subscriptionActive = subscriptionStatus === "active" || subscriptionStatus === "trialing";
+  const subscriptionActive =
+    subscriptionStatus === "active" ||
+    subscriptionStatus === "trialing" ||
+    billingSource === "appsumo";
 
   return {
     balance,
@@ -82,8 +107,11 @@ export function useOpticCredits(agencyId: string | null | undefined) {
     overageLeads,
     topUpBlocks,
     billingInterval,
+    billingSource,
+    appsumoCodeCount,
     loading,
     hasCredits: balance > 0,
     hasActiveSubscription: subscriptionActive && plan !== "none",
+    isAppSumo: billingSource === "appsumo" || plan === "appsumo",
   };
 }

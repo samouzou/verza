@@ -110,7 +110,24 @@ export default function OpticPricingPage() {
         }
       />
 
-      {billing.hasActiveSubscription && (
+      {billing.isAppSumo && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">AppSumo Optic</p>
+              <p className="text-sm text-muted-foreground">
+                {billing.appsumoCodeCount} code{billing.appsumoCodeCount === 1 ? "" : "s"} ·{" "}
+                {billing.allowance} leads/mo · {billing.balance} remaining this month
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/optic/redeem">Redeem another code</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {billing.hasActiveSubscription && !billing.isAppSumo && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

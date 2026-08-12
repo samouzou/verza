@@ -138,6 +138,7 @@ const brandOpticNavItem: WorkflowNavItem = {
   subItems: [
     { id: "sub-item-optic-discovery", href: "/optic", label: "Discovery" },
     { id: "sub-item-optic-vault", href: "/optic/vault", label: "Vault" },
+    { id: "sub-item-optic-redeem", href: "/optic/redeem", label: "Redeem" },
     { id: "sub-item-optic-pricing", href: "/optic/pricing", label: "Pricing" },
   ],
 };
