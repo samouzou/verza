@@ -11,7 +11,9 @@ import {
   opticPoolMultiplier,
   type OpticAudienceTier,
 } from "./constants";
+import {persistOpticAvatar} from "./avatar";
 import {checkAudienceGate, parseCompactCount} from "./counts";
+import {composeMatchScore} from "./matchScore";
 import {
   enrichExtensionInstagramLead,
   planInstagramExtensionSearch,
@@ -325,10 +327,38 @@ export const submitOpticExtensionLead = onCall(async (request) => {
       job.brandContext ?? null
     );
 
+    const followerCountNumeric = parseCompactCount(enriched.followerCount);
+    const postCountNumeric = parseCompactCount(profile.postCount);
+    const match = composeMatchScore({
+      briefFitScore: enriched.briefFitScore,
+      matchReason: enriched.matchReason,
+      followerCount: followerCountNumeric,
+      postCount: postCountNumeric,
+      email: enriched.email,
+      externalUrl: profile.externalUrl,
+      audienceTier: jobAudienceTier(job),
+    });
+
+    const avatarDataUrl =
+      typeof profile.avatarDataUrl === "string" ? profile.avatarDataUrl : null;
+    const avatarSourceUrl =
+      typeof profile.avatarUrl === "string" ? profile.avatarUrl : null;
+    const avatarUrl = await persistOpticAvatar({
+      agencyId: job.agencyId,
+      profileUrl,
+      avatarDataUrl,
+      avatarSourceUrl,
+    });
+
     let billing = await loadAgencyOpticBilling(job.agencyId);
     const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
+    const {briefFitScore: _briefFit, matchReason: _reason, ...enrichmentFields} = enriched;
     const leadPayload = {
-      ...enriched,
+      ...enrichmentFields,
+      matchScore: match.matchScore,
+      matchReason: match.matchReason,
+      matchBreakdown: match.matchBreakdown,
+      avatarUrl: avatarUrl ?? null,
       discoveryPlatform: job.platform,
       profileUrl,
       createdAt: FieldValue.serverTimestamp(),
@@ -339,13 +369,15 @@ export const submitOpticExtensionLead = onCall(async (request) => {
       campaignTitle: payTitle,
       // Numeric mirror of the rendered follower string so the vault can sort and
       // filter. Null when Instagram's count could not be parsed.
-      followerCountNumeric: parseCompactCount(enriched.followerCount),
-      postCountNumeric: parseCompactCount(profile.postCount),
+      followerCountNumeric,
+      postCountNumeric,
       extensionScrape: {
         username: profile.username,
         bio: profile.bio ?? null,
         postCount: profile.postCount ?? null,
         externalUrl: profile.externalUrl ?? null,
+        email: profile.email ?? null,
+        avatarSourceUrl: avatarSourceUrl,
       },
     };
 

@@ -444,7 +444,7 @@ export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", asy
       const ownerData = ownerSnap.data() as UserProfileFirestoreData;
       if (!ownerData.email) continue;
 
-      // Optic follow-ups (steps 1–2) change copy when the brand already sourced for this campaign.
+      // Optic follow-ups (steps 1–2) change copy when the brand already searched for this campaign.
       let hasOpticMission = false;
       try {
         const opticSnap = await db.collection("optic_jobs")

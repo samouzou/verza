@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Verza Optic Scout",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "Find Instagram creators for your brand campaigns using your own signed-in browser. Works with Verza Optic.",
   "permissions": ["tabs", "scripting", "storage"],
   "host_permissions": [

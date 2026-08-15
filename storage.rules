@@ -141,6 +141,12 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Optic vault creator avatars (Admin SDK write; tokenized read URL; also allow signed-in team)
+    match /optic_avatars/{agencyId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Rules for high-res B-Roll library
     match /b-roll/{allPaths=**} {
       // Public read so creators can download

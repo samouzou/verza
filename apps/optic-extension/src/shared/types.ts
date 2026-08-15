@@ -49,6 +49,12 @@ export type ScrapedInstagramProfile = {
   followerCount: string | null;
   postCount: string | null;
   externalUrl: string | null;
+  /** Public contact email when Instagram exposes mailto / bio email. */
+  email: string | null;
+  /** Hotlink to the profile photo (may expire). */
+  avatarUrl: string | null;
+  /** Compressed jpeg data URL for durable Storage upload. */
+  avatarDataUrl: string | null;
 };
 
 /** Follower bounds and quality rules the extension applies before submitting a lead. */
@@ -60,4 +66,4 @@ export type ExtensionAudienceFilter = {
   poolMultiplier: number;
 };
 
-export const EXTENSION_VERSION = "0.1.5";
+export const EXTENSION_VERSION = "0.1.7";

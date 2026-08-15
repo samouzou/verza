@@ -6,6 +6,8 @@ import {saveLeadWithOpticCreditCharge} from "./credits";
 import {urlPoolCap, vetDelayMs, workerSaveTarget} from "./limits";
 import {Log} from "./logCopy";
 import {generateSeedLeads, findCreators} from "./search";
+import {persistOpticAvatarFromUrl} from "./avatar";
+import {composeMatchScore} from "./matchScore";
 import {createVetBrowserContext, scrapeCreatorProfileInContext} from "./scraper";
 import {analyzeProfileWithGemini, type DraftBrandContext} from "./vision";
 
@@ -27,6 +29,7 @@ type JobDoc = {
   objectives: string;
   maxProfiles: number;
   brandContext: DraftBrandContext | null;
+  audienceTier?: string | null;
   campaignId?: string | null;
   cancelRequested?: boolean;
 };
@@ -135,16 +138,38 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
         }
         await appendLog("vet", Log.vetVisit(url));
         try {
-          const imageBase64 = await scrapeCreatorProfileInContext(vetContext, url);
+          const capture = await scrapeCreatorProfileInContext(vetContext, url);
           const leadData = await analyzeProfileWithGemini(
-            imageBase64,
+            capture.screenshotBase64,
             job.objectives,
             brand ?? null,
             job.platform
           );
           const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
+          const match = composeMatchScore({
+            briefFitScore: leadData.briefFitScore ?? 65,
+            matchReason: leadData.matchReason,
+            followerCount: leadData.followerCount,
+            email: leadData.email,
+            audienceTier: job.audienceTier ?? "any",
+          });
+          const avatarUrl = await persistOpticAvatarFromUrl({
+            agencyId: job.agencyId,
+            profileUrl: url,
+            avatarSourceUrl: capture.avatarSourceUrl,
+          });
+          const {
+            briefFitScore: _briefFit,
+            matchReason: _reason,
+            ...enrichmentFields
+          } = leadData;
           const leadPayload = {
-            ...leadData,
+            ...enrichmentFields,
+            matchScore: match.matchScore,
+            matchReason: match.matchReason,
+            matchBreakdown: match.matchBreakdown,
+            followerCountNumeric: match.followerCountNumeric,
+            avatarUrl: avatarUrl ?? null,
             discoveryPlatform: job.platform,
             profileUrl: url,
             createdAt: FieldValue.serverTimestamp(),

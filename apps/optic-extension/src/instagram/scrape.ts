@@ -198,16 +198,144 @@ export function scrapePostAuthor(excludeUsername?: string | null): string | null
   return candidates[0] ?? null;
 }
 
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const OBFUSCATED_EMAIL_RE =
+  /([a-zA-Z0-9._%+-]+)\s*(?:\[?\s*at\s*\]?|\(@\)|\(at\))\s*([a-zA-Z0-9.-]+)\s*(?:\[?\s*dot\s*\]?|\(\.\))\s*([a-zA-Z]{2,})/gi;
+
+/** Normalize and validate a candidate email string. */
+function normalizeEmail(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().toLowerCase().replace(/^mailto:/i, "");
+  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(trimmed)) return null;
+  // Skip common Instagram / placeholder addresses
+  if (trimmed.endsWith("@instagram.com") || trimmed.endsWith("@fb.com")) return null;
+  return trimmed;
+}
+
+/** Pull emails from mailto: links and free text (bio, header, contact buttons). */
+function extractEmailsFromText(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const found = new Set<string>();
+  for (const match of text.matchAll(EMAIL_RE)) {
+    const email = normalizeEmail(match[0]);
+    if (email) found.add(email);
+  }
+  for (const match of text.matchAll(OBFUSCATED_EMAIL_RE)) {
+    const email = normalizeEmail(`${match[1]}@${match[2]}.${match[3]}`);
+    if (email) found.add(email);
+  }
+  return Array.from(found);
+}
+
+function collectMailtoEmails(root: ParentNode = document): string[] {
+  const found = new Set<string>();
+  root.querySelectorAll('a[href^="mailto:"]').forEach((node) => {
+    const href = (node as HTMLAnchorElement).getAttribute("href") || "";
+    const email = normalizeEmail(href.split("?")[0]);
+    if (email) found.add(email);
+  });
+  return Array.from(found);
+}
+
+/**
+ * Best-effort bio: prefer the longest plausible text block in the profile header,
+ * skipping follower/post count lines and the display name.
+ */
+function scrapeBio(header: Element | null, displayName: string | null): string | null {
+  if (!header) return null;
+  const skip = new Set(
+    [displayName, "Follow", "Following", "Message", "Email", "Contact", "Options"]
+      .filter(Boolean)
+      .map((s) => String(s).trim().toLowerCase())
+  );
+
+  let best: string | null = null;
+  header.querySelectorAll("span, div").forEach((node) => {
+    // Prefer leaf-ish nodes to avoid concatenating the whole header.
+    if (node.querySelector("span, div")) return;
+    const text = node.textContent?.trim();
+    if (!text || text.length < 3 || text.length > 600) return;
+    if (/^\d/.test(text)) return;
+    if (/\b(followers|following|posts)\b/i.test(text) && text.length < 40) return;
+    if (skip.has(text.toLowerCase())) return;
+    if (!best || text.length > best.length) best = text;
+  });
+  return best;
+}
+
+/** Best-effort profile photo URL from the header / Open Graph tags. */
+function scrapeAvatarSourceUrl(header: Element | null, username: string): string | null {
+  const imgs = header
+    ? header.querySelectorAll("img")
+    : document.querySelectorAll('header img, main img[alt*="profile picture" i]');
+  for (const node of Array.from(imgs)) {
+    const img = node as HTMLImageElement;
+    const alt = (img.getAttribute("alt") || "").toLowerCase();
+    const src = img.currentSrc || img.src || img.getAttribute("src") || "";
+    if (!src || src.startsWith("data:")) continue;
+    if (
+      alt.includes("profile picture") ||
+      alt.includes(`@${username.toLowerCase()}`) ||
+      alt.includes(`${username.toLowerCase()}'s`)
+    ) {
+      return src;
+    }
+  }
+  const og = document.querySelector('meta[property="og:image"]')?.getAttribute("content");
+  if (og && /^https:\/\//i.test(og)) return og;
+  return null;
+}
+
+/**
+ * Fetch + downscale a profile image in-page so Cloud Functions can upload without
+ * hitting Instagram CDN blocks from the server.
+ */
+async function fetchAvatarAsJpegDataUrl(
+  src: string,
+  maxSide = 256
+): Promise<string | null> {
+  try {
+    const res = await fetch(src, {credentials: "omit", mode: "cors", cache: "force-cache"});
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (!blob.type.startsWith("image/") || blob.size < 32) return null;
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    // Cap payload (~1.2MB base64) so callable requests stay light.
+    if (dataUrl.length > 1_600_000) return null;
+    return dataUrl;
+  } catch {
+    return null;
+  }
+}
+
 /** Runs inside an Instagram profile tab (with short wait for hydration). */
 export async function scrapeInstagramProfile(): Promise<import("../shared/types").ScrapedInstagramProfile | null> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const profile = scrapeInstagramProfileOnce();
-    if (profile && (profile.followerCount || profile.bio || profile.displayName)) {
+    if (profile && (profile.followerCount || profile.bio || profile.displayName || profile.email)) {
+      if (profile.avatarUrl && !profile.avatarDataUrl) {
+        profile.avatarDataUrl = await fetchAvatarAsJpegDataUrl(profile.avatarUrl);
+      }
       return profile;
     }
     await sleep(1000);
   }
-  return scrapeInstagramProfileOnce();
+  const fallback = scrapeInstagramProfileOnce();
+  if (fallback?.avatarUrl && !fallback.avatarDataUrl) {
+    fallback.avatarDataUrl = await fetchAvatarAsJpegDataUrl(fallback.avatarUrl);
+  }
+  return fallback;
 }
 
 function scrapeInstagramProfileOnce(): import("../shared/types").ScrapedInstagramProfile | null {
@@ -222,18 +350,8 @@ function scrapeInstagramProfileOnce(): import("../shared/types").ScrapedInstagra
     ogTitle?.split("(")[0]?.trim() ||
     null;
 
-  let bio: string | null = null;
   const header = document.querySelector("header");
-  if (header) {
-    const spans = header.querySelectorAll("section span, section div span");
-    for (const span of spans) {
-      const text = span.textContent?.trim();
-      if (text && text.length > 2 && text.length < 500 && !/^\d/.test(text)) {
-        bio = text;
-        break;
-      }
-    }
-  }
+  const bio = scrapeBio(header, displayName);
 
   let followerCount: string | null = null;
   const followerMatch = document.body.innerText.match(/([\d,.]+[KMB]?)\s+followers/i);
@@ -246,8 +364,38 @@ function scrapeInstagramProfileOnce(): import("../shared/types").ScrapedInstagra
   if (postMatch) postCount = postMatch[1];
 
   let externalUrl: string | null = null;
-  const extLink = document.querySelector('header a[rel~="me"], header a[href^="http"]');
+  const extLink = document.querySelector(
+    'header a[rel~="me"], header a[href^="http"]:not([href*="instagram.com"]):not([href^="mailto:"])'
+  );
   if (extLink) externalUrl = (extLink as HTMLAnchorElement).href;
 
-  return { username, displayName, bio, followerCount, postCount, externalUrl };
+  // Contact email: mailto buttons (business/creator accounts), then bio / header text.
+  const mailtoEmails = collectMailtoEmails(header ?? document);
+  const textEmails = [
+    ...extractEmailsFromText(bio),
+    ...extractEmailsFromText(header?.innerText ?? null),
+    ...extractEmailsFromText(externalUrl),
+  ];
+  // Also catch "Email" contact rows that expose the address as plain text near the button.
+  document.querySelectorAll('a, button, div[role="button"]').forEach((node) => {
+    const label = node.textContent?.trim() ?? "";
+    if (!/^e-?mail$/i.test(label) && !/contact/i.test(label)) return;
+    const nearby = (node.parentElement?.innerText || node.textContent || "").trim();
+    textEmails.push(...extractEmailsFromText(nearby));
+  });
+
+  const email = mailtoEmails[0] ?? textEmails[0] ?? null;
+  const avatarUrl = scrapeAvatarSourceUrl(header, username);
+
+  return {
+    username,
+    displayName,
+    bio,
+    followerCount,
+    postCount,
+    externalUrl,
+    email,
+    avatarUrl,
+    avatarDataUrl: null,
+  };
 }

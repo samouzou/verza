@@ -72,7 +72,7 @@ export function useSetupSteps() {
           const bankLabel = isBrand ? 'Connect brand bank account' : 'Connect agency bank account';
 
           const definedSteps: Step[] = [
-            { id: 'profile', label: profileLabel, isCompleted: isProfileComplete, href: '/profile', icon: isBrand ? Store : Building },
+            { id: 'profile', label: profileLabel, isCompleted: isProfileComplete, href: '/agency/brand-guide', icon: isBrand ? Store : Building },
             { id: 'talent', label: talentLabel, isCompleted: hasTalent, href: '/agency', icon: Users },
             { id: 'bank', label: bankLabel, isCompleted: !!user.stripePayoutsEnabled, href: '/settings', icon: Banknote },
             { id: 'post', label: 'Fund your first campaign', isCompleted: !!(gigSnapshot && !gigSnapshot.empty), href: '/campaigns/post', icon: PlusCircle },

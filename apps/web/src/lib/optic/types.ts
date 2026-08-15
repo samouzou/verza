@@ -52,9 +52,18 @@ export type OpticJobRow = {
   logs?: Array<{ phase?: string; message?: string; ts?: Timestamp }>;
 };
 
+export type OpticMatchBreakdown = {
+  brief?: number;
+  audience?: number;
+  contact?: number;
+  activity?: number;
+};
+
 export type OpticLeadRow = {
   id: string;
   creatorName?: string;
+  /** Durable Firebase Storage URL for the creator profile photo. */
+  avatarUrl?: string | null;
   niche?: string;
   email?: string;
   followerCount?: string;
@@ -79,6 +88,18 @@ export type OpticLeadRow = {
   /** User marked they've reached out (draft sent, email sent, etc.). */
   outreachEmailed?: boolean;
   outreachEmailedAt?: Timestamp | null;
+  /** Composite campaign fit 0–100 (brief + audience + contact + activity). */
+  matchScore?: number | null;
+  /** One-sentence why they fit. */
+  matchReason?: string | null;
+  matchBreakdown?: OpticMatchBreakdown | null;
+  extensionScrape?: {
+    username?: string | null;
+    bio?: string | null;
+    postCount?: string | null;
+    externalUrl?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 /** Brand workspace context shown on the discovery page (loaded from Verza agency/brand doc). */

@@ -20,6 +20,9 @@ export interface GeminiAnalysisResult {
   draftEmail?: string | null;
   draftEmailSubject?: string | null;
   draftDm?: string | null;
+  /** Gemini brief-fit only (0–100); composed with hard signals at save time. */
+  briefFitScore?: number;
+  matchReason?: string | null;
 }
 
 function isCauseOrBarterCampaignType(ct: string | null | undefined): boolean {
@@ -94,10 +97,12 @@ export async function analyzeProfileWithGemini(
     2. niche (string, e.g. tech, beauty, gaming)
     3. email (string if visible in bio, else null)
     4. followerCount (string estimate from visible numbers)
+    5. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand. Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
+    6. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate).
 
-    5. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
-    6. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
-    7. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    7. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    8. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
+    9. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
 
     If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
 
@@ -130,6 +135,16 @@ export async function analyzeProfileWithGemini(
     parsed.draftEmail = null;
     parsed.draftEmailSubject = null;
   }
+
+  const brief =
+    typeof parsed.briefFitScore === "number" && Number.isFinite(parsed.briefFitScore)
+      ? Math.max(0, Math.min(100, Math.round(parsed.briefFitScore)))
+      : 65;
+  parsed.briefFitScore = brief;
+  parsed.matchReason =
+    typeof parsed.matchReason === "string" && parsed.matchReason.trim()
+      ? parsed.matchReason.trim().slice(0, 220)
+      : "Matches the campaign brief based on niche and profile.";
 
   return parsed;
 }

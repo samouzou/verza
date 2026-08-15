@@ -11,6 +11,12 @@ export type ExtensionProfileInput = {
   followerCount?: string | null;
   postCount?: string | null;
   externalUrl?: string | null;
+  /** Scraped public contact email when available (mailto / bio). */
+  email?: string | null;
+  /** Hotlink to the profile photo (may expire). */
+  avatarUrl?: string | null;
+  /** Compressed jpeg data URL for durable Storage upload. */
+  avatarDataUrl?: string | null;
 };
 
 export type ExtensionLeadEnrichment = {
@@ -21,14 +27,52 @@ export type ExtensionLeadEnrichment = {
   draftEmail: string | null;
   draftEmailSubject: string | null;
   draftDm: string | null;
+  /** Gemini brief-fit only (0–100); composed with hard signals at save time. */
+  briefFitScore: number;
+  matchReason: string;
 };
 
-const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i;
+const OBFUSCATED_EMAIL_RE =
+  /([a-zA-Z0-9._%+-]+)\s*(?:\[?\s*at\s*\]?|\(@\)|\(at\))\s*([a-zA-Z0-9.-]+)\s*(?:\[?\s*dot\s*\]?|\(\.\))\s*([a-zA-Z]{2,})/i;
 
-function extractEmailFromBio(bio: string | null | undefined): string | null {
-  if (!bio) return null;
-  const match = bio.match(EMAIL_RE);
-  return match ? match[0].toLowerCase() : null;
+function normalizeEmail(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().toLowerCase().replace(/^mailto:/i, "").split("?")[0];
+  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(trimmed)) return null;
+  if (trimmed.endsWith("@instagram.com") || trimmed.endsWith("@fb.com")) return null;
+  return trimmed;
+}
+
+/**
+ * Prefer the extension-scraped email, then parse bio / external link text.
+ * @param {ExtensionProfileInput} profile Scraped profile.
+ * @return {string | null} Contact email if found.
+ */
+function resolveProfileEmail(profile: ExtensionProfileInput): string | null {
+  const direct = normalizeEmail(profile.email ?? null);
+  if (direct) return direct;
+
+  const haystacks = [profile.bio, profile.externalUrl, profile.displayName].filter(
+    (s): s is string => typeof s === "string" && s.trim().length > 0
+  );
+  for (const text of haystacks) {
+    if (/^mailto:/i.test(text)) {
+      const fromMailto = normalizeEmail(text);
+      if (fromMailto) return fromMailto;
+    }
+    const match = text.match(EMAIL_RE);
+    if (match) {
+      const email = normalizeEmail(match[0]);
+      if (email) return email;
+    }
+    const obfuscated = text.match(OBFUSCATED_EMAIL_RE);
+    if (obfuscated) {
+      const email = normalizeEmail(`${obfuscated[1]}@${obfuscated[2]}.${obfuscated[3]}`);
+      if (email) return email;
+    }
+  }
+  return null;
 }
 
 function dmStyleHint(platform: string): string {
@@ -339,7 +383,7 @@ export async function enrichExtensionInstagramLead(
   objectives: string,
   brand: OpticJobBrandContext | null | undefined
 ): Promise<ExtensionLeadEnrichment> {
-  const emailFromBio = extractEmailFromBio(profile.bio);
+  const emailFromProfile = resolveProfileEmail(profile);
   const creatorName = profile.displayName?.trim() || profile.username;
   const followerCount = profile.followerCount?.trim() || "Unknown";
 
@@ -389,16 +433,18 @@ export async function enrichExtensionInstagramLead(
     - Followers: ${followerCount}
     - Bio: ${profile.bio || "(empty)"}
     - External link: ${profile.externalUrl || "(none)"}
-    - Email visible in bio: ${emailFromBio || "(none)"}
+    - Public contact email: ${emailFromProfile || "(none)"}
     - Posts: ${profile.postCount || "(unknown)"}
 
     Return strictly a JSON object with these keys:
     1. niche (string, e.g. tech, beauty, gaming)
-    2. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
-    3. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
-    4. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint("instagram")} Personalized pitch the brand can paste into Instagram DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    2. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand (content angle, niche, audience). Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
+    3. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate). No fluff.
+    4. draftEmail (string or null): ONLY if a public contact email is listed above — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    5. draftEmailSubject (string or null): ONLY if a public contact email is listed above — a short specific subject line.
+    6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint("instagram")} Personalized pitch the brand can paste into Instagram DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
 
-    If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
+    If a public contact email IS listed, set draftDm to null. If it is NOT listed, set draftEmail and draftEmailSubject to null and always provide draftDm.
 
     Personalize using the bio and display name where natural. Do not invent emails, follower counts, or facts not listed above.
     Do not include markdown outside the JSON. Use null for unknown fields.
@@ -408,6 +454,8 @@ export async function enrichExtensionInstagramLead(
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: {
     niche?: string;
+    briefFitScore?: number;
+    matchReason?: string | null;
     draftEmail?: string | null;
     draftEmailSubject?: string | null;
     draftDm?: string | null;
@@ -420,14 +468,23 @@ export async function enrichExtensionInstagramLead(
     }
   }
 
-  const hasEmail = !!emailFromBio;
+  const hasEmail = !!emailFromProfile;
+  const briefFit =
+    typeof parsed.briefFitScore === "number" && Number.isFinite(parsed.briefFitScore)
+      ? Math.max(0, Math.min(100, Math.round(parsed.briefFitScore)))
+      : 65;
   return {
     creatorName,
     niche: parsed.niche?.trim() || "Creator",
-    email: emailFromBio,
+    email: emailFromProfile,
     followerCount,
     draftEmail: hasEmail ? parsed.draftEmail?.trim() || null : null,
     draftEmailSubject: hasEmail ? parsed.draftEmailSubject?.trim() || null : null,
     draftDm: hasEmail ? null : parsed.draftDm?.trim() || null,
+    briefFitScore: briefFit,
+    matchReason:
+      typeof parsed.matchReason === "string" && parsed.matchReason.trim()
+        ? parsed.matchReason.trim().slice(0, 220)
+        : "Matches the campaign brief based on niche and profile.",
   };
 }

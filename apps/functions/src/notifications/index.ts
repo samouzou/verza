@@ -646,7 +646,7 @@ export async function sendOpticSubscriptionReceiptEmail(
     `Welcome to ${planName}. Your lead credits are ready.` :
     `Your ${planName} plan has renewed and your credits have been refreshed.`;
   const vaultNote = isNew ?
-    `You have ${leadsLabel} included leads this period. Run a discovery mission from Optic to start sourcing creators.` :
+    `You have ${leadsLabel} included leads this period. Run a discovery search in Optic to find creators who match your brief.` :
     `Your balance has been reset to ${leadsLabel} included leads for this billing period.`;
 
   const html = `
@@ -877,7 +877,7 @@ export async function sendOpticLowCreditsEmail(
  * Sends an email from the deployment onboarding sequence to the brand who posted it.
  * Step 0 is sent immediately when the deployment goes live. Steps 1–4 are drip emails.
  *
- * Steps 0–2 lead with Optic when the brand has not yet run a discovery mission for this
+ * Steps 0–2 lead with Optic when the brand has not yet run a discovery search for this
  * campaign; once they have, those steps shift to managing applicants and submissions.
  * @param {string} toEmail The recipient's email address.
  * @param {string} name The recipient's name.
@@ -904,6 +904,7 @@ export async function sendDeploymentEmailSequence(
   const appUrl = params.APP_URL.value();
   const deploymentUrl = `${appUrl}/campaigns/${gigId}`;
   const opticUrl = `${appUrl}/optic?campaignId=${encodeURIComponent(gigId)}`;
+  const vaultUrl = `${appUrl}/optic/vault`;
   const hasOpticMission = opts?.hasOpticMission === true;
 
   let subject = "";
@@ -923,22 +924,23 @@ export async function sendDeploymentEmailSequence(
 
   switch (step) {
   case 0: // Immediate — campaign is live → Optic first
-    subject = `Your campaign "${gigTitle}" is live — fill it with Optic`;
+    subject = `Your campaign "${gigTitle}" is live — find creators with Optic`;
     content = `
       <h1 style="color: #333; font-size: 22px;">Your campaign is live, ${name}!</h1>
       <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is now open on Verza.
       Creators in the network can still apply — but the brands that fill campaigns fastest
-      <strong>source the right creators themselves with Optic</strong>.</p>
-      <p style="color: #555; line-height: 1.6;">Optic finds creators who match your brief (by platform,
-      audience size, and niche), drafts outreach, and saves them to your vault so you can invite
-      the ones you want.</p>
+      <strong>search Optic for creators who already fit the brief</strong>.</p>
+      <p style="color: #555; line-height: 1.6;">Optic searches across <strong>200M+ creators</strong>
+      for matches to your campaign (by platform, audience size, and niche), then saves each one
+      to your vault with a <strong>creator report</strong> — match score and why they fit — so you
+      can spot the best fits faster and put budget on the right creators first.</p>
       <ul style="color: #555; line-height: 2;">
-        <li>Start an Optic mission attached to this campaign</li>
-        <li>Review leads in your vault and reach out</li>
+        <li>Search Optic for creators that match this campaign</li>
+        <li>Open creator reports in your vault, then reach out</li>
         <li>Accept creators on the campaign page when they’re ready to produce</li>
       </ul>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${opticUrl}" style="${btnStyle}">Source creators with Optic</a>
+        <a href="${opticUrl}" style="${btnStyle}">Find matching creators</a>
       </div>
       <p style="text-align: center; margin: 0;">
         <a href="${deploymentUrl}" style="${secondaryLinkStyle}">Or view your campaign</a>
@@ -949,22 +951,22 @@ export async function sendDeploymentEmailSequence(
 
   case 1: // Day 2
     if (!hasOpticMission) {
-      subject = `Still waiting on applicants for "${gigTitle}"? Source them with Optic`;
+      subject = `Still waiting on applicants for "${gigTitle}"? Search Optic`;
       content = `
         <h1 style="color: #333; font-size: 22px;">Don’t wait for the right creators to find you</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
         <p style="color: #555; line-height: 1.6;"><strong>"${gigTitle}"</strong> is live, but we haven’t
         seen an Optic search tied to it yet. Marketplace applications are helpful — Optic is how
-        you go find creators who actually fit the brief.</p>
+        you search <strong>200M+ creators</strong> for people who actually fit the brief.</p>
         <ul style="color: #555; line-height: 2;">
-          <li>Pick Instagram, TikTok, YouTube, and more</li>
+          <li>Search Instagram, TikTok, YouTube, and more</li>
           <li>Filter by audience size (nano → macro)</li>
-          <li>Get vault leads with ready-to-send outreach drafts</li>
+          <li>Compare creator reports in your vault before you spend outreach time</li>
         </ul>
-        <p style="color: #555; line-height: 1.6;">A short batch (5–10 creators) is enough to start
-        filling spots this week.</p>
+        <p style="color: #555; line-height: 1.6;">A short search (5–10 creators) is enough to start
+        filling spots this week — with reports that show who fits before you invite them.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${opticUrl}" style="${btnStyle}">Start an Optic mission</a>
+          <a href="${opticUrl}" style="${btnStyle}">Search creators with Optic</a>
         </div>
         <p style="text-align: center; margin: 0;">
           <a href="${deploymentUrl}" style="${secondaryLinkStyle}">Review applications on your campaign</a>
@@ -972,22 +974,24 @@ export async function sendDeploymentEmailSequence(
         ${signature}
       `;
     } else {
-      subject = `Creators for "${gigTitle}" — review applications & Optic leads`;
+      subject = `Creators for "${gigTitle}" — review applications & Optic reports`;
       content = `
         <h1 style="color: #333; font-size: 22px;">Your pipeline is moving</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">You’ve already started sourcing for
+        <p style="color: #555; line-height: 1.6;">You’ve already searched for
         <strong>"${gigTitle}"</strong> with Optic — nice. Here’s how to keep filling spots:</p>
         <ul style="color: #555; line-height: 2;">
-          <li>Review Optic vault leads and send the drafted outreach</li>
+          <li>Open creator reports in your vault and send the drafted outreach</li>
           <li>Accept marketplace applicants you like on the campaign page</li>
-          <li>Run another Optic batch if you still need more fits</li>
+          <li>Run another Optic search if you still need more fits</li>
         </ul>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${deploymentUrl}" style="${btnStyle}">Open your campaign</a>
         </div>
         <p style="text-align: center; margin: 0;">
-          <a href="${opticUrl}" style="${secondaryLinkStyle}">Run another Optic batch</a>
+          <a href="${vaultUrl}" style="${secondaryLinkStyle}">Review creator reports</a>
+          &nbsp;·&nbsp;
+          <a href="${opticUrl}" style="${secondaryLinkStyle}">Search again in Optic</a>
         </p>
         ${signature}
       `;
@@ -996,19 +1000,20 @@ export async function sendDeploymentEmailSequence(
 
   case 2: // Day 4
     if (!hasOpticMission) {
-      subject = `Fill "${gigTitle}" before production stalls — Optic`;
+      subject = `Find creators for "${gigTitle}" before production stalls`;
       content = `
         <h1 style="color: #333; font-size: 22px;">Empty seats slow everything down</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
         <p style="color: #555; line-height: 1.6;">It’s been a few days since
-        <strong>"${gigTitle}"</strong> went live, and there’s still no Optic mission for it.
+        <strong>"${gigTitle}"</strong> went live, and there’s still no Optic search for it.
         Waiting on inbound applications alone often means under-filled campaigns and delayed
         content.</p>
         <p style="color: #555; line-height: 1.6;">Spend 10 minutes in Optic: attach this campaign,
-        run a small batch, and invite the best fits. That’s the path most brands use to hit
-        roster size on time.</p>
+        search <strong>200M+ creators</strong> for brief fits, and use the creator reports to invite
+        the strongest matches first. That’s how most brands hit roster size on time — without
+        burning budget on the wrong creators.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${opticUrl}" style="${btnStyle}">Source with Optic now</a>
+          <a href="${opticUrl}" style="${btnStyle}">Find matching creators</a>
         </div>
         <p style="text-align: center; margin: 0;">
           <a href="${deploymentUrl}" style="${secondaryLinkStyle}">View campaign</a>
@@ -1068,7 +1073,7 @@ export async function sendDeploymentEmailSequence(
       <ul style="color: #555; line-height: 2;">
         <li><strong>Clicks and conversions</strong> per creator — see who actually drove results</li>
         <li><strong>Earned rewards</strong> — tracked automatically against each creator's link</li>
-        <li>Use this data to know exactly who to bring back for your next campaign — or source lookalikes in Optic</li>
+        <li>Use this data to know exactly who to bring back for your next campaign — or search Optic for lookalikes</li>
       </ul>
       <p style="color: #555; line-height: 1.6;">The brands that win at performance marketing are the ones
       who double down on what worked. Your data is waiting.</p>

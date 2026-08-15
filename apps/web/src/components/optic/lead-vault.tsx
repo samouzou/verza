@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Check,
-  Copy,
-  ExternalLink,
-  Loader2,
-  Send,
+  ChevronRight,
+  Flame,
 } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
+import { LeadReportSheet } from "@/components/optic/lead-report-sheet";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,10 +35,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { OutreachDraftCard } from "@/components/optic/outreach-draft-card";
 import { downloadLeadsCsv } from "@/lib/optic/csv";
-import { getLeadOutreachDraft, outreachCopyText } from "@/lib/optic/outreach-draft";
+import {
+  leadInitials,
+  matchBand,
+  matchBandClasses,
+  matchBandLabel,
+  platformChipClasses,
+} from "@/lib/optic/match-score";
 import type { OpticCampaignOption, OpticLeadRow } from "@/lib/optic/types";
+import { cn } from "@/lib/utils";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -65,55 +71,7 @@ export type LeadVaultProps = {
   emailUpdatingId?: string | null;
 };
 
-function LeadEmailCell({
-  leadId,
-  email,
-  onSave,
-  saving,
-}: {
-  leadId: string;
-  email?: string;
-  onSave: (leadId: string, email: string) => void;
-  saving: boolean;
-}) {
-  const [value, setValue] = useState(email ?? "");
-
-  useEffect(() => {
-    setValue(email ?? "");
-  }, [email]);
-
-  const commit = () => {
-    const trimmed = value.trim();
-    const current = (email ?? "").trim();
-    if (trimmed !== current) {
-      onSave(leadId, trimmed);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1 min-w-0">
-      <Input
-        type="email"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-        placeholder="Add email…"
-        disabled={saving}
-        className="h-8 text-xs min-w-0"
-        aria-label="Lead email"
-      />
-      {saving && (
-        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
-      )}
-    </div>
-  );
-}
+type SortMode = "score" | "followers-desc" | "followers-asc";
 
 export function LeadVault({
   leads,
@@ -131,11 +89,8 @@ export function LeadVault({
   emailUpdatingId,
 }: LeadVaultProps) {
   const [filter, setFilter] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [followerSort, setFollowerSort] = useState<"none" | "desc" | "asc">("none");
-
-  const toggleFollowerSort = () =>
-    setFollowerSort((prev) => (prev === "none" ? "desc" : prev === "desc" ? "asc" : "none"));
+  const [sortMode, setSortMode] = useState<SortMode>("score");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const byCampaign = useMemo(() => {
     if (campaignFilter === "__all__") return leads;
@@ -159,6 +114,8 @@ export function LeadVault({
         l.followerCount,
         l.campaignTitle,
         l.campaignId,
+        l.matchReason,
+        typeof l.matchScore === "number" ? String(l.matchScore) : "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -168,25 +125,41 @@ export function LeadVault({
   }, [byCampaign, filter]);
 
   const sorted = useMemo(() => {
-    if (followerSort === "none") return filtered;
-    // Leads saved before numeric counts existed sort last rather than as zero.
-    const rank = (lead: OpticLeadRow) =>
-      typeof lead.followerCountNumeric === "number" ? lead.followerCountNumeric : null;
     return [...filtered].sort((a, b) => {
-      const av = rank(a);
-      const bv = rank(b);
-      if (av === null && bv === null) return 0;
-      if (av === null) return 1;
-      if (bv === null) return -1;
-      return followerSort === "desc" ? bv - av : av - bv;
+      if (sortMode === "score") {
+        const as =
+          typeof a.matchScore === "number" ? a.matchScore : -1;
+        const bs =
+          typeof b.matchScore === "number" ? b.matchScore : -1;
+        if (bs !== as) return bs - as;
+      } else {
+        const av =
+          typeof a.followerCountNumeric === "number"
+            ? a.followerCountNumeric
+            : null;
+        const bv =
+          typeof b.followerCountNumeric === "number"
+            ? b.followerCountNumeric
+            : null;
+        if (av === null && bv === null) {
+          /* keep */
+        } else if (av === null) return 1;
+        else if (bv === null) return -1;
+        else {
+          const cmp = sortMode === "followers-desc" ? bv - av : av - bv;
+          if (cmp !== 0) return cmp;
+        }
+      }
+      const at = a.createdAt?.toMillis?.() ?? 0;
+      const bt = b.createdAt?.toMillis?.() ?? 0;
+      return bt - at;
     });
-  }, [filtered, followerSort]);
+  }, [filtered, sortMode]);
 
-  const copyDraft = (text: string, id: string) => {
-    void navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  const selectedLead =
+    sorted.find((l) => l.id === selectedId) ??
+    leads.find((l) => l.id === selectedId) ??
+    null;
 
   const campaignLabel = (lead: OpticLeadRow) => {
     if (lead.campaignTitle?.trim()) return lead.campaignTitle.trim();
@@ -198,123 +171,168 @@ export function LeadVault({
     return "Pooled mission";
   };
 
+  const cycleFollowerSort = () => {
+    setSortMode((prev) =>
+      prev === "followers-desc"
+        ? "followers-asc"
+        : prev === "followers-asc"
+          ? "score"
+          : "followers-desc"
+    );
+  };
+
   return (
     <Card>
       <CardContent className="space-y-4 p-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="space-y-2 min-w-[220px]">
-            <Label>Campaign scope</Label>
-            <Select
-              value={campaignFilter}
-              onValueChange={onCampaignFilterChange}
-              disabled={campaignsLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by campaign" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All leads</SelectItem>
-                <SelectItem value="__pooled__">Pooled missions (no single campaign)</SelectItem>
-                {campaigns.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {(g.title || "Campaign").slice(0, 56)}
-                    {g.title && g.title.length > 56 ? "…" : ""}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="space-y-2 min-w-[220px]">
+              <Label>Campaign scope</Label>
+              <Select
+                value={campaignFilter}
+                onValueChange={onCampaignFilterChange}
+                disabled={campaignsLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All leads</SelectItem>
+                  <SelectItem value="__pooled__">
+                    Pooled missions (no single campaign)
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {campaigns.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {(g.title || "Campaign").slice(0, 56)}
+                      {g.title && g.title.length > 56 ? "…" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
+              <Label htmlFor="vault-search" className="sr-only">
+                Search
+              </Label>
+              <Input
+                id="vault-search"
+                type="search"
+                placeholder="Search name, niche, email, campaign…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
-            <Label htmlFor="vault-search" className="sr-only">
-              Search
-            </Label>
-            <Input
-              id="vault-search"
-              type="search"
-              placeholder="Search name, niche, email, campaign…"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
+          <div className="flex gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={filtered.length === 0}
+              onClick={() => downloadLeadsCsv(filtered)}
+            >
+              Export CSV
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href="/optic">New mission</Link>
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={filtered.length === 0}
-            onClick={() => downloadLeadsCsv(filtered)}
-          >
-            Export CSV
-          </Button>
-          <Button type="button" variant="outline" size="sm" asChild>
-            <Link href="/optic">New mission</Link>
-          </Button>
-        </div>
-      </div>
 
-      <p className="text-sm text-muted-foreground">
-        {loading ? "Loading…" : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
-        {(filter.trim() || campaignFilter !== "__all__") && byCampaign.length !== filtered.length
-          ? ` (search narrowed from ${byCampaign.length})`
-          : ""}
-        {!loading && campaignFilter !== "__all__" && leads.length !== byCampaign.length
-          ? ` · ${byCampaign.length} in this campaign view (of ${leads.length})`
-          : ""}
-      </p>
-
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading vault…</p>
-      ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {leads.length === 0
-            ? "No leads yet. Run a discovery mission from Optic."
-            : "No leads match this campaign or search."}
+          {loading
+            ? "Loading…"
+            : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
+          {(filter.trim() || campaignFilter !== "__all__") &&
+          byCampaign.length !== filtered.length
+            ? ` (search narrowed from ${byCampaign.length})`
+            : ""}
+          {!loading &&
+          campaignFilter !== "__all__" &&
+          leads.length !== byCampaign.length
+            ? ` · ${byCampaign.length} in this campaign view (of ${leads.length})`
+            : ""}
+          {!loading && sortMode === "score"
+            ? " · Sorted by match score"
+            : ""}
         </p>
-      ) : (
-        <div className="rounded-md border overflow-x-auto xl:overflow-visible">
-          <Table className="min-w-[960px] xl:min-w-0 xl:w-full xl:table-fixed">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24 min-w-24 shrink-0 xl:w-[6%] whitespace-nowrap px-2">
-                  Contacted
-                </TableHead>
-                <TableHead className="xl:w-[10%]">Creator</TableHead>
-                <TableHead className="xl:w-[9%]">Campaign</TableHead>
-                <TableHead className="xl:w-[7%]">Niche</TableHead>
-                <TableHead className="xl:w-[7%] whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={toggleFollowerSort}
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                    aria-label="Sort by followers"
-                  >
-                    Followers
-                    {followerSort === "desc" && <ArrowDown className="h-3 w-3" />}
-                    {followerSort === "asc" && <ArrowUp className="h-3 w-3" />}
-                    {followerSort === "none" && (
-                      <ArrowUpDown className="h-3 w-3 opacity-40" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead className="xl:w-[11%]">Email</TableHead>
-                <TableHead className="xl:w-[35%]">Outreach draft</TableHead>
-                <TableHead className="xl:w-[7%] whitespace-nowrap">Found</TableHead>
-                <TableHead className="xl:w-[11%] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((lead) => {
-                const created = tsToDate(lead.createdAt);
-                const contacted = Boolean(lead.outreachEmailed);
-                const busy = outreachUpdatingId === lead.id;
-                const outreach = getLeadOutreachDraft(lead);
-                return (
-                  <TableRow key={lead.id}>
-                    <TableCell className="align-top py-2 w-24 min-w-24 shrink-0 xl:w-[6%] px-2">
-                      {onOutreachToggle ? (
-                        <div className="flex items-center pt-1">
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading vault…</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {leads.length === 0
+              ? "No leads yet. Run a discovery mission from Optic."
+              : "No leads match this campaign or search."}
+          </p>
+        ) : (
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[720px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-20 whitespace-nowrap px-2">
+                    Contacted
+                  </TableHead>
+                  <TableHead>Creator</TableHead>
+                  <TableHead className="w-28">
+                    <button
+                      type="button"
+                      onClick={() => setSortMode("score")}
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                      aria-label="Sort by match score"
+                    >
+                      <Flame className="h-3.5 w-3.5 text-orange-500" />
+                      Score
+                      {sortMode === "score" && (
+                        <ArrowDown className="h-3 w-3" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">Niche</TableHead>
+                  <TableHead className="whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={cycleFollowerSort}
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                      aria-label="Sort by followers"
+                    >
+                      Followers
+                      {sortMode === "followers-desc" && (
+                        <ArrowDown className="h-3 w-3" />
+                      )}
+                      {sortMode === "followers-asc" && (
+                        <ArrowUp className="h-3 w-3" />
+                      )}
+                      {sortMode === "score" && (
+                        <ArrowUpDown className="h-3 w-3 opacity-40" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">Found</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((lead) => {
+                  const created = tsToDate(lead.createdAt);
+                  const contacted = Boolean(lead.outreachEmailed);
+                  const busy = outreachUpdatingId === lead.id;
+                  const band = matchBand(lead.matchScore);
+                  const platform = lead.discoveryPlatform;
+                  return (
+                    <TableRow
+                      key={lead.id}
+                      className={cn(
+                        "cursor-pointer transition-colors hover:bg-muted/40",
+                        selectedId === lead.id && "bg-primary/5 border-l-2 border-l-primary"
+                      )}
+                      onClick={() => setSelectedId(lead.id)}
+                    >
+                      <TableCell
+                        className="align-middle py-3 w-20 px-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {onOutreachToggle ? (
                           <Checkbox
                             checked={contacted}
                             disabled={busy}
@@ -323,124 +341,101 @@ export function LeadVault({
                             }
                             aria-label={`Marked contacted: ${lead.creatorName ?? lead.id}`}
                           />
-                          {busy && (
-                            <Loader2 className="ml-1 h-3 w-3 animate-spin text-muted-foreground" />
-                          )}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <p className="font-medium">{lead.creatorName ?? "Unknown"}</p>
-                      {lead.profileUrl && (
-                        <a
-                          href={lead.profileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          Profile
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top text-muted-foreground text-xs">
-                      <span className="line-clamp-2">{campaignLabel(lead)}</span>
-                    </TableCell>
-                    <TableCell className="align-top text-muted-foreground">
-                      {lead.niche ?? "—"}
-                    </TableCell>
-                    <TableCell className="align-top text-muted-foreground">
-                      {lead.followerCount ?? "—"}
-                    </TableCell>
-                    <TableCell className="align-top text-muted-foreground text-xs">
-                      {onEmailChange ? (
-                        <LeadEmailCell
-                          leadId={lead.id}
-                          email={lead.email}
-                          onSave={onEmailChange}
-                          saving={emailUpdatingId === lead.id}
-                        />
-                      ) : lead.email ? (
-                        <span className="break-all leading-snug" title={lead.email}>
-                          {lead.email}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {outreach ? (
-                        <OutreachDraftCard draft={outreach} compact />
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top text-xs text-muted-foreground whitespace-nowrap">
-                      {created
-                        ? formatDistanceToNow(created, { addSuffix: true })
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="align-top text-right">
-                      {outreach && (
-                        <div className="flex flex-wrap items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => copyDraft(outreachCopyText(outreach), lead.id)}
-                            title={
-                              outreach.channel === "email"
-                                ? "Copy email draft"
-                                : `Copy ${outreach.platformLabel} DM`
-                            }
-                          >
-                            {copiedId === lead.id ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                          {onCreateGmailDraft && outreach.channel === "email" && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 gap-1 px-2"
-                              disabled={
-                                !gmailConnected ||
-                                !lead.email ||
-                                draftingLeadId === lead.id
-                              }
-                              onClick={() => onCreateGmailDraft(lead.id)}
-                              title={
-                                gmailConnected
-                                  ? lead.email
-                                    ? "Create a draft in Gmail — review there, then send"
-                                    : "No email — use Copy for platform DM"
-                                  : "Connect Gmail on Discovery first"
-                              }
-                            >
-                              {draftingLeadId === lead.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Send className="h-3.5 w-3.5" />
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="align-middle">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-9 w-9 shrink-0 border border-border">
+                            {lead.avatarUrl ? (
+                              <AvatarImage
+                                src={lead.avatarUrl}
+                                alt={lead.creatorName ?? "Creator"}
+                              />
+                            ) : null}
+                            <AvatarFallback className="text-[11px] font-medium bg-muted">
+                              {leadInitials(lead)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">
+                              {lead.creatorName ?? "Unknown"}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {platform && (
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[10px] px-1.5 py-0 capitalize font-normal",
+                                    platformChipClasses(platform)
+                                  )}
+                                >
+                                  {platform}
+                                </Badge>
                               )}
-                              <span className="hidden sm:inline">To drafts</span>
-                            </Button>
-                          )}
+                              <span className="text-xs text-muted-foreground line-clamp-1 max-w-[140px]">
+                                {campaignLabel(lead)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                      </TableCell>
+                      <TableCell className="align-middle">
+                        {typeof lead.matchScore === "number" ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums",
+                              matchBandClasses(band)
+                            )}
+                            title={lead.matchReason ?? undefined}
+                          >
+                            {lead.matchScore}
+                            <span className="font-normal opacity-80 hidden sm:inline">
+                              {matchBandLabel(band)}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="align-middle text-muted-foreground text-sm hidden md:table-cell">
+                        <span className="line-clamp-1">{lead.niche ?? "—"}</span>
+                      </TableCell>
+                      <TableCell className="align-middle text-muted-foreground text-sm tabular-nums">
+                        {lead.followerCount ?? "—"}
+                      </TableCell>
+                      <TableCell className="align-middle text-xs text-muted-foreground whitespace-nowrap">
+                        {created
+                          ? formatDistanceToNow(created, { addSuffix: true })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="align-middle text-right text-muted-foreground">
+                        <ChevronRight className="h-4 w-4 inline-block opacity-50" />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        <LeadReportSheet
+          lead={selectedLead}
+          open={Boolean(selectedLead)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedId(null);
+          }}
+          campaignLabel={selectedLead ? campaignLabel(selectedLead) : ""}
+          gmailConnected={gmailConnected}
+          onCreateGmailDraft={onCreateGmailDraft}
+          draftingLeadId={draftingLeadId}
+          onOutreachToggle={onOutreachToggle}
+          outreachUpdatingId={outreachUpdatingId}
+          onEmailChange={onEmailChange}
+          emailUpdatingId={emailUpdatingId}
+        />
       </CardContent>
     </Card>
   );
