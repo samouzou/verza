@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Verza — Short → Long Form · Ray Hughes</title>
-  <meta name="description" content="Capabilities deck for Ray Hughes: short-form to long-form YouTube strategy with CAIS × Struthless case study." />
+  <title>Verza — Long-form YouTube Strategy for Talent</title>
+  <meta name="description" content="Capabilities deck: long-form YouTube strategy for short-form talent — Food/Recipe and How To/Creator — with CAIS × Struthless case study." />
   <meta name="robots" content="noindex" />
   <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -423,15 +423,20 @@
 
     .slide.cover h1 { max-width: 15ch; }
 
+    /* Case study: wider canvas so the comment wall can breathe */
+    #case-study {
+      max-width: 90rem;
+    }
+
     /* Case study layout */
     .case-layout {
       display: grid;
-      gap: 1.25rem;
+      gap: 1.5rem;
       margin-top: 1.25rem;
     }
 
     @media (min-width: 960px) {
-      .case-layout { grid-template-columns: 1fr 1.1fr; align-items: start; }
+      .case-layout { grid-template-columns: 0.95fr 1.25fr; align-items: start; gap: 2rem; }
     }
 
     .video-tile {
@@ -529,12 +534,59 @@
 
     .roi-banner strong { color: var(--emerald); }
 
+    .growth-delta {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .growth-delta .from {
+      color: var(--mist);
+      font-size: 0.85em;
+      font-weight: 500;
+      text-decoration: line-through;
+      opacity: 0.75;
+    }
+
+    .growth-delta .arrow {
+      color: var(--emerald);
+      font-size: 0.7em;
+    }
+
+    .growth-delta .to {
+      color: var(--emerald);
+    }
+
+    .tip-comment {
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(22, 192, 136, 0.35);
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .tip-comment img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .tip-comment .tip-caption {
+      padding: 0.65rem 0.85rem 0.75rem;
+      font-size: 0.72rem;
+      color: var(--paper-dim);
+      line-height: 1.4;
+      border-top: 1px solid rgba(22, 192, 136, 0.2);
+    }
+
+    .tip-comment .tip-caption strong {
+      color: var(--emerald);
+    }
+
     /* Comment wall */
     .comment-wall {
       display: grid;
       gap: 0.65rem;
-      max-height: 28rem;
-      overflow: hidden;
     }
 
     .comment-wall-header {
@@ -664,105 +716,114 @@
       <img src="/verza-icon.svg" alt="" width="28" height="20" />
       Verza
     </a>
-    <div class="nav-meta">Capabilities · <strong>Ray Hughes</strong></div>
+    <div class="nav-meta">Strategy · <strong>Long-form YouTube</strong></div>
   </header>
   <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
 
   <!-- 01 -->
   <section class="slide cover" data-n="01 / 06" id="cover">
-    <p class="eyebrow">Prepared for Ray Hughes · Talent Management</p>
-    <h1>Your short-form stars already have the audience.</h1>
+    <p class="eyebrow">For talent managers · Long-form YouTube</p>
+    <h1>Your short-form clients already win attention. Long-form is the next business lane.</h1>
     <p class="lede">
-      We help proven short-form creators become <strong>10-minute YouTube subscribers</strong> — in <strong>Food/Recipe</strong> and <strong>How To/Creator</strong> niches where packaging, pacing, and trust decide who wins.
+      We're a <strong>results-proven strategist</strong> for long-form YouTube — advising talent in
+      <strong>Food/Recipe</strong> and <strong>How To/Creator</strong> on which formats, packaging, and
+      pacing actually turn an audience into subscribers, catalog revenue, and durable deals.
     </p>
     <div class="tag-row">
-      <span class="tag">Results-proven strategy</span>
-      <span class="tag">Short → Long bridge</span>
-      <span class="tag">Creator-native execution</span>
+      <span class="tag">Talent advisory</span>
+      <span class="tag">Long-form YouTube strategy</span>
+      <span class="tag">Case-proven execution</span>
     </div>
     <a class="proof-link" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">
       <span class="dot"></span>
-      Proof: CAIS × Struthless · 198K+ views · 60 min
+      Case study: CAIS × Struthless · 198K+ views · 1M → 1.22M subs
     </a>
     <p class="foot">tryverza.com · August 2026 · Confidential</p>
   </section>
 
   <!-- 02 -->
   <section class="slide" data-n="02 / 06" id="bridge">
-    <p class="eyebrow">The short-to-long form bridge</p>
-    <h2>A 60-second viewer and a 10-minute subscriber are not the same person — until you engineer the bridge.</h2>
+    <p class="eyebrow">What successful long-form looks like</p>
+    <h2>Short-form proves the creator. Long-form proves the business — if you greenlight the right formats.</h2>
     <div class="bridge-table-wrap">
       <table class="bridge-table">
         <thead>
           <tr>
-            <th>Stage</th>
-            <th>What short-form trains</th>
-            <th>What long-form requires</th>
+            <th>Decision</th>
+            <th>What we evaluate</th>
+            <th>What “winning” long-form looks like</th>
           </tr>
         </thead>
         <tbody>
           <tr>
+            <td>Format</td>
+            <td>Essay · series · process doc · challenge</td>
+            <td><strong style="color:var(--paper)">Fits the niche + the creator’s voice</strong> — not a forced template</td>
+          </tr>
+          <tr>
             <td>Packaging</td>
-            <td>Pattern interrupt in 0.3s</td>
-            <td><strong style="color:var(--paper)">CTR + curiosity gap</strong> that survives the click</td>
+            <td>Title · thumbnail · first 30s promise</td>
+            <td><strong style="color:var(--paper)">CTR that matches retention</strong> — curiosity that survives the click</td>
           </tr>
           <tr>
-            <td>Hook</td>
-            <td>Loop completion</td>
-            <td><strong style="color:var(--paper)">First 30s retention</strong> — new info every 8–12s</td>
+            <td>Pacing</td>
+            <td>Beats · open loops · re-hooks</td>
+            <td><strong style="color:var(--paper)">Watch-time that compounds</strong> — new info every 8–12s, no dead air</td>
           </tr>
           <tr>
-            <td>Payoff</td>
-            <td>One punchline</td>
-            <td><strong style="color:var(--paper)">Arc + re-hooks</strong> — beat the retention curve dip at 40%</td>
+            <td>Outcome</td>
+            <td>Subs · comments · tips · brand fit</td>
+            <td><strong style="color:var(--paper)">Channel LTV</strong> — not a one-off spike</td>
           </tr>
         </tbody>
       </table>
     </div>
     <div class="flow">
-      <span>Scroll</span>
+      <span>Talent audit</span>
       <i>→</i>
-      <span>Click</span>
+      <span>Format bets</span>
       <i>→</i>
-      <span>Watch</span>
+      <span>Package &amp; script</span>
       <i>→</i>
-      <span>Subscribe</span>
+      <span>Publish &amp; learn</span>
     </div>
     <p class="note">
-      <strong>Core thesis:</strong> We don't repurpose clips. We rebuild the viewer journey — same creator voice, new watch-time math. Short-form builds reach; long-form builds <strong>LTV</strong> (subs, RPM, brand deals, catalog revenue).
+      <strong>How we advise:</strong> We don’t stretch Shorts into long videos. We help talent managers and creators
+      decide <strong>which long-form can succeed</strong> for a short-form-native audience — then execute packaging,
+      narrative, and retention so the upload behaves like a business asset.
     </p>
   </section>
 
   <!-- 03 -->
   <section class="slide" data-n="03 / 06" id="capabilities">
-    <p class="eyebrow">Our capabilities</p>
-    <h2>Strategy that reads the algorithm — and the audience.</h2>
+    <p class="eyebrow">Capabilities · strategist work with talent</p>
+    <h2>Judgment first. Then packaging and retention math.</h2>
     <div class="grid-4">
       <div class="card">
         <p class="label">01</p>
-        <h3>Ideation Architecture</h3>
-        <p>Series frameworks, not one-off uploads. Content pillars → episode arcs → cliffhanger payoffs so every video feeds the next.</p>
+        <h3>Talent &amp; niche audit</h3>
+        <p>Read short-form hits, audience psychographics, and YouTube gaps. Separate “what travels” from “what only works in 60 seconds.”</p>
       </div>
       <div class="card">
         <p class="label">02</p>
-        <h3>Thumbnail Psychology</h3>
-        <p>A/B-tested packaging: facial emotion, contrast hierarchy, 3-word max title logic. CTR that matches retention inside the video.</p>
+        <h3>Format greenlights</h3>
+        <p>Which long-form bets fit Food/Recipe vs How To/Creator — series, essay, process doc, challenge — before anyone spends a shoot day.</p>
       </div>
       <div class="card">
         <p class="label">03</p>
-        <h3>Retention Hooking</h3>
-        <p>Beat-by-beat scripting against the retention curve — open loops, pattern breaks, mid-roll re-hooks. No dead air.</p>
+        <h3>Packaging &amp; retention</h3>
+        <p>Thumbnail/title systems and beat-mapped scripts against the retention curve. CTR that the first 30 seconds can cash.</p>
       </div>
       <div class="card">
         <p class="label">04</p>
-        <h3>Short → Long Translation</h3>
-        <p>Extract what works in Reels/TikTok (voice, POV, tension) and scale to watch-time without losing the creator's identity.</p>
+        <h3>Creator-native execution</h3>
+        <p>Stay inside the talent’s voice. Brand or brief embeds as storytelling — so comments debate the idea, not the ad read.</p>
       </div>
     </div>
     <dl class="stack">
       <div class="stack-row">
-        <dt>Deliverables</dt>
-        <dd>Content calendar · Thumbnail/title variants · Retention-mapped scripts · Upload QA · Post-mortem analytics (CTR, AVD, subs/video)</dd>
+        <dt>What you get</dt>
+        <dd>Strategy memo · Format recommendations · Content calendar · Thumbnail/title variants · Retention-mapped scripts · Post-mortem (CTR, AVD, subs/video)</dd>
       </div>
     </dl>
   </section>
@@ -770,7 +831,7 @@
   <!-- 04 -->
   <section class="slide" data-n="04 / 06" id="case-study">
     <p class="eyebrow">Hero case study · How To / Creator</p>
-    <h2>CAIS × Struthless — we turned a brief into a 60-minute essay. The audience stayed.</h2>
+    <h2>CAIS × Struthless — a 60-minute essay that moved the channel, not just the view count.</h2>
     <div class="case-layout">
       <div>
         <a class="video-tile" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">
@@ -788,7 +849,7 @@
                 <img src="/cais-white.png" alt="CAIS" />
                 Center for AI Safety
               </span>
-              <span class="partner-chip">@struthless · 1.22M subs</span>
+              <span class="partner-chip">@struthless · now 1.22M</span>
             </div>
           </div>
         </a>
@@ -796,7 +857,7 @@
           <div class="card">
             <div class="num">198K+</div>
             <h3>Views</h3>
-            <p>Long-form reach, not a clip dump</p>
+            <p>Long-form reach on a dense brief</p>
           </div>
           <div class="card">
             <div class="num">60 min</div>
@@ -804,9 +865,13 @@
             <p>Retention-mapped documentary essay</p>
           </div>
           <div class="card">
-            <div class="num">1.22M</div>
-            <h3>Channel subs</h3>
-            <p>Trusted How To / Creator voice</p>
+            <div class="num growth-delta">
+              <span class="from">1.00M</span>
+              <span class="arrow">→</span>
+              <span class="to">1.22M</span>
+            </div>
+            <h3>Channel growth</h3>
+            <p><strong style="color:var(--emerald)">+220K subs</strong> after the CAIS video</p>
           </div>
           <div class="card">
             <div class="num">57M+</div>
@@ -815,78 +880,78 @@
           </div>
         </div>
         <p class="roi-banner">
-          <strong>Views = reach · Watch time = trust · Comments = conversion.</strong> One long-form asset beats 30 repurposed Shorts when you're building subscriber LTV.
+          <strong>Views = reach · Sub growth = durable impact · Tips = willingness to pay.</strong>
+          When we started with Struthless he was at ~1M. After the CAIS essay: <strong>1.22M</strong> —
+          and fans Super Thanked the video in the comments.
         </p>
       </div>
       <div>
-        <p class="comment-wall-header">Wall of comments · 198K watched — the comments prove they felt it</p>
+        <p class="comment-wall-header">Wall of comments · real YouTube replies (Top comments)</p>
         <div class="comment-wall">
-          <div class="comment">
-            <p>"The Eric Schmidt booing clip at the start is why I stayed for an hour. That's packaging."</p>
-            <div class="meta"><span class="avatar">JM</span><span class="likes">↑ 847</span></div>
+          <div class="comment tip-comment">
+            <img
+              src="/pitch-struthless-tip-comment.png"
+              alt="@dancer483 Super Thanks $4.99 — Can't really put into words how much your work means to me, so just... thanks."
+              width="640"
+              height="160"
+            />
+            <p class="tip-caption">
+              <strong>Super Thanks · $4.99</strong> from a subscriber — not just a like.
+              Viewers paid to say thank you for the CAIS essay.
+            </p>
           </div>
           <div class="comment">
-            <p>"Didn't know who Peter Lebedev was. Subscribed to CAIS after this. That's the ROI."</p>
-            <div class="meta"><span class="avatar">KL</span><span class="likes">↑ 612</span></div>
+            <p>"Commenting for engagement and also to say that I'm just absolutely floored by the production quality of this documentary. The old film snippets you used for some of these montages/sequences were phenomenal, along with the audio samples and music choice. The kaleidoscope effect sequence around 40:00 was so cool. What an awesome watch, with such good questions asked and inquiries touched upon."</p>
+            <div class="meta"><span class="avatar">BH</span><span>@blasphemous_hippie</span><span class="likes">↑ 5</span></div>
           </div>
           <div class="comment">
-            <p>"This doesn't feel like sponsored content. It feels like Struthless spiraling — in the best way."</p>
-            <div class="meta"><span class="avatar">AR</span><span class="likes">↑ 534</span></div>
+            <p>"Cam, your channel is full of incredible videos that have shifted my thinking about so many things… But this one. This one was brilliant man. Thank you for always spinning hard problems into how we can empower ourselves to fix them. What a gem."</p>
+            <div class="meta"><span class="avatar">MS</span><span>@MariannesStudio</span><span class="likes">↑ 7</span></div>
           </div>
           <div class="comment">
-            <p>"60 minutes and I never checked my phone. When was the last time a brand integration did that?"</p>
-            <div class="meta"><span class="avatar">TC</span><span class="likes">↑ 489</span></div>
+            <p>"Hey man, I don't think we give you your flowers enough… a video of this caliber takes so much research, time and sourcing. Thanks for existing, thanks for creating."</p>
+            <div class="meta"><span class="avatar">MD</span><span>@madddoll8685</span><span class="likes">↑ 1.3K</span></div>
           </div>
           <div class="comment">
-            <p>"The Tony Benn 'five questions' segment — this is how you teach without lecturing."</p>
-            <div class="meta"><span class="avatar">PD</span><span class="likes">↑ 421</span></div>
-          </div>
-          <div class="comment">
-            <p>"Comment section actually worth reading. Rare for a collab video."</p>
-            <div class="meta"><span class="avatar">MX</span><span class="likes">↑ 378</span></div>
-          </div>
-          <div class="comment">
-            <p>"Sending this to my team. Finally an AI video that respects the audience's intelligence."</p>
-            <div class="meta"><span class="avatar">SB</span><span class="likes">↑ 356</span></div>
-          </div>
-          <div class="comment">
-            <p>"Complex brief + trusted creator + real storytelling = views that compound."</p>
-            <div class="meta"><span class="avatar">RW</span><span class="likes">↑ 291</span></div>
+            <p>"'Think of the AI in medical science!' say the rich men who are not funding the kind of AI that's used in medical science."</p>
+            <div class="meta"><span class="avatar">ND</span><span>@nicholemonade</span><span class="likes">↑ 2.3K</span></div>
           </div>
         </div>
       </div>
     </div>
     <p class="note" style="margin-top:1rem">
-      <strong>Why this maps to Ray's brief:</strong> Struthless audience follows for systems, creativity, and self-development — the same psychographic as top How To / Creator talent moving off TikTok. We held retention on a dense topic where most brand integrations bounce at 90 seconds.
+      What we did with talent on long-form: took a dense brief, kept his voice, packed it so people
+      stayed for an hour. Result: debate in the comments, Super Thanks, and
+      <strong>~220K new subscribers</strong> after the upload.
     </p>
   </section>
 
   <!-- 05 -->
   <section class="slide" data-n="05 / 06" id="niches">
-    <p class="eyebrow">Your two niches · one playbook</p>
-    <h2>Different niches. Same watch-time physics.</h2>
+    <p class="eyebrow">Food/Recipe · How To/Creator</p>
+    <h2>Two niches. Different tension. Same job: greenlight long-form that can win.</h2>
     <div class="grid-2">
       <div class="card">
         <p class="label">Food / Recipe</p>
         <h3>Process tension</h3>
-        <p>Visual payoff in the first 8 seconds. Thumbnail = the dish + the drama. Long-form win = series ("30-day challenge," "I tried X for a week").</p>
+        <p>What usually works: visual payoff early, dish + drama in the thumbnail, series formats (“30-day,” “I tried X for a week”). What usually fails: recipe dumps with no arc.</p>
       </div>
       <div class="card">
         <p class="label">How To / Creator</p>
         <h3>Transformation tension</h3>
-        <p>Identity payoff in the first 8 seconds. Thumbnail = the outcome + the emotion. Long-form win = essay + system (Struthless model).</p>
+        <p>What usually works: identity payoff, outcome + emotion in packaging, essay + system (Struthless model). What usually fails: tip lists with no stakes.</p>
       </div>
     </div>
     <div class="ask-grid">
       <div class="card">
-        <p class="label">What we handled · Struthless</p>
+        <p class="label">How we advised · Struthless</p>
         <h3>Narrative architecture</h3>
-        <p>Hook on a viral cultural moment (Schmidt getting booed), pivot to "AI: what could go right?" — expert segments with Peter Lebedev (AI safety).</p>
+        <p>Open on a cultural pressure point (Schmidt getting booed), reframe to “AI: what could go right?” — expert segments with Peter Lebedev (AI safety).</p>
       </div>
       <div class="card">
-        <p class="label">What we prove</p>
-        <h3>Creator authenticity intact</h3>
-        <p>Reads as content, not an ad read. CAIS message embedded, not bolted on. Comment section = debate, not drive-by.</p>
+        <p class="label">What we protect</p>
+        <h3>Talent authenticity</h3>
+        <p>Reads as the creator’s content, not an ad read. Brief embedded as story. Comment section = debate and gratitude — not drive-by.</p>
       </div>
     </div>
   </section>
@@ -894,34 +959,36 @@
   <!-- 06 -->
   <section class="slide" data-n="06 / 06" id="cta">
     <p class="eyebrow">The next step</p>
-    <h2>15 minutes. Your creators. A concrete short → long plan.</h2>
+    <h2>15 minutes. Your clients. Which long-form bets are worth making.</h2>
     <p class="lede">
-      Pick <strong>1–2 Food/Recipe or How To/Creator clients</strong> from your roster. We'll walk through the Struthless case, then come with a quick audit and three long-form concepts with thumbnail drafts.
+      Pick <strong>1–2 Food/Recipe or How To/Creator clients</strong> on your roster who are ready to build
+      YouTube. We’ll walk the Struthless case, then return a short audit: formats that fit, packaging risks,
+      and three concept directions with thumbnail drafts.
     </p>
     <div class="ask-grid">
       <div class="card">
         <p class="label">On the call</p>
-        <h3>Portfolio review</h3>
-        <p>Short-form hits vs. YouTube gap analysis for your specific talent.</p>
+        <h3>Talent review</h3>
+        <p>Short-form strengths vs. YouTube opportunity for each client — what to greenlight first.</p>
       </div>
       <div class="card">
         <p class="label">You bring</p>
         <h3>Links only</h3>
-        <p>Best short-form clips + any existing YouTube. No deck required on your end.</p>
+        <p>Best short-form work + any existing YouTube. No deck required on your end.</p>
       </div>
       <div class="card">
         <p class="label">We deliver</p>
-        <h3>3 long-form concepts</h3>
-        <p>Thumbnail/title variants + 90-day upload cadence recommendation.</p>
+        <h3>Strategy + 3 concepts</h3>
+        <p>Recommended formats · thumbnail/title variants · 90-day cadence sketch.</p>
       </div>
       <div class="card">
-        <p class="label">Low friction</p>
+        <p class="label">Fit</p>
         <h3>You already have the talent</h3>
-        <p>We bring the retention math.</p>
+        <p>We bring the long-form judgment and the retention math.</p>
       </div>
     </div>
     <div class="cta-row">
-      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Ray%20Hughes%20%C2%B7%20Short-to-Long%20Portfolio%20Review">Book a portfolio review</a>
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Long-form%20YouTube%20strategy%20review">Book a strategy review</a>
       <a class="btn btn-ghost" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">Watch Struthless case study</a>
       <a class="btn btn-ghost" href="https://tryverza.com" target="_blank" rel="noopener">tryverza.com</a>
     </div>
