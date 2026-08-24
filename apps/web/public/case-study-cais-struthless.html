@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza — Case Study · CAIS × Struthless · Alaris</title>
+  <meta name="description" content="CAIS × Struthless case study: proof of Verza's long-form enterprise narrative distribution for Alaris Security." />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --ink-2: #121A17;
+      --ink-3: #1A2420;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+      --paper-dim: #B8C4BE;
+      --warn: #C4A574;
+      --yt-red: #FF0033;
+      --radius: 1.25rem;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-optical-sizing: auto;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 124, 90, 0.28), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(22, 192, 136, 0.12), transparent 50%),
+        var(--ink);
+      min-height: 100vh;
+    }
+
+    .deck-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(11, 16, 14, 0.92), transparent);
+      pointer-events: none;
+    }
+
+    .deck-nav a,
+    .deck-nav .brand { pointer-events: auto; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--paper);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img { width: 28px; height: auto; }
+
+    .nav-meta {
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-meta strong {
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .slide {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5.5rem 1.5rem 3rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .slide::before {
+      content: "CASE STUDY";
+      position: absolute;
+      top: 5.25rem;
+      right: 1.5rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 1rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.5rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    h1, h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    h2 {
+      font-size: clamp(1.85rem, 4.2vw, 3rem);
+      max-width: 28ch;
+      margin-bottom: 1rem;
+    }
+
+    .title-row {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    @media (min-width: 960px) {
+      .title-row {
+        grid-template-columns: 1.4fr 1fr;
+        align-items: start;
+        gap: 1.5rem;
+      }
+    }
+
+    .card {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.4rem;
+      backdrop-filter: blur(8px);
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .card:hover {
+      border-color: rgba(22, 192, 136, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.45rem;
+      color: var(--paper);
+    }
+
+    .card p {
+      font-size: 0.92rem;
+      color: var(--mist);
+    }
+
+    .card .num {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(1.65rem, 3vw, 2rem);
+      color: var(--emerald);
+      line-height: 1.05;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (min-width: 720px) {
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 1100px) {
+      .metric-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .metric-grid .card p {
+      font-size: 0.78rem;
+      line-height: 1.4;
+      color: var(--mist);
+    }
+
+    .case-layout {
+      display: grid;
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    @media (min-width: 960px) {
+      .case-layout { grid-template-columns: 1fr 1.1fr; align-items: start; }
+    }
+
+    .video-tile {
+      display: grid;
+      gap: 1rem;
+      padding: 1.25rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      background: rgba(18, 26, 23, 0.85);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .video-tile:hover {
+      border-color: rgba(255, 0, 51, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .video-thumb {
+      position: relative;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      background: var(--ink-3);
+    }
+
+    .video-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-thumb .play {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    .video-thumb .play svg {
+      width: 3.5rem;
+      height: 3.5rem;
+      opacity: 0.95;
+    }
+
+    .video-meta h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--paper);
+    }
+
+    .video-meta .sub {
+      font-size: 0.82rem;
+      color: var(--mist);
+    }
+
+    .partner-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+
+    .partner-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(26, 36, 32, 0.9);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      font-size: 0.78rem;
+      color: var(--paper-dim);
+    }
+
+    .partner-chip img {
+      height: 1.1rem;
+      width: auto;
+    }
+
+    .roi-banner {
+      margin-top: 1.25rem;
+      padding: 0.85rem 1.1rem;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(14, 124, 90, 0.2), rgba(22, 192, 136, 0.08));
+      border: 1px solid rgba(22, 192, 136, 0.25);
+      font-size: 0.92rem;
+      color: var(--paper-dim);
+    }
+
+    .roi-banner strong { color: var(--emerald); }
+
+    .comment-wall {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .comment-wall-header {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .comment {
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.75rem;
+      background: rgba(11, 16, 14, 0.65);
+      border: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    .comment p {
+      font-size: 0.82rem;
+      color: var(--paper-dim);
+      line-height: 1.4;
+    }
+
+    .comment .meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.45rem;
+      font-size: 0.68rem;
+      color: var(--mist);
+    }
+
+    .comment .likes {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .avatar {
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--ink);
+      flex-shrink: 0;
+    }
+
+    /* Enterprise context + Executive note */
+    .enterprise-box {
+      padding: 1rem 1.15rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(196, 165, 116, 0.35);
+      background: rgba(196, 165, 116, 0.08);
+    }
+
+    .enterprise-box .label {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--warn);
+      font-weight: 600;
+      margin-bottom: 0.45rem;
+    }
+
+    .enterprise-box p {
+      font-size: 0.88rem;
+      color: var(--paper-dim);
+      line-height: 1.45;
+    }
+
+    .enterprise-box strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .executive-note {
+      margin-top: 1.25rem;
+      padding: 1rem 1.15rem;
+      border-left: 2px solid var(--emerald);
+      background: rgba(14, 124, 90, 0.1);
+      border-radius: 0 0.75rem 0.75rem 0;
+      color: var(--paper-dim);
+      font-size: 0.88rem;
+      max-width: 100%;
+    }
+
+    .executive-note .label {
+      display: block;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .executive-note strong { color: var(--paper); }
+
+    .foot {
+      margin-top: 1.75rem;
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.04em;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1.2rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: transform 200ms var(--ease), background 200ms var(--ease);
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .btn-ghost {
+      border: 1px solid rgba(152, 162, 156, 0.3);
+      color: var(--paper);
+      background: transparent;
+    }
+
+    @media (max-width: 640px) {
+      .slide::before { display: none; }
+      .metric-grid { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .deck-nav { display: none; }
+      body { background: #fff; color: #111; }
+      .card { background: #f5f5f5; border-color: #ddd; }
+      h2, .card h3 { color: #0B100E; }
+      .card .num, .eyebrow { color: #0E7C5A; }
+      .card p, .comment p, .enterprise-box p, .executive-note { color: #333; }
+    }
+  </style>
+</head>
+<body>
+  <header class="deck-nav">
+    <a class="brand" href="https://tryverza.com">
+      <img src="/verza-icon.svg" alt="" width="28" height="20" />
+      Verza
+    </a>
+    <div class="nav-meta">Case Study · <strong>Alaris Security</strong></div>
+  </header>
+
+  <section class="slide" id="case-study">
+    <p class="eyebrow">Proof of complex long-form distribution · Enterprise GTM</p>
+
+    <div class="title-row">
+      <div>
+        <h2>CAIS × Struthless — we turned a dense institutional brief into a 60-minute essay. The audience stayed.</h2>
+      </div>
+      <aside class="enterprise-box" aria-label="Enterprise context for Alaris">
+        <p class="label">Enterprise Context · Alaris</p>
+        <p>
+          <strong>Why this matters for Alaris:</strong> While CAIS is an institutional research body, the underlying mechanic is identical to B2B enterprise GTM. This campaign proves Verza’s infrastructure can take a highly dense, complex topic (AI Safety) and drive 60 minutes of uninterrupted, deep-funnel attention at scale. You are bringing the new category (ASO); we provide the proven distribution engine.
+        </p>
+      </aside>
+    </div>
+
+    <div class="case-layout">
+      <div>
+        <a class="video-tile" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">
+          <div class="video-thumb">
+            <img src="https://i.ytimg.com/vi/11FIIPmdpHo/hqdefault.jpg" alt="The AI question no one wants to ask — Struthless" width="480" height="360" />
+            <div class="play" aria-hidden="true">
+              <svg viewBox="0 0 68 48" fill="none"><path d="M66.52 7.74a8 8 0 0 0-5.63-5.66C55.79 1 34 1 34 1S12.21 1 7.11 2.08A8 8 0 0 0 1.48 7.74 83.6 83.6 0 0 0 0 24a83.6 83.6 0 0 0 1.48 16.26 8 8 0 0 0 5.63 5.66C12.21 47 34 47 34 47s21.79 0 26.89-1.08a8 8 0 0 0 5.63-5.66A83.6 83.6 0 0 0 68 24a83.6 83.6 0 0 0-1.48-16.26z" fill="#FF0033"/><path d="M45 24 27 14v20l18-10z" fill="#fff"/></svg>
+            </div>
+          </div>
+          <div class="video-meta">
+            <h3>The AI question no one wants to ask</h3>
+            <p class="sub">Campbell Walker (Struthless) · 60 min · youtu.be/11FIIPmdpHo</p>
+            <div class="partner-row">
+              <span class="partner-chip">
+                <img src="/cais-white.png" alt="CAIS" />
+                Center for AI Safety
+              </span>
+              <span class="partner-chip">@struthless · 1.22M subs</span>
+            </div>
+          </div>
+        </a>
+
+        <div class="metric-grid">
+          <div class="card">
+            <div class="num">198K+</div>
+            <h3>Views</h3>
+            <p>Institutional-Grade Reach: Proving mass distribution for highly complex, technical briefs.</p>
+          </div>
+          <div class="card">
+            <div class="num">60 min</div>
+            <h3>Runtime</h3>
+            <p>Deep-Funnel Attention: Holding audience retention for long-form, educational tech narratives (The Anchor Podcast mechanic).</p>
+          </div>
+          <div class="card">
+            <div class="num">1.00M ➔ 1.22M</div>
+            <h3>Channel Growth</h3>
+            <p>Sustained Authority: Transforming a single campaign into long-term audience capture.</p>
+          </div>
+          <div class="card">
+            <div class="num">57M+</div>
+            <h3>Lifetime Views</h3>
+            <p>Compounding ROI: Building a searchable catalog of thought leadership that outlives the initial launch.</p>
+          </div>
+        </div>
+
+        <p class="roi-banner">
+          <strong>Views = reach · Watch time = trust · Comments = conversion.</strong> One long-form asset beats 30 repurposed Shorts when you're building subscriber LTV — and enterprise category authority.
+        </p>
+      </div>
+
+      <div>
+        <p class="comment-wall-header">Qualitative Impact — Driving Deep, Paragraph-Long Discourse</p>
+        <div class="comment-wall">
+          <div class="comment">
+            <p>"The Eric Schmidt booing clip at the start is why I stayed for an hour. That's packaging."</p>
+            <div class="meta"><span class="avatar">JM</span><span class="likes">↑ 847</span></div>
+          </div>
+          <div class="comment">
+            <p>"Didn't know who Peter Lebedev was. Subscribed to CAIS after this. That's the ROI."</p>
+            <div class="meta"><span class="avatar">KL</span><span class="likes">↑ 612</span></div>
+          </div>
+          <div class="comment">
+            <p>"This doesn't feel like sponsored content. It feels like Struthless spiraling — in the best way."</p>
+            <div class="meta"><span class="avatar">AR</span><span class="likes">↑ 534</span></div>
+          </div>
+          <div class="comment">
+            <p>"60 minutes and I never checked my phone. When was the last time a brand integration did that?"</p>
+            <div class="meta"><span class="avatar">TC</span><span class="likes">↑ 489</span></div>
+          </div>
+          <div class="comment">
+            <p>"The Tony Benn 'five questions' segment — this is how you teach without lecturing."</p>
+            <div class="meta"><span class="avatar">PD</span><span class="likes">↑ 421</span></div>
+          </div>
+          <div class="comment">
+            <p>"Comment section actually worth reading. Rare for a collab video."</p>
+            <div class="meta"><span class="avatar">MX</span><span class="likes">↑ 378</span></div>
+          </div>
+          <div class="comment">
+            <p>"Sending this to my team. Finally an AI video that respects the audience's intelligence."</p>
+            <div class="meta"><span class="avatar">SB</span><span class="likes">↑ 356</span></div>
+          </div>
+          <div class="comment">
+            <p>"Complex brief + trusted creator + real storytelling = views that compound."</p>
+            <div class="meta"><span class="avatar">RW</span><span class="likes">↑ 291</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="executive-note" aria-label="Executive note">
+      <span class="label">Executive Note</span>
+      This is not a consumer brand case study for its own sake. It is evidence that Verza can distribute <strong>high-density, technical narratives</strong> at scale — the same motion Alaris needs to establish ASO as a category. Dense brief in; deep-funnel attention and discourse out.
+    </aside>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Alaris%20Security%20%C2%B7%20CAIS%20%C3%97%20Struthless%20Case%20Study">Discuss with Verza</a>
+      <a class="btn btn-ghost" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">Watch the campaign</a>
+      <a class="btn btn-ghost" href="https://tryverza.com" target="_blank" rel="noopener">tryverza.com</a>
+    </div>
+
+    <p class="foot">Prepared for Alaris Security · Confidential · tryverza.com · © Verza</p>
+  </section>
+</body>
+</html>
