@@ -30,7 +30,17 @@
             ".git",
             "firebase-debug.log",
             "firebase-debug.*.log",
-            "functions"
+            "functions",
+            ".next",
+            ".turbo",
+            "dist",
+            "out",
+            "coverage",
+            ".env",
+            ".env.*",
+            "emulator-data",
+            "apps/desktop",
+            "apps/optic-worker/dist"
         ],
         "alwaysDeployFromSource": true
     },
