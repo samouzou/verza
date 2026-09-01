@@ -217,8 +217,9 @@ async function runOmniVideo(args: {
   const createArgs: Record<string, unknown> = {
     model: MODEL,
     input,
-    generationConfig: {
-      videoConfig: {
+    // Interactions API expects snake_case (camelCase returns 400).
+    generation_config: {
+      video_config: {
         task: args.task,
       },
     },
@@ -318,7 +319,8 @@ async function uploadVideoBuffer(args: {
 export const generateScene = onCall({
   timeoutSeconds: 300,
   memory: "1GiB",
-  secrets: [params.GEMINI_API_KEY],
+  // GEMINI_API_KEY is already injected as a plain Cloud Run env var in this project;
+  // do not also bind it via secrets:[] or deploy fails with env overlap.
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -378,7 +380,7 @@ export const generateScene = onCall({
   let sourceImageUrl: string | null = null;
 
   try {
-    const apiKey = params.GEMINI_API_KEY.value();
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       throw new HttpsError("failed-precondition", "GEMINI_API_KEY is not configured.");
     }
@@ -498,7 +500,7 @@ export const generateScene = onCall({
 export const editScene = onCall({
   timeoutSeconds: 300,
   memory: "1GiB",
-  secrets: [params.GEMINI_API_KEY],
+  // GEMINI_API_KEY is already a plain env var — avoid secret overlap on deploy.
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
@@ -550,7 +552,7 @@ export const editScene = onCall({
   await deductCredits(userDocRef, adminDb, userId, EDIT_COST);
 
   try {
-    const apiKey = params.GEMINI_API_KEY.value();
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       throw new HttpsError("failed-precondition", "GEMINI_API_KEY is not configured.");
     }

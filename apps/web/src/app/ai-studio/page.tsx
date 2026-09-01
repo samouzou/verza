@@ -354,7 +354,7 @@ function SceneSpawnerContent() {
     if (!generatedMedia.interactionId) {
       toast({
         title: "Can't edit this clip",
-        description: "Generate a new video with Omni to unlock refine.",
+        description: "Generate a new video with Verza to unlock refine.",
         variant: "destructive",
       });
       return;
@@ -374,7 +374,7 @@ function SceneSpawnerContent() {
     }
 
     setIsEditing(true);
-    toast({ title: "Editing…", description: "Omni is refining your video." });
+    toast({ title: "Editing…", description: "Verza is refining your video." });
     try {
       const editSceneCallable = httpsCallable(functions, "editScene");
       const result = await editSceneCallable({
@@ -762,7 +762,7 @@ function SceneSpawnerContent() {
                         </SelectContent>
                       </Select>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        Portrait characters lock likeness in Omni video via reference.
+                        Portrait characters lock likeness in Verza video via reference.
                       </p>
                       {selectedCharacter && (
                         <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/30 p-2">
@@ -844,7 +844,7 @@ function SceneSpawnerContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6 text-primary" />Generated Media</CardTitle>
               <CardDescription>
-                Pick a character with a portrait for likeness-locked Omni video. After a clip is ready, refine it with a follow-up edit.
+                Pick a character with a portrait for likeness-locked Verza video. After a clip is ready, refine it with a follow-up edit.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -877,13 +877,13 @@ function SceneSpawnerContent() {
               {generatedMedia?.type === "video" && generatedMedia.interactionId && (
                 <div className="space-y-3 rounded-lg border p-4">
                   <div>
-                    <Label htmlFor="omni-edit-prompt">Edit this video</Label>
+                    <Label htmlFor="video-edit-prompt">Edit this video</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Omni keeps the clip in context — e.g. “slow the camera” or “keep the character, change the background to a cafe”.
+                      Verza keeps the clip in context — e.g. “slow the camera” or “keep the character, change the background to a cafe”.
                     </p>
                   </div>
                   <Textarea
-                    id="omni-edit-prompt"
+                    id="video-edit-prompt"
                     value={editPrompt}
                     onChange={(e) => setEditPrompt(e.target.value)}
                     placeholder="Describe the change…"
@@ -907,7 +907,7 @@ function SceneSpawnerContent() {
 
               {generatedMedia?.type === "video" && !generatedMedia.interactionId && (
                 <p className="text-xs text-muted-foreground">
-                  This clip can&apos;t be refined (no Omni session). Generate a new video to unlock editing.
+                  This clip can&apos;t be refined yet. Generate a new video to unlock editing.
                 </p>
               )}
             </CardContent>
