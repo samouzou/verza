@@ -39,6 +39,7 @@ import {
   notifyBrandCreatorJoined,
   notifyBrandVideoSubmitted,
   notifyBrandCampaignApplicant,
+  sendOnboardingWelcomeEmail,
 } from "./notifications";
 
 import {
@@ -47,9 +48,16 @@ import {
   processRecurringContracts,
   sendDripCampaignEmails,
   sendAgencyDripCampaignEmails,
+  sendStoreDripCampaignEmails,
+  sendCareerPathDripCampaignEmails,
   sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
 } from "./scheduler";
+
+import {
+  startStoreEmailSequence,
+  startCareerPathEmailSequence,
+} from "./notifications/careerPathEmails";
 
 import {
   createStripeSubscriptionCheckoutSession,
@@ -173,11 +181,16 @@ export {
   notifyBrandCreatorJoined,
   notifyBrandVideoSubmitted,
   notifyBrandCampaignApplicant,
+  sendOnboardingWelcomeEmail,
+  startStoreEmailSequence,
+  startCareerPathEmailSequence,
   sendOverdueInvoiceReminders,
   sendUpcomingPaymentReminders,
   processRecurringContracts,
   sendDripCampaignEmails,
   sendAgencyDripCampaignEmails,
+  sendStoreDripCampaignEmails,
+  sendCareerPathDripCampaignEmails,
   sendDeploymentDripCampaignEmails,
   processAffiliatePayouts,
   createStripeSubscriptionCheckoutSession,

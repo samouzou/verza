@@ -8,6 +8,7 @@ import sgMail from "@sendgrid/mail";
 import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract, Gig} from "./../types";
 import {sendEmailSequence, sendAgencyEmailSequence, sendDeploymentEmailSequence} from "../notifications";
+import {sendCareerPathEmailSequence, type CareerPathEmailPath} from "../notifications/careerPathEmails";
 import * as params from "../config/params";
 import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
 
@@ -342,8 +343,16 @@ export const sendDripCampaignEmails = onSchedule("every 24 hours", async () => {
 
       const currentStep = user.emailSequence.step;
 
+      // Creator drip only — brands/agencies get a different welcome + agency sequence.
+      if (user.role !== "individual_creator") {
+        batch.update(userDoc.ref, {emailSequence: FieldValue.delete()});
+        continue;
+      }
+
       // Send the educational email for the current step
-      await sendEmailSequence(user.email, user.displayName || "Creator", currentStep);
+      await sendEmailSequence(user.email, user.displayName || "there", currentStep, {
+        audience: "creator",
+      });
 
       // Prepare user doc for the next step
       const nextStep = currentStep + 1;
@@ -384,9 +393,16 @@ export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async (
       if (!user.email || !user.agencyEmailSequence) continue;
 
       const currentStep = user.agencyEmailSequence.step;
-      const agencyName = user.agencyMemberships?.find((m) => m.role === "owner")?.agencyName || "your agency";
+      const agencyName = user.agencyMemberships?.find((m) => m.role === "owner")?.agencyName ||
+        (user.isBrandAccount ? "your brand" : "your agency");
 
-      await sendAgencyEmailSequence(user.email, user.displayName || "there", agencyName, currentStep);
+      await sendAgencyEmailSequence(
+        user.email,
+        user.displayName || "there",
+        agencyName,
+        currentStep,
+        {isBrandAccount: user.isBrandAccount === true}
+      );
 
       const nextStep = currentStep + 1;
       // Space emails: steps 1-3 every 2 days, steps 4-5 every 3 days
@@ -412,6 +428,73 @@ export const sendAgencyDripCampaignEmails = onSchedule("every 24 hours", async (
     logger.error("Error in sendAgencyDripCampaignEmails:", error);
   }
 });
+
+export const sendCareerPathDripCampaignEmails = onSchedule("every 24 hours", async () => {
+  logger.info("Starting sendCareerPathDripCampaignEmails function.");
+  const now = Timestamp.now();
+
+  try {
+    const usersSnapshot = await db.collection("users")
+      .where("careerPathEmailSequence.nextEmailAt", "<=", now)
+      .where("careerPathEmailSequence.step", "<=", 5)
+      .get();
+
+    if (usersSnapshot.empty) {
+      logger.info("No creators due for a career-path drip email.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const user = userDoc.data() as UserProfileFirestoreData & {
+        careerPathEmailSequence?: {
+          path: CareerPathEmailPath;
+          step: number;
+          nextEmailAt: Timestamp;
+        };
+      };
+      if (!user.email || !user.careerPathEmailSequence) continue;
+
+      const {path, step: currentStep} = user.careerPathEmailSequence;
+      if (user.careerPathResult !== path) {
+        batch.update(userDoc.ref, {careerPathEmailSequence: FieldValue.delete()});
+        continue;
+      }
+
+      await sendCareerPathEmailSequence(
+        user.email,
+        user.displayName || "there",
+        path,
+        currentStep
+      );
+
+      const nextStep = currentStep + 1;
+      const daysUntilNext = currentStep >= 3 ? 3 : 2;
+      const nextEmailAt = new Timestamp(
+        now.seconds + daysUntilNext * 24 * 60 * 60,
+        0
+      );
+
+      if (nextStep > 5) {
+        batch.update(userDoc.ref, {careerPathEmailSequence: FieldValue.delete()});
+      } else {
+        batch.update(userDoc.ref, {
+          "careerPathEmailSequence.step": nextStep,
+          "careerPathEmailSequence.nextEmailAt": nextEmailAt,
+        });
+      }
+    }
+
+    await batch.commit();
+    logger.info(`Processed ${usersSnapshot.size} creators for career-path drips.`);
+  } catch (error) {
+    logger.error("Error in sendCareerPathDripCampaignEmails:", error);
+  }
+});
+
+/** @deprecated Prefer sendCareerPathDripCampaignEmails. */
+export const sendStoreDripCampaignEmails = sendCareerPathDripCampaignEmails;
 
 export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", async () => {
   logger.info("Starting sendDeploymentDripCampaignEmails function.");

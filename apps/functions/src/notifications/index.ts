@@ -282,8 +282,14 @@ export async function sendAgencyInvitationEmail(inviteeEmail: string, agencyName
  * @param {string} toEmail The recipient's email address.
  * @param {string} name The recipient's name.
  * @param {number} step The step number of the email in the sequence.
+ * @param {{audience?: "creator" | "brand" | "agency"}} [opts] Role-specific welcome copy for step 0.
  */
-export async function sendEmailSequence(toEmail: string, name: string, step: number): Promise<void> {
+export async function sendEmailSequence(
+  toEmail: string,
+  name: string,
+  step: number,
+  opts?: {audience?: "creator" | "brand" | "agency"}
+): Promise<void> {
   const sendgridKey = params.SENDGRID_API_KEY.value();
   if (!sendgridKey) {
     logger.error("SENDGRID_API_KEY not set, skipping email sequence.");
@@ -292,6 +298,7 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
+  const audience = opts?.audience ?? "creator";
 
   let subject = "";
   let content = "";
@@ -304,11 +311,34 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
   `;
 
   const btnStyle = emailButtonStyle("6px");
+  const secondaryLinkStyle =
+    `color: ${EMAIL_BRAND_PRIMARY}; font-size: 14px; text-decoration: underline;`;
 
   switch (step) {
-  case 0: // Welcome & Deployment Network
-    subject = "Welcome to Verza | The Operating System for Creators";
-    content = `
+  case 0: // Welcome — role-specific
+    if (audience === "brand" || audience === "agency") {
+      const entity = audience === "brand" ? "brand" : "agency";
+      const entityTitle = audience === "brand" ? "Brand" : "Agency";
+      subject = `Welcome to Verza | Find creators. Run campaigns. Pay fast.`;
+      content = `
+        <h1 style="color: #333; font-size: 22px;">Welcome to Verza, ${name}!</h1>
+        <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza. We built this so
+        ${entity === "brand" ? "brands" : "agencies"} can find the right creators, run campaigns, and
+        settle pay without spreadsheet casting or chasing invoices.</p>
+        <p style="color: #555; line-height: 1.6;">Your next move: create your ${entity} workspace, then
+        use <strong>Optic</strong> to search <strong>200M+ creators</strong> who match your brief —
+        each lead lands in your vault with a creator report so you can invite the best fits first.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${appUrl}/agency" style="${btnStyle}">Create your ${entityTitle}</a>
+        </div>
+        <p style="text-align: center; margin: 0;">
+          <a href="${appUrl}/optic" style="${secondaryLinkStyle}">Or open Optic</a>
+        </p>
+        ${signature}
+      `;
+    } else {
+      subject = "Welcome to Verza | The Operating System for Creators";
+      content = `
         <h1 style="color: #333; font-size: 22px;">Welcome to the family, ${name}!</h1>
         <p style="color: #555; line-height: 1.6;">I'm Serge, the founder of Verza. We built this platform because the creator 
         economy is broken. High fees, slow payments, and "guesswork" marketing are holding us back.</p>
@@ -319,8 +349,13 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         </div>
         ${signature}
       `;
+    }
     break;
-  case 1: // AI Edge & Verza Score
+  case 1: // AI Edge & Verza Score (creators only)
+    if (audience !== "creator") {
+      logger.info(`Skipping creator drip step ${step} for audience=${audience}.`);
+      return;
+    }
     subject = "How the Verza Score works — and why it matters for your payouts";
     content = `
         <h1 style="color: #333; font-size: 22px;">Brands only pay for content that performs.</h1>
@@ -340,7 +375,11 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
         ${signature}
       `;
     break;
-  case 2: // Verified Metrics & Stripe
+  case 2: // Verified Metrics & Stripe (creators only)
+    if (audience !== "creator") {
+      logger.info(`Skipping creator drip step ${step} for audience=${audience}.`);
+      return;
+    }
     subject = "Verified Metrics = Instant Payouts";
     content = `
         <h1 style="color: #333; font-size: 22px;">Turn Your Reach into Revenue</h1>
@@ -424,6 +463,69 @@ export async function sendEmailSequence(toEmail: string, name: string, step: num
     logger.error(`Failed to send email sequence step ${step} to ${toEmail}:`, error);
   }
 }
+
+/**
+ * Sends the role-specific welcome email after onboarding role selection.
+ * Creators keep the creator drip; brands/agencies get a discovery-focused welcome and
+ * are removed from the creator drip sequence.
+ */
+export const sendOnboardingWelcomeEmail = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to finish onboarding.");
+  }
+
+  const uid = request.auth.uid;
+  const userRef = db.collection("users").doc(uid);
+  const snap = await userRef.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User profile not found.");
+  }
+
+  const user = snap.data() as {
+    email?: string | null;
+    displayName?: string | null;
+    role?: string | null;
+    isBrandAccount?: boolean;
+    welcomeEmailSent?: boolean;
+    hasCompletedOnboarding?: boolean;
+  };
+
+  if (user.welcomeEmailSent) {
+    return {ok: true as const, alreadySent: true};
+  }
+  if (!user.email) {
+    throw new HttpsError("failed-precondition", "Add an email to your account first.");
+  }
+
+  const name = user.displayName || "there";
+  const isCreator = user.role === "individual_creator";
+  const isBrand = user.isBrandAccount === true;
+  const audience: "creator" | "brand" | "agency" = isCreator ?
+    "creator" :
+    isBrand ? "brand" : "agency";
+
+  await sendEmailSequence(user.email, name, 0, {audience});
+
+  const twoDaysFromNow = new Timestamp(
+    Timestamp.now().seconds + 2 * 24 * 60 * 60,
+    0
+  );
+
+  if (isCreator) {
+    await userRef.update({
+      welcomeEmailSent: true,
+      emailSequence: {step: 1, nextEmailAt: twoDaysFromNow},
+    });
+  } else {
+    await userRef.update({
+      welcomeEmailSent: true,
+      emailSequence: FieldValue.delete(),
+    });
+  }
+
+  logger.info("[Welcome] Onboarding welcome sent", {uid, audience});
+  return {ok: true as const, audience};
+});
 
 /**
  * Maps an internal subscription plan ID to a human-readable plan name.
@@ -1162,15 +1264,20 @@ export async function sendDeploymentEmailSequence(
 }
 
 /**
- * Sends an email from the agency onboarding sequence to a new agency owner.
+ * Sends an email from the agency onboarding sequence to a new agency/brand owner.
  * Step 0 is sent immediately on agency creation. Steps 1–5 are drip emails.
  * @param {string} toEmail The recipient's email address.
  * @param {string} name The recipient's name.
- * @param {string} agencyName The name of the agency they created.
+ * @param {string} agencyName The name of the agency/brand they created.
  * @param {number} step The step number (0–5).
+ * @param {{isBrandAccount?: boolean}} [opts] Brand vs agency wording.
  */
 export async function sendAgencyEmailSequence(
-  toEmail: string, name: string, agencyName: string, step: number
+  toEmail: string,
+  name: string,
+  agencyName: string,
+  step: number,
+  opts?: {isBrandAccount?: boolean}
 ): Promise<void> {
   const sendgridKey = params.SENDGRID_API_KEY.value();
   if (!sendgridKey) {
@@ -1180,6 +1287,10 @@ export async function sendAgencyEmailSequence(
   sgMail.setApiKey(sendgridKey);
 
   const appUrl = params.APP_URL.value();
+  const isBrand = opts?.isBrandAccount === true;
+  const entity = isBrand ? "brand" : "agency";
+  const entityTitle = isBrand ? "Brand" : "Agency";
+  const opticUrl = `${appUrl}/optic`;
 
   let subject = "";
   let content = "";
@@ -1193,26 +1304,33 @@ export async function sendAgencyEmailSequence(
   `;
 
   const btnStyle = emailButtonStyle("6px");
+  const secondaryLinkStyle =
+    `color: ${EMAIL_BRAND_PRIMARY}; font-size: 14px; text-decoration: underline;`;
 
   switch (step) {
-  case 0: // Immediate — agency is live
+  case 0: // Immediate — brand/agency is live
     subject = `${agencyName} is officially live on Verza`;
     content = `
-      <h1 style="color: #333; font-size: 22px;">Congrats, ${name} — your agency is live!</h1>
+      <h1 style="color: #333; font-size: 22px;">Congrats, ${name} — your ${entity} is live!</h1>
       <p style="color: #555; line-height: 1.6;"><strong>${agencyName}</strong> is now set up on Verza.
-      You have a full command center waiting for you — here's what's ready to go:</p>
+      Start by searching <strong>Optic</strong> across <strong>200M+ creators</strong> for people who match
+      your brief — each lead lands in your vault with a <strong>creator report</strong> so you can invite
+      the best fits first and put budget on the right creators.</p>
       <ul style="color: #555; line-height: 2;">
-        <li><strong>Talent Roster</strong> — invite creators and manage your roster</li>
+        <li><strong>Optic</strong> — search by platform, audience size, and niche; compare fit with creator reports</li>
+        <li><strong>${isBrand ? "Creator roster" : "Talent Roster"}</strong> — invite creators and manage your roster</li>
         <li><strong>Team Management</strong> — bring in admins and team members</li>
         <li><strong>Payouts</strong> — pay talent directly to their bank account</li>
-        <li><strong>Campaigns</strong> — run brand campaigns across your entire roster</li>
-        <li><strong>AI Contracts</strong> — generate and send contracts in seconds</li>
+        <li><strong>Campaigns</strong> — ${isBrand ? "launch campaigns and invite creators who fit" : "run brand campaigns across your entire roster"}</li>
       </ul>
-      <p style="color: #555; line-height: 1.6;">Head to your dashboard to get started.
-      Over the next two weeks I'll walk you through each feature one by one.</p>
+      <p style="color: #555; line-height: 1.6;">Over the next two weeks I'll walk you through each part of
+      the ${entity} workspace one by one.</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${appUrl}/agency" style="${btnStyle}">Go to Your Agency Dashboard</a>
+        <a href="${opticUrl}" style="${btnStyle}">Search creators with Optic</a>
       </div>
+      <p style="text-align: center; margin: 0;">
+        <a href="${appUrl}/agency" style="${secondaryLinkStyle}">Or go to your ${entityTitle} dashboard</a>
+      </p>
       ${signature}
     `;
     break;

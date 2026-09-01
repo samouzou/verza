@@ -292,6 +292,17 @@ export interface UserProfileFirestoreData {
     step: number;
     nextEmailAt: Timestamp;
   };
+  /** Community career path → Store product onboarding drip. */
+  storeEmailSequence?: {
+    step: number;
+    nextEmailAt: Timestamp;
+  };
+  /** Active career-path drip (community / monetized / emerging). */
+  careerPathEmailSequence?: {
+    path: "community" | "monetized" | "emerging";
+    step: number;
+    nextEmailAt: Timestamp;
+  };
 
   // SceneSpawner Credits
   credits?: number;

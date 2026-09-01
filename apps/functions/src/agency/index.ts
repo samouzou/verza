@@ -76,7 +76,13 @@ export const createAgency = onCall(async (request) => {
       await userDocRef.update({
         agencyEmailSequence: {step: 1, nextEmailAt: twoDaysFromNow},
       });
-      await sendAgencyEmailSequence(userData.email, userData.displayName || "there", name.trim(), 0);
+      await sendAgencyEmailSequence(
+        userData.email,
+        userData.displayName || "there",
+        name.trim(),
+        0,
+        {isBrandAccount: userData.isBrandAccount === true}
+      );
     }
 
     logger.info(`Agency "${name}" created successfully for user ${userId}. Custom claim and Firestore field set.`);

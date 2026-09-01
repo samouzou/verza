@@ -152,7 +152,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     const { uid, email, displayName, photoURL, emailVerified } = firebaseUser;
     const createdAt = Timestamp.now();
     const trialEndsAtTimestamp = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
-    const twoDaysFromNow = new Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
 
     updates.uid = uid;
     updates.email = email;
@@ -186,10 +185,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     
     updates.hasCompletedOnboarding = false;
 
-    updates.emailSequence = {
-      step: 1,
-      nextEmailAt: twoDaysFromNow,
-    };
     updates.credits = NEW_USER_BONUS;
 
     updates.showInMarketplace = false;
@@ -221,7 +216,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
   } else {
     const existingData = userDocSnap.data() as UserProfile;
-    const twoDaysFromNow = new Timestamp(Timestamp.now().seconds + 2 * 24 * 60 * 60, Timestamp.now().nanoseconds);
 
     if (firebaseUser.photoURL && existingData.avatarUrl !== firebaseUser.photoURL) {
       updates.avatarUrl = firebaseUser.photoURL;
@@ -233,13 +227,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
     }
     if (existingData.emailVerified !== firebaseUser.emailVerified) {
       updates.emailVerified = firebaseUser.emailVerified;
-      needsUpdate = true;
-    }
-     if (existingData.emailSequence === undefined) {
-      updates.emailSequence = {
-        step: 1,
-        nextEmailAt: twoDaysFromNow,
-      };
       needsUpdate = true;
     }
     if (existingData.address === undefined) { 

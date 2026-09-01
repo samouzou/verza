@@ -4,7 +4,6 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "./../types";
-import {sendEmailSequence} from "../notifications";
 
 const NEW_USER_BONUS = 50;
 
@@ -13,7 +12,6 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
   const userDocRef = db.collection("users").doc(uid);
   const createdAt = Timestamp.now();
   const trialEndsAt = new Timestamp(createdAt.seconds + 7 * 24 * 60 * 60, createdAt.nanoseconds);
-  const twoDaysFromNow = new Timestamp(createdAt.seconds + 2 * 24 * 60 * 60, createdAt.nanoseconds);
 
   let finalRole: UserProfileFirestoreData["role"] = "individual_creator";
   const agencyMemberships: AgencyMembership[] = [];
@@ -119,15 +117,14 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
     hasCompletedOnboarding: false,
     hasCompletedCareerPath: false,
     hasCompletedBrandJourney: false,
-    emailSequence: {step: 1, nextEmailAt: twoDaysFromNow as any},
+    // Creator drip starts in sendOnboardingWelcomeEmail after role selection.
     credits: NEW_USER_BONUS,
   };
 
   await userDocRef.set(newUserDoc, {merge: true});
 
-  if (email) {
-    await sendEmailSequence(email, displayName || "Creator", 0);
-  }
+  // Welcome email is sent after onboarding role selection (sendOnboardingWelcomeEmail)
+  // so brands/agencies never get the creator welcome.
 
   return null;
 });

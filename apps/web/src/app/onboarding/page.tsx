@@ -7,7 +7,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Building, User, Store, Tv, Instagram, Twitter, Youtube, Users, Search, Mic, Mail, CalendarDays, MessageCircle, HelpCircle } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
@@ -57,6 +58,12 @@ export default function OnboardingPage() {
         isBrandAccount,
         referralSource,
       });
+
+      try {
+        await httpsCallable(functions, 'sendOnboardingWelcomeEmail')({});
+      } catch (welcomeErr) {
+        console.error('Welcome email failed (non-blocking):', welcomeErr);
+      }
 
       await refreshAuthUser();
       toast({ title: "Welcome!", description: "Your profile has been updated." });

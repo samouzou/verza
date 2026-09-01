@@ -21,8 +21,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
 import { updateDoc as firestoreUpdateDoc, doc as firestoreDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '@/hooks/use-auth';
 import confetti from 'canvas-confetti';
 
@@ -50,6 +51,14 @@ export function CreatorCareerGuide({ onClose }: { onClose: () => void }) {
         hasCompletedCareerPath: true,
         careerPathResult: finalPath
       });
+
+      if (finalPath === 'community' || finalPath === 'monetized' || finalPath === 'emerging') {
+        try {
+          await httpsCallable(functions, 'startCareerPathEmailSequence')({});
+        } catch (pathEmailErr) {
+          console.error('Career path email sequence failed (non-blocking):', pathEmailErr);
+        }
+      }
       
       confetti({
         particleCount: 150,
