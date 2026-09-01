@@ -17,7 +17,9 @@ const LOW_CREDIT_REMAINING_FRACTION = 0.2;
  */
 export function getOpticPlanDisplayName(opticPlanId: string | null | undefined): string {
   if (!opticPlanId) return "Optic";
+  if (opticPlanId.includes("flagship")) return "Optic Flagship";
   if (opticPlanId.includes("enterprise")) return "Optic Enterprise";
+  if (opticPlanId.includes("launch")) return "Optic Launch";
   if (opticPlanId.includes("pilot")) return "Optic Studio";
   return "Optic";
 }
@@ -193,13 +195,20 @@ export async function checkOpticLowCreditWarning(agencyId: string): Promise<void
 
   const plan = (d.opticPlan as string) || "pilot";
   const opticPlanId =
-    plan === "enterprise" ? "optic_enterprise_monthly" : "optic_pilot_monthly";
+    plan === "flagship"
+      ? "optic_flagship_monthly"
+      : plan === "enterprise"
+        ? "optic_enterprise_monthly"
+        : plan === "launch"
+          ? "optic_launch_monthly"
+          : "optic_pilot_monthly";
 
   await sendOpticLowCreditsEmail(recipient.email, recipient.name, {
     balance,
     allowance,
     planName: getOpticPlanDisplayName(opticPlanId),
-    planTier: plan === "enterprise" ? "enterprise" : "pilot",
+    planTier:
+      plan === "flagship" ? "flagship" : plan === "enterprise" ? "enterprise" : plan === "launch" ? "launch" : "pilot",
   });
 
   await agencyRef.update({

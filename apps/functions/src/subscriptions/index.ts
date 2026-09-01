@@ -70,6 +70,13 @@ export const createStripeSubscriptionCheckoutSession = onCall(async (request) =>
   const planId = request.data?.planId as SubscriptionPlanId;
   logger.info(`Creating checkout session for user ${userId} with planId: ${planId}`);
 
+  if (typeof planId === "string" && planId.startsWith("agency_")) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Agency seat plans are no longer available for new checkout. Existing subscribers can manage billing in the Stripe customer portal. New workspaces use Optic Launch."
+    );
+  }
+
 
   const userDoc = await db.collection("users").doc(userId).get();
   const userData = userDoc.data();

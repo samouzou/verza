@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
-import { Check, Loader2, Zap } from "lucide-react";
+import { Check, Loader2, Mail, Zap } from "lucide-react";
 
 import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
 import { PageHeader } from "@/components/page-header";
@@ -22,64 +22,78 @@ import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 
-type OpticPlanId =
-  | "optic_pilot_monthly"
-  | "optic_pilot_yearly"
-  | "optic_enterprise_monthly"
-  | "optic_enterprise_yearly";
-
-const pilotFeatures = [
-  "1,000 Optic leads + AI drafts per month",
+const launchFeatures = [
+  "Run more than one active campaign at a time",
+  "100 Optic leads + AI drafts per month",
   "YouTube, Instagram, TikTok, Facebook, Twitch",
   "Gmail drafts & vault outreach tracking",
-  "Auto top-up: 250 leads for $500 when you exceed your plan",
 ];
 
 const enterpriseFeatures = [
   "3,500 Optic leads + AI drafts per month",
-  "Everything in Studio",
+  "YouTube, Instagram, TikTok, Facebook, Twitch",
+  "Gmail drafts & vault outreach tracking",
   "Dedicated account manager",
-  "Quarterly true-up on overage (no workflow pauses)",
+  "Quarterly true-up on overage",
 ];
 
-async function startCheckout(
-  opticPlanId: OpticPlanId,
-  setBusy: (id: OpticPlanId | null) => void,
-  toast: ReturnType<typeof useToast>["toast"]
-) {
-  setBusy(opticPlanId);
-  try {
-    const fn = httpsCallable(functions, "createOpticSubscriptionCheckoutSession");
-    const res = await fn({opticPlanId});
-    const url = (res.data as {url?: string})?.url;
-    if (!url) throw new Error("No checkout URL");
-    window.location.href = url;
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    toast({title: "Checkout failed", description: msg, variant: "destructive"});
-    setBusy(null);
-  }
-}
+const flagshipFeatures = [
+  "8,000 Optic leads + AI drafts per month",
+  "Everything in Enterprise",
+  "Priority sourcing capacity for multi-channel programs",
+  "Managed program support (proposal-scoped deliverables)",
+  "Custom commercial terms via payment link",
+];
+
+const PROPOSAL_MAIL =
+  "mailto:serge@tryverza.com?subject=Optic%20access%20request";
 
 export default function OpticPricingPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const { toast } = useToast();
   const agencyId = user?.primaryAgencyId ?? null;
   const billing = useOpticCredits(agencyId);
-  const [busyPlan, setBusyPlan] = useState<OpticPlanId | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [launchLoading, setLaunchLoading] = useState(false);
+  const [launchInterval, setLaunchInterval] = useState<"month" | "year">("month");
+
+  const startLaunchCheckout = async () => {
+    if (!user || !agencyId || !isAgencyTeam) {
+      toast({
+        title: "Sign in as a brand team member",
+        description: "Launch checkout is for the workspace you’ll bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLaunchLoading(true);
+    try {
+      const fn = httpsCallable(functions, "createOpticSubscriptionCheckoutSession");
+      const res = await fn({
+        opticPlanId: launchInterval === "year" ? "optic_launch_yearly" : "optic_launch_monthly",
+      });
+      const url = (res.data as {url?: string})?.url;
+      if (!url) throw new Error("No checkout URL");
+      window.location.href = url;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({title: "Could not start Launch checkout", description: msg, variant: "destructive"});
+    } finally {
+      setLaunchLoading(false);
+    }
+  };
 
   const openPortal = async () => {
     setPortalLoading(true);
     try {
       const fn = httpsCallable(functions, "createOpticBillingPortalSession");
       const res = await fn({});
-      const url = (res.data as {url?: string})?.url;
+      const url = (res.data as { url?: string })?.url;
       if (!url) throw new Error("No portal URL");
       window.location.href = url;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      toast({title: "Could not open billing", description: msg, variant: "destructive"});
+      toast({ title: "Could not open billing", description: msg, variant: "destructive" });
     } finally {
       setPortalLoading(false);
     }
@@ -96,8 +110,8 @@ export default function OpticPricingPage() {
   return (
     <div className="container max-w-5xl space-y-8 py-8">
       <PageHeader
-        title="Optic pricing"
-        description="Creator sourcing with AI outreach drafts — billed separately from your Verza workspace subscription."
+        title="Optic plans"
+        description="Every brand gets one active campaign free. Launch unlocks more campaigns plus 100 Optic leads a month. Enterprise and Flagship are scoped to the program."
         actions={
           <div className="flex flex-wrap gap-2">
             {agencyId && isAgencyTeam && (
@@ -137,7 +151,8 @@ export default function OpticPricingPage() {
               </p>
               <p className="text-sm text-muted-foreground">
                 {billing.balance} credits remaining
-                {billing.plan === "enterprise" && billing.overageLeads > 0
+                {(billing.plan === "enterprise" || billing.plan === "flagship") &&
+                billing.overageLeads > 0
                   ? ` · ${billing.overageLeads} overage leads this period`
                   : ""}
                 {billing.plan === "pilot" && billing.topUpBlocks > 0
@@ -152,31 +167,51 @@ export default function OpticPricingPage() {
         </Card>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="relative">
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="relative border-primary/40 shadow-md">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-amber-500" />
-                Studio
+                <Zap className="h-5 w-5 text-primary" />
+                Launch
               </CardTitle>
-              <Badge variant="secondary">Pilot</Badge>
+              <Badge>Self-serve</Badge>
             </div>
             <CardDescription>
-              Proof-of-concept for one campaign — corporate-card friendly.
+              For shops and small startups running more than one campaign.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-3xl font-semibold tabular-nums">$1,499</p>
-              <p className="text-sm text-muted-foreground">per month</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                or <span className="font-medium text-foreground">~$1,243/mo</span> billed yearly
-                <span className="text-emerald-600"> (17% off)</span>
+              <p className="text-3xl font-semibold tracking-tight">
+                {launchInterval === "year" ? "$687" : "$69"}
               </p>
+              <p className="text-sm text-muted-foreground">
+                {launchInterval === "year"
+                  ? "per year · 100 Optic leads / month"
+                  : "per month · 100 Optic leads"}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={launchInterval === "month" ? "default" : "outline"}
+                  onClick={() => setLaunchInterval("month")}
+                >
+                  Monthly
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={launchInterval === "year" ? "default" : "outline"}
+                  onClick={() => setLaunchInterval("year")}
+                >
+                  Yearly
+                </Button>
+              </div>
             </div>
             <ul className="space-y-2 text-sm">
-              {pilotFeatures.map((f) => (
+              {launchFeatures.map((f) => (
                 <li key={f} className="flex gap-2">
                   <Check className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                   {f}
@@ -184,54 +219,31 @@ export default function OpticPricingPage() {
               ))}
             </ul>
           </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              className="w-full"
-              disabled={!isAgencyTeam || busyPlan !== null}
-              onClick={() => void startCheckout("optic_pilot_monthly", setBusyPlan, toast)}
-            >
-              {busyPlan === "optic_pilot_monthly" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Subscribe monthly"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={!isAgencyTeam || busyPlan !== null}
-              onClick={() => void startCheckout("optic_pilot_yearly", setBusyPlan, toast)}
-            >
-              {busyPlan === "optic_pilot_yearly" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Subscribe yearly"
-              )}
+          <CardFooter>
+            <Button className="w-full" disabled={launchLoading} onClick={() => void startLaunchCheckout()}>
+              {launchLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Subscribe to Launch
             </Button>
           </CardFooter>
         </Card>
 
-        <Card className="relative border-primary/40 shadow-md">
+        <Card className="relative">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-primary" />
+                <Zap className="h-5 w-5 text-amber-500" />
                 Enterprise
               </CardTitle>
-              <Badge>Recommended</Badge>
+              <Badge variant="secondary">Program</Badge>
             </div>
             <CardDescription>
-              Scale sourcing with a dedicated account manager.
+              Full Optic workspace for focused creator programs.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-3xl font-semibold tabular-nums">$4,200</p>
-              <p className="text-sm text-muted-foreground">per month</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                or <span className="font-medium text-foreground">$3,500/mo</span> billed yearly
-                <span className="text-emerald-600"> (17% off · $42k/yr)</span>
-              </p>
+              <p className="text-3xl font-semibold tracking-tight">Custom</p>
+              <p className="text-sm text-muted-foreground">Monthly or annual — quote via payment link</p>
             </div>
             <ul className="space-y-2 text-sm">
               {enterpriseFeatures.map((f) => (
@@ -242,39 +254,58 @@ export default function OpticPricingPage() {
               ))}
             </ul>
           </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            <Button
-              className="w-full"
-              disabled={!isAgencyTeam || busyPlan !== null}
-              onClick={() => void startCheckout("optic_enterprise_monthly", setBusyPlan, toast)}
-            >
-              {busyPlan === "optic_enterprise_monthly" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Subscribe monthly"
-              )}
+          <CardFooter>
+            <Button className="w-full" asChild>
+              <a href={PROPOSAL_MAIL}>
+                <Mail className="mr-2 h-4 w-4" />
+                Request access
+              </a>
             </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={!isAgencyTeam || busyPlan !== null}
-              onClick={() => void startCheckout("optic_enterprise_yearly", setBusyPlan, toast)}
-            >
-              {busyPlan === "optic_enterprise_yearly" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Subscribe yearly"
-              )}
+          </CardFooter>
+        </Card>
+
+        <Card className="relative">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                Flagship
+              </CardTitle>
+              <Badge variant="outline">Custom</Badge>
+            </div>
+            <CardDescription>
+              Multi-channel capacity for category programs — commercial terms per deal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-3xl font-semibold tracking-tight">Custom</p>
+              <p className="text-sm text-muted-foreground">Monthly or annual — quote via payment link</p>
+            </div>
+            <ul className="space-y-2 text-sm">
+              {flagshipFeatures.map((f) => (
+                <li key={f} className="flex gap-2">
+                  <Check className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+          <CardFooter>
+            <Button className="w-full" asChild>
+              <a href={`${PROPOSAL_MAIL}%20%C2%B7%20Flagship`}>
+                <Mail className="mr-2 h-4 w-4" />
+                Request Flagship access
+              </a>
             </Button>
           </CardFooter>
         </Card>
       </div>
 
       <p className="text-center text-xs text-muted-foreground max-w-2xl mx-auto">
-        1 Optic credit = 1 creator added to your vault, with their profile details and a
-        ready-to-send outreach message.
-        Studio overage is billed automatically at $2/lead in 250-lead blocks. Enterprise overage is reviewed
-        quarterly with your account manager.
+        Every workspace can run one live campaign at no charge. Launch is self-serve. Enterprise and
+        Flagship are quoted to the brief — we send a payment link. Media budgets for creator payouts
+        stay separate.
       </p>
     </div>
   );

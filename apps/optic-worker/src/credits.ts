@@ -73,7 +73,7 @@ export async function saveLeadWithOpticCreditCharge(
         return {leadId: leadRef.id, charged: true as const, overage: false as const};
       }
 
-      if (billing.subscriptionActive && billing.plan === "enterprise") {
+      if (billing.subscriptionActive && (billing.plan === "enterprise" || billing.plan === "flagship")) {
         tx.set(leadRef, leadData);
         tx.update(agencyRef, {
           opticOverageLeadsThisPeriod: FieldValue.increment(1),

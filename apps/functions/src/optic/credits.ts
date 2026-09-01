@@ -17,7 +17,7 @@ export async function getAgencyOpticCreditsBalance(agencyId: string): Promise<nu
 
 /**
  * Ensures the agency can run a discovery batch.
- * Active Pilot/Enterprise subscribers may run with auto top-up or overage at save time.
+ * Active Pilot/Enterprise/Flagship subscribers may run with auto top-up or overage at save time. Launch is hard-capped.
  * @param {string} agencyId Agency document id.
  * @param {number} requiredCredits Leads requested for the batch.
  * @return {Promise<void>} Resolves when the batch may start.
@@ -29,7 +29,7 @@ export async function assertSufficientOpticCredits(
   const needed = Math.max(1, Math.floor(requiredCredits));
   const billing = await loadAgencyOpticBilling(agencyId);
 
-  if (billing.subscriptionActive && billing.plan === "enterprise") {
+  if (billing.subscriptionActive && (billing.plan === "enterprise" || billing.plan === "flagship")) {
     return;
   }
 

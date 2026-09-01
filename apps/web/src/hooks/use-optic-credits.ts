@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
+export type OpticPlanTier = "none" | "launch" | "pilot" | "enterprise" | "flagship" | "appsumo";
 
 function parseBalance(raw: unknown): number {
   if (typeof raw === "number" && Number.isFinite(raw)) {

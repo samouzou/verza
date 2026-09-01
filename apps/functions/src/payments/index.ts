@@ -9,6 +9,7 @@ import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
+import {assertCanLaunchCampaign} from "../gigs/campaignLaunch";
 import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
 import {
   buildExpressAccountParams,
@@ -953,18 +954,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   const agencyOwnerDoc = await db.collection("users").doc(agencyData.ownerId).get();
   const agencyOwnerData = agencyOwnerDoc.data() as UserProfileFirestoreData;
 
-  const now = Date.now();
-  const isSubscribed = agencyOwnerData.subscriptionStatus === "active" ||
-    (agencyOwnerData.subscriptionStatus === "trialing" &&
-      agencyOwnerData.trialEndsAt &&
-      (agencyOwnerData.trialEndsAt as any).toMillis() > now);
-
-  const hasAgencyPlan = agencyOwnerData.subscriptionPlanId?.startsWith("agency_");
-
-  if (!isSubscribed || !hasAgencyPlan) {
-    throw new HttpsError("failed-precondition",
-      "An active Agency subscription is required to launch deployments. Please upgrade your plan.");
-  }
+  await assertCanLaunchCampaign(userData.primaryAgencyId);
 
   let stripeCustomerId = agencyOwnerData.stripeCustomerId;
   if (!stripeCustomerId) {

@@ -7,18 +7,34 @@ import * as params from "../config/params";
 import {OPTIC_WORKER_SHARED_SECRET} from "../config/params";
 import {checkOpticLowCreditWarning, trySendOpticReceiptFromInvoice} from "./emails";
 
+export const OPTIC_LAUNCH_MONTHLY_ALLOWANCE = 100;
 export const OPTIC_PILOT_MONTHLY_ALLOWANCE = 1000;
 export const OPTIC_ENTERPRISE_MONTHLY_ALLOWANCE = 3500;
+export const OPTIC_FLAGSHIP_MONTHLY_ALLOWANCE = 8000;
 export const OPTIC_TOP_UP_LEADS = 250;
 export const OPTIC_TOP_UP_AMOUNT_CENTS = 50_000;
 export const OPTIC_MAX_TOP_UP_BLOCKS_PER_MONTH = 8;
 
-export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
+export type OpticPlanTier = "none" | "launch" | "pilot" | "enterprise" | "flagship" | "appsumo";
 export type OpticPlanId =
+  | "optic_launch_monthly"
+  | "optic_launch_yearly"
   | "optic_pilot_monthly"
   | "optic_pilot_yearly"
   | "optic_enterprise_monthly"
-  | "optic_enterprise_yearly";
+  | "optic_enterprise_yearly"
+  | "optic_flagship_monthly"
+  | "optic_flagship_yearly";
+
+/** Plans that may be started via in-app Checkout (Pilot is soft-sunset — Payment Link / portal only). */
+export const OPTIC_PUBLIC_CHECKOUT_PLAN_IDS: OpticPlanId[] = [
+  "optic_launch_monthly",
+  "optic_launch_yearly",
+  "optic_enterprise_monthly",
+  "optic_enterprise_yearly",
+  "optic_flagship_monthly",
+  "optic_flagship_yearly",
+];
 
 export type AgencyOpticBilling = {
   agencyId: string;
@@ -44,6 +60,18 @@ export function getOpticPlanFromPriceId(priceId: string): {
   interval: "month" | "year";
 } {
   const map: Record<string, {opticPlanId: OpticPlanId; tier: OpticPlanTier; allowance: number; interval: "month" | "year"}> = {
+    [params.STRIPE_OPTIC_LAUNCH_MONTHLY_PRICE_ID.value() || ""]: {
+      opticPlanId: "optic_launch_monthly",
+      tier: "launch",
+      allowance: OPTIC_LAUNCH_MONTHLY_ALLOWANCE,
+      interval: "month",
+    },
+    [params.STRIPE_OPTIC_LAUNCH_YEARLY_PRICE_ID.value() || ""]: {
+      opticPlanId: "optic_launch_yearly",
+      tier: "launch",
+      allowance: OPTIC_LAUNCH_MONTHLY_ALLOWANCE,
+      interval: "year",
+    },
     [params.STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID.value() || ""]: {
       opticPlanId: "optic_pilot_monthly",
       tier: "pilot",
@@ -68,12 +96,52 @@ export function getOpticPlanFromPriceId(priceId: string): {
       allowance: OPTIC_ENTERPRISE_MONTHLY_ALLOWANCE,
       interval: "year",
     },
+    [params.STRIPE_OPTIC_FLAGSHIP_MONTHLY_PRICE_ID.value() || ""]: {
+      opticPlanId: "optic_flagship_monthly",
+      tier: "flagship",
+      allowance: OPTIC_FLAGSHIP_MONTHLY_ALLOWANCE,
+      interval: "month",
+    },
+    [params.STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID.value() || ""]: {
+      opticPlanId: "optic_flagship_yearly",
+      tier: "flagship",
+      allowance: OPTIC_FLAGSHIP_MONTHLY_ALLOWANCE,
+      interval: "year",
+    },
   };
   const hit = map[priceId];
   if (!hit) {
     return {opticPlanId: null, tier: "none", allowance: 0, interval: "month"};
   }
   return {opticPlanId: hit.opticPlanId, tier: hit.tier, allowance: hit.allowance, interval: hit.interval};
+}
+
+/**
+ * Resolves Optic plan from price id, subscription metadata, then price metadata.
+ * @param {Stripe.Subscription} subscription Stripe subscription.
+ * @return {object} Same shape as getOpticPlanFromPriceId.
+ */
+function resolveOpticPlanFromSubscription(subscription: Stripe.Subscription): {
+  opticPlanId: OpticPlanId | null;
+  tier: OpticPlanTier;
+  allowance: number;
+  interval: "month" | "year";
+} {
+  const priceId = subscription.items.data[0]?.price.id ?? "";
+  let plan = getOpticPlanFromPriceId(priceId);
+  if (plan.tier === "none") {
+    const metaPlanId = subscription.metadata?.opticPlanId;
+    if (typeof metaPlanId === "string" && metaPlanId) {
+      plan = getOpticPlanFromOpticPlanId(metaPlanId);
+    }
+  }
+  if (plan.tier === "none") {
+    const priceMeta = subscription.items.data[0]?.price?.metadata?.opticPlanId;
+    if (typeof priceMeta === "string" && priceMeta) {
+      plan = getOpticPlanFromOpticPlanId(priceMeta);
+    }
+  }
+  return plan;
 }
 
 /**
@@ -88,6 +156,20 @@ function getOpticPlanFromOpticPlanId(opticPlanId: string): {
   interval: "month" | "year";
 } {
   switch (opticPlanId) {
+  case "optic_launch_monthly":
+    return {
+      opticPlanId: "optic_launch_monthly",
+      tier: "launch",
+      allowance: OPTIC_LAUNCH_MONTHLY_ALLOWANCE,
+      interval: "month",
+    };
+  case "optic_launch_yearly":
+    return {
+      opticPlanId: "optic_launch_yearly",
+      tier: "launch",
+      allowance: OPTIC_LAUNCH_MONTHLY_ALLOWANCE,
+      interval: "year",
+    };
   case "optic_pilot_monthly":
     return {
       opticPlanId: "optic_pilot_monthly",
@@ -114,6 +196,20 @@ function getOpticPlanFromOpticPlanId(opticPlanId: string): {
       opticPlanId: "optic_enterprise_yearly",
       tier: "enterprise",
       allowance: OPTIC_ENTERPRISE_MONTHLY_ALLOWANCE,
+      interval: "year",
+    };
+  case "optic_flagship_monthly":
+    return {
+      opticPlanId: "optic_flagship_monthly",
+      tier: "flagship",
+      allowance: OPTIC_FLAGSHIP_MONTHLY_ALLOWANCE,
+      interval: "month",
+    };
+  case "optic_flagship_yearly":
+    return {
+      opticPlanId: "optic_flagship_yearly",
+      tier: "flagship",
+      allowance: OPTIC_FLAGSHIP_MONTHLY_ALLOWANCE,
       interval: "year",
     };
   default:
@@ -290,6 +386,10 @@ async function getOrCreateStripeCustomer(stripe: Stripe, uid: string): Promise<s
  */
 function opticPriceIdForPlan(opticPlanId: OpticPlanId): string {
   switch (opticPlanId) {
+  case "optic_launch_monthly":
+    return params.STRIPE_OPTIC_LAUNCH_MONTHLY_PRICE_ID.value();
+  case "optic_launch_yearly":
+    return params.STRIPE_OPTIC_LAUNCH_YEARLY_PRICE_ID.value();
   case "optic_pilot_monthly":
     return params.STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID.value();
   case "optic_pilot_yearly":
@@ -298,12 +398,16 @@ function opticPriceIdForPlan(opticPlanId: OpticPlanId): string {
     return params.STRIPE_OPTIC_ENTERPRISE_MONTHLY_PRICE_ID.value();
   case "optic_enterprise_yearly":
     return params.STRIPE_OPTIC_ENTERPRISE_YEARLY_PRICE_ID.value();
+  case "optic_flagship_monthly":
+    return params.STRIPE_OPTIC_FLAGSHIP_MONTHLY_PRICE_ID.value();
+  case "optic_flagship_yearly":
+    return params.STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID.value();
   default:
     return "";
   }
 }
 
-/** Stripe Checkout for Optic Pilot or Enterprise (separate from Verza agency SaaS). */
+/** Stripe Checkout for Optic Launch (self-serve) plus Enterprise / Flagship when Price IDs are set. */
 export const createOpticSubscriptionCheckoutSession = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in to subscribe to Optic.");
@@ -311,14 +415,11 @@ export const createOpticSubscriptionCheckoutSession = onCall(async (request) => 
   const uid = request.auth.uid;
   const {opticPlanId} = request.data as {opticPlanId?: unknown};
   const planId = opticPlanId as OpticPlanId;
-  const valid: OpticPlanId[] = [
-    "optic_pilot_monthly",
-    "optic_pilot_yearly",
-    "optic_enterprise_monthly",
-    "optic_enterprise_yearly",
-  ];
-  if (!valid.includes(planId)) {
-    throw new HttpsError("invalid-argument", "Invalid Optic plan.");
+  if (!OPTIC_PUBLIC_CHECKOUT_PLAN_IDS.includes(planId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "That Optic plan is not available for self-serve checkout. Contact us for access."
+    );
   }
 
   const userSnap = await db.collection("users").doc(uid).get();
@@ -627,10 +728,138 @@ async function resolveOpticAgencyFromEvent(
           },
         };
       }
+      const fromCheckout = await resolveOpticAgencyFromSubscriptionCheckout(stripe, subId);
+      if (fromCheckout) {
+        return fromCheckout;
+      }
     }
   }
 
+  if (event.type === "checkout.session.completed") {
+    return resolveOpticAgencyFromCheckoutSession(stripe, obj, meta);
+  }
+
   return null;
+}
+
+/**
+ * Payment Link checkouts often never hit this endpoint as checkout.session.completed
+ * (the Dashboard webhook may only subscribe to invoice / payment_intent events).
+ * Look up the Checkout Session for the subscription and read client_reference_id.
+ * @param {Stripe} stripe Stripe client.
+ * @param {string} subId Stripe subscription id.
+ * @return {Promise<object | null>} Optic context or null.
+ */
+async function resolveOpticAgencyFromSubscriptionCheckout(
+  stripe: Stripe,
+  subId: string
+): Promise<{agencyId: string; meta: OpticStripeMeta} | null> {
+  const sessions = await stripe.checkout.sessions.list({subscription: subId, limit: 5});
+  for (const session of sessions.data) {
+    const resolved = await resolveOpticAgencyFromCheckoutSession(
+      stripe,
+      session as unknown as Record<string, unknown>,
+      extractOpticMetadata(session as unknown as Record<string, unknown>)
+    );
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return null;
+}
+
+/**
+ * Routes Payment Link checkouts that pass `?client_reference_id=<agencyId>`.
+ * Only claims the session when the Price maps to an Optic plan.
+ * @param {Stripe} stripe Stripe client.
+ * @param {Record<string, unknown>} obj Checkout Session payload.
+ * @param {OpticStripeMeta} meta Metadata already parsed from the session.
+ * @return {Promise<object | null>} Optic context or null.
+ */
+async function resolveOpticAgencyFromCheckoutSession(
+  stripe: Stripe,
+  obj: Record<string, unknown>,
+  meta: OpticStripeMeta
+): Promise<{agencyId: string; meta: OpticStripeMeta} | null> {
+  const session = obj as unknown as Stripe.Checkout.Session;
+  if (session.mode !== "subscription") {
+    return null;
+  }
+  const fromRef =
+    typeof session.client_reference_id === "string" ? session.client_reference_id.trim() : "";
+  const agencyId = meta.agencyId?.trim() || fromRef;
+  const subId =
+    typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+  if (!agencyId || !subId) {
+    return null;
+  }
+
+  const agencySnap = await db.collection("agencies").doc(agencyId).get();
+  if (!agencySnap.exists) {
+    logger.warn("[Optic billing] Checkout client_reference_id is not a known agency", {
+      agencyId,
+      sessionId: session.id,
+    });
+    return null;
+  }
+
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const plan = resolveOpticPlanFromSubscription(sub);
+  if (plan.tier === "none" && meta.productType !== "optic") {
+    logger.warn("[Optic billing] Checkout client_reference_id on a non-Optic price", {
+      agencyId,
+      sessionId: session.id,
+      priceId: sub.items.data[0]?.price.id,
+    });
+    return null;
+  }
+
+  return {
+    agencyId,
+    meta: {
+      agencyId,
+      firebaseUID: meta.firebaseUID,
+      opticPlanId: meta.opticPlanId || plan.opticPlanId || undefined,
+      productType: "optic",
+    },
+  };
+}
+
+/**
+ * Copies Optic routing keys onto the Stripe subscription so invoice renewals
+ * still resolve after a Payment Link checkout (session metadata is not reused).
+ * @param {Stripe} stripe Stripe client.
+ * @param {Stripe.Subscription} subscription Current subscription.
+ * @param {object} fields Routing fields to persist.
+ * @return {Promise<Stripe.Subscription>} Subscription after metadata update.
+ */
+async function ensureOpticSubscriptionMetadata(
+  stripe: Stripe,
+  subscription: Stripe.Subscription,
+  fields: {agencyId: string; opticPlanId?: string; firebaseUID?: string}
+): Promise<Stripe.Subscription> {
+  const current = (subscription.metadata ?? {}) as Record<string, string>;
+  const opticPlanId = fields.opticPlanId || current.opticPlanId || "";
+  const next: Record<string, string> = {
+    ...current,
+    productType: "optic",
+    agencyId: current.agencyId || fields.agencyId,
+  };
+  if (opticPlanId) {
+    next.opticPlanId = current.opticPlanId || opticPlanId;
+  }
+  if (fields.firebaseUID && !current.firebaseUID) {
+    next.firebaseUID = fields.firebaseUID;
+  }
+  const unchanged =
+    current.productType === next.productType &&
+    current.agencyId === next.agencyId &&
+    current.opticPlanId === next.opticPlanId &&
+    current.firebaseUID === next.firebaseUID;
+  if (unchanged) {
+    return subscription;
+  }
+  return stripe.subscriptions.update(subscription.id, {metadata: next});
 }
 
 /**
@@ -668,7 +897,7 @@ export async function handleOpticStripeSubscriptionEvent(
     return false;
   }
 
-  const {agencyId} = resolved;
+  const {agencyId, meta} = resolved;
 
   switch (event.type) {
   case "checkout.session.completed": {
@@ -676,9 +905,19 @@ export async function handleOpticStripeSubscriptionEvent(
     if (session.mode !== "subscription") break;
     const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
     if (!subId) break;
-    const sub = await stripe.subscriptions.retrieve(subId);
+    let sub: Stripe.Subscription = await stripe.subscriptions.retrieve(subId);
+    const plan = resolveOpticPlanFromSubscription(sub);
+    sub = await ensureOpticSubscriptionMetadata(stripe, sub, {
+      agencyId,
+      opticPlanId: meta.opticPlanId || plan.opticPlanId || undefined,
+      firebaseUID: meta.firebaseUID,
+    });
     await applyOpticSubscriptionState(agencyId, sub);
-    logger.info("[Optic billing] Subscription activated from checkout", {agencyId, subscriptionId: subId});
+    logger.info("[Optic billing] Subscription activated from checkout", {
+      agencyId,
+      subscriptionId: subId,
+      clientReferenceId: session.client_reference_id,
+    });
     break;
   }
   case "customer.subscription.created":
@@ -714,7 +953,13 @@ export async function handleOpticStripeSubscriptionEvent(
       });
       break;
     }
-    const sub = await stripe.subscriptions.retrieve(subId);
+    let sub: Stripe.Subscription = await stripe.subscriptions.retrieve(subId);
+    const plan = resolveOpticPlanFromSubscription(sub);
+    sub = await ensureOpticSubscriptionMetadata(stripe, sub, {
+      agencyId,
+      opticPlanId: meta.opticPlanId || plan.opticPlanId || undefined,
+      firebaseUID: meta.firebaseUID,
+    });
     const activated = await applyOpticSubscriptionState(agencyId, sub, {resetCredits: true});
     if (activated?.resetCredits) {
       await trySendOpticReceiptFromInvoice(agencyId, invoice, sub, activated.allowance).catch((e) => {
@@ -754,19 +999,12 @@ async function applyOpticSubscriptionState(
   subscription: Stripe.Subscription,
   opts?: {resetCredits?: boolean}
 ): Promise<{resetCredits: boolean; allowance: number; opticPlanId: string} | null> {
-  const priceId = subscription.items.data[0]?.price.id ?? "";
-  let plan = getOpticPlanFromPriceId(priceId);
-  if (plan.tier === "none") {
-    const metaPlanId = subscription.metadata?.opticPlanId;
-    if (typeof metaPlanId === "string" && metaPlanId) {
-      plan = getOpticPlanFromOpticPlanId(metaPlanId);
-    }
-  }
+  const plan = resolveOpticPlanFromSubscription(subscription);
   const {tier, allowance, interval} = plan;
   if (tier === "none") {
     logger.warn("[Optic billing] Unknown price on subscription", {
       agencyId,
-      priceId,
+      priceId: subscription.items.data[0]?.price.id ?? "",
       opticPlanId: subscription.metadata?.opticPlanId,
     });
     return null;

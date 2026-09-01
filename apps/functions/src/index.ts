@@ -88,6 +88,7 @@ import {
   extendCreatorDeadline,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
+import {launchFreeCampaign} from "./gigs/campaignLaunch";
 import {generateScene, editScene} from "./scenes";
 import {generateImage} from "./images";
 import {analyzeBrand, suggestBrandGuideFromUrl} from "./brand-research";
@@ -191,6 +192,7 @@ export {
   createInternalPayout,
   inviteTeamMemberToAgency,
   fundGigFromWallet,
+  launchFreeCampaign,
   initiateAgencyPayout,
   initiateInternalTalentPayment,
   payoutCreatorForGig,

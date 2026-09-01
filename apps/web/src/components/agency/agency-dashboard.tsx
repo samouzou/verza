@@ -79,7 +79,7 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
             Talent Limit Reached
           </AlertTitle>
           <AlertDescription className="text-primary/90">
-            You have reached your limit of {talentLimit} active talents. Please upgrade your plan to unlock unlimited talent, AI contract generation, and the full management suite.
+            You have {talentLimit} active talents on your roster, which is the limit for your current plan. Review your plan in Settings if you need to make a change.
           </AlertDescription>
           {user?.isAgencyOwner && (
             <div className="mt-3">

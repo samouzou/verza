@@ -66,6 +66,10 @@ export const STRIPE_AGENCY_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_AGE
 export const STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_STARTER_PRICE_ID");
 export const STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID = defineString("STRIPE_SCENE_SPAWNER_AGENCY_PRICE_ID");
 
+/** Optic Launch (100 leads/mo) — $69/mo self-serve starter */
+export const STRIPE_OPTIC_LAUNCH_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_LAUNCH_MONTHLY_PRICE_ID");
+/** Optic Launch annual */
+export const STRIPE_OPTIC_LAUNCH_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_LAUNCH_YEARLY_PRICE_ID");
 /** Optic Studio (1k leads/mo) — $1,499/mo list */
 export const STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_PILOT_MONTHLY_PRICE_ID");
 /** Optic Studio annual (~17% off) */
@@ -74,6 +78,10 @@ export const STRIPE_OPTIC_PILOT_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_PIL
 export const STRIPE_OPTIC_ENTERPRISE_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_ENTERPRISE_MONTHLY_PRICE_ID");
 /** Optic Enterprise annual (~17% off, $3,500/mo effective) */
 export const STRIPE_OPTIC_ENTERPRISE_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_ENTERPRISE_YEARLY_PRICE_ID");
+/** Optic Flagship (8k leads/mo) — silent list; Payment Links / deal-scoped amounts */
+export const STRIPE_OPTIC_FLAGSHIP_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC_FLAGSHIP_MONTHLY_PRICE_ID");
+/** Optic Flagship annual (~17% off, $6,640/mo effective / $79,680/yr) */
+export const STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID");
 
 // Global Payouts (dahlia API) — Treasury financial account ID for outbound transfers
 export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {

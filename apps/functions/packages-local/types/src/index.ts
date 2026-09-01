@@ -551,7 +551,7 @@ export interface Agency {
   /** Optic discovery: 1 credit = 1 scraped profile + AI draft saved to vault. */
   opticCreditsBalance?: number;
   /** Optic SaaS tier (separate from Verza agency subscription on the owner user). */
-  opticPlan?: 'none' | 'pilot' | 'enterprise' | 'appsumo';
+  opticPlan?: 'none' | 'launch' | 'pilot' | 'enterprise' | 'flagship' | 'appsumo';
   opticSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
   opticStripeSubscriptionId?: string | null;
   opticBillingInterval?: 'month' | 'year' | null;

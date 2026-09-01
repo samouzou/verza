@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth, type UserProfile } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -33,7 +33,8 @@ import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { httpsCallable } from 'firebase/functions';
-import { functions, db, doc, onSnapshot, collection, getDoc, addDoc, serverTimestamp, updateDoc } from '@/lib/firebase';
+import { functions } from '@/lib/firebase';
+import { useCampaignLaunchEligibility } from '@/hooks/use-campaign-launch-eligibility';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { CampaignAiCopyGenerator } from '@/components/campaigns/campaign-ai-copy-generator';
@@ -107,57 +108,7 @@ export default function PostGigPage() {
   const [promoCodeDiscountValue, setPromoCodeDiscountValue] = useState('');
   const [promoCodeSuffix, setPromoCodeSuffix] = useState('');
 
-  const [agencyOwner, setAgencyOwner] = useState<UserProfile | null>(null);
-  const [isLoadingSubscriptionCheck, setIsLoadingSubscriptionCheck] = useState(true);
-
-  useEffect(() => {
-    if (!user || authLoading) {
-      if (!authLoading) setIsLoadingSubscriptionCheck(false);
-      return;
-    }
-
-    if (user.isAgencyOwner) {
-      setAgencyOwner(user);
-      setIsLoadingSubscriptionCheck(false);
-      return;
-    }
-
-    const isTeamMember = (user.role === 'agency_admin' || user.role === 'agency_member') && user.primaryAgencyId;
-    if (!isTeamMember) {
-      setIsLoadingSubscriptionCheck(false);
-      return;
-    }
-
-    // Inherit subscription from agency owner
-    setIsLoadingSubscriptionCheck(true);
-    let unsubAgency: (() => void) | undefined;
-    let unsubOwner: (() => void) | undefined;
-
-    const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
-    unsubAgency = onSnapshot(agencyRef, (agencySnap) => {
-      if (agencySnap.exists()) {
-        const agencyData = agencySnap.data();
-        const ownerDocRef = doc(db, 'users', agencyData.ownerId);
-
-        if (unsubOwner) unsubOwner();
-        unsubOwner = onSnapshot(ownerDocRef, (ownerDocSnap) => {
-          if (ownerDocSnap.exists()) {
-            setAgencyOwner(ownerDocSnap.data() as UserProfile);
-          } else {
-            setAgencyOwner(null);
-          }
-          setIsLoadingSubscriptionCheck(false);
-        });
-      } else {
-        setIsLoadingSubscriptionCheck(false);
-      }
-    });
-
-    return () => {
-      if (unsubAgency) unsubAgency();
-      if (unsubOwner) unsubOwner();
-    };
-  }, [user, authLoading]);
+  const launchEligibility = useCampaignLaunchEligibility(user?.primaryAgencyId);
 
   // Adjust defaults based on campaign type
   useEffect(() => {
@@ -253,18 +204,11 @@ export default function PostGigPage() {
             : "This performance-only campaign is being prepared…",
         });
 
-        // Direct launch for performance-only
-        const agencySnap = await getDoc(doc(db, 'agencies', user.primaryAgencyId));
-        const agencyData = agencySnap.data();
-
-        const gigData = {
-          brandId: user.primaryAgencyId,
-          brandName: agencyData?.name || "Brand",
-          brandLogoUrl: agencyOwner?.companyLogoUrl || null,
+        const launchFree = httpsCallable(functions, 'launchFreeCampaign');
+        const result = await launchFree({
           title: title.trim(),
           description: description.trim(),
           platforms: selectedPlatforms,
-          ratePerCreator: 0,
           creatorsNeeded: isCause ? 0 : creatorsNum,
           videosPerCreator: videosNum,
           campaignType,
@@ -272,11 +216,6 @@ export default function PostGigPage() {
           allowWhitelisting,
           requireVerzaScore,
           verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) : 65,
-          status: 'open',
-          acceptedCreatorIds: [],
-          paidCreatorIds: [],
-          createdAt: serverTimestamp(),
-          fundedAmount: 0,
           ...(deliverablesDueDate ? { deliverablesDueDate } : {}),
           affiliateSettings: isAffiliateEnabled ? {
             isEnabled: true,
@@ -287,9 +226,9 @@ export default function PostGigPage() {
             promoCodeDiscountValue: promoCodeDiscountValue.trim(),
             promoCodeSuffix: promoCodeSuffix.trim().toUpperCase()
           } : { isEnabled: false },
-        };
-
-        const { id: newGigId } = await addDoc(collection(db, 'gigs'), gigData);
+        });
+        const newGigId = (result.data as { gigId?: string })?.gigId;
+        if (!newGigId) throw new Error("Campaign was created but no id was returned.");
         toast({
           title: "Campaign Live!",
           description: isBarterCampaignType(campaignType) && !isAffiliateEnabled
@@ -349,15 +288,9 @@ export default function PostGigPage() {
     }
   };
 
-  const nowTime = Date.now();
-  const isSubscribed = agencyOwner?.subscriptionStatus === 'active' ||
-    (agencyOwner?.subscriptionStatus === 'trialing' &&
-      agencyOwner?.trialEndsAt &&
-      agencyOwner.trialEndsAt.toMillis() > nowTime);
-  const hasAgencyPlan = agencyOwner?.subscriptionPlanId?.startsWith('agency_');
-  const canPost = isSubscribed && hasAgencyPlan;
+  const canPost = launchEligibility.canLaunch;
 
-  if (authLoading || isLoadingSubscriptionCheck) {
+  if (authLoading || launchEligibility.loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -385,27 +318,23 @@ export default function PostGigPage() {
           <CardHeader>
             <div className="flex items-center gap-2 text-primary font-semibold">
               <Building className="h-5 w-5" />
-              Agency Requirement
+              One free campaign
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <Alert variant="default" className="border-primary/50 bg-primary/5 text-primary-foreground [&>svg]:text-primary">
               <Sparkles className="h-5 w-5" />
-              <AlertTitle className="font-semibold text-primary">Agency Subscription Required</AlertTitle>
+              <AlertTitle className="font-semibold text-primary">Upgrade to run another campaign</AlertTitle>
               <AlertDescription className="text-primary/90">
-                {user.isAgencyOwner
-                  ? "You need an active Agency subscription to launch campaigns to the network. This plan covers talent management and payout fees."
-                  : "Your agency needs an active Agency subscription to launch campaigns. Please contact your agency owner to upgrade the account plan."}
+                You already have an active campaign. Optic Launch ($69/mo) unlocks more than one live campaign plus 100 Optic leads.
               </AlertDescription>
-              {user.isAgencyOwner && (
-                <div className="mt-4">
-                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    <Link href="/settings">
-                      Upgrade to Agency Plan <ExternalLink className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              )}
+              <div className="mt-4">
+                <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Link href="/optic/pricing">
+                    See Optic Launch <ExternalLink className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </Alert>
             <Button variant="outline" asChild className="w-full">
               <Link href="/campaigns">

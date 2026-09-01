@@ -11,6 +11,7 @@ import type {
 import Stripe from "stripe";
 import {sendAgencyInvitationEmail, sendAgencyEmailSequence} from "../notifications";
 import * as params from "../config/params";
+import {assertCanLaunchCampaign} from "../gigs/campaignLaunch";
 
 export const createAgency = onCall(async (request) => {
   if (!request.auth) {
@@ -594,6 +595,14 @@ export const fundGigFromWallet = onCall(async (request) => {
 
   const userId = request.auth.uid;
   const gigRef = db.collection("gigs").doc(gigId);
+  const gigPreview = await gigRef.get();
+  if (!gigPreview.exists) {
+    throw new HttpsError("not-found", "Gig not found.");
+  }
+  const previewData = gigPreview.data() as Gig;
+  if (previewData.status === "pending_payment") {
+    await assertCanLaunchCampaign(previewData.brandId);
+  }
 
   try {
     return await db.runTransaction(async (transaction) => {

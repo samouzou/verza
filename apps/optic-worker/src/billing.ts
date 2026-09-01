@@ -1,6 +1,6 @@
 import type {Firestore} from "firebase-admin/firestore";
 
-export type OpticPlanTier = "none" | "pilot" | "enterprise" | "appsumo";
+export type OpticPlanTier = "none" | "launch" | "pilot" | "enterprise" | "flagship" | "appsumo";
 
 export type AgencyOpticBilling = {
   plan: OpticPlanTier;

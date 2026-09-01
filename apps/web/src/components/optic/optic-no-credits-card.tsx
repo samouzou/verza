@@ -10,7 +10,7 @@ type OpticNoCreditsCardProps = {
   batchSize?: number;
   balance?: number;
   hasActiveSubscription?: boolean;
-  plan?: "none" | "pilot" | "enterprise" | "appsumo";
+  plan?: "none" | "launch" | "pilot" | "enterprise" | "flagship" | "appsumo";
 };
 
 export function OpticNoCreditsCard({
@@ -45,6 +45,27 @@ export function OpticNoCreditsCard({
     );
   }
 
+  if (hasActiveSubscription && plan === "launch" && (balance === 0 || needsMore)) {
+    return (
+      <Alert className="border-amber-500/40 bg-amber-500/5">
+        <Zap className="h-4 w-4" />
+        <AlertTitle>
+          {balance === 0 ? "Launch leads used for this month" : "Not enough Launch leads for this batch"}
+        </AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>
+            {balance === 0
+              ? "Launch includes 100 Optic leads per month. Your allowance resets next period, or upgrade to Enterprise for program-scale capacity."
+              : `This batch needs ${batchSize} leads but you only have ${balance}. Lower creators per batch or wait for reset.`}
+          </p>
+          <Button size="sm" asChild>
+            <Link href="/optic/pricing">Upgrade plan</Link>
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (hasActiveSubscription && plan === "pilot" && balance === 0) {
     return (
       <Alert className="border-amber-500/40 bg-amber-500/5">
@@ -73,7 +94,7 @@ export function OpticNoCreditsCard({
       <AlertDescription className="space-y-3">
         <p>
           {balance === 0
-            ? "Optic is billed separately from your Verza workspace. Choose Studio or Enterprise, or redeem an AppSumo code."
+            ? "Subscribe to Optic Launch to source creators, or request Enterprise / Flagship for larger programs."
             : `This batch needs ${batchSize} credits but you only have ${balance}. Lower creators per batch or upgrade your plan.`}
         </p>
         {needsMore && (

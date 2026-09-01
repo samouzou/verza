@@ -102,7 +102,7 @@ export const redeemAppSumoOpticCode = onCall(async (request) => {
     const stripeStatus = String(agency.opticSubscriptionStatus ?? "");
     const stripeActive =
       (stripeStatus === "active" || stripeStatus === "trialing") &&
-      (stripePlan === "pilot" || stripePlan === "enterprise");
+      (stripePlan === "launch" || stripePlan === "pilot" || stripePlan === "enterprise" || stripePlan === "flagship");
     if (stripeActive) {
       throw new HttpsError(
         "failed-precondition",

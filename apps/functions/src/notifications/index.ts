@@ -594,7 +594,9 @@ export async function sendSubscriptionReceiptEmail(
  */
 function getOpticPlanDisplayName(opticPlanId: string | null | undefined): string {
   if (!opticPlanId) return "Optic";
+  if (opticPlanId.includes("flagship")) return "Optic Flagship";
   if (opticPlanId.includes("enterprise")) return "Optic Enterprise";
+  if (opticPlanId.includes("launch")) return "Optic Launch";
   if (opticPlanId.includes("pilot")) return "Optic Studio";
   return "Optic";
 }
@@ -763,7 +765,7 @@ export async function sendOpticLowCreditsEmail(
     balance: number;
     allowance: number;
     planName: string;
-    planTier: "pilot" | "enterprise";
+    planTier: "launch" | "pilot" | "enterprise" | "flagship";
   }
 ): Promise<void> {
   const sendgridKey = params.SENDGRID_API_KEY.value();
@@ -782,7 +784,11 @@ export async function sendOpticLowCreditsEmail(
   const allowanceLabel = details.allowance.toLocaleString("en-US");
   const pilotNote = details.planTier === "pilot" ?
     " Studio will auto-purchase a 250-lead block ($500) when you run out, if a card is on file." :
-    " Enterprise can continue past your included balance; overage is reviewed quarterly.";
+    details.planTier === "launch" ?
+      " Launch includes 100 leads per month and pauses when you hit the cap." :
+      details.planTier === "flagship" ?
+        " Flagship can continue past your included balance; overage is reviewed with your account team." :
+        " Enterprise can continue past your included balance; overage is reviewed quarterly.";
 
   const subject = `Optic: ${usedPct}% of your included leads used this period`;
   const html = `
