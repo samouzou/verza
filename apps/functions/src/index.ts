@@ -131,6 +131,9 @@ import {enqueueLinkedInOsDraftJob} from "./linkedinOs/jobs";
 import {dispatchLinkedInOsJobToWorker} from "./linkedinOs/onJobCreated";
 import {generateLinkedInOsBeehiivNewsletter} from "./linkedinOs/beehiivNewsletter";
 import {generateLinkedInOsVideoScript} from "./linkedinOs/videoScript";
+import {analyzeLinkedInOsVoiceProfile} from "./linkedinOs/voiceProfile";
+import {generateLinkedInOsWeeklyPlan} from "./linkedinOs/weeklyPlan";
+import {updateLinkedInOsDraftPublishStatus} from "./linkedinOs/draftQueue";
 import {
   beginGmailConnect,
   completeGmailConnect,
@@ -234,6 +237,9 @@ export {
   dispatchLinkedInOsJobToWorker,
   generateLinkedInOsVideoScript,
   generateLinkedInOsBeehiivNewsletter,
+  analyzeLinkedInOsVoiceProfile,
+  generateLinkedInOsWeeklyPlan,
+  updateLinkedInOsDraftPublishStatus,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

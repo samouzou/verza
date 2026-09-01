@@ -126,7 +126,7 @@ const creatorWorkflowNavItems: WorkflowNavItem[] = [
 const brandLinkedInOsNavItem: WorkflowNavItem = {
   id: "nav-item-linkedin-os",
   href: "/linkedin-os",
-  label: "LinkedIn OS",
+  label: "LinkedIn Strategist",
   icon: Linkedin,
 };
 
@@ -198,7 +198,7 @@ function workflowNavItemsForUser(
   const isCreator = user.role === "individual_creator" || user.role === "talent";
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
-  if (showBrandWorkflows) return [brandLinkedInOsNavItem, brandOpticNavItem, gauntletNavItem];
+  if (showBrandWorkflows) return [brandOpticNavItem, gauntletNavItem, brandLinkedInOsNavItem];
   if (isCreator) return [...creatorWorkflowNavItems, gauntletNavItem];
   return [];
 }

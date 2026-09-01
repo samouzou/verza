@@ -49,6 +49,8 @@ export type LinkedInOsBeehiivNewsletter = {
 
 export const PRODUCT_RECEIPTS_OUTPUT_ID = "thu-product-receipts";
 
+export type LinkedInOsPublishStatus = "draft" | "approved" | "scheduled" | "posted";
+
 export type LinkedInOsJobOutput = {
   id: string;
   format: string;
@@ -57,6 +59,25 @@ export type LinkedInOsJobOutput = {
   generatedAt: string;
   model: string;
   carouselAssets?: LinkedInOsCarouselAssets;
+  publishStatus?: LinkedInOsPublishStatus;
+  scheduledAt?: string;
+};
+
+export type LinkedInOsVoiceProfile = {
+  agencyId: string;
+  voiceSummary: string;
+  toneTraits: string[];
+  hookPatterns: string[];
+  topicsThatWork: string[];
+  topicsToAvoid: string[];
+  ctaStyle: string;
+  doList: string[];
+  dontList: string[];
+  sampleLines: string[];
+  samplePostCount: number;
+  updatedBy?: string;
+  model?: string;
+  updatedAt?: Timestamp;
 };
 
 export type LinkedInOsJobRow = {

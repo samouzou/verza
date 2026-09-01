@@ -30,6 +30,8 @@ type JobOutput = {
   generatedAt: string;
   model: string;
   carouselAssets?: CarouselAssets;
+  publishStatus?: "draft" | "approved" | "scheduled" | "posted";
+  scheduledAt?: string;
 };
 
 /**
@@ -48,6 +50,7 @@ function truncate(s: string, max: number): string {
  * @param {string} brief Brand brief markdown.
  * @param {string} strategy Social strategy markdown.
  * @param {string} banned Banned-claims markdown.
+ * @param {string} voice Learned voice profile markdown.
  * @param {object} run Optional per-job author context.
  * @param {string} run.weeklyBrief Markdown for this run only.
  * @param {string} run.mustMention Phrase to reflect.
@@ -58,6 +61,7 @@ function buildSystemPrompt(
   brief: string,
   strategy: string,
   banned: string,
+  voice: string,
   run: {weeklyBrief: string; mustMention: string; neverMention: string}
 ): string {
   const runBrief =
@@ -68,7 +72,7 @@ function buildSystemPrompt(
 
   return `You are a LinkedIn ghostwriter for Verza (tryverza). Verza is the operating system for the creator economy.
 
-VOICE: operator-insider, concrete, respectful, no hype. Short lines. No hashtag spam (max 3 if any).
+VOICE: Match the LEARNED VOICE PROFILE when present. Otherwise: operator-insider, concrete, respectful, no hype. Short lines. No hashtag spam (max 3 if any).
 
 RULES:
 - Use ONLY the product facts implied by the CONTEXT below plus the user's "productTruth" line for each task. Do not invent fees, thresholds, features, or legal outcomes.
@@ -76,6 +80,11 @@ RULES:
 - Honor CONTEXT — THIS RUN when it conflicts with generic Verza copy (e.g. another brand voice, a launch week); never contradict explicit "never mention" lines.
 - LinkedIn: strong first line (hook). Use whitespace. Optional short numbered list (max 3 bullets).
 - Never guarantee income, ROI, or virality. No legal/tax advice.
+
+CONTEXT — LEARNED VOICE PROFILE:
+---
+${voice || "(none — use default operator-insider voice)"}
+---
 
 CONTEXT — BRAND / PRODUCT BRIEF:
 ---
@@ -226,7 +235,33 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
     const weeklyBrief = truncate(String(data.weeklyBrief ?? ""), MAX_RUN_BRIEF);
     const mustMention = truncate(String(data.mustMention ?? ""), MAX_RUN_CONSTRAINT);
     const neverMention = truncate(String(data.neverMention ?? ""), MAX_RUN_CONSTRAINT);
-    const system = buildSystemPrompt(brief, strategy, banned, {
+
+    const agencyIdEarly = String(data.agencyId ?? "").trim();
+    let voiceBlock = "";
+    if (agencyIdEarly) {
+      const voiceSnap = await db.collection("linkedin_os_voice_profiles").doc(agencyIdEarly).get();
+      if (voiceSnap.exists) {
+        const v = voiceSnap.data()!;
+        voiceBlock = truncate(
+          [
+            String(v.voiceSummary ?? ""),
+            `Tone: ${Array.isArray(v.toneTraits) ? v.toneTraits.join(", ") : ""}`,
+            `Hook patterns: ${Array.isArray(v.hookPatterns) ? v.hookPatterns.join("; ") : ""}`,
+            `Topics that work: ${Array.isArray(v.topicsThatWork) ? v.topicsThatWork.join("; ") : ""}`,
+            `Avoid: ${Array.isArray(v.topicsToAvoid) ? v.topicsToAvoid.join("; ") : ""}`,
+            `CTA style: ${String(v.ctaStyle ?? "")}`,
+            `Do: ${Array.isArray(v.doList) ? v.doList.join("; ") : ""}`,
+            `Don't: ${Array.isArray(v.dontList) ? v.dontList.join("; ") : ""}`,
+            `Sample lines:\n${Array.isArray(v.sampleLines) ? v.sampleLines.map((l: string) => `- ${l}`).join("\n") : ""}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          MAX_CTX
+        );
+      }
+    }
+
+    const system = buildSystemPrompt(brief, strategy, banned, voiceBlock, {
       weeklyBrief,
       mustMention,
       neverMention,
@@ -255,6 +290,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
         markdown,
         generatedAt: new Date().toISOString(),
         model,
+        publishStatus: "draft",
       };
 
       if (item.format === "carousel_outline") {

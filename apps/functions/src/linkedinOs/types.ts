@@ -11,6 +11,24 @@ export type LinkedInOsJobItem = {
   notes?: string;
 };
 
+export type LinkedInOsPublishStatus = "draft" | "approved" | "scheduled" | "posted";
+
+export type LinkedInOsVoiceProfile = {
+  agencyId: string;
+  voiceSummary: string;
+  toneTraits: string[];
+  hookPatterns: string[];
+  topicsThatWork: string[];
+  topicsToAvoid: string[];
+  ctaStyle: string;
+  doList: string[];
+  dontList: string[];
+  sampleLines: string[];
+  samplePostCount: number;
+  updatedBy: string;
+  model: string;
+};
+
 export type LinkedInOsVideoPlatform = "tiktok" | "instagram_reels" | "youtube";
 
 export type LinkedInOsVideoScript = {
@@ -54,4 +72,7 @@ export type LinkedInOsJobOutput = {
   generatedAt: string;
   model: string;
   carouselAssets?: LinkedInOsCarouselAssets;
+  /** Human publish workflow — LinkedIn API post comes later. */
+  publishStatus?: LinkedInOsPublishStatus;
+  scheduledAt?: string;
 };

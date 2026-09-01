@@ -13,6 +13,7 @@ import {
   Linkedin,
   Loader2,
   Mail,
+  CalendarClock,
   NotebookPen,
   Sparkles,
   Video,
@@ -42,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
+import { useLinkedInOsVoiceProfile } from "@/hooks/use-linkedin-os-voice";
 import { useToast } from "@/hooks/use-toast";
 import { functions, getDownloadURL, ref, storage } from "@/lib/firebase";
 import {
@@ -56,8 +58,10 @@ import {
   LINKEDIN_OS_VIDEO_PLATFORMS,
   PRODUCT_RECEIPTS_OUTPUT_ID,
   type LinkedInOsBeehiivNewsletter,
+  type LinkedInOsCarouselAssets,
   type LinkedInOsJobItem,
   type LinkedInOsJobRow,
+  type LinkedInOsPublishStatus,
   type LinkedInOsVideoPlatform,
   type LinkedInOsVideoScript,
 } from "@/lib/linkedin-os/types";
@@ -425,6 +429,116 @@ function BeehiivNewsletterPanel({
   );
 }
 
+function publishBadgeVariant(status: LinkedInOsPublishStatus | undefined) {
+  if (status === "posted") return "default" as const;
+  if (status === "scheduled") return "secondary" as const;
+  if (status === "approved") return "outline" as const;
+  return "outline" as const;
+}
+
+function VoiceProfilePanel({ agencyId }: { agencyId: string }) {
+  const { toast } = useToast();
+  const { profile, loading, error } = useLinkedInOsVoiceProfile(agencyId);
+  const [posts, setPosts] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const handleAnalyze = async () => {
+    if (posts.trim().length < 200) {
+      toast({
+        title: "Paste more posts",
+        description: "Need roughly 200+ characters of recent LinkedIn posts.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const analyze = httpsCallable(functions, "analyzeLinkedInOsVoiceProfile");
+      await analyze({ posts: posts.trim() });
+      toast({
+        title: "Voice learned",
+        description: "Drafts and weekly plans will use this profile.",
+      });
+      setPosts("");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not analyze posts.";
+      toast({ title: "Voice analysis failed", description: msg, variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <NotebookPen className="h-5 w-5 text-primary" />
+          Voice
+        </CardTitle>
+        <CardDescription>
+          Paste recent LinkedIn posts (yours or the page you write for). We learn tone, hooks, and
+          patterns — then plan and draft in that voice.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {loading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : profile ? (
+          <div className="rounded-lg border bg-muted/10 p-4 space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium">Saved profile</p>
+              <Badge variant="secondary">{profile.samplePostCount} post samples</Badge>
+            </div>
+            <p className="text-muted-foreground whitespace-pre-wrap">{profile.voiceSummary}</p>
+            {(profile.toneTraits?.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Tone: {profile.toneTraits.join(" · ")}
+              </p>
+            )}
+            {(profile.doList?.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">Do: {profile.doList.slice(0, 4).join("; ")}</p>
+            )}
+            {(profile.dontList?.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Don&apos;t: {profile.dontList.slice(0, 4).join("; ")}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No voice profile yet. Paste 5–15 recent posts below to get started.
+          </p>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor="voice-posts">Recent posts</Label>
+          <Textarea
+            id="voice-posts"
+            rows={6}
+            value={posts}
+            onChange={(e) => setPosts(e.target.value.slice(0, 28000))}
+            placeholder="Paste posts separated by blank lines…"
+          />
+          <p className="text-xs text-muted-foreground text-right">{posts.length}/28000</p>
+        </div>
+        <Button type="button" disabled={analyzing} onClick={() => void handleAnalyze()}>
+          {analyzing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Learning voice…
+            </>
+          ) : (
+            <>
+              <Sparkles className="mr-2 h-4 w-4" />
+              {profile ? "Re-learn from new posts" : "Learn voice"}
+            </>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LinkedInOsPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const { toast } = useToast();
@@ -447,6 +561,11 @@ export default function LinkedInOsPage() {
   const [neverMention, setNeverMention] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planRationale, setPlanRationale] = useState<string | null>(null);
+  const [scheduleDraftId, setScheduleDraftId] = useState<string | null>(null);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [updatingPublishId, setUpdatingPublishId] = useState<string | null>(null);
 
   const selectedJob: LinkedInOsJobRow | null = useMemo(
     () => jobs.find((j) => j.id === selectedJobId) ?? jobs[0] ?? null,
@@ -489,7 +608,75 @@ export default function LinkedInOsPage() {
     setWeeklyBrief("");
     setMustMention("");
     setNeverMention("");
+    setPlanRationale(null);
     setItems(DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x })));
+  };
+
+  const handleGeneratePlan = async () => {
+    setPlanning(true);
+    try {
+      const plan = httpsCallable(functions, "generateLinkedInOsWeeklyPlan");
+      const result = await plan({
+        weekLabel,
+        ...(weeklyBrief.trim() ? { weeklyBrief: weeklyBrief.trim() } : {}),
+        ...(mustMention.trim() ? { mustMention: mustMention.trim() } : {}),
+        ...(neverMention.trim() ? { neverMention: neverMention.trim() } : {}),
+      });
+      const data = result.data as { items?: LinkedInOsJobItem[]; rationale?: string };
+      if (!data.items?.length) {
+        throw new Error("Plan returned no items.");
+      }
+      setItems(data.items.map((x) => ({ ...x })));
+      setPlanRationale(data.rationale?.trim() || null);
+      toast({
+        title: "Weekly plan ready",
+        description: "Review hooks and truths, then generate drafts.",
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not generate plan.";
+      toast({ title: "Plan failed", description: msg, variant: "destructive" });
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const handlePublishStatus = async (
+    outputId: string,
+    publishStatus: LinkedInOsPublishStatus,
+    scheduledAt?: string
+  ) => {
+    if (!selectedJob) return;
+    setUpdatingPublishId(outputId);
+    try {
+      const update = httpsCallable(functions, "updateLinkedInOsDraftPublishStatus");
+      await update({
+        jobId: selectedJob.id,
+        outputId,
+        publishStatus,
+        ...(scheduledAt ? { scheduledAt } : {}),
+      });
+      toast({
+        title:
+          publishStatus === "scheduled"
+            ? "Scheduled"
+            : publishStatus === "approved"
+              ? "Approved"
+              : publishStatus === "posted"
+                ? "Marked posted"
+                : "Back to draft",
+        description:
+          publishStatus === "scheduled"
+            ? "Approved for that time. LinkedIn API auto-post comes next — copy/post manually for now."
+            : undefined,
+      });
+      setScheduleDraftId(null);
+      setScheduleAt("");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not update status.";
+      toast({ title: "Update failed", description: msg, variant: "destructive" });
+    } finally {
+      setUpdatingPublishId(null);
+    }
   };
 
   const handleGenerate = async () => {
@@ -547,8 +734,8 @@ export default function LinkedInOsPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Agency account required</AlertTitle>
           <AlertDescription>
-            LinkedIn OS is for agency team members promoting Verza on LinkedIn. Sign in with your
-            agency account or complete onboarding first.
+            LinkedIn Strategist is for agency team members. Sign in with your agency account or
+            complete onboarding first.
           </AlertDescription>
         </Alert>
       </div>
@@ -572,8 +759,8 @@ export default function LinkedInOsPage() {
   return (
     <div className="flex flex-col gap-8 pb-16">
       <PageHeader
-        title="LinkedIn OS"
-        description="First-pass LinkedIn drafts for Verza—we generate a starting point, you edit and publish."
+        title="LinkedIn Strategist"
+        description="Learn your voice, plan the week, draft posts, then approve and schedule — you stay in the loop."
         actions={
           <Button variant="outline" asChild>
             <Link href="/optic">Optic (separate)</Link>
@@ -583,23 +770,27 @@ export default function LinkedInOsPage() {
 
       <Alert className="border-blue-500/30 bg-blue-50/10">
         <Linkedin className="h-4 w-4" />
-        <AlertTitle>Human in the loop</AlertTitle>
+        <AlertTitle>Approve before it ships</AlertTitle>
         <AlertDescription>
-          Paste one product truth per post from your brief. Edit every draft before posting to
-          LinkedIn—this tool removes the blank page, not your judgment.
+          Scheduling marks a draft for a time slot. Direct LinkedIn posting is not connected yet —
+          copy the approved draft into LinkedIn (or wait for API publish). Never invent product
+          facts the brief doesn&apos;t support.
         </AlertDescription>
       </Alert>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <div className="space-y-6">
+        <VoiceProfilePanel agencyId={agencyId} />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              This week&apos;s queue
+              This week&apos;s plan
             </CardTitle>
             <CardDescription>
-              Add hooks and product truths—we draft the rest from your team&apos;s saved brand voice.
+              Generate a strategist plan from your voice + brief, or use inspiration presets — then
+              draft.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -692,6 +883,32 @@ export default function LinkedInOsPage() {
                 </Button>
               </div>
             </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={planning}
+                onClick={() => void handleGeneratePlan()}
+              >
+                {planning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Planning…
+                  </>
+                ) : (
+                  <>
+                    <CalendarClock className="mr-2 h-4 w-4" />
+                    Generate weekly plan
+                  </>
+                )}
+              </Button>
+            </div>
+            {planRationale && (
+              <p className="text-sm text-muted-foreground rounded-md border bg-muted/10 px-3 py-2">
+                {planRationale}
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -875,7 +1092,7 @@ export default function LinkedInOsPage() {
                 <CardTitle>Drafts</CardTitle>
                 <CardDescription>
                   {selectedJob.status === "completed"
-                    ? "Copy, edit in your voice, then post on LinkedIn."
+                    ? "Approve, schedule a time, copy to LinkedIn, then mark posted."
                     : selectedJob.status === "failed"
                       ? selectedJob.error || "Job failed."
                       : "Waiting for the worker…"}
@@ -907,8 +1124,11 @@ export default function LinkedInOsPage() {
                   </div>
                 )}
                 {selectedJob.status === "completed" &&
-                  (selectedJob.outputs ?? []).map((out) => (
-                    <div key={out.id} className="rounded-lg border p-4 space-y-2">
+                  (selectedJob.outputs ?? []).map((out) => {
+                    const pub = out.publishStatus ?? "draft";
+                    const busy = updatingPublishId === out.id;
+                    return (
+                    <div key={out.id} className="rounded-lg border p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-medium">{out.id}</p>
@@ -916,17 +1136,20 @@ export default function LinkedInOsPage() {
                             {out.pillar} · {out.format}
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => copyMarkdown(out.id, out.markdown)}
-                        >
-                          {copiedId === out.id ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={publishBadgeVariant(pub)}>{pub}</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyMarkdown(out.id, out.markdown)}
+                          >
+                            {copiedId === out.id ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                       <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-64 overflow-y-auto">
                         {out.markdown}
@@ -934,8 +1157,91 @@ export default function LinkedInOsPage() {
                       {out.carouselAssets && out.carouselAssets.slides.length > 0 && (
                         <CarouselAssetsPanel assets={out.carouselAssets} outputId={out.id} />
                       )}
+                      {out.scheduledAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Scheduled for {new Date(out.scheduledAt).toLocaleString()}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {pub === "draft" && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() => void handlePublishStatus(out.id, "approved")}
+                          >
+                            Approve
+                          </Button>
+                        )}
+                        {(pub === "draft" || pub === "approved") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              setScheduleDraftId(out.id);
+                              setScheduleAt("");
+                            }}
+                          >
+                            Schedule…
+                          </Button>
+                        )}
+                        {(pub === "approved" || pub === "scheduled") && (
+                          <Button
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void handlePublishStatus(out.id, "posted")}
+                          >
+                            Mark posted
+                          </Button>
+                        )}
+                        {pub !== "draft" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => void handlePublishStatus(out.id, "draft")}
+                          >
+                            Reset to draft
+                          </Button>
+                        )}
+                      </div>
+                      {scheduleDraftId === out.id && (
+                        <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/10 p-3">
+                          <div className="space-y-1 grow min-w-[12rem]">
+                            <Label htmlFor={`sched-${out.id}`}>Post time</Label>
+                            <Input
+                              id={`sched-${out.id}`}
+                              type="datetime-local"
+                              value={scheduleAt}
+                              onChange={(e) => setScheduleAt(e.target.value)}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={busy || !scheduleAt}
+                            onClick={() => {
+                              const iso = new Date(scheduleAt).toISOString();
+                              void handlePublishStatus(out.id, "scheduled", iso);
+                            }}
+                          >
+                            Confirm schedule
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setScheduleDraftId(null);
+                              setScheduleAt("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 {selectedJob.status === "running" && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -281,6 +281,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // LinkedIn Strategist — learned voice per agency (Admin writes via callable)
+    match /linkedin_os_voice_profiles/{agencyId} {
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
+      allow write: if false;
+    }
+
     // Creator Store — digital products sold to fans via Connect checkout
     match /storeProducts/{productId} {
       allow read: if resource.data.status == "active" ||
