@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza — Creator programs for brands</title>
+  <meta name="description" content="Customer-facing services deck: Verza runs managed creator GTM — matching, briefs, contracts, payouts — with the CAIS × Struthless case study." />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --ink-2: #121A17;
+      --ink-3: #1A2420;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+      --paper-dim: #B8C4BE;
+      --warn: #C4A574;
+      --yt-red: #FF0033;
+      --radius: 1.25rem;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-optical-sizing: auto;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 124, 90, 0.28), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(22, 192, 136, 0.12), transparent 50%),
+        var(--ink);
+      min-height: 100vh;
+    }
+
+    .deck-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(11, 16, 14, 0.92), transparent);
+      pointer-events: none;
+    }
+
+    .deck-nav a,
+    .deck-nav .brand { pointer-events: auto; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--paper);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img { width: 28px; height: auto; }
+
+    .nav-meta {
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-meta strong {
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      z-index: 50;
+      transition: width 120ms linear;
+    }
+
+    .slide {
+      min-height: 100vh;
+      min-height: 100dvh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5.5rem 1.5rem 4rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .slide::before {
+      content: attr(data-n);
+      position: absolute;
+      top: 5.25rem;
+      right: 1.5rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 1.25rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.5rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    h1, h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: clamp(2.75rem, 7vw, 5rem);
+      max-width: 14ch;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-size: clamp(2.1rem, 5vw, 3.5rem);
+      max-width: 20ch;
+      margin-bottom: 1.25rem;
+    }
+
+    .lede {
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      color: var(--paper-dim);
+      max-width: 40rem;
+      margin-bottom: 2rem;
+    }
+
+    .lede strong { color: var(--paper); font-weight: 600; }
+
+    .proof-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 0, 51, 0.35);
+      background: rgba(255, 0, 51, 0.08);
+      color: var(--paper);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: border-color 200ms var(--ease), transform 200ms var(--ease);
+    }
+
+    .proof-link:hover {
+      border-color: rgba(255, 0, 51, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .proof-link .dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 999px;
+      background: var(--yt-red);
+      box-shadow: 0 0 8px rgba(255, 0, 51, 0.5);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .tag {
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      background: var(--ink-3);
+      border: 1px solid rgba(152, 162, 156, 0.2);
+      font-size: 0.78rem;
+      color: var(--paper-dim);
+      letter-spacing: 0.04em;
+    }
+
+    .grid-2 {
+      display: grid;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 960px) {
+      .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .grid-3, .grid-4 {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .card {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.4rem;
+      backdrop-filter: blur(8px);
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .card:hover {
+      border-color: rgba(22, 192, 136, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.45rem;
+      color: var(--paper);
+    }
+
+    .card p {
+      font-size: 0.92rem;
+      color: var(--mist);
+    }
+
+    .card .num {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 2rem;
+      color: var(--emerald);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .card .label {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1.5rem;
+      max-width: 44rem;
+    }
+
+    .stack-row {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 1rem;
+      align-items: baseline;
+      padding: 0.9rem 0;
+      border-bottom: 1px solid rgba(152, 162, 156, 0.14);
+    }
+
+    .stack-row:first-child { border-top: 1px solid rgba(152, 162, 156, 0.14); }
+
+    .stack-row dt {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .stack-row dd {
+      color: var(--paper-dim);
+      font-size: 0.98rem;
+    }
+
+    .stack-row dd strong { color: var(--paper); }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 1.75rem;
+    }
+
+    .flow span {
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      background: var(--ink-3);
+      border: 1px solid rgba(152, 162, 156, 0.2);
+      font-size: 0.85rem;
+      color: var(--paper);
+    }
+
+    .flow i {
+      font-style: normal;
+      color: var(--emerald);
+      font-size: 0.9rem;
+    }
+
+    .note {
+      margin-top: 1.75rem;
+      padding: 1rem 1.15rem;
+      border-left: 2px solid var(--emerald);
+      background: rgba(14, 124, 90, 0.1);
+      color: var(--paper-dim);
+      font-size: 0.88rem;
+      max-width: 44rem;
+    }
+
+    .note strong { color: var(--paper); }
+
+    .metric-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (min-width: 720px) {
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 960px) {
+      .metric-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    #case-study .metric-grid {
+      margin-top: 1.5rem;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 2rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 1.35rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: transform 200ms var(--ease), background 200ms var(--ease);
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .btn-ghost {
+      border: 1px solid rgba(152, 162, 156, 0.3);
+      color: var(--paper);
+      background: transparent;
+    }
+
+    .foot {
+      margin-top: 2.5rem;
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.04em;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.7;
+      pointer-events: none;
+      animation: pulse 2.4s var(--ease) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.8; }
+    }
+
+    .slide.cover h1 { max-width: 13ch; }
+
+    .cover-grid {
+      display: grid;
+      gap: 2.25rem;
+      align-items: center;
+    }
+
+    @media (min-width: 900px) {
+      .cover-grid { grid-template-columns: 1.05fr 0.95fr; }
+    }
+
+    .cover-still {
+      display: block;
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      border: 1px solid rgba(152, 162, 156, 0.18);
+      background: var(--ink-3);
+    }
+
+    .cover-still img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cover-still .play {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    .cover-still .play svg {
+      width: 3.75rem;
+      height: 3.75rem;
+    }
+
+    .cover-work figcaption {
+      margin-top: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--mist);
+    }
+
+    .cover-work figcaption strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .team-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .team-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .team-card {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 1.1rem;
+      align-items: start;
+    }
+
+    .team-photo {
+      width: 5.5rem;
+      height: 5.5rem;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(22, 192, 136, 0.35);
+      background: rgba(11, 16, 14, 0.6);
+    }
+
+    .team-card .label { margin-bottom: 0.2rem; }
+    .team-card h3 { margin-bottom: 0.45rem; }
+
+    .face-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem 1.75rem;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+
+    .face {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .face img {
+      width: 3.35rem;
+      height: 3.35rem;
+      border-radius: 999px;
+      object-fit: cover;
+      object-position: center 20%;
+      border: 2px solid rgba(22, 192, 136, 0.4);
+      background: var(--ink-3);
+    }
+
+    .face img.face-frame {
+      object-position: center 28%;
+    }
+
+    .face strong {
+      display: block;
+      font-size: 0.88rem;
+      color: var(--paper);
+    }
+
+    .face span {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--mist);
+    }
+
+    .cta-person {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-top: 1.5rem;
+    }
+
+    .cta-person img {
+      width: 3.5rem;
+      height: 3.5rem;
+      border-radius: 999px;
+      object-fit: cover;
+      border: 2px solid rgba(22, 192, 136, 0.4);
+    }
+
+    .cta-person p {
+      font-size: 0.88rem;
+      color: var(--paper-dim);
+    }
+
+    .cta-person strong { color: var(--paper); }
+
+    /* Case study: wider canvas so the comment wall can breathe */
+    #case-study {
+      max-width: 90rem;
+    }
+
+    /* Case study layout */
+    .case-layout {
+      display: grid;
+      gap: 1.5rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (min-width: 960px) {
+      .case-layout { grid-template-columns: 0.95fr 1.25fr; align-items: start; gap: 2rem; }
+    }
+
+    .video-tile {
+      display: grid;
+      gap: 1rem;
+      padding: 1.25rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      background: rgba(18, 26, 23, 0.85);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+    }
+
+    .video-tile:hover {
+      border-color: rgba(255, 0, 51, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .video-thumb {
+      position: relative;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      background: var(--ink-3);
+    }
+
+    .video-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-thumb .play {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    .video-thumb .play svg {
+      width: 3.5rem;
+      height: 3.5rem;
+      opacity: 0.95;
+    }
+
+    .video-meta h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--paper);
+    }
+
+    .video-meta .sub {
+      font-size: 0.82rem;
+      color: var(--mist);
+    }
+
+    .partner-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+
+    .partner-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(26, 36, 32, 0.9);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      font-size: 0.78rem;
+      color: var(--paper-dim);
+    }
+
+    .partner-chip img {
+      height: 1.1rem;
+      width: auto;
+    }
+
+    .roi-banner {
+      margin-top: 1.25rem;
+      padding: 0.85rem 1.1rem;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(14, 124, 90, 0.2), rgba(22, 192, 136, 0.08));
+      border: 1px solid rgba(22, 192, 136, 0.25);
+      font-size: 0.92rem;
+      color: var(--paper-dim);
+    }
+
+    .roi-banner strong { color: var(--emerald); }
+
+    .growth-delta {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .growth-delta .from {
+      color: var(--mist);
+      font-size: 0.85em;
+      font-weight: 500;
+      text-decoration: line-through;
+      opacity: 0.75;
+    }
+
+    .growth-delta .arrow {
+      color: var(--emerald);
+      font-size: 0.7em;
+    }
+
+    .growth-delta .to {
+      color: var(--emerald);
+    }
+
+    .tip-comment {
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(22, 192, 136, 0.35);
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .tip-comment img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .tip-comment .tip-caption {
+      padding: 0.65rem 0.85rem 0.75rem;
+      font-size: 0.72rem;
+      color: var(--paper-dim);
+      line-height: 1.4;
+      border-top: 1px solid rgba(22, 192, 136, 0.2);
+    }
+
+    .tip-comment .tip-caption strong {
+      color: var(--emerald);
+    }
+
+    /* Comment wall */
+    .comment-wall {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .comment-wall-header {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .comment {
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.75rem;
+      background: rgba(11, 16, 14, 0.65);
+      border: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    .comment p {
+      font-size: 0.82rem;
+      color: var(--paper-dim);
+      line-height: 1.4;
+    }
+
+    .comment .meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.45rem;
+      font-size: 0.68rem;
+      color: var(--mist);
+    }
+
+    .comment .likes {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .avatar {
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--ink);
+      flex-shrink: 0;
+    }
+
+    .bridge-table-wrap {
+      margin-top: 1.25rem;
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid rgba(152, 162, 156, 0.18);
+      background: rgba(18, 26, 23, 0.85);
+    }
+
+    .bridge-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 32rem;
+    }
+
+    .bridge-table th,
+    .bridge-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(152, 162, 156, 0.12);
+    }
+
+    .bridge-table th {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .bridge-table td:first-child {
+      font-weight: 600;
+      color: var(--paper);
+      white-space: nowrap;
+    }
+
+    .bridge-table td { color: var(--mist); }
+
+    .bridge-table tr:last-child td { border-bottom: 0; }
+
+    .ask-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .ask-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .stack-row { grid-template-columns: 1fr; gap: 0.25rem; }
+      .slide::before { display: none; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+
+    .deliverables {
+      margin-top: 0.85rem;
+      padding-left: 1.1rem;
+      color: var(--mist);
+      font-size: 0.88rem;
+    }
+    .deliverables li { margin: 0.35rem 0; }
+    .deliverables strong { color: var(--paper); }
+    .card.featured {
+      border-color: rgba(22, 192, 136, 0.4);
+      background: rgba(14, 124, 90, 0.12);
+    }
+    .split-fee {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      margin-top: 0.5rem;
+    }
+    .split-fee .amt {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.75rem;
+      color: var(--emerald);
+      line-height: 1;
+    }
+    .split-fee .lbl {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--mist);
+      margin-top: 0.25rem;
+    }
+    @media print {
+      html { scroll-snap-type: none; }
+      .slide { min-height: auto; page-break-after: always; padding: 2rem; }
+      .deck-nav, .progress, .hint { display: none; }
+      body { background: #fff; color: #111; }
+      .lede, .card p, .stack-row dd, .comment p { color: #333; }
+      .card { background: #f5f5f5; border-color: #ddd; }
+      h1, h2, .card h3 { color: #0B100E; }
+      .card .num, .eyebrow, .stack-row dt { color: #0E7C5A; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="deck-nav">
+    <a class="brand" href="https://tryverza.com">
+      <img src="/verza-icon.svg" alt="" width="28" height="20" />
+      Verza
+    </a>
+    <div class="nav-meta">Creator programs · <strong>Managed GTM</strong></div>
+  </header>
+  <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
+
+  <section class="slide cover" data-n="01 / 09" id="cover">
+    <div class="cover-grid">
+      <div>
+        <p class="eyebrow">For brands &amp; operators · Creator-led GTM</p>
+        <h1>We run the creator program that puts your category in front of the people who buy it.</h1>
+        <p class="lede">
+          Verza is a <strong>managed activation partner</strong> — not another login. We find the voices your buyers already trust, brief them in your language, contract and pay them, and report what moved.
+        </p>
+        <div class="tag-row">
+          <span class="tag">YouTube</span>
+          <span class="tag">Instagram</span>
+          <span class="tag">TikTok</span>
+          <span class="tag">LinkedIn</span>
+          <span class="tag">X</span>
+          <span class="tag">Affiliate tracking</span>
+        </div>
+        <p class="foot">tryverza.com · serge@tryverza.com · Confidential</p>
+      </div>
+      <figure class="cover-work">
+        <a class="cover-still" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener" aria-label="Watch CAIS × Struthless — The AI question no one wants to ask">
+          <img src="https://i.ytimg.com/vi/11FIIPmdpHo/maxresdefault.jpg" alt="CAIS × Struthless — The AI question no one wants to ask" width="1280" height="720" />
+          <div class="play" aria-hidden="true">
+            <svg viewBox="0 0 68 48" fill="none"><path d="M66.52 7.74a8 8 0 0 0-5.63-5.66C55.79 1 34 1 34 1S12.21 1 7.11 2.08A8 8 0 0 0 1.48 7.74 83.6 83.6 0 0 0 0 24a83.6 83.6 0 0 0 1.48 16.26 8 8 0 0 0 5.63 5.66C12.21 47 34 47 34 47s21.79 0 26.89-1.08a8 8 0 0 0 5.63-5.66A83.6 83.6 0 0 0 68 24a83.6 83.6 0 0 0-1.48-16.26z" fill="#FF0033"/><path d="M45 24 27 14v20l18-10z" fill="#fff"/></svg>
+          </div>
+        </a>
+        <figcaption>
+          <strong>CAIS × Struthless</strong> — a dense institutional brief that held sixty minutes of attention. The work, not the pitch.
+        </figcaption>
+        <div class="partner-row">
+          <span class="partner-chip">
+            <img src="/cais-white.png" alt="CAIS" />
+            Center for AI Safety
+          </span>
+          <span class="partner-chip">@struthless · 1.22M</span>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-n="02 / 09" id="why-now">
+    <p class="eyebrow">Why now</p>
+    <h2>High-touch sales already work. Digital GTM is where category education stalls.</h2>
+    <p class="lede">
+      Dinners and founder-led calls close enterprise deals. Scaling thought leadership among the people who actually buy — CISOs, GMs, category operators — still looks like spreadsheets, cold DMs, and one-off influencer gigs.
+    </p>
+    <div class="grid-3">
+      <div class="card">
+        <h3>The brief is dense</h3>
+        <p>New categories don’t fit a 15-second ad. Buyers need time with the idea before they put it on a shortlist.</p>
+      </div>
+      <div class="card">
+        <h3>The roster is wrong</h3>
+        <p>Follower count is not fit. The voices that move a buying committee are usually niche, technical, and already in the conversation.</p>
+      </div>
+      <div class="card">
+        <h3>Ops eat the quarter</h3>
+        <p>Matching, usage rights, invoices, and “did it ship?” become a second job. Programs stall before they compound.</p>
+      </div>
+    </div>
+    <div class="face-row">
+      <div class="face">
+        <img src="/jjohnson2.jpg" alt="J Johnson Jr." width="64" height="64" />
+        <div>
+          <strong>Creators</strong>
+          <span>The roster you approve, person by person</span>
+        </div>
+      </div>
+      <div class="face">
+        <img class="face-frame" src="https://i.ytimg.com/vi/11FIIPmdpHo/maxresdefault.jpg" alt="Campbell Walker (Struthless)" width="64" height="64" />
+        <div>
+          <strong>Talent who can hold a brief</strong>
+          <span>Not a follower-count spreadsheet</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-n="03 / 09" id="who">
+    <p class="eyebrow">Who we are</p>
+    <h2>A distribution partner with the rails to actually finish the work.</h2>
+    <p class="lede">
+      You bring the category and the commercial goal. We bring judgment on who should speak, how the story should be told, and the operating system to contract, pay, and measure it.
+    </p>
+    <dl class="stack">
+      <div class="stack-row">
+        <dt>Not SaaS</dt>
+        <dd>You don’t assemble a stack and hope your team learns it. We run the program. Software is how we execute — not what we sell you in the room.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Not a talent shop</dt>
+        <dd>We don’t rent a celebrity for a weekend. We build a roster that can carry a 90-day education motion — then scale what worked.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>The rails</dt>
+        <dd>Discovery, contracts, unique links and codes, wallets, and payouts sit on Verza so creators get paid and you can see clicks and conversions — not a Drive folder of screenshots.</dd>
+      </div>
+    </dl>
+    <div class="team-grid">
+      <div class="card team-card">
+        <img class="team-photo" src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="88" height="88" />
+        <div>
+          <p class="label">Founder</p>
+          <h3>Serge Amouzou</h3>
+          <p>Runs the program with you — matching, narrative, and the commercial goal. 15+ years shipping money tools for independents.</p>
+        </div>
+      </div>
+      <div class="card team-card">
+        <img class="team-photo" src="/Nercy-Escobedo-profile.jpg" alt="Nercy Escobedo" width="88" height="88" />
+        <div>
+          <p class="label">COO</p>
+          <h3>Nercy Escobedo</h3>
+          <p>Contracts, calendar, payouts, and reporting. Bloomberg / Morgan Stanley ops background — so the paper trail is real.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-n="04 / 09" id="what">
+    <p class="eyebrow">What we do</p>
+    <h2>Attention, distribution, and a paper trail to the sale.</h2>
+    <div class="grid-3">
+      <div class="card featured">
+        <p class="label">Anchor</p>
+        <h3>Hold attention on a dense brief</h3>
+        <p>A long-form piece — essay, documentary cut, or flagship conversation — where the buyer can sit with the idea. This is how you define a category instead of renting a mention.</p>
+      </div>
+      <div class="card featured">
+        <p class="label">Native distribution</p>
+        <h3>Where your buyers already watch</h3>
+        <p>YouTube, Instagram, TikTok, LinkedIn, and X. The mix follows the brief — consumer programs often start on IG and TikTok; B2B often starts on LinkedIn and YouTube. All five are in the kit from day one.</p>
+      </div>
+      <div class="card featured">
+        <p class="label">Track</p>
+        <h3>Pay for results, not just views</h3>
+        <p>Every creator gets unique links and promo codes. We attribute clicks, store conversions, and CPC/CPA rewards so you can see which voices actually moved revenue — not a screenshot of a view count.</p>
+      </div>
+    </div>
+    <div class="grid-4">
+      <div class="card">
+        <h3>Match</h3>
+        <p>We shortlist voices against the brief — niche, audience quality, and whether they can carry the story without sounding like an ad.</p>
+      </div>
+      <div class="card">
+        <h3>Brief</h3>
+        <p>Talking points, proof, and constraints. The creator stays authentic. Your claims stay accurate.</p>
+      </div>
+      <div class="card">
+        <h3>Run</h3>
+        <p>Negotiations, contracts, usage rights, dates, and payouts. You approve. We operate.</p>
+      </div>
+      <div class="card">
+        <h3>Report</h3>
+        <p>What shipped, who saw it, who clicked, and what converted — plus what the comments actually said.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-n="05 / 09" id="how">
+    <p class="eyebrow">How we work</p>
+    <h2>Retainer plus media. 100% of media goes to talent.</h2>
+    <p class="lede">
+      Verza’s fee covers strategy and full management. The media budget is ring-fenced for creator payouts and placement — you see where every dollar of it went.
+    </p>
+    <div class="grid-3">
+      <div class="card">
+        <p class="label">Management fee</p>
+        <h3>Strategy, matching, ops</h3>
+        <p>Creator search, outreach, briefs, contracting, usage rights, calendar, and reporting. One owner.</p>
+      </div>
+      <div class="card">
+        <p class="label">Media budget</p>
+        <h3>Paid to creators, not to us</h3>
+        <p>Fees, usage, and placements. A quarterly envelope so you can greenlight work without renegotiating every post.</p>
+      </div>
+      <div class="card featured">
+        <p class="label">Attribution</p>
+        <h3>Links, codes, conversions</h3>
+        <p>Per-creator affiliate links and promo codes. Clicks and conversions land in the same report as the creative — so media spend has a result, not just a view count.</p>
+      </div>
+    </div>
+    <div class="face-row">
+      <div class="face">
+        <img src="/jjohnson2.jpg" alt="Creator on Verza" width="64" height="64" />
+        <div>
+          <strong>Media hits their wallet</strong>
+          <span>You approve the person. They get 100% of the talent budget.</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      A 90-day <strong>Activation</strong> picks the channel mix from your brief. Instagram and TikTok are not a later unlock — they ship in the first quarter when that’s where the buyer is. Phase 2 scales spend and roster on the story that already converted.
+    </p>
+  </section>
+
+  <section class="slide" data-n="06 / 09" id="engagements">
+    <p class="eyebrow">Engagements · starting scopes</p>
+    <h2>Pick the intensity. We staff the rest.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <p class="label">Foundation</p>
+        <div class="split-fee">
+          <div><span class="amt">$4,200</span><span class="lbl">/ month management</span></div>
+          <div><span class="amt">$10–15K</span><span class="lbl">recommended media / quarter</span></div>
+        </div>
+        <ul class="deliverables">
+          <li><strong>1 anchor</strong> long-form placement per quarter</li>
+          <li><strong>2–3</strong> vetted creators on the channels the brief needs (IG, TikTok, YouTube, LinkedIn, X)</li>
+          <li>Unique links and codes per creator · conversion reporting</li>
+          <li>End-to-end matching, contracts, usage, and payouts</li>
+        </ul>
+      </div>
+      <div class="card featured">
+        <p class="label">Category leader</p>
+        <div class="split-fee">
+          <div><span class="amt">$8,000</span><span class="lbl">/ month management</span></div>
+          <div><span class="amt">$20–30K</span><span class="lbl">recommended media / quarter</span></div>
+        </div>
+        <ul class="deliverables">
+          <li><strong>1–2</strong> premium anchors per quarter</li>
+          <li><strong>4–6</strong> creators across YouTube, Instagram, TikTok, LinkedIn, and X</li>
+          <li>Repurposing pack: clips and talking points from the anchor into native posts</li>
+          <li>Unique links and codes · CPC/CPA where it fits the offer</li>
+          <li>End-to-end matching, contracts, usage, and payouts</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">
+      Phase 2 is more of what converted — extra creators, extra budget, extra surfaces — not the first time we touch Instagram or TikTok.
+    </p>
+  </section>
+
+  <section class="slide" data-n="07 / 09" id="case-study">
+    <p class="eyebrow">Proof · CAIS × Struthless</p>
+    <h2>A dense institutional brief. Sixty minutes of attention. The audience stayed.</h2>
+    <div class="case-layout">
+      <div>
+        <a class="video-tile" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">
+          <div class="video-thumb">
+            <img src="https://i.ytimg.com/vi/11FIIPmdpHo/hqdefault.jpg" alt="The AI question no one wants to ask — Struthless" width="480" height="360" />
+            <div class="play" aria-hidden="true">
+              <svg viewBox="0 0 68 48" fill="none"><path d="M66.52 7.74a8 8 0 0 0-5.63-5.66C55.79 1 34 1 34 1S12.21 1 7.11 2.08A8 8 0 0 0 1.48 7.74 83.6 83.6 0 0 0 0 24a83.6 83.6 0 0 0 1.48 16.26 8 8 0 0 0 5.63 5.66C12.21 47 34 47 34 47s21.79 0 26.89-1.08a8 8 0 0 0 5.63-5.66A83.6 83.6 0 0 0 68 24a83.6 83.6 0 0 0-1.48-16.26z" fill="#FF0033"/><path d="M45 24 27 14v20l18-10z" fill="#fff"/></svg>
+            </div>
+          </div>
+          <div class="video-meta">
+            <h3>The AI question no one wants to ask</h3>
+            <p class="sub">Campbell Walker (Struthless) · 60 min · youtu.be/11FIIPmdpHo</p>
+            <div class="partner-row">
+              <span class="partner-chip">
+                <img src="/cais-white.png" alt="CAIS" />
+                Center for AI Safety
+              </span>
+              <span class="partner-chip">@struthless · 1.22M subs</span>
+            </div>
+          </div>
+        </a>
+      </div>
+      <div>
+        <p class="comment-wall-header">What the room actually said</p>
+        <div class="comment-wall">
+          <div class="comment tip-comment">
+            <img
+              src="/pitch-struthless-tip-comment.png"
+              alt="@dancer483 Super Thanks $4.99"
+              width="640"
+              height="160"
+            />
+            <p class="tip-caption">
+              <strong>Super Thanks · $4.99</strong> — viewers paid to say thank you. Attention deep enough to convert.
+            </p>
+          </div>
+          <div class="comment">
+            <p>"Hey man, I don't think we give you your flowers enough… a video of this caliber takes so much research, time and sourcing."</p>
+            <div class="meta"><span class="avatar">MD</span><span>@madddoll8685</span><span class="likes">↑ 1.3K</span></div>
+          </div>
+          <div class="comment">
+            <p>"I'm just absolutely floored by the production quality of this documentary… What an awesome watch, with such good questions asked."</p>
+            <div class="meta"><span class="avatar">BH</span><span>@blasphemous_hippie</span><span class="likes">↑ 5</span></div>
+          </div>
+          <div class="comment">
+            <p>"'Think of the AI in medical science!' say the rich men who are not funding the kind of AI that's used in medical science."</p>
+            <div class="meta"><span class="avatar">ND</span><span>@nicholemonade</span><span class="likes">↑ 2.3K</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="card">
+        <div class="num">198K+</div>
+        <h3>Views</h3>
+        <p>Mass distribution on a highly technical brief</p>
+      </div>
+      <div class="card">
+        <div class="num">60 min</div>
+        <h3>Runtime</h3>
+        <p>Buyers sat with the idea — not a skippable mention</p>
+      </div>
+      <div class="card">
+        <div class="num growth-delta">
+          <span class="from">1.00M</span>
+          <span class="arrow">→</span>
+          <span class="to">1.22M</span>
+        </div>
+        <h3>Channel growth</h3>
+        <p><strong style="color:var(--emerald)">+220K subs</strong> after the essay</p>
+      </div>
+      <div class="card">
+        <div class="num">57M+</div>
+        <h3>Lifetime views</h3>
+        <p>A searchable catalog that keeps working</p>
+      </div>
+    </div>
+    <p class="roi-banner">
+      <strong>Views = reach · Watch time = trust · Links &amp; codes = the sale.</strong>
+      CAIS was a thought-leadership brief, so the conversion here is Super Thanks and discourse. On a brand program the same rails issue unique affiliate links and promo codes per creator — clicks and conversions sit next to the creative. You are not buying views. You are buying a result you can audit.
+    </p>
+  </section>
+
+  <section class="slide" data-n="08 / 09" id="roadmap">
+    <p class="eyebrow">The first 90 days</p>
+    <h2>Activation is a quarter, not a campaign day.</h2>
+    <dl class="stack">
+      <div class="stack-row">
+        <dt>Days 1–14</dt>
+        <dd><strong>Match.</strong> We lock the brief, shortlist voices, and open outreach. You approve the roster before anyone is contracted.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Days 15–45</dt>
+        <dd><strong>Brief &amp; paper.</strong> Narrative, talking points, contracts, usage, and dates. Anchor production starts.</dd>
+      </div>
+      <div class="stack-row">
+        <dt>Days 46–90</dt>
+        <dd><strong>Ship, track, surround.</strong> Anchor goes live. Native posts ship on the channels in the mix. Unique links and codes are live from day one. You get a close-out: views, clicks, conversions, and what to scale.</dd>
+      </div>
+    </dl>
+    <div class="flow">
+      <span>Brief</span><i>→</i>
+      <span>Roster</span><i>→</i>
+      <span>Contracts</span><i>→</i>
+      <span>Anchor</span><i>→</i>
+      <span>IG · TikTok · YT · LinkedIn · X</span><i>→</i>
+      <span>Links &amp; conversions</span>
+    </div>
+    <div class="face-row">
+      <div class="face">
+        <img src="/jjohnson2.jpg" alt="Creator on Verza" width="64" height="64" />
+        <div>
+          <strong>You approve every face</strong>
+          <span>No surprise talent in week six</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-n="09 / 09" id="next">
+    <p class="eyebrow">Next step</p>
+    <h2>Pick a scope. We start matching within 48 hours of paper.</h2>
+    <p class="lede">
+      Bring the category you need the market to understand and the buyers you need in the room. We’ll recommend Foundation or Category Leader on the call — then a 90-day Activation agreement.
+    </p>
+    <div class="ask-grid">
+      <div class="card">
+        <p class="label">You bring</p>
+        <h3>The category and the goal</h3>
+        <p>Who must hear this, what “won” looks like this quarter, and any voices you already trust or want to avoid.</p>
+      </div>
+      <div class="card">
+        <p class="label">We return</p>
+        <h3>Roster + 90-day plan</h3>
+        <p>Shortlist, recommended media envelope, and the first anchor concept — before we spend a dollar of media.</p>
+      </div>
+      <div class="card">
+        <p class="label">Then</p>
+        <h3>Activation agreement</h3>
+        <p>Management fee, media budget, usage, and reporting cadence. Matching starts within 48 hours of signature.</p>
+      </div>
+      <div class="card">
+        <p class="label">After</p>
+        <h3>Scale what worked</h3>
+        <p>Phase 2 adds channels and roster against the same story — not a new rebrand every month.</p>
+      </div>
+    </div>
+    <div class="cta-person">
+      <img src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="56" height="56" />
+      <p>The next call is with <strong>Serge</strong> — not a form that disappears into a queue.</p>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Creator%20program%20%C2%B7%2090-day%20Activation">Start a 90-day Activation</a>
+      <a class="btn btn-ghost" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener">Watch the CAIS case</a>
+      <a class="btn btn-ghost" href="/case-study-cais-struthless-evergreen.html">Full case write-up</a>
+    </div>
+    <p class="foot">serge@tryverza.com · tryverza.com · © Verza · Confidential</p>
+  </section>
+
+  <script>
+    (function () {
+      const progress = document.getElementById("progress");
+      const hint = document.getElementById("hint");
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      function updateProgress() {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+        progress.style.width = pct + "%";
+        if (window.scrollY > 80) hint.style.opacity = "0";
+      }
+      window.addEventListener("scroll", updateProgress, { passive: true });
+      updateProgress();
+      function go(delta) {
+        const y = window.scrollY + window.innerHeight * 0.35;
+        let idx = slides.findIndex((s, i) => {
+          const next = slides[i + 1];
+          return y >= s.offsetTop && (!next || y < next.offsetTop);
+        });
+        if (idx < 0) idx = 0;
+        const target = slides[Math.max(0, Math.min(slides.length - 1, idx + delta))];
+        target.scrollIntoView({ behavior: "smooth" });
+      }
+      window.addEventListener("keydown", (e) => {
+        if (["ArrowDown", "PageDown", " ", "j"].includes(e.key)) { e.preventDefault(); go(1); }
+        else if (["ArrowUp", "PageUp", "k"].includes(e.key)) { e.preventDefault(); go(-1); }
+        else if (e.key === "Home") { e.preventDefault(); slides[0].scrollIntoView({ behavior: "smooth" }); }
+        else if (e.key === "End") { e.preventDefault(); slides[slides.length - 1].scrollIntoView({ behavior: "smooth" }); }
+      });
+    })();
+  </script>
+</body>
+
+</html>
