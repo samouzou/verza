@@ -1,7 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import sgMail from "@sendgrid/mail";
-import {FieldValue, Timestamp} from "firebase-admin/firestore";
+import {Timestamp} from "firebase-admin/firestore";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 import {EMAIL_BRAND_PRIMARY, emailButtonStyle} from "../emailBrand";
@@ -221,9 +221,9 @@ function monetizedSteps(name: string, appUrl: string, btn: string, secondary: st
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
         <p style="color: #555; line-height: 1.6;">Every submission runs through the <strong>Verza Score</strong> —
         an AI preview of how the piece performs. Aim for the campaign threshold (often ~65%). Use
-        <strong>AI Studio</strong> to prototype hooks before you film the final.</p>
+        <strong>Reelwright</strong> to prototype hooks before you film the final.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btn}">Open AI Studio</a>
+          <a href="${appUrl}/ai-studio" style="${btn}">Open Reelwright</a>
         </div>
         <p style="text-align: center; margin: 0;">
           <a href="${appUrl}/campaigns" style="${secondary}">Back to campaigns</a>
@@ -256,10 +256,10 @@ function emergingSteps(name: string, appUrl: string, btn: string, secondary: str
       content: `
         <h1 style="color: #333; font-size: 22px;">Build momentum before you monetize, ${name}</h1>
         <p style="color: #555; line-height: 1.6;">You picked the <strong>emerging / growth</strong> path.
-        We'll walk AI Studio for hooks and scripts, practice with the Verza Score, then show you how to
+        We'll walk Reelwright for hooks and scenes, practice with the Verza Score, then show you how to
         layer in deals or Store when you're ready.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btn}">Open AI Studio</a>
+          <a href="${appUrl}/ai-studio" style="${btn}">Open Reelwright</a>
         </div>
         ${signature}
       `,
@@ -269,10 +269,10 @@ function emergingSteps(name: string, appUrl: string, btn: string, secondary: str
       content: `
         <h1 style="color: #333; font-size: 22px;">Stop guessing what to say in the first 3 seconds</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">In <strong>AI Studio</strong>, generate hooks and scripts
+        <p style="color: #555; line-height: 1.6;">In <strong>Reelwright</strong>, generate hooks and scenes
         for your niche and platform. Save a few winners and batch your next week of posts.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btn}">Generate a script</a>
+          <a href="${appUrl}/ai-studio" style="${btn}">Open Reelwright</a>
         </div>
         ${signature}
       `,
@@ -282,10 +282,10 @@ function emergingSteps(name: string, appUrl: string, btn: string, secondary: str
       content: `
         <h1 style="color: #333; font-size: 22px;">Test the concept. Then film the real thing.</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">Use AI Studio scenes / media tools to rough out the look
+        <p style="color: #555; line-height: 1.6;">Use <strong>Reelwright</strong> to rough out the look
         of a post or short. Kill weak ideas early — protect your production time for what works.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btn}">Prototype in AI Studio</a>
+          <a href="${appUrl}/ai-studio" style="${btn}">Prototype in Reelwright</a>
         </div>
         ${signature}
       `,
@@ -299,7 +299,7 @@ function emergingSteps(name: string, appUrl: string, btn: string, secondary: str
         lands with a real audience. Practice on your own drafts so brand submissions (later) aren't your
         first time seeing feedback.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btn}">Practice in AI Studio</a>
+          <a href="https://gauntlet.tryverza.com/" style="${btn}">Practice the Gauntlet</a>
         </div>
         ${signature}
       `,
@@ -446,7 +446,6 @@ export const startCareerPathEmailSequence = onCall(async (request) => {
       step: number;
       nextEmailAt: Timestamp;
     } | null;
-    storeEmailSequence?: {step: number; nextEmailAt: Timestamp} | null;
   };
 
   if (user.role !== "individual_creator" && user.role !== "talent") {
@@ -476,8 +475,6 @@ export const startCareerPathEmailSequence = onCall(async (request) => {
 
   await userRef.update({
     careerPathEmailSequence: {path, step: 1, nextEmailAt: twoDaysFromNow},
-    // Clear legacy community-only field if present.
-    storeEmailSequence: FieldValue.delete(),
   });
 
   await sendCareerPathEmailSequence(user.email, user.displayName || "there", path, 0);
@@ -486,5 +483,5 @@ export const startCareerPathEmailSequence = onCall(async (request) => {
   return {ok: true as const, started: true, path};
 });
 
-/** Back-compat alias used by older clients. */
+/** Back-compat alias used by older clients (career-path guide, not Store launch drip). */
 export const startStoreEmailSequence = startCareerPathEmailSequence;

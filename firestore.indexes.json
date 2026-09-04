@@ -626,6 +626,25 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "storeEmailSequence.nextEmailAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "storeEmailSequence.step",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "emailSequence.nextEmailAt",
           "order": "ASCENDING"
         },

@@ -15,8 +15,8 @@ export const getStartedTour: Tour = {
     },
     {
       selector: '#nav-item-ai-studio',
-      title: 'Unleash Your Creativity',
-      content: "Use AI to generate high-quality video clips and images. Perfect for iterating on hooks or creating B-roll.",
+      title: 'Reelwright',
+      content: "Your growth studio lives here. Open Reelwright to cast characters, shoot scenes, and keep the reel going.",
       side: 'right',
       align: 'start',
     },
@@ -90,16 +90,10 @@ export const aiStudioTour: Tour = {
   id: 'ai-studio-tour',
   steps: [
     {
-      selector: '[role="tablist"]',
-      title: 'Generation Modes',
-      content: 'Choose between Text-to-Video, Image-to-Video, or Image-to-Image. Iterate on visual ideas faster than ever.',
+      selector: '#reelwright-open-studio',
+      title: 'Open Reelwright',
+      content: 'The studio is its own product now. Cast a character, shoot a scene, then bring the cut back to Verza for campaigns and payouts.',
       side: 'bottom',
-    },
-    {
-      selector: '#character',
-      title: 'Persistent Characters',
-      content: 'Create a character once and reuse them across different scenes to maintain visual consistency in your storytelling.',
-      side: 'top',
     },
   ],
 };

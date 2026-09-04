@@ -292,11 +292,16 @@ export interface UserProfileFirestoreData {
     step: number;
     nextEmailAt: Timestamp;
   };
-  /** Community career path → Store product onboarding drip. */
+  /** After the first Store product is published — share-the-link + content-to-sell drip. */
   storeEmailSequence?: {
     step: number;
     nextEmailAt: Timestamp;
+    productId?: string;
   };
+  /** True after the Store launch drip finishes (do not restart on later products). */
+  storeLaunchDripComplete?: boolean;
+  /** Last branded email-verification send (cooldown for resend). */
+  lastVerificationEmailAt?: Timestamp;
   /** Active career-path drip (community / monetized / emerging). */
   careerPathEmailSequence?: {
     path: "community" | "monetized" | "emerging";

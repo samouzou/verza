@@ -9,6 +9,11 @@ import Stripe from "stripe";
 import type {UserProfileFirestoreData, Contract, Gig} from "./../types";
 import {sendEmailSequence, sendAgencyEmailSequence, sendDeploymentEmailSequence} from "../notifications";
 import {sendCareerPathEmailSequence, type CareerPathEmailPath} from "../notifications/careerPathEmails";
+import {
+  completeStoreLaunchDrip,
+  sendStoreLaunchEmailSequence,
+  STORE_LAUNCH_LAST_STEP,
+} from "../notifications/storeLaunchEmails";
 import * as params from "../config/params";
 import {EMAIL_BRAND_PRIMARY} from "../emailBrand";
 
@@ -493,8 +498,78 @@ export const sendCareerPathDripCampaignEmails = onSchedule("every 24 hours", asy
   }
 });
 
-/** @deprecated Prefer sendCareerPathDripCampaignEmails. */
-export const sendStoreDripCampaignEmails = sendCareerPathDripCampaignEmails;
+export const sendStoreDripCampaignEmails = onSchedule("every 24 hours", async () => {
+  logger.info("Starting sendStoreDripCampaignEmails function.");
+  const now = Timestamp.now();
+
+  try {
+    const usersSnapshot = await db.collection("users")
+      .where("storeEmailSequence.nextEmailAt", "<=", now)
+      .where("storeEmailSequence.step", "<=", STORE_LAUNCH_LAST_STEP)
+      .get();
+
+    if (usersSnapshot.empty) {
+      logger.info("No creators due for a Store launch drip email.");
+      return;
+    }
+
+    const batch = db.batch();
+
+    for (const userDoc of usersSnapshot.docs) {
+      const user = userDoc.data() as UserProfileFirestoreData;
+      if (!user.email || !user.storeEmailSequence) continue;
+      if (user.storeLaunchDripComplete) {
+        batch.update(userDoc.ref, {storeEmailSequence: FieldValue.delete()});
+        continue;
+      }
+
+      const {step: currentStep, productId} = user.storeEmailSequence;
+      if (!productId) {
+        await completeStoreLaunchDrip(userDoc.id);
+        continue;
+      }
+
+      const result = await sendStoreLaunchEmailSequence(
+        user.email,
+        user.displayName || "there",
+        currentStep,
+        productId
+      );
+
+      if (result === "inactive") {
+        batch.update(userDoc.ref, {
+          storeEmailSequence: FieldValue.delete(),
+          storeLaunchDripComplete: true,
+        });
+        continue;
+      }
+
+      const nextStep = currentStep + 1;
+      const daysUntilNext = currentStep >= 1 ? 3 : 2;
+      const nextEmailAt = new Timestamp(
+        now.seconds + daysUntilNext * 24 * 60 * 60,
+        0
+      );
+
+      if (nextStep > STORE_LAUNCH_LAST_STEP) {
+        batch.update(userDoc.ref, {
+          storeEmailSequence: FieldValue.delete(),
+          storeLaunchDripComplete: true,
+        });
+      } else {
+        batch.update(userDoc.ref, {
+          "storeEmailSequence.step": nextStep,
+          "storeEmailSequence.nextEmailAt": nextEmailAt,
+        });
+      }
+    }
+
+    await batch.commit();
+    logger.info(`Processed ${usersSnapshot.size} creators for Store launch drips.`);
+  } catch (error) {
+    logger.error("Error in sendStoreDripCampaignEmails:", error);
+  }
+});
 
 export const sendDeploymentDripCampaignEmails = onSchedule("every 24 hours", async () => {
   logger.info("Starting sendDeploymentDripCampaignEmails function.");

@@ -62,7 +62,31 @@
     }
 
     .deck-nav a,
-    .deck-nav .brand { pointer-events: auto; }
+    .deck-nav .brand,
+    .deck-nav .nav-actions { pointer-events: auto; }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .export-pdf {
+      appearance: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      border: 0;
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+    }
+
+    .export-pdf:hover { filter: brightness(1.06); }
 
     .brand {
       display: flex;
@@ -429,59 +453,7 @@
       50% { opacity: 0.8; }
     }
 
-    .slide.cover h1 { max-width: 13ch; }
-
-    .cover-grid {
-      display: grid;
-      gap: 2.25rem;
-      align-items: center;
-    }
-
-    @media (min-width: 900px) {
-      .cover-grid { grid-template-columns: 1.05fr 0.95fr; }
-    }
-
-    .cover-still {
-      display: block;
-      position: relative;
-      border-radius: var(--radius);
-      overflow: hidden;
-      aspect-ratio: 16 / 9;
-      border: 1px solid rgba(152, 162, 156, 0.18);
-      background: var(--ink-3);
-    }
-
-    .cover-still img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .cover-still .play {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.28);
-    }
-
-    .cover-still .play svg {
-      width: 3.75rem;
-      height: 3.75rem;
-    }
-
-    .cover-work figcaption {
-      margin-top: 0.75rem;
-      font-size: 0.82rem;
-      color: var(--mist);
-    }
-
-    .cover-work figcaption strong {
-      color: var(--paper);
-      font-weight: 600;
-    }
+    .slide.cover h1 { max-width: 15ch; }
 
     .team-grid {
       display: grid;
@@ -879,15 +851,69 @@
       color: var(--mist);
       margin-top: 0.25rem;
     }
+    @page {
+      size: 13.333in 7.5in;
+      margin: 0;
+    }
+
     @media print {
-      html { scroll-snap-type: none; }
-      .slide { min-height: auto; page-break-after: always; padding: 2rem; }
-      .deck-nav, .progress, .hint { display: none; }
-      body { background: #fff; color: #111; }
-      .lede, .card p, .stack-row dd, .comment p { color: #333; }
-      .card { background: #f5f5f5; border-color: #ddd; }
-      h1, h2, .card h3 { color: #0B100E; }
-      .card .num, .eyebrow, .stack-row dt { color: #0E7C5A; }
+      html {
+        scroll-snap-type: none;
+        background: #0B100E;
+        color: #E8EEEA;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        background: #0B100E !important;
+        color: #E8EEEA;
+        min-height: 0;
+      }
+
+      .deck-nav,
+      .progress,
+      .hint,
+      .export-pdf { display: none !important; }
+
+      .slide {
+        width: 13.333in;
+        height: 7.5in;
+        max-width: none;
+        min-height: 0;
+        margin: 0;
+        padding: 0.65in 0.75in 0.55in;
+        justify-content: center;
+        overflow: hidden;
+        break-after: page;
+        page-break-after: always;
+        page-break-inside: avoid;
+      }
+
+      .slide:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .slide::before {
+        top: 0.45in;
+        right: 0.75in;
+      }
+
+      #case-study { max-width: none; }
+
+      h1 { font-size: 2.35rem; max-width: 16ch; }
+      h2 { font-size: 1.75rem; max-width: 22ch; margin-bottom: 0.7rem; }
+      .lede { font-size: 0.98rem; margin-bottom: 1rem; }
+      .team-grid, .face-row, .cta-row, .cta-person { margin-top: 0.85rem; }
+      .grid-3, .grid-2, .grid-4, .ask-grid, .case-layout { gap: 0.65rem; margin-top: 0.75rem; }
+      .card { padding: 0.75rem 0.85rem; }
+      .card p, .stack-row dd { font-size: 0.8rem; }
+      .comment-wall { gap: 0.45rem; }
+      .comment p { font-size: 0.72rem; }
+      .metric-grid { margin-top: 0.65rem; }
+      .btn { padding: 0.55rem 1rem; font-size: 0.82rem; }
+      a { color: inherit; }
     }
   </style>
 </head>
@@ -899,47 +925,28 @@
       <img src="/verza-icon.svg" alt="" width="28" height="20" />
       Verza
     </a>
-    <div class="nav-meta">Creator programs · <strong>Managed GTM</strong></div>
+    <div class="nav-actions">
+      <div class="nav-meta">Creator programs · <strong>Managed GTM</strong></div>
+      <button type="button" class="export-pdf" id="export-pdf">Export PDF</button>
+    </div>
   </header>
   <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
 
   <section class="slide cover" data-n="01 / 09" id="cover">
-    <div class="cover-grid">
-      <div>
-        <p class="eyebrow">For brands &amp; operators · Creator-led GTM</p>
-        <h1>We run the creator program that puts your category in front of the people who buy it.</h1>
-        <p class="lede">
-          Verza is a <strong>managed activation partner</strong> — not another login. We find the voices your buyers already trust, brief them in your language, contract and pay them, and report what moved.
-        </p>
-        <div class="tag-row">
-          <span class="tag">YouTube</span>
-          <span class="tag">Instagram</span>
-          <span class="tag">TikTok</span>
-          <span class="tag">LinkedIn</span>
-          <span class="tag">X</span>
-          <span class="tag">Affiliate tracking</span>
-        </div>
-        <p class="foot">tryverza.com · serge@tryverza.com · Confidential</p>
-      </div>
-      <figure class="cover-work">
-        <a class="cover-still" href="https://youtu.be/11FIIPmdpHo" target="_blank" rel="noopener" aria-label="Watch CAIS × Struthless — The AI question no one wants to ask">
-          <img src="https://i.ytimg.com/vi/11FIIPmdpHo/maxresdefault.jpg" alt="CAIS × Struthless — The AI question no one wants to ask" width="1280" height="720" />
-          <div class="play" aria-hidden="true">
-            <svg viewBox="0 0 68 48" fill="none"><path d="M66.52 7.74a8 8 0 0 0-5.63-5.66C55.79 1 34 1 34 1S12.21 1 7.11 2.08A8 8 0 0 0 1.48 7.74 83.6 83.6 0 0 0 0 24a83.6 83.6 0 0 0 1.48 16.26 8 8 0 0 0 5.63 5.66C12.21 47 34 47 34 47s21.79 0 26.89-1.08a8 8 0 0 0 5.63-5.66A83.6 83.6 0 0 0 68 24a83.6 83.6 0 0 0-1.48-16.26z" fill="#FF0033"/><path d="M45 24 27 14v20l18-10z" fill="#fff"/></svg>
-          </div>
-        </a>
-        <figcaption>
-          <strong>CAIS × Struthless</strong> — a dense institutional brief that held sixty minutes of attention. The work, not the pitch.
-        </figcaption>
-        <div class="partner-row">
-          <span class="partner-chip">
-            <img src="/cais-white.png" alt="CAIS" />
-            Center for AI Safety
-          </span>
-          <span class="partner-chip">@struthless · 1.22M</span>
-        </div>
-      </figure>
+    <p class="eyebrow">For brands &amp; operators · Creator-led GTM</p>
+    <h1>We run the creator program that puts your category in front of the people who buy it.</h1>
+    <p class="lede">
+      Verza is a <strong>managed activation partner</strong> — not another login. We find the voices your buyers already trust, brief them in your language, contract and pay them, and report what moved.
+    </p>
+    <div class="tag-row">
+      <span class="tag">YouTube</span>
+      <span class="tag">Instagram</span>
+      <span class="tag">TikTok</span>
+      <span class="tag">LinkedIn</span>
+      <span class="tag">X</span>
+      <span class="tag">Affiliate tracking</span>
     </div>
+    <p class="foot">tryverza.com · serge@tryverza.com · Confidential</p>
   </section>
 
   <section class="slide" data-n="02 / 09" id="why-now">
@@ -1062,9 +1069,9 @@
 
   <section class="slide" data-n="05 / 09" id="how">
     <p class="eyebrow">How we work</p>
-    <h2>Retainer plus media. 100% of media goes to talent.</h2>
+    <h2>A management fee to run it. A media envelope to ship it.</h2>
     <p class="lede">
-      Verza’s fee covers strategy and full management. The media budget is ring-fenced for creator payouts and placement — you see where every dollar of it went.
+      You approve the roster and the envelope before a dollar of media moves. We contract, pay, and report — so the program has an owner, not a spreadsheet.
     </p>
     <div class="grid-3">
       <div class="card">
@@ -1073,9 +1080,9 @@
         <p>Creator search, outreach, briefs, contracting, usage rights, calendar, and reporting. One owner.</p>
       </div>
       <div class="card">
-        <p class="label">Media budget</p>
-        <h3>Paid to creators, not to us</h3>
-        <p>Fees, usage, and placements. A quarterly envelope so you can greenlight work without renegotiating every post.</p>
+        <p class="label">Media envelope</p>
+        <h3>The spend that books the voices</h3>
+        <p>Talent fees, usage, and placements. A quarterly envelope so you can greenlight work without renegotiating every post.</p>
       </div>
       <div class="card featured">
         <p class="label">Attribution</p>
@@ -1087,8 +1094,8 @@
       <div class="face">
         <img src="/jjohnson2.jpg" alt="Creator on Verza" width="64" height="64" />
         <div>
-          <strong>Media hits their wallet</strong>
-          <span>You approve the person. They get 100% of the talent budget.</span>
+          <strong>You approve every person</strong>
+          <span>Then we contract and pay them on Verza. You see the paper trail.</span>
         </div>
       </div>
     </div>
@@ -1099,14 +1106,11 @@
 
   <section class="slide" data-n="06 / 09" id="engagements">
     <p class="eyebrow">Engagements · starting scopes</p>
-    <h2>Pick the intensity. We staff the rest.</h2>
+    <h2>Pick the intensity. We size the rest on the call.</h2>
     <div class="grid-2">
       <div class="card">
         <p class="label">Foundation</p>
-        <div class="split-fee">
-          <div><span class="amt">$4,200</span><span class="lbl">/ month management</span></div>
-          <div><span class="amt">$10–15K</span><span class="lbl">recommended media / quarter</span></div>
-        </div>
+        <h3>Prove the motion in one quarter</h3>
         <ul class="deliverables">
           <li><strong>1 anchor</strong> long-form placement per quarter</li>
           <li><strong>2–3</strong> vetted creators on the channels the brief needs (IG, TikTok, YouTube, LinkedIn, X)</li>
@@ -1116,10 +1120,7 @@
       </div>
       <div class="card featured">
         <p class="label">Category leader</p>
-        <div class="split-fee">
-          <div><span class="amt">$8,000</span><span class="lbl">/ month management</span></div>
-          <div><span class="amt">$20–30K</span><span class="lbl">recommended media / quarter</span></div>
-        </div>
+        <h3>Own the category conversation</h3>
         <ul class="deliverables">
           <li><strong>1–2</strong> premium anchors per quarter</li>
           <li><strong>4–6</strong> creators across YouTube, Instagram, TikTok, LinkedIn, and X</li>
@@ -1130,7 +1131,7 @@
       </div>
     </div>
     <p class="note">
-      Phase 2 is more of what converted — extra creators, extra budget, extra surfaces — not the first time we touch Instagram or TikTok.
+      Management fee and media envelope follow the brief — category, roster, and how hard you need to show up this quarter. Phase 2 is more of what converted, not the first time we touch Instagram or TikTok.
     </p>
   </section>
 
@@ -1325,6 +1326,10 @@
         else if (e.key === "Home") { e.preventDefault(); slides[0].scrollIntoView({ behavior: "smooth" }); }
         else if (e.key === "End") { e.preventDefault(); slides[slides.length - 1].scrollIntoView({ behavior: "smooth" }); }
       });
+      const exportBtn = document.getElementById("export-pdf");
+      if (exportBtn) {
+        exportBtn.addEventListener("click", () => window.print());
+      }
     })();
   </script>
 </body>

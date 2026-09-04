@@ -118,7 +118,7 @@ type WorkflowNavItem = {
 const creatorWorkflowNavItems: WorkflowNavItem[] = [
   { id: "nav-item-store", href: "/store", label: "Store", icon: ShoppingBag },
   { id: "nav-item-insights", href: "/insights", label: "Creator Insights", icon: Sparkles },
-  { id: "nav-item-ai-studio", href: "/ai-studio", label: "AI Studio", icon: Video },
+  { id: "nav-item-ai-studio", href: "/ai-studio", label: "Reelwright", icon: Video },
   { id: "nav-item-brand-research", href: "/brand-research", label: "Brand Research", icon: BarChart3 },
   { id: "nav-item-youtube-writer", href: "/youtube-writer", label: "YouTube Writer", icon: Youtube },
 ];
@@ -141,32 +141,6 @@ const brandOpticNavItem: WorkflowNavItem = {
     { id: "sub-item-optic-redeem", href: "/optic/redeem", label: "Redeem" },
     { id: "sub-item-optic-pricing", href: "/optic/pricing", label: "Pricing" },
   ],
-};
-
-const GauntletIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M13 19l-4-4-4 4" />
-      <path d="M13 5l-4-4-4-4" />
-      <path d="M7 19V5" />
-      <path d="M21 19V5" />
-    </svg>
-);
-
-const gauntletNavItem: WorkflowNavItem = {
-  id: "nav-item-the-gauntlet",
-  href: "https://gauntlet.tryverza.com/",
-  label: "The Gauntlet",
-  icon: GauntletIcon as unknown as LucideIcon,
-  external: true,
 };
 
 function SidebarOpticCreditsBlock({ agencyId }: { agencyId: string }) {
@@ -198,8 +172,8 @@ function workflowNavItemsForUser(
   const isCreator = user.role === "individual_creator" || user.role === "talent";
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
-  if (showBrandWorkflows) return [brandOpticNavItem, gauntletNavItem, brandLinkedInOsNavItem];
-  if (isCreator) return [...creatorWorkflowNavItems, gauntletNavItem];
+  if (showBrandWorkflows) return [brandOpticNavItem, brandLinkedInOsNavItem];
+  if (isCreator) return creatorWorkflowNavItems;
   return [];
 }
 

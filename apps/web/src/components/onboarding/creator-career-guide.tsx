@@ -32,7 +32,7 @@ type PathType = 'monetized' | 'emerging' | 'community' | null;
 const PATH_CTA: Record<Exclude<PathType, null>, string> = {
   community: 'Open Your Store',
   monetized: 'Enter Marketplace',
-  emerging: 'Open AI Studio',
+  emerging: 'Open Reelwright',
 };
 
 export function CreatorCareerGuide({ onClose }: { onClose: () => void }) {
@@ -110,7 +110,7 @@ export function CreatorCareerGuide({ onClose }: { onClose: () => void }) {
           }
         : {
             quote:
-              "I was stuck on what to post next. Verza's AI Studio helped me script hooks that actually converted — my growth finally felt intentional.",
+              "I was stuck on what to post next. Reelwright helped me prototype the look before I filmed — my growth finally felt intentional.",
             name: "Creator on Verza",
             subtitle: "Growth · content strategy",
             features: [

@@ -444,8 +444,8 @@ export function BrandDeckPreview({ guide, agencyName, products = [], onClose }: 
                              </a>
                           </Button>
                           <Button variant="primary" className="w-full" asChild>
-                             <Link href={`/ai-studio?ref=${encodeURIComponent(selectedProduct.imageUrl)}&product=${encodeURIComponent(selectedProduct.name)}`}>
-                                <Zap className="h-4 w-4 mr-2" /> Generate
+                             <Link href="/ai-studio">
+                                <Zap className="h-4 w-4 mr-2" /> Reelwright
                              </Link>
                           </Button>
                        </div>

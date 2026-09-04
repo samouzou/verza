@@ -367,10 +367,10 @@ export async function sendEmailSequence(
         <p style="color: #555; line-height: 1.6;">Hit the <strong>65% benchmark</strong> and your submission
         is approved. Miss it and you get specific AI feedback telling you exactly what to improve — so you
         can resubmit with confidence instead of guessing.</p>
-        <p style="color: #555; line-height: 1.6;">Use our <strong>AI Studio</strong> to prototype and
+        <p style="color: #555; line-height: 1.6;">Use <strong>Reelwright</strong> to prototype and
         refine your content before you submit. Less rework, faster approvals, more payouts.</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${appUrl}/ai-studio" style="${btnStyle}">Try AI Studio</a>
+          <a href="${appUrl}/ai-studio" style="${btnStyle}">Open Reelwright</a>
         </div>
         ${signature}
       `;

@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {FieldValue} from "firebase-admin/firestore";
+import {maybeStartStoreLaunchDrip} from "../notifications/storeLaunchEmails";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 import type {
@@ -538,6 +539,20 @@ export const upsertStoreProduct = onCall(async (request) => {
     );
   };
 
+  const startLaunchDrip = async (id: string) => {
+    if (fields.status !== "active") return;
+    try {
+      await maybeStartStoreLaunchDrip({
+        uid: creatorId,
+        email: userData.email,
+        name: userData.displayName || "there",
+        productId: id,
+      });
+    } catch (error) {
+      logger.error("[store] Failed to start launch drip", {productId: id, error});
+    }
+  };
+
   if (productId && typeof productId === "string") {
     const ref = db.collection("storeProducts").doc(productId);
     const snap = await ref.get();
@@ -548,8 +563,12 @@ export const upsertStoreProduct = onCall(async (request) => {
     if (existing.creatorId !== creatorId) {
       throw new HttpsError("permission-denied", "Not your product.");
     }
+    const wasActive = existing.status === "active";
     await ref.update(publicFields);
     await writeContent(productId, courseChapters);
+    if (!wasActive) {
+      await startLaunchDrip(productId);
+    }
     return {id: productId};
   }
 
@@ -575,6 +594,7 @@ export const upsertStoreProduct = onCall(async (request) => {
     updatedAt: now,
   });
   await writeContent(ref.id, courseChapters);
+  await startLaunchDrip(ref.id);
   return {id: ref.id};
 });
 

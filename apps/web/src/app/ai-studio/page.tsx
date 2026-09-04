@@ -1,1099 +1,162 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent, Suspense } from 'react';
-import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Video, Download, History, Monitor, Smartphone, Users, PlusCircle, Image as ImageIcon, Camera, Trash2, LifeBuoy, ZoomIn } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { onSnapshot, collection, query, where, orderBy, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { db, functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
-import type { Generation, Character } from '@/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatDistanceToNow } from 'date-fns';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import { Textarea } from '@/components/ui/textarea';
-import Image from 'next/image';
-import { useTour } from '@/hooks/use-tour';
-import { aiStudioTour } from '@/lib/tours';
-import { trackEvent } from '@/lib/analytics';
-import { useRouter, useSearchParams } from 'next/navigation';
-import confetti from 'canvas-confetti';
-import {
-  applyCharacterToPrompt,
-  buildCharacterPortraitPrompt,
-} from '@/lib/ai-studio/characters';
+import { Suspense, useEffect } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { ArrowRight, Clapperboard, Sparkles, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useTour } from "@/hooks/use-tour";
+import { aiStudioTour } from "@/lib/tours";
+import { trackEvent } from "@/lib/analytics";
+import { reelwrightUrl } from "@/lib/reelwright";
+import { useAuth } from "@/hooks/use-auth";
 
-const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
-const VIDEO_COST = 10;
-const IMAGE_COST = 1;
-const CHARACTER_PORTRAIT_COST = 1;
+const STUDIO_URL = reelwrightUrl({ from: "verza" });
 
-const INSPIRATION_EXAMPLES = [
+const STEPS = [
   {
-    tab: "text-to-video",
-    style: "Realistic",
-    prompt: "Golden hour lifestyle shot of someone hiking through a misty forest, cinematic",
-    gradient: "from-emerald-900 via-teal-800 to-cyan-700",
-    label: "Lifestyle Video",
+    icon: Users,
+    label: "Cast",
+    title: "Start with a character",
+    body: "Pick someone who holds a look — then take them into the next shot.",
   },
   {
-    tab: "text-to-image",
-    style: "Realistic",
-    prompt: "Brand ambassador posing confidently in front of a luxury hotel lobby, editorial lighting",
-    gradient: "from-slate-900 via-emerald-900 to-emerald-800",
-    label: "Brand Shoot",
+    icon: Clapperboard,
+    label: "Shoot",
+    title: "Step into a scene",
+    body: "Describe the moment in your own words. Landscape or portrait. Keep going from the last frame.",
   },
   {
-    tab: "text-to-video",
-    style: "Anime",
-    prompt: "Anime-style cityscape with cherry blossoms falling at dusk, glowing streetlights",
-    gradient: "from-pink-900 via-rose-700 to-orange-600",
-    label: "Anime Scene",
-  },
-  {
-    tab: "text-to-image",
-    style: "3D Render",
-    prompt: "Sleek skincare product on a marble surface with soft diffused lighting, minimalist",
-    gradient: "from-zinc-800 via-stone-700 to-amber-700",
-    label: "Product Shot",
-  },
-  {
-    tab: "text-to-video",
-    style: "Claymation",
-    prompt: "Claymation character dancing in a candy-colored kitchen, playful and bouncy",
-    gradient: "from-emerald-900 via-teal-700 to-emerald-600",
-    label: "Claymation",
-  },
-  {
-    tab: "text-to-image",
-    style: "Anime",
-    prompt: "Anime creator recording content in a neon-lit bedroom studio, vibrant colors",
-    gradient: "from-blue-900 via-emerald-700 to-teal-600",
-    label: "Creator Studio",
+    icon: Sparkles,
+    label: "Continue",
+    title: "Edit by talking",
+    body: "Change the mood, keep the same face, cut the next beat. The reel continues.",
   },
 ] as const;
 
-function SceneSpawnerContent() {
-  const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
+function ReelwrightDoorway() {
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { startTour } = useTour();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("text-to-video");
-  const [marqueePaused, setMarqueePaused] = useState(false);
-  const [prompt, setPrompt] = useState("");
-  const [style, setStyle] = useState<(typeof styleOptions)[number]>("Realistic");
-  const [orientation, setOrientation] = useState<'16:9' | '9:16' | '1:1'>('16:9');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  
-  const [generatedMedia, setGeneratedMedia] = useState<{
-    url: string;
-    type: 'video' | 'image';
-    generationId?: string;
-    interactionId?: string | null;
-  } | null>(null);
-  const [editPrompt, setEditPrompt] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-
-  const [history, setHistory] = useState<Generation[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-
-  // New state for Characters
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false);
-  const [newCharacterName, setNewCharacterName] = useState("");
-  const [newCharacterDescription, setNewCharacterDescription] = useState("");
-  const [newCharacterStyle, setNewCharacterStyle] = useState<(typeof styleOptions)[number]>("Realistic");
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string>('none');
-  const [isSavingCharacter, setIsSavingCharacter] = useState(false);
-  const [isDeletingCharacter, setIsDeletingCharacter] = useState(false);
-  const [characterToDelete, setCharacterToDelete] = useState<Character | null>(null);
-  const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
-  
-  // State for Image-to-Video and Image-to-Image
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imagePrompt, setImagePrompt] = useState("");
+  const studioHref =
+    user?.careerPathResult === "emerging"
+      ? reelwrightUrl({ from: "verza", path: "emerging" })
+      : STUDIO_URL;
 
   useEffect(() => {
-    if (searchParams.get('purchase_success') === 'true') {
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-      
-      trackEvent({
-        action: 'credit_purchase_success',
-        category: 'revenue',
-        label: 'scene_credits'
+    if (searchParams.get("purchase_success") === "true") {
+      toast({
+        title: "Payment received",
+        description:
+          "Generation now lives in Reelwright. Open the studio to keep creating.",
       });
-
-      router.replace('/ai-studio', { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, toast]);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    setIsLoadingHistory(true);
-    const q = query(
-      collection(db, 'generations'),
-      where('userId', '==', user.uid),
-      orderBy('timestamp', 'desc')
-    );
-
-    const unsubscribeHistory = onSnapshot(q, (snapshot) => {
-      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Generation)));
-      setIsLoadingHistory(false);
-    }, (error) => {
-      console.error("Error fetching generation history:", error);
-      toast({ title: "History Error", description: "Could not load generation history.", variant: "destructive" });
-      setIsLoadingHistory(false);
-    });
-
-    const charactersQuery = query(
-      collection(db, 'users', user.uid, 'characters'),
-      orderBy('createdAt', 'desc')
-    );
-    const unsubscribeCharacters = onSnapshot(charactersQuery, (snapshot) => {
-      setCharacters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Character)));
-    }, (error) => {
-      console.error("Error fetching characters:", error);
-      toast({ title: "Error", description: "Could not load your characters.", variant: "destructive" });
-    });
-
-    return () => {
-        unsubscribeHistory();
-        unsubscribeCharacters();
-    };
-  }, [user, toast]);
-  
-  const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 4 * 1024 * 1024) { // 4MB limit for images
-        toast({ title: "File Too Large", description: "Please select an image smaller than 4MB.", variant: "destructive" });
-        return;
-      }
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handlePurchaseCredits = async (planKey: 'starter' | 'agency') => {
-    setIsProcessingPayment(true);
+  const openStudio = () => {
     trackEvent({
-      action: 'credit_checkout_start',
-      category: 'revenue',
-      label: planKey
+      action: "open_reelwright",
+      category: "reelwright",
+      label: user?.careerPathResult || "nav",
     });
-
-    try {
-      const createCheckoutSession = httpsCallable(functions, 'createCreditCheckoutSession');
-      const result = await createCheckoutSession({ planKey });
-      const data = result.data as { url?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("Could not retrieve checkout URL.");
-      }
-    } catch (error: any) {
-      console.error("Error creating checkout session:", error);
-      toast({ title: "Payment Error", description: error.message || "Could not start payment process.", variant: "destructive" });
-      setIsProcessingPayment(false);
-    }
   };
-
-  const selectedCharacter =
-    selectedCharacterId !== "none"
-      ? characters.find((c) => c.id === selectedCharacterId) ?? null
-      : null;
-
-  const fileToDataUri = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-  const handleGeneration = async () => {
-    if (!user) {
-      toast({ title: "Authentication Error", variant: "destructive" });
-      return;
-    }
-
-    const mode = activeTab;
-    const isTextMode = mode === 'text-to-video' || mode === 'text-to-image';
-    const isImageMode = mode === 'image-to-video' || mode === 'image-to-image';
-    const currentPrompt = isTextMode ? prompt : imagePrompt;
-    const cost = (mode === 'image-to-image' || mode === 'text-to-image') ? IMAGE_COST : VIDEO_COST;
-    const credits = user.credits ?? 0;
-
-    if (!currentPrompt.trim() || (isImageMode && !imageFile)) {
-      toast({ title: "Missing Input", description: `Please provide a prompt${isImageMode ? ' and an image' : ''}.`, variant: "destructive" });
-      return;
-    }
-     if (credits < cost) {
-      toast({ title: "No Credits", description: `This action costs ${cost} credits. You have ${credits}.`, variant: "destructive" });
-      return;
-    }
-
-    setIsGenerating(true);
-    setGeneratedMedia(null);
-    setEditPrompt("");
-    toast({ title: "Generating...", description: "AI is generating your media. This may take a minute or two." });
-
-    try {
-      let result;
-      let data: {
-        imageUrl?: string;
-        videoUrl?: string;
-        remainingCredits: number;
-        generationId?: string;
-        interactionId?: string | null;
-      };
-      let imageDataUri: string | undefined;
-      let referenceImageUrl: string | undefined;
-      let effectivePrompt = currentPrompt;
-
-      if (selectedCharacter) {
-        effectivePrompt = applyCharacterToPrompt(
-          currentPrompt,
-          selectedCharacter,
-          selectedCharacter.imageUrl ? "image-reference" : "text"
-        );
-      }
-
-      if (isImageMode && imageFile) {
-        imageDataUri = await fileToDataUri(imageFile);
-      }
-
-      // Character portrait → Omni reference (works with text-to-video and image-to-video)
-      if (
-        selectedCharacter?.imageUrl &&
-        (mode === "text-to-video" || mode === "image-to-video" || mode === "text-to-image" || mode === "image-to-image")
-      ) {
-        referenceImageUrl = selectedCharacter.imageUrl;
-      }
-      
-      trackEvent({ action: 'spawn_scene_start', category: 'ai_tool', label: mode });
-
-      if (mode === 'image-to-image' || mode === 'text-to-image') {
-        const generateImageCallable = httpsCallable(functions, 'generateImage');
-        result = await generateImageCallable({ prompt: effectivePrompt, style, orientation, imageDataUri, referenceImageUrl });
-        data = result.data as { imageUrl: string, remainingCredits: number };
-        setGeneratedMedia({ url: data.imageUrl, type: 'image' });
-      } else {
-        const generateSceneCallable = httpsCallable(functions, 'generateScene');
-        result = await generateSceneCallable({
-          prompt: effectivePrompt,
-          style,
-          orientation,
-          imageDataUri,
-          referenceImageUrl,
-          characterId: selectedCharacter?.id,
-        });
-        data = result.data as {
-          videoUrl: string;
-          remainingCredits: number;
-          generationId?: string;
-          interactionId?: string | null;
-        };
-        setGeneratedMedia({
-          url: data.videoUrl,
-          type: 'video',
-          generationId: data.generationId,
-          interactionId: data.interactionId ?? null,
-        });
-      }
-
-      trackEvent({ action: 'spawn_scene_success', category: 'ai_tool', label: mode });
-
-      toast({ title: "Generation Complete!", description: `Your media is ready. You have ${data.remainingCredits} credits left.` });
-      await refreshAuthUser();
-    } catch (error: any) {
-      console.error("Error generating media:", error);
-      toast({ title: "Generation Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleEditVideo = async () => {
-    if (!user || !generatedMedia?.generationId || generatedMedia.type !== "video") return;
-    if (!generatedMedia.interactionId) {
-      toast({
-        title: "Can't edit this clip",
-        description: "Generate a new video with Verza to unlock refine.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!editPrompt.trim()) {
-      toast({ title: "Missing edit", description: "Describe what to change.", variant: "destructive" });
-      return;
-    }
-    const credits = user.credits ?? 0;
-    if (credits < VIDEO_COST) {
-      toast({
-        title: "No Credits",
-        description: `Editing costs ${VIDEO_COST} credits. You have ${credits}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsEditing(true);
-    toast({ title: "Editing…", description: "Verza is refining your video." });
-    try {
-      const editSceneCallable = httpsCallable(functions, "editScene");
-      const result = await editSceneCallable({
-        generationId: generatedMedia.generationId,
-        editPrompt: editPrompt.trim(),
-      });
-      const data = result.data as {
-        videoUrl: string;
-        generationId: string;
-        interactionId?: string | null;
-        remainingCredits: number;
-      };
-      setGeneratedMedia({
-        url: data.videoUrl,
-        type: "video",
-        generationId: data.generationId,
-        interactionId: data.interactionId ?? generatedMedia.interactionId,
-      });
-      setEditPrompt("");
-      trackEvent({ action: "edit_scene_success", category: "ai_tool", label: "omni_edit" });
-      toast({
-        title: "Edit complete",
-        description: `Updated clip ready. ${data.remainingCredits} credits left.`,
-      });
-      await refreshAuthUser();
-    } catch (error: unknown) {
-      console.error("Error editing video:", error);
-      const message =
-        error && typeof error === "object" && "message" in error
-          ? String((error as { message: unknown }).message)
-          : "Could not edit video.";
-      toast({ title: "Edit failed", description: message, variant: "destructive" });
-    } finally {
-      setIsEditing(false);
-    }
-  };
-
-  const loadHistoryItem = (item: Generation) => {
-    const url = item.videoUrl || item.imageUrl;
-    if (!url) return;
-    setGeneratedMedia({
-      url,
-      type: item.videoUrl ? "video" : "image",
-      generationId: item.id,
-      interactionId: item.interactionId ?? null,
-    });
-    setEditPrompt("");
-  };
-
-  const handleSaveCharacter = async () => {
-    if (!user) return;
-    if (!newCharacterName.trim() || !newCharacterDescription.trim()) {
-        toast({title: "Missing Information", description: "Please provide a name and description.", variant: "destructive"});
-        return;
-    }
-    const credits = user.credits ?? 0;
-    if (credits < CHARACTER_PORTRAIT_COST) {
-      toast({
-        title: "Not enough credits",
-        description: `Character portraits cost ${CHARACTER_PORTRAIT_COST} credit. You have ${credits}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSavingCharacter(true);
-    try {
-        const portraitPrompt = buildCharacterPortraitPrompt(
-          newCharacterName.trim(),
-          newCharacterDescription.trim(),
-          newCharacterStyle
-        );
-
-        toast({
-          title: "Generating portrait…",
-          description: "Creating your character image. This usually takes a few seconds.",
-        });
-
-        const generateImageCallable = httpsCallable(functions, "generateImage");
-        const portraitResult = await generateImageCallable({
-          prompt: portraitPrompt,
-          style: newCharacterStyle,
-          orientation: "1:1",
-        });
-        const portraitData = portraitResult.data as { imageUrl: string; remainingCredits: number };
-
-        const characterData = {
-            userId: user.uid,
-            name: newCharacterName.trim(),
-            description: newCharacterDescription.trim(),
-            style: newCharacterStyle,
-            imageUrl: portraitData.imageUrl,
-            createdAt: serverTimestamp(),
-        };
-        await addDoc(collection(db, 'users', user.uid, 'characters'), characterData);
-        trackEvent({ action: 'create_character', category: 'engagement', label: 'ai_studio' });
-        toast({
-          title: "Character created!",
-          description: `${newCharacterName.trim()} is ready with a portrait. ${portraitData.remainingCredits} credits left.`,
-        });
-        setNewCharacterName("");
-        setNewCharacterDescription("");
-        setNewCharacterStyle("Realistic");
-        setIsCharacterDialogOpen(false);
-        await refreshAuthUser();
-    } catch (error: unknown) {
-        console.error("Error saving character:", error);
-        const message = error instanceof Error ? error.message : "Could not create character.";
-        toast({title: "Creation Failed", description: message, variant: "destructive"});
-    } finally {
-        setIsSavingCharacter(false);
-    }
-  };
-  
-  const handleDeleteCharacter = async () => {
-    if (!user || !characterToDelete) return;
-    setIsDeletingCharacter(true);
-    try {
-        await deleteDoc(doc(db, 'users', user.uid, 'characters', characterToDelete.id));
-        toast({title: "Character Deleted"});
-        setCharacterToDelete(null); // This will close the dialog
-    } catch (error) {
-        console.error("Error deleting character:", error);
-        toast({title: "Delete Failed", variant: "destructive"});
-    } finally {
-        setIsDeletingCharacter(false);
-    }
- };
-
-
-  const cost = (activeTab === 'image-to-image' || activeTab === 'text-to-image') ? IMAGE_COST : VIDEO_COST;
-  const credits = user?.credits ?? 0;
-  const canAfford = credits >= cost;
-
-  const isGenerateButtonDisabled = isGenerating ||
-    ((activeTab === 'text-to-video' || activeTab === 'text-to-image') && !prompt.trim()) ||
-    ((activeTab === 'image-to-video' || activeTab === 'image-to-image') && (!imagePrompt.trim() || !imageFile));
-
-
-  if (authLoading) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-  }
 
   return (
-    <>
-      <style>{`
-        @keyframes gradient-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-      `}</style>
-
-      {/* Cinematic hero */}
-      <div
-        className="relative rounded-2xl overflow-hidden mb-6"
-        style={{
-          background: 'linear-gradient(135deg, #0B100E, #0A2E22, #0E7C5A, #0B1F18)',
-          backgroundSize: '400% 400%',
-          animation: 'gradient-shift 12s ease infinite',
-        }}
-      >
+    <div className="mx-auto max-w-3xl">
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0B0B0B] text-white">
         <div
-          className="absolute inset-0 opacity-[0.07]"
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,0.8) 40px,rgba(255,255,255,0.8) 41px)',
+              "linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
           }}
         />
-        <div className="absolute top-0 right-1/4 w-72 h-72 bg-teal-600/25 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-56 h-56 bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="pointer-events-none absolute left-1/2 top-8 h-64 w-64 -translate-x-1/2 rounded-full bg-[#EAB308]/20 blur-3xl" />
 
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-7 sm:px-8 sm:py-8">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1.5">
-              <Sparkles className="h-6 w-6 text-teal-400" />
-              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">AI Studio</h1>
-            </div>
-            <p className="text-sm text-white/55 max-w-sm leading-relaxed">
-              Turn a prompt into a video or image in seconds. Click an example below or write your own.
-            </p>
-          </div>
-          <div className="flex items-center gap-5 flex-shrink-0">
-            <div className="text-right">
-              <p className={`text-4xl font-bold tabular-nums leading-none ${credits > 20 ? 'text-emerald-400' : credits > 5 ? 'text-amber-400' : 'text-red-400'}`}>
-                {credits}
-              </p>
-              <p className="text-[11px] text-white/40 uppercase tracking-widest mt-1">credits</p>
-            </div>
+        <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#EAB308]">
+            Verza growth path
+          </p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+            Reelwright
+          </h1>
+          <p className="mt-3 max-w-xl text-lg text-white/75">
+            Characters that hold. Scenes that continue. Edit by talking.
+          </p>
+          <p className="mt-2 max-w-xl text-sm text-white/50">
+            AI Studio moved into its own studio. Prototype hooks and visuals in
+            Reelwright, then bring the cut back to Verza for campaigns, Store, and payouts.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Button
+              id="reelwright-open-studio"
+              asChild
+              className="bg-[#EAB308] text-black hover:bg-[#FACC15]"
+            >
+              <a
+                href={studioHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={openStudio}
+              >
+                Open Reelwright
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="border-white/20 text-white bg-white/5 hover:bg-white/15 hover:text-white"
+              className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
               onClick={() => startTour(aiStudioTour)}
             >
-              <LifeBuoy className="mr-2 h-4 w-4" /> Tour
+              How it fits
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Auto-scrolling inspiration strip */}
-      <div className="mb-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-3">Inspiration — click to try</p>
-        <div
-          className="overflow-hidden"
-          onMouseEnter={() => setMarqueePaused(true)}
-          onMouseLeave={() => setMarqueePaused(false)}
-        >
+      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        {STEPS.map((step) => (
           <div
-            className="flex gap-3"
-            style={{
-              width: 'max-content',
-              animation: 'marquee 40s linear infinite',
-              animationPlayState: marqueePaused ? 'paused' : 'running',
-            }}
+            key={step.label}
+            className="rounded-xl border border-border bg-card p-4"
           >
-            {[...INSPIRATION_EXAMPLES, ...INSPIRATION_EXAMPLES].map((ex, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setActiveTab(ex.tab);
-                  setStyle(ex.style as any);
-                  setPrompt(ex.prompt);
-                  document.getElementById('generator-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-                className={`flex-shrink-0 w-48 h-32 rounded-xl bg-gradient-to-br ${ex.gradient} relative overflow-hidden text-left transition-transform duration-300 hover:scale-105`}
-              >
-                <div className="absolute inset-0 bg-black/20 hover:bg-black/10 transition-colors" />
-                <div className="absolute bottom-0 left-0 right-0 p-2.5 bg-gradient-to-t from-black/75 to-transparent">
-                  <span className="block text-[10px] font-bold text-white/70 uppercase tracking-wider mb-0.5">{ex.label}</span>
-                  <span className="block text-xs text-white font-medium leading-tight line-clamp-2">{ex.prompt}</span>
-                </div>
-                <div className="absolute top-2 right-2">
-                  <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">{ex.style}</span>
-                </div>
-              </button>
-            ))}
+            <step.icon className="h-5 w-5 text-[#EAB308]" />
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              {step.label}
+            </p>
+            <h2 className="mt-1 text-base font-semibold">{step.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
           </div>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <Card id="generator-card" className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl"><Sparkles className="h-6 w-6 text-primary" />Generator</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-                  <TabsTrigger value="text-to-video">Text to Video</TabsTrigger>
-                  <TabsTrigger value="image-to-video">Image to Video</TabsTrigger>
-                  <TabsTrigger value="image-to-image">Image to Image</TabsTrigger>
-                  <TabsTrigger value="text-to-image">Text to Image</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="text-to-video" className="space-y-4 pt-4">
-                  <div>
-                    <Label htmlFor="prompt">Prompt</Label>
-                    <Textarea
-                      id="prompt"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="e.g., A cyberpunk street in the rain, neon signs reflecting on wet pavement"
-                      disabled={isGenerating}
-                      rows={2}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="image-to-video" className="space-y-4 pt-4">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div className="space-y-2">
-                      <Label htmlFor="image-upload-video">Source Image</Label>
-                      <Input id="image-upload-video" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
-                    </div>
-                    {imagePreview && (
-                      <div className="flex justify-center items-center p-2 border rounded-md bg-muted">
-                        <Image src={imagePreview} alt="Image Preview" width={150} height={150} className="rounded-md object-contain max-h-32" />
-                      </div>
-                    )}
-                   </div>
-                   <div>
-                    <Label htmlFor="image-prompt-video">Animation Prompt</Label>
-                    <Textarea
-                      id="image-prompt-video"
-                      value={imagePrompt}
-                      onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="e.g., Make the character subtly smile, make the background lights flicker"
-                      disabled={isGenerating}
-                      rows={2}
-                    />
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="image-to-image" className="space-y-4 pt-4">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div className="space-y-2">
-                      <Label htmlFor="image-upload-image">Source Image</Label>
-                      <Input id="image-upload-image" type="file" accept="image/png, image/jpeg" onChange={handleImageFileChange} disabled={isGenerating} />
-                    </div>
-                    {imagePreview && (
-                      <div className="flex justify-center items-center p-2 border rounded-md bg-muted">
-                        <Image src={imagePreview} alt="Image Preview" width={150} height={150} className="rounded-md object-contain max-h-32" />
-                      </div>
-                    )}
-                   </div>
-                   <div>
-                    <Label htmlFor="image-prompt-image">Edit Prompt</Label>
-                    <Textarea
-                      id="image-prompt-image"
-                      value={imagePrompt}
-                      onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="e.g., Change the background to a jungle, make the character wear a hat"
-                      disabled={isGenerating}
-                      rows={2}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="text-to-image" className="space-y-4 pt-4">
-                  <div>
-                    <Label htmlFor="text-to-image-prompt">Prompt</Label>
-                    <Textarea
-                      id="text-to-image-prompt"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="e.g., A serene mountain lake at sunrise, photorealistic, golden light"
-                      disabled={isGenerating}
-                      rows={2}
-                    />
-                  </div>
-                </TabsContent>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-                    <div className="md:col-span-1">
-                      <Label htmlFor="style">Style</Label>
-                      <Select value={style} onValueChange={(value) => setStyle(value as any)} disabled={isGenerating}>
-                        <SelectTrigger id="style"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {styleOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-1">
-                      <Label>Orientation</Label>
-                      <RadioGroup
-                        value={orientation}
-                        onValueChange={(value) => setOrientation(value as any)}
-                        className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2"
-                        disabled={isGenerating}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="16:9" id="orientation-h" />
-                          <Label htmlFor="orientation-h" className="flex items-center gap-1 cursor-pointer"><Monitor className="h-4 w-4"/> Horizontal</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="9:16" id="orientation-v" />
-                          <Label htmlFor="orientation-v" className="flex items-center gap-1 cursor-pointer"><Smartphone className="h-4 w-4"/> Vertical</Label>
-                        </div>
-                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') && (
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="1:1" id="orientation-s" />
-                            <Label htmlFor="orientation-s" className="flex items-center gap-1 cursor-pointer"><Camera className="h-4 w-4"/> Square</Label>
-                          </div>
-                        )}
-                      </RadioGroup>
-                    </div>
-                    <div className="md:col-span-1">
-                      <Label htmlFor="character">Character (Optional)</Label>
-                      <Select value={selectedCharacterId} onValueChange={setSelectedCharacterId} disabled={isGenerating}>
-                        <SelectTrigger id="character"><SelectValue placeholder="Select a character..." /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">No character</SelectItem>
-                            {characters.map(char => (
-                                <SelectItem key={char.id} value={char.id}>
-                                  {char.name}{char.imageUrl ? "" : " (no portrait)"}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Portrait characters lock likeness in Verza video via reference.
-                      </p>
-                      {selectedCharacter && (
-                        <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/30 p-2">
-                          {selectedCharacter.imageUrl ? (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewCharacter(selectedCharacter)}
-                              className="group relative h-10 w-10 shrink-0 overflow-hidden rounded-md ring-offset-background transition hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              aria-label={`Preview ${selectedCharacter.name}`}
-                            >
-                              <Image
-                                src={selectedCharacter.imageUrl}
-                                alt={selectedCharacter.name}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                              />
-                              <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
-                                <ZoomIn className="h-4 w-4 text-white opacity-0 transition group-hover:opacity-100" />
-                              </span>
-                            </button>
-                          ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-                              <Users className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {selectedCharacter.imageUrl
-                              ? "Portrait will be used as a visual reference in your generation."
-                              : "Description only — recreate this character to get a portrait."}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-6">
-                    {canAfford ? (
-                      <Button onClick={handleGeneration} disabled={isGenerateButtonDisabled}>
-                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        {(activeTab === 'image-to-image' || activeTab === 'text-to-image') ? `Generate Image (${cost} Credit)` : `Generate Video (${cost} Credits)`}
-                      </Button>
-                    ) : (
-                      <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                              <Button disabled={isProcessingPayment}>
-                                {isProcessingPayment ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                Top Up Credits
-                              </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                              <AlertDialogHeader>
-                                  <AlertDialogTitle>Out of Credits!</AlertDialogTitle>
-                                  <AlertDialogDescription>Choose a credit pack to continue generating.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <div className="space-y-4 py-4">
-                                  <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('starter')} disabled={isProcessingPayment}>
-                                      <div><p className="font-semibold">Starter Pack</p><p className="font-normal text-sm">250 Credits (~25 videos)</p></div>
-                                      <p className="text-lg font-semibold">$15</p>
-                                  </Button>
-                                  <Button className="w-full justify-between h-auto py-3" variant="outline" onClick={() => handlePurchaseCredits('agency')} disabled={isProcessingPayment}>
-                                      <div><p className="font-semibold">Agency Pack</p><p className="font-normal text-sm">1000 Credits (~100 videos)</p></div>
-                                      <p className="text-lg font-semibold">$50</p>
-                                  </Button>
-                              </div>
-                              <AlertDialogFooter>
-                                  <AlertDialogCancel disabled={isProcessingPayment}>Cancel</AlertDialogCancel>
-                              </AlertDialogFooter>
-                          </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                    <p className="text-sm text-muted-foreground">You have {credits} {credits === 1 ? 'credit' : 'credits'} left.</p>
-                </div>
-              </Tabs>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Video className="h-6 w-6 text-primary" />Generated Media</CardTitle>
-              <CardDescription>
-                Pick a character with a portrait for likeness-locked Verza video. After a clip is ready, refine it with a follow-up edit.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-center bg-black rounded-lg aspect-video relative overflow-hidden">
-                {isGenerating || isEditing ? (
-                  <div className="text-center text-primary-foreground">
-                    <Loader2 className="h-12 w-12 animate-spin mx-auto" />
-                    <p className="mt-4">{isEditing ? "Editing… may take up to 2 mins" : "Generating... may take up to 2 mins"}</p>
-                  </div>
-                ) : generatedMedia ? (
-                  <div className="relative w-full h-full">
-                    {generatedMedia.type === 'video' ? (
-                       <video src={generatedMedia.url} controls autoPlay loop className="w-full h-full object-contain" />
-                    ) : (
-                       <Image src={generatedMedia.url} alt="Generated Image" fill className="object-contain" />
-                    )}
-                    <Button asChild size="sm" className="absolute top-2 right-2">
-                      <a href={generatedMedia.url} download target="_blank" rel="noopener noreferrer">
-                        <Download className="mr-2 h-4 w-4" /> Download
-                      </a>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-center text-muted-foreground p-6">
-                    <p>Your generated video or image will appear here.</p>
-                  </div>
-                )}
-              </div>
-
-              {generatedMedia?.type === "video" && generatedMedia.interactionId && (
-                <div className="space-y-3 rounded-lg border p-4">
-                  <div>
-                    <Label htmlFor="video-edit-prompt">Edit this video</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verza keeps the clip in context — e.g. “slow the camera” or “keep the character, change the background to a cafe”.
-                    </p>
-                  </div>
-                  <Textarea
-                    id="video-edit-prompt"
-                    value={editPrompt}
-                    onChange={(e) => setEditPrompt(e.target.value)}
-                    placeholder="Describe the change…"
-                    rows={3}
-                    disabled={isEditing || isGenerating}
-                  />
-                  <Button
-                    onClick={handleEditVideo}
-                    disabled={isEditing || isGenerating || !editPrompt.trim() || (user?.credits ?? 0) < VIDEO_COST}
-                    className="w-full"
-                  >
-                    {isEditing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    Apply edit ({VIDEO_COST} credits)
-                  </Button>
-                </div>
-              )}
-
-              {generatedMedia?.type === "video" && !generatedMedia.interactionId && (
-                <p className="text-xs text-muted-foreground">
-                  This clip can&apos;t be refined yet. Generate a new video to unlock editing.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="lg:col-span-1 space-y-6">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" />My Characters</CardTitle>
-              <CardDescription>Create and manage reusable characters for your scenes.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <AlertDialog open={!!characterToDelete} onOpenChange={(open) => !open && setCharacterToDelete(null)}>
-                    <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-2">
-                        {characters.length > 0 ? characters.map(char => (
-                            <div key={char.id} className="p-2 border rounded-md text-sm bg-muted/50 flex gap-3 items-center">
-                                {char.imageUrl ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPreviewCharacter(char)}
-                                    className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted ring-offset-background transition hover:ring-2 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    aria-label={`Preview ${char.name}`}
-                                  >
-                                    <Image
-                                      src={char.imageUrl}
-                                      alt={char.name}
-                                      fill
-                                      className="object-cover"
-                                      unoptimized
-                                    />
-                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
-                                      <ZoomIn className="h-4 w-4 text-white opacity-0 transition group-hover:opacity-100" />
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
-                                    <Users className="h-5 w-5" />
-                                  </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-semibold truncate">{char.name}</p>
-                                    <p className="text-xs text-muted-foreground truncate">{char.description}</p>
-                                    {char.style && (
-                                      <p className="text-[10px] text-muted-foreground/80 mt-0.5">{char.style}</p>
-                                    )}
-                                </div>
-                                <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive/70 hover:text-destructive flex-shrink-0" onClick={() => setCharacterToDelete(char)}>
-                                    <Trash2 className="h-4 w-4"/>
-                                </Button>
-                                </AlertDialogTrigger>
-                            </div>
-                        )) : <p className="text-center text-muted-foreground py-3 text-sm">No characters created yet.</p>}
-                    </div>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This will permanently delete the character "{characterToDelete?.name}". This action cannot be undone.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={isDeletingCharacter}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteCharacter} disabled={isDeletingCharacter} className="bg-destructive hover:bg-destructive/90">
-                                {isDeletingCharacter && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                Delete
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-              <Dialog open={!!previewCharacter} onOpenChange={(open) => !open && setPreviewCharacter(null)}>
-                <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:rounded-xl">
-                  {previewCharacter?.imageUrl && (
-                    <div className="relative aspect-square w-full max-h-[min(70vh,640px)] bg-black">
-                      <Image
-                        src={previewCharacter.imageUrl}
-                        alt={previewCharacter.name}
-                        fill
-                        className="object-contain"
-                        unoptimized
-                        priority
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1 p-6">
-                    <DialogHeader className="text-left">
-                      <DialogTitle>{previewCharacter?.name}</DialogTitle>
-                      <DialogDescription className="text-left">{previewCharacter?.description}</DialogDescription>
-                    </DialogHeader>
-                    {previewCharacter?.style && (
-                      <p className="text-sm text-muted-foreground">{previewCharacter.style} style</p>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog open={isCharacterDialogOpen} onOpenChange={setIsCharacterDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="w-full">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Character
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create a New Character</DialogTitle>
-                    <DialogDescription>
-                      Define a character with a name and description. We&apos;ll generate a portrait ({CHARACTER_PORTRAIT_COST} credit) you can reuse in scenes.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <Label htmlFor="char-name">Character Name</Label>
-                      <Input id="char-name" value={newCharacterName} onChange={(e) => setNewCharacterName(e.target.value)} placeholder="e.g., Captain Eva" disabled={isSavingCharacter} />
-                    </div>
-                    <div>
-                      <Label htmlFor="char-desc">Description</Label>
-                      <Textarea id="char-desc" value={newCharacterDescription} onChange={(e) => setNewCharacterDescription(e.target.value)} placeholder="e.g., A space pirate with a robotic arm and a sarcastic parrot on her shoulder." rows={4} disabled={isSavingCharacter} />
-                    </div>
-                    <div>
-                      <Label htmlFor="char-style">Visual Style</Label>
-                      <Select
-                        value={newCharacterStyle}
-                        onValueChange={(v) => setNewCharacterStyle(v as (typeof styleOptions)[number])}
-                        disabled={isSavingCharacter}
-                      >
-                        <SelectTrigger id="char-style">
-                          <SelectValue placeholder="Select a style" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {styleOptions.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCharacterDialogOpen(false)} disabled={isSavingCharacter}>Cancel</Button>
-                    <Button onClick={handleSaveCharacter} disabled={isSavingCharacter || !newCharacterName.trim() || !newCharacterDescription.trim()}>
-                        {isSavingCharacter && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Create Character ({CHARACTER_PORTRAIT_COST} Credit)
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />History</CardTitle>
-              <CardDescription>Your previously generated media.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[calc(100vh_-_30rem)]">
-                {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
-                 : history.length > 0 ? (
-                  <div className="space-y-4">
-                    {history.map(item => (
-                      <div key={item.id} className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => loadHistoryItem(item)}>
-                        <p className="text-sm truncate">{item.prompt}</p>
-                        <p className="text-xs text-muted-foreground flex items-center justify-between gap-2">
-                          <span className="truncate">
-                            {item.style} • {item.imageUrl ? 'Image' : 'Video'}
-                            {item.parentGenerationId ? ' • Edit' : ''}
-                            {item.interactionId && item.videoUrl ? ' • Refinable' : ''}
-                            {' '}• {item.orientation || 'N/A'}
-                          </span>
-                          <span className="shrink-0">{formatDistanceToNow(item.timestamp.toDate(), { addSuffix: true })}</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                 ) : <p className="text-center text-muted-foreground py-6">No history yet.</p>}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </>
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+        Stay in Verza for{" "}
+        <Link href="/campaigns" className="text-primary underline-offset-4 hover:underline">
+          campaigns
+        </Link>
+        {" · "}
+        <Link href="/insights" className="text-primary underline-offset-4 hover:underline">
+          insights
+        </Link>
+        {" · "}
+        <Link href="/store" className="text-primary underline-offset-4 hover:underline">
+          Store
+        </Link>
+      </p>
+    </div>
   );
 }
 
-export default function SceneSpawnerPage() {
+export default function AiStudioPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
-      <SceneSpawnerContent />
+    <Suspense fallback={null}>
+      <ReelwrightDoorway />
     </Suspense>
   );
 }
