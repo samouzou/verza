@@ -12,7 +12,6 @@ import {
   createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword,
   signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
   sendPasswordResetEmail as firebaseSendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile as firebaseUpdateProfile,
   type FirebaseUser,
   db,
@@ -21,7 +20,9 @@ import {
   getDoc,
   Timestamp,
   onSnapshot, // Import onSnapshot for real-time listening
+  functions,
 } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useToast } from "@/hooks/use-toast";
 import type { CreatorMarketplaceProfile, SubscriptionPlanId, SubscriptionStatus, TaxClassification } from '@/types';
 
@@ -542,17 +543,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const requestVerificationEmail = async (): Promise<{ alreadyVerified?: boolean } | null> => {
+    const sendVerification = httpsCallable<
+      Record<string, never>,
+      { ok: boolean; alreadyVerified?: boolean }
+    >(functions, "sendVerificationEmail");
+    const result = await sendVerification({});
+    return result.data ?? null;
+  };
+
   const signupWithEmailAndPassword = async (email: string, password: string): Promise<string | null> => {
     setIsProcessing(true);
     try {
       const userCredential = await firebaseCreateUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
-        await sendEmailVerification(userCredential.user);
-        toast({
-          title: "Verification Email Sent",
-          description: "Please check your inbox to verify your email address.",
-          duration: 7000,
-        });
+        try {
+          await requestVerificationEmail();
+          toast({
+            title: "Verification Email Sent",
+            description: "Please check your inbox to verify your email address.",
+            duration: 7000,
+          });
+        } catch (verifyError: unknown) {
+          console.error("Error sending branded verification email:", verifyError);
+          toast({
+            title: "Account created",
+            description: "We couldn't send the verification email. Use Resend from the banner.",
+            duration: 8000,
+          });
+        }
       }
       return null; 
     } catch (error: any) {
@@ -597,7 +616,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (firebaseUserInstance && !firebaseUserInstance.emailVerified) {
       setIsProcessing(true);
       try {
-        await sendEmailVerification(firebaseUserInstance);
+        const data = await requestVerificationEmail();
+        if (data?.alreadyVerified) {
+          toast({
+            title: "Email Already Verified",
+            description: "Your email address is already verified.",
+          });
+          return null;
+        }
         toast({
           title: "Verification Email Resent",
           description: "Please check your inbox.",
@@ -605,12 +631,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       } catch (error: any) {
         console.error("Error resending verification email:", error);
+        const code = typeof error?.code === "string" ? error.code : "";
+        const description =
+          code === "functions/resource-exhausted"
+            ? "Wait a minute before requesting another verification email."
+            : error.message || "Could not resend verification email.";
         toast({
           title: "Error Resending Email",
-          description: error.message || "Could not resend verification email.",
+          description,
           variant: "destructive",
         });
-        return error.message || "Could not resend verification email.";
+        return description;
       } finally {
         setIsProcessing(false);
       }

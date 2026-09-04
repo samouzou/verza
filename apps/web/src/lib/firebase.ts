@@ -10,7 +10,6 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
   sendPasswordResetEmail,
-  sendEmailVerification,
   linkWithPopup, // Added for connecting accounts without switching users
   type User as FirebaseUser
 } from 'firebase/auth';
@@ -98,7 +97,6 @@ export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
   linkWithPopup, // Exported for connecting accounts
   type FirebaseUser,

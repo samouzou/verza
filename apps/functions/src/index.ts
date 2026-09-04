@@ -41,6 +41,7 @@ import {
   notifyBrandCampaignApplicant,
   sendOnboardingWelcomeEmail,
 } from "./notifications";
+import {sendVerificationEmail} from "./notifications/verificationEmail";
 
 import {
   sendOverdueInvoiceReminders,
@@ -182,6 +183,7 @@ export {
   notifyBrandVideoSubmitted,
   notifyBrandCampaignApplicant,
   sendOnboardingWelcomeEmail,
+  sendVerificationEmail,
   startStoreEmailSequence,
   startCareerPathEmailSequence,
   sendOverdueInvoiceReminders,
