@@ -12,15 +12,24 @@ type AudienceTier = keyof typeof AUDIENCE_TIERS;
 
 const COUNT_SUFFIXES: Record<string, number> = {k: 1_000, m: 1_000_000, b: 1_000_000_000};
 
+function parseOneCount(value: number, suffix: string | undefined): number | null {
+  if (!Number.isFinite(value)) return null;
+  const multiplier = suffix ? COUNT_SUFFIXES[suffix] : 1;
+  return Math.round(value * multiplier);
+}
+
 function parseCompactCount(raw: string | null | undefined): number | null {
   if (!raw) return null;
   const text = raw.trim().toLowerCase().replace(/,/g, "");
-  const match = text.match(/^(\d+(?:\.\d+)?)([kmb])?$/);
-  if (!match) return null;
-  const value = Number.parseFloat(match[1]);
-  if (!Number.isFinite(value)) return null;
-  const multiplier = match[2] ? COUNT_SUFFIXES[match[2]] : 1;
-  return Math.round(value * multiplier);
+  const strict = text.match(/^(\d+(?:\.\d+)?)([kmb])?$/);
+  if (strict) return parseOneCount(Number.parseFloat(strict[1]), strict[2]);
+  const labeled = text.match(
+    /(\d+(?:\.\d+)?)\s*([kmb])?\s*(subscribers?|followers?|connections?|videos?|posts?)/
+  );
+  if (labeled) return parseOneCount(Number.parseFloat(labeled[1]), labeled[2]);
+  const suffixed = text.match(/(\d+(?:\.\d+)?)\s*([kmb])\b/);
+  if (suffixed) return parseOneCount(Number.parseFloat(suffixed[1]), suffixed[2]);
+  return null;
 }
 
 export type MatchBreakdown = {
@@ -88,6 +97,7 @@ export function composeMatchScore(input: {
   matchReason: string;
   matchBreakdown: MatchBreakdown;
   followerCountNumeric: number | null;
+  postCountNumeric: number | null;
 } {
   const brief = clampBriefFitScore(input.briefFitScore);
   const followers =
@@ -124,5 +134,53 @@ export function composeMatchScore(input: {
     matchReason: reason,
     matchBreakdown: {brief, audience, contact, activity},
     followerCountNumeric: followers,
+    postCountNumeric: posts,
   };
+}
+
+export type AudienceGateResult = {ok: true} | {ok: false; reason: string};
+
+/** Skip dead or out-of-band profiles before they cost a credit. */
+export function checkAudienceGate(
+  profile: {
+    followerCount?: string | number | null;
+    postCount?: string | number | null;
+    bio?: string | null;
+    externalUrl?: string | null;
+  },
+  tier: string | null | undefined
+): AudienceGateResult {
+  const posts =
+    typeof profile.postCount === "number"
+      ? profile.postCount
+      : parseCompactCount(typeof profile.postCount === "string" ? profile.postCount : null);
+  if (posts !== null && posts < 3) {
+    return {ok: false, reason: `only ${posts} post(s)`};
+  }
+
+  const hasBio = Boolean(profile.bio?.trim());
+  const hasLink = Boolean(profile.externalUrl?.trim());
+  if (!hasBio && !hasLink && posts === null) {
+    return {ok: false, reason: "no readable profile details"};
+  }
+
+  const followers =
+    typeof profile.followerCount === "number"
+      ? profile.followerCount
+      : parseCompactCount(
+          typeof profile.followerCount === "string" ? profile.followerCount : null
+        );
+  if (followers === null) return {ok: true};
+
+  const bounds =
+    tier && tier in AUDIENCE_TIERS
+      ? AUDIENCE_TIERS[tier as AudienceTier]
+      : AUDIENCE_TIERS.any;
+  if (bounds.min !== null && followers < bounds.min) {
+    return {ok: false, reason: `${followers} followers is below the selected range`};
+  }
+  if (bounds.max !== null && followers > bounds.max) {
+    return {ok: false, reason: `${followers} followers is above the selected range`};
+  }
+  return {ok: true};
 }

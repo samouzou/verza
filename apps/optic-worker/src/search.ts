@@ -18,6 +18,7 @@ function searchBudget(targetSaved: number) {
     tiktokProfiles: Math.min(64, Math.max(16, Math.ceil(t * 3))),
     facebookPages: Math.min(36, Math.max(12, Math.ceil(t * 2))),
     twitchChannels: Math.min(48, Math.max(12, Math.ceil(t * 2))),
+    linkedinProfiles: Math.min(48, Math.max(12, Math.ceil(t * 2))),
   };
 }
 
@@ -80,15 +81,37 @@ export async function findCreators(
 
   try {
     if (platform === "youtube") {
-      await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, {
-        timeout: 45_000,
-      });
+      await page.goto(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAg%3D%3D`,
+        {timeout: 45_000}
+      );
       await new Promise((r) => setTimeout(r, 3000));
 
-      const channelLinks = await page.$$eval("a#main-link.channel-link", (links, cap: number) =>
-        links.slice(0, cap).map((a) => (a as HTMLAnchorElement).href),
-        budget.youtubeChannels
-      );
+      const channelLinks = await page.evaluate((cap: number) => {
+        const out: string[] = [];
+        const push = (href: string | null | undefined) => {
+          if (!href) return;
+          try {
+            const u = new URL(href, location.origin);
+            const path = u.pathname.replace(/\/$/, "");
+            if (
+              path.startsWith("/@") ||
+              path.startsWith("/channel/") ||
+              path.startsWith("/c/") ||
+              path.startsWith("/user/")
+            ) {
+              const clean = `https://www.youtube.com${path}`;
+              if (!out.includes(clean)) out.push(clean);
+            }
+          } catch {
+            /* ignore */
+          }
+        };
+        document.querySelectorAll("a#main-link.channel-link, a[href*='/@'], a[href*='/channel/']").forEach((a) => {
+          push((a as HTMLAnchorElement).href);
+        });
+        return out.slice(0, cap);
+      }, budget.youtubeChannels);
       urls.push(...channelLinks);
     } else if (platform === "instagram") {
       await page.goto(
@@ -110,8 +133,15 @@ export async function findCreators(
       const tiktokUrls = await page.evaluate((cap: number) => {
         const out: string[] = [];
         document.querySelectorAll('a[href*="tiktok.com/@"]').forEach((a) => {
-          const href = (a as HTMLAnchorElement).href?.split("?")[0];
-          if (href && !out.includes(href)) out.push(href);
+          try {
+            const u = new URL((a as HTMLAnchorElement).href);
+            const m = u.pathname.match(/^\/@([^/]+)/);
+            if (!m) return;
+            const href = `https://www.tiktok.com/@${m[1]}`;
+            if (!out.includes(href)) out.push(href);
+          } catch {
+            /* ignore */
+          }
         });
         return out.slice(0, cap);
       }, budget.tiktokProfiles);
@@ -182,6 +212,28 @@ export async function findCreators(
         return out.slice(0, cap);
       }, budget.twitchChannels);
       urls.push(...channelUrls);
+    } else if (platform === "linkedin") {
+      await page.goto(
+        `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`,
+        {timeout: 45_000}
+      );
+      await new Promise((r) => setTimeout(r, 4000));
+      const peopleUrls = await page.evaluate((cap: number) => {
+        const out: string[] = [];
+        document.querySelectorAll('a[href*="linkedin.com/in/"]').forEach((a) => {
+          try {
+            const u = new URL((a as HTMLAnchorElement).href, location.origin);
+            const m = u.pathname.match(/^\/in\/([^/]+)/);
+            if (!m) return;
+            const href = `https://www.linkedin.com/in/${m[1]}`;
+            if (!out.includes(href)) out.push(href);
+          } catch {
+            /* ignore */
+          }
+        });
+        return out.slice(0, cap);
+      }, budget.linkedinProfiles);
+      urls.push(...peopleUrls);
     }
 
     return urls;

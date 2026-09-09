@@ -17,6 +17,8 @@ export interface GeminiAnalysisResult {
   niche: string;
   email?: string | null;
   followerCount: string;
+  postCount?: string | null;
+  externalUrl?: string | null;
   draftEmail?: string | null;
   draftEmailSubject?: string | null;
   draftDm?: string | null;
@@ -41,6 +43,8 @@ function dmStyleHint(platform: string): string {
       "Facebook Page message: approachable (2–3 sentences). No subject line.",
     twitch:
       "Twitch DM: casual streamer-to-brand tone (2–3 sentences). No subject line.",
+    linkedin:
+      "LinkedIn message: professional and specific (2–3 sentences). No subject line. Name the mutual fit, not a spray pitch.",
   };
   return hints[platform] ?? "Platform DM: short, friendly, no subject line (2–3 sentences).";
 }
@@ -96,13 +100,15 @@ export async function analyzeProfileWithGemini(
     1. creatorName (string)
     2. niche (string, e.g. tech, beauty, gaming)
     3. email (string if visible in bio, else null)
-    4. followerCount (string estimate from visible numbers)
-    5. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand. Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
-    6. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate).
+    4. followerCount (string estimate from visible numbers, e.g. "12.3K")
+    5. postCount (string estimate of videos/posts if visible, else null)
+    6. externalUrl (string website/link-in-bio if visible, else null)
+    7. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand. Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
+    8. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate).
 
-    7. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
-    8. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
-    9. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    9. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    10. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
+    11. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
 
     If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
 

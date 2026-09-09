@@ -403,7 +403,8 @@ export default function OpticDiscoveryPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Same platforms as campaign launch, except LinkedIn (no automated scout yet).
+                YouTube, TikTok, Twitch, Facebook, and LinkedIn run in our scout.
+                Instagram can use your Chrome session for a fuller scrape.
               </p>
             </div>
 
@@ -491,8 +492,7 @@ export default function OpticDiscoveryPage() {
               onUseExtensionChange={setUseInstagramExtension}
             />
 
-            {platform === "instagram" && useInstagramExtension && (
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="optic-audience">Audience size</Label>
                 <Select
                   value={audienceTier}
@@ -512,9 +512,11 @@ export default function OpticDiscoveryPage() {
                 <p className="text-xs text-muted-foreground">
                   {OPTIC_AUDIENCE_TIERS[audienceTier].hint}. Anyone outside this range is passed
                   over before they cost you a credit, and we always skip inactive accounts.
+                  {platform === "linkedin"
+                    ? " LinkedIn often login-walls public search — we still score and save public profiles we can open."
+                    : ""}
                 </p>
               </div>
-            )}
 
             {inFlightCount > 0 && (
               <p className="text-xs text-muted-foreground">

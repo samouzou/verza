@@ -7,8 +7,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-# Playwright base image matches installed playwright version (browsers + system deps)
-FROM mcr.microsoft.com/playwright:v1.50.0-noble
+# Playwright + Chromium exceeds Cloud Run's 512Mi default. Deploy with --memory=2Gi.
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./

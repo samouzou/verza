@@ -10,13 +10,14 @@ export const OPTIC_MAX_BATCH_SIZE = 100;
  */
 export const OPTIC_MAX_WORKER_BATCH_SIZE = 25;
 
-/** Discovery platforms (campaign launch set minus LinkedIn). */
+/** Discovery platforms (campaign launch set, including LinkedIn people search). */
 export const OPTIC_PLATFORM_SLUGS = [
   "youtube",
   "instagram",
   "tiktok",
   "facebook",
   "twitch",
+  "linkedin",
 ] as const;
 
 export const OPTIC_PLATFORMS = new Set<string>(OPTIC_PLATFORM_SLUGS);

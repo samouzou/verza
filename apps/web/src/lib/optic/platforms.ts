@@ -1,10 +1,11 @@
-/** Optic discovery platforms (matches campaign launch minus LinkedIn). */
+/** Optic discovery platforms. */
 export const OPTIC_PLATFORMS = [
   { value: "youtube", label: "YouTube" },
   { value: "instagram", label: "Instagram" },
   { value: "tiktok", label: "TikTok" },
   { value: "facebook", label: "Facebook" },
   { value: "twitch", label: "Twitch" },
+  { value: "linkedin", label: "LinkedIn" },
 ] as const;
 
 export type OpticPlatformSlug = (typeof OPTIC_PLATFORMS)[number]["value"];
@@ -15,9 +16,10 @@ const CAMPAIGN_TO_OPTIC: Record<string, OpticPlatformSlug> = {
   tiktok: "tiktok",
   facebook: "facebook",
   twitch: "twitch",
+  linkedin: "linkedin",
 };
 
-/** Maps a campaign platform name to an Optic slug, or null (e.g. LinkedIn). */
+/** Maps a campaign platform name to an Optic slug, or null if unknown. */
 export function campaignPlatformToOpticSlug(name: string): OpticPlatformSlug | null {
   const key = name.trim().toLowerCase();
   return CAMPAIGN_TO_OPTIC[key] ?? null;

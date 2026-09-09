@@ -16,8 +16,17 @@ function opticAvatarStoragePath(agencyId: string, profileUrl: string): string {
   return `optic_avatars/${agencyId}/${key}.jpg`;
 }
 
+function refererFor(url: string): string {
+  try {
+    return new URL(url).origin + "/";
+  } catch {
+    return "https://www.youtube.com/";
+  }
+}
+
 async function fetchAvatarFromUrl(
-  url: string
+  url: string,
+  profileUrl?: string | null
 ): Promise<{buffer: Buffer; contentType: string} | null> {
   try {
     if (!/^https:\/\//i.test(url)) return null;
@@ -26,7 +35,7 @@ async function fetchAvatarFromUrl(
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        Referer: "https://www.instagram.com/",
+        Referer: refererFor(profileUrl || url),
       },
       signal: AbortSignal.timeout(12_000),
     });
@@ -41,27 +50,21 @@ async function fetchAvatarFromUrl(
   }
 }
 
-/** Downloads a remote avatar and stores a durable Firebase download URL. */
-export async function persistOpticAvatarFromUrl(args: {
+async function uploadAvatar(args: {
   agencyId: string;
   profileUrl: string;
-  avatarSourceUrl?: string | null;
+  buffer: Buffer;
+  contentType: string;
 }): Promise<string | null> {
-  if (!args.avatarSourceUrl?.trim()) return null;
-  const decoded = await fetchAvatarFromUrl(args.avatarSourceUrl.trim());
-  if (!decoded) return null;
-
   try {
     const bucket = storageBucket();
     const storagePath = opticAvatarStoragePath(args.agencyId, args.profileUrl);
     const file = bucket.file(storagePath);
     const token = randomUUID();
-    await file.save(decoded.buffer, {
+    await file.save(args.buffer, {
       resumable: false,
       metadata: {
-        contentType: decoded.contentType.startsWith("image/")
-          ? decoded.contentType
-          : "image/jpeg",
+        contentType: args.contentType.startsWith("image/") ? args.contentType : "image/jpeg",
         cacheControl: "public,max-age=31536000",
         metadata: {firebaseStorageDownloadTokens: token},
       },
@@ -75,4 +78,41 @@ export async function persistOpticAvatarFromUrl(args: {
     );
     return null;
   }
+}
+
+/** Stores a durable Firebase download URL from in-browser bytes or a remote URL. */
+export async function persistOpticAvatar(args: {
+  agencyId: string;
+  profileUrl: string;
+  avatarBytes?: Buffer | null;
+  avatarContentType?: string | null;
+  avatarSourceUrl?: string | null;
+}): Promise<string | null> {
+  let decoded: {buffer: Buffer; contentType: string} | null = null;
+  if (args.avatarBytes && args.avatarBytes.length && args.avatarBytes.length <= MAX_AVATAR_BYTES) {
+    decoded = {
+      buffer: args.avatarBytes,
+      contentType: args.avatarContentType?.startsWith("image/")
+        ? args.avatarContentType
+        : "image/jpeg",
+    };
+  } else if (args.avatarSourceUrl?.trim()) {
+    decoded = await fetchAvatarFromUrl(args.avatarSourceUrl.trim(), args.profileUrl);
+  }
+  if (!decoded) return null;
+  return uploadAvatar({
+    agencyId: args.agencyId,
+    profileUrl: args.profileUrl,
+    buffer: decoded.buffer,
+    contentType: decoded.contentType,
+  });
+}
+
+/** @deprecated Prefer persistOpticAvatar with in-browser bytes. */
+export async function persistOpticAvatarFromUrl(args: {
+  agencyId: string;
+  profileUrl: string;
+  avatarSourceUrl?: string | null;
+}): Promise<string | null> {
+  return persistOpticAvatar(args);
 }

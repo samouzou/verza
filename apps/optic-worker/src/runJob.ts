@@ -6,9 +6,9 @@ import {saveLeadWithOpticCreditCharge} from "./credits";
 import {urlPoolCap, vetDelayMs, workerSaveTarget} from "./limits";
 import {Log} from "./logCopy";
 import {generateSeedLeads, findCreators} from "./search";
-import {persistOpticAvatarFromUrl} from "./avatar";
-import {composeMatchScore} from "./matchScore";
-import {createVetBrowserContext, scrapeCreatorProfileInContext} from "./scraper";
+import {persistOpticAvatar} from "./avatar";
+import {checkAudienceGate, composeMatchScore} from "./matchScore";
+import {canonicalizeCreatorUrl, createVetBrowserContext, scrapeCreatorProfileInContext} from "./scraper";
 import {analyzeProfileWithGemini, type DraftBrandContext} from "./vision";
 
 if (process.env.FIRESTORE_EMULATOR_HOST) {
@@ -84,7 +84,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
       brand?.agencyName ?? null,
       targetSaved
     );
-    seedLeads.forEach((lead) => allUrls.add(lead.url));
+    seedLeads.forEach((lead) => allUrls.add(canonicalizeCreatorUrl(lead.url, job.platform)));
 
     let s0 = await ref.get();
     if (s0.data()?.cancelRequested) {
@@ -103,7 +103,7 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
 
     await appendLog("search", Log.platformSearch(job.platform));
     const searchedUrls = await findCreators(job.platform, job.objectives, targetSaved);
-    searchedUrls.forEach((url) => allUrls.add(url));
+    searchedUrls.forEach((url) => allUrls.add(canonicalizeCreatorUrl(url, job.platform)));
 
     if (allUrls.size === 0) {
       throw new Error("No creators found for the given criteria.");
@@ -138,37 +138,65 @@ export async function runDiscoveryJob(jobId: string): Promise<void> {
         }
         await appendLog("vet", Log.vetVisit(url));
         try {
-          const capture = await scrapeCreatorProfileInContext(vetContext, url);
+          const capture = await scrapeCreatorProfileInContext(vetContext, url, job.platform);
           const leadData = await analyzeProfileWithGemini(
             capture.screenshotBase64,
             job.objectives,
             brand ?? null,
             job.platform
           );
+          const followerCount =
+            capture.signals.followerCount || leadData.followerCount || null;
+          const postCount = capture.signals.postCount || leadData.postCount || null;
+          const email = capture.signals.email || leadData.email || null;
+          const externalUrl =
+            capture.signals.externalUrl || leadData.externalUrl || null;
+          const gate = checkAudienceGate(
+            {
+              followerCount,
+              postCount,
+              bio: capture.signals.bio || leadData.niche || leadData.creatorName,
+              externalUrl,
+            },
+            job.audienceTier ?? "any"
+          );
+          if (!gate.ok) {
+            await appendLog("vet", `Skipped ${url} — ${gate.reason}.`);
+            continue;
+          }
           const payTitle = job.brandContext?.paySourceCampaignTitle?.trim() || null;
           const match = composeMatchScore({
             briefFitScore: leadData.briefFitScore ?? 65,
             matchReason: leadData.matchReason,
-            followerCount: leadData.followerCount,
-            email: leadData.email,
+            followerCount,
+            postCount,
+            email,
+            externalUrl,
             audienceTier: job.audienceTier ?? "any",
           });
-          const avatarUrl = await persistOpticAvatarFromUrl({
+          const avatarUrl = await persistOpticAvatar({
             agencyId: job.agencyId,
             profileUrl: url,
+            avatarBytes: capture.avatarBytes,
+            avatarContentType: capture.avatarContentType,
             avatarSourceUrl: capture.avatarSourceUrl,
           });
           const {
             briefFitScore: _briefFit,
             matchReason: _reason,
+            postCount: _posts,
+            externalUrl: _ext,
             ...enrichmentFields
           } = leadData;
           const leadPayload = {
             ...enrichmentFields,
+            email,
+            followerCount: followerCount || leadData.followerCount,
             matchScore: match.matchScore,
             matchReason: match.matchReason,
             matchBreakdown: match.matchBreakdown,
             followerCountNumeric: match.followerCountNumeric,
+            postCountNumeric: match.postCountNumeric,
             avatarUrl: avatarUrl ?? null,
             discoveryPlatform: job.platform,
             profileUrl: url,

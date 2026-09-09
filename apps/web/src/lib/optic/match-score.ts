@@ -53,6 +53,8 @@ export function platformChipClasses(platform?: string | null): string {
       return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25";
     case "twitch":
       return "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/25";
+    case "linkedin":
+      return "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/25";
     default:
       return "bg-muted text-muted-foreground border-border";
   }

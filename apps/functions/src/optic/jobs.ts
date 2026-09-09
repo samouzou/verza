@@ -96,7 +96,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   if (typeof platform !== "string" || !OPTIC_PLATFORMS.has(platform)) {
     throw new HttpsError(
       "invalid-argument",
-      "platform must be one of: youtube, instagram, tiktok, facebook, twitch."
+      "platform must be one of: youtube, instagram, tiktok, facebook, twitch, linkedin."
     );
   }
   if (typeof objectives !== "string" || !objectives.trim()) {
@@ -126,12 +126,9 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   const wantsExtension =
     platform === "instagram" && useBrowserExtension === true;
 
-  // Only the extension runner enforces size bands today, so a tier on a worker
-  // mission would be a promise we do not keep.
-  const tier =
-    wantsExtension && isOpticAudienceTier(audienceTier) ?
-      audienceTier :
-      OPTIC_DEFAULT_AUDIENCE_TIER;
+  const tier = isOpticAudienceTier(audienceTier)
+    ? audienceTier
+    : OPTIC_DEFAULT_AUDIENCE_TIER;
 
   let fullBrand: AgencyBrandContext;
   try {
