@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verza — How we work together</title>
+  <meta name="description" content="Client walkthrough: Verza as a managed creator operations arm. First 90 days, then the always-on loop." />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0B100E;
+      --ink-2: #121A17;
+      --ink-3: #1A2420;
+      --evergreen: #0E7C5A;
+      --emerald: #16C088;
+      --mist: #96A29C;
+      --paper: #E8EEEA;
+      --paper-dim: #B8C4BE;
+      --radius: 1.25rem;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-optical-sizing: auto;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 124, 90, 0.28), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(22, 192, 136, 0.12), transparent 50%),
+        var(--ink);
+      min-height: 100vh;
+    }
+
+    .deck-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(11, 16, 14, 0.92), transparent);
+      pointer-events: none;
+    }
+
+    .deck-nav a,
+    .deck-nav .brand,
+    .deck-nav .nav-actions { pointer-events: auto; }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .export-pdf {
+      appearance: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      border: 0;
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+    }
+
+    .export-pdf:hover { filter: brightness(1.06); }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--paper);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img { width: 28px; height: auto; }
+
+    .nav-meta {
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-meta strong {
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      z-index: 50;
+      transition: width 120ms linear;
+    }
+
+    .slide {
+      min-height: 100vh;
+      min-height: 100dvh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5.5rem 1.5rem 4rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .slide::before {
+      content: attr(data-n);
+      position: absolute;
+      top: 5.25rem;
+      right: 1.5rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      color: var(--mist);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 1.25rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 1.5rem;
+      height: 1px;
+      background: var(--emerald);
+    }
+
+    h1, h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 6.5vw, 4.4rem);
+      max-width: 16ch;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4.6vw, 3.2rem);
+      max-width: 22ch;
+      margin-bottom: 1rem;
+    }
+
+    .lede {
+      font-size: clamp(1.02rem, 1.9vw, 1.22rem);
+      color: var(--paper-dim);
+      max-width: 42rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .lede strong { color: var(--paper); font-weight: 600; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.04em;
+    }
+
+    .legend b { color: var(--emerald); font-weight: 600; }
+
+    .fn-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr auto 1fr;
+      gap: 0.4rem;
+      align-items: stretch;
+      margin-top: 0.5rem;
+    }
+
+    .fn {
+      background: rgba(26, 36, 32, 0.82);
+      border: 1px solid rgba(152, 162, 156, 0.18);
+      border-radius: 1rem;
+      padding: 0.85rem 0.8rem 0.95rem;
+      min-width: 0;
+    }
+
+    .fn .io {
+      display: block;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin-bottom: 0.35rem;
+    }
+
+    .fn h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+    }
+
+    .fn .out {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-top: 0.45rem;
+    }
+
+    .arr {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--emerald);
+      font-size: 1.15rem;
+      font-weight: 600;
+      width: 1.1rem;
+    }
+
+    .loop-bar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.85rem;
+      padding: 0.7rem 1rem;
+      border: 1px dashed rgba(22, 192, 136, 0.45);
+      border-radius: 999px;
+      color: var(--paper-dim);
+      font-size: 0.82rem;
+    }
+
+    .loop-bar strong { color: var(--paper); }
+
+    .loop-mark {
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .clocks {
+      display: grid;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (min-width: 800px) {
+      .clocks { grid-template-columns: 1fr 1fr; }
+    }
+
+    .clock {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.4rem;
+    }
+
+    .clock.live {
+      border-color: rgba(22, 192, 136, 0.4);
+      background: rgba(14, 124, 90, 0.12);
+    }
+
+    .clock .when {
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.45rem;
+    }
+
+    .clock h3 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.7rem;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .clock p { color: var(--mist); font-size: 0.92rem; }
+    .clock p strong { color: var(--paper); }
+
+    .rail {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      margin-top: 1.5rem;
+      position: relative;
+    }
+
+    .rail::before {
+      content: "";
+      position: absolute;
+      top: 0.85rem;
+      left: 8%;
+      right: 8%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      opacity: 0.55;
+    }
+
+    .station {
+      text-align: center;
+      padding: 0 0.6rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .dot {
+      width: 1.05rem;
+      height: 1.05rem;
+      margin: 0 auto 0.75rem;
+      border-radius: 999px;
+      background: var(--emerald);
+      box-shadow: 0 0 0 6px rgba(22, 192, 136, 0.16);
+    }
+
+    .station .when {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .station h3 { font-size: 1rem; margin-bottom: 0.3rem; }
+    .station p { font-size: 0.82rem; color: var(--mist); }
+
+    .grid-2, .grid-3, .grid-5 {
+      display: grid;
+      gap: 0.85rem;
+      margin-top: 1rem;
+    }
+
+    @media (min-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr 1fr; }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (min-width: 960px) {
+      .grid-5 { grid-template-columns: repeat(5, 1fr); }
+    }
+
+    .card {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.2rem;
+    }
+
+    .card h3 {
+      font-size: 0.98rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .card p { font-size: 0.86rem; color: var(--mist); }
+    .card p strong { color: var(--paper); }
+
+    .card .label {
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .roles {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (min-width: 800px) {
+      .roles { grid-template-columns: 1fr 1.4fr 1fr; }
+    }
+
+    .role {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.2rem 1.25rem;
+    }
+
+    .role.you { border-color: rgba(22, 192, 136, 0.45); }
+    .role .who {
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+
+    .role h3 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.45rem;
+      font-weight: 400;
+      margin-bottom: 0.55rem;
+    }
+
+    .role ul {
+      list-style: none;
+      color: var(--mist);
+      font-size: 0.86rem;
+    }
+
+    .role li { margin: 0.35rem 0; padding-left: 0.9rem; position: relative; }
+    .role li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: var(--emerald);
+      font-size: 0.75rem;
+    }
+
+    .handoff {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.85rem;
+      align-items: stretch;
+      margin-top: 1rem;
+    }
+
+    .handoff .box {
+      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid rgba(152, 162, 156, 0.16);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+    }
+
+    .handoff .box h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
+    .handoff .box p { font-size: 0.86rem; color: var(--mist); }
+    .handoff .box .label {
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .note {
+      margin-top: 1.35rem;
+      padding: 0.9rem 1.05rem;
+      border-left: 2px solid var(--emerald);
+      background: rgba(14, 124, 90, 0.1);
+      color: var(--paper-dim);
+      font-size: 0.88rem;
+      max-width: 46rem;
+    }
+
+    .note strong { color: var(--paper); }
+
+    .goal {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: baseline;
+      margin-top: 0.75rem;
+    }
+
+    .goal .n {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 4.2rem;
+      line-height: 0.9;
+      color: var(--emerald);
+    }
+
+    .goal p {
+      max-width: 28rem;
+      color: var(--paper-dim);
+      font-size: 1.05rem;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.75rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 1.35rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
+      color: var(--ink);
+    }
+
+    .btn-ghost {
+      border: 1px solid rgba(152, 162, 156, 0.3);
+      color: var(--paper);
+    }
+
+    .foot {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--mist);
+      letter-spacing: 0.04em;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mist);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .cta-person {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      color: var(--paper-dim);
+      font-size: 0.92rem;
+    }
+
+    .cta-person img {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      object-fit: cover;
+    }
+
+    .cta-person strong { color: var(--paper); }
+
+    @media (max-width: 900px) {
+      .fn-row {
+        grid-template-columns: 1fr;
+      }
+      .arr { transform: rotate(90deg); width: auto; height: 1.1rem; }
+      .rail { grid-template-columns: 1fr; gap: 1.1rem; }
+      .rail::before { display: none; }
+      .handoff { grid-template-columns: 1fr; }
+    }
+
+    @page { size: 13.333in 7.5in; margin: 0; }
+
+    @media print {
+      html {
+        scroll-snap-type: none;
+        background: #0B100E;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .deck-nav, .progress, .hint, .export-pdf { display: none !important; }
+      .slide {
+        width: 13.333in;
+        height: 7.5in;
+        max-width: none;
+        min-height: 0;
+        margin: 0;
+        padding: 0.6in 0.7in 0.5in;
+        justify-content: center;
+        overflow: hidden;
+        break-after: page;
+        page-break-after: always;
+      }
+      .slide:last-child { break-after: auto; page-break-after: auto; }
+      .slide::before { top: 0.42in; right: 0.7in; }
+      h1 { font-size: 2.2rem; }
+      h2 { font-size: 1.65rem; margin-bottom: 0.55rem; }
+      .lede { font-size: 0.92rem; margin-bottom: 0.75rem; }
+      .fn { padding: 0.65rem 0.6rem; }
+      .fn h3 { font-size: 0.85rem; }
+      .card, .clock, .role { padding: 0.75rem 0.85rem; }
+      .card p, .clock p, .role li, .station p { font-size: 0.76rem; }
+      .goal .n { font-size: 3.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="deck-nav">
+    <a class="brand" href="https://tryverza.com">
+      <img src="/verza-icon.svg" alt="" width="28" height="20" />
+      Verza
+    </a>
+    <div class="nav-actions">
+      <div class="nav-meta">How we work · <strong>Activation quarter</strong></div>
+      <button type="button" class="export-pdf" id="export-pdf">Export PDF</button>
+    </div>
+  </header>
+  <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
+
+  <section class="slide cover" data-n="01 / 10" id="cover">
+    <p class="eyebrow">Client walkthrough · Process, not a pitch</p>
+    <h1>How we actually start working together.</h1>
+    <p class="lede">
+      Verza is your <strong>fully managed creator operations arm</strong>. This is the sequence we run —
+      who does what, what gets handed off, and what “done” looks like in the first 90 days and after.
+    </p>
+    <p class="legend">
+      <span><b>Box</b> = a function (takes an input, produces an output)</span>
+      <span><b>→</b> = a handoff</span>
+      <span><b>Loop</b> = what we reuse once the message works</span>
+    </p>
+    <p class="foot">tryverza.com · serge@tryverza.com · Confidential · Companion to the services deck</p>
+  </section>
+
+  <section class="slide" data-n="02 / 10" id="clocks">
+    <p class="eyebrow">Two clocks</p>
+    <h2>A quarter to lock the motion. Then we run it on purpose.</h2>
+    <div class="clocks">
+      <div class="clock live">
+        <p class="when">Days 1–90 · Activation</p>
+        <h3>Prove the machine</h3>
+        <p>
+          We find, paper, brief, and ship a first cohort. Target: commercially reasonable efforts to
+          onboard <strong>up to three creators</strong>. You leave the quarter with a roster, a
+          message that has been in market, and a paper trail — not a strategy deck.
+        </p>
+      </div>
+      <div class="clock">
+        <p class="when">Day 91+ · Always-on</p>
+        <h3>Repeat what converted</h3>
+        <p>
+          Briefs get shorter because the story is dialed. Campaigns get more consistent because
+          contracting, UTMs, and reporting already exist. We scale spend and roster on the
+          <strong>same category story</strong> — not a rebrand every month.
+        </p>
+      </div>
+    </div>
+    <p class="note">
+      The commercial split stays the same in both clocks: a <strong>management fee</strong> to run
+      the arm, a <strong>media envelope</strong> to book the voices. This walkthrough is the work,
+      not the invoice.
+    </p>
+  </section>
+
+  <section class="slide" data-n="03 / 10" id="loop">
+    <p class="eyebrow">The operating loop</p>
+    <h2>Five functions. Every campaign runs this line.</h2>
+    <p class="legend">
+      <span>Read left to right. Each box is a process: <b>in</b> → work → <b>out</b>.</span>
+    </p>
+    <div class="fn-row" aria-label="Creator operations process">
+      <article class="fn">
+        <span class="io">In · brief + buyers</span>
+        <h3>Source</h3>
+        <span class="out">Out · vetted shortlist</span>
+      </article>
+      <div class="arr" aria-hidden="true">→</div>
+      <article class="fn">
+        <span class="io">In · shortlist</span>
+        <h3>Contract</h3>
+        <span class="out">Out · rate, usage, dates</span>
+      </article>
+      <div class="arr" aria-hidden="true">→</div>
+      <article class="fn">
+        <span class="io">In · brand rails</span>
+        <h3>Brief</h3>
+        <span class="out">Out · talking points</span>
+      </article>
+      <div class="arr" aria-hidden="true">→</div>
+      <article class="fn">
+        <span class="io">In · calendar</span>
+        <h3>Ops</h3>
+        <span class="out">Out · live + verified</span>
+      </article>
+      <div class="arr" aria-hidden="true">→</div>
+      <article class="fn">
+        <span class="io">In · UTMs + codes</span>
+        <h3>Track</h3>
+        <span class="out">Out · cohort report</span>
+      </article>
+    </div>
+    <div class="loop-bar">
+      <p>
+        What the report teaches goes back into <strong>Source</strong> and <strong>Brief</strong>.
+        After day 90 that dashed line is the job: same story, better targeting, more consistent ship dates.
+      </p>
+      <span class="loop-mark">↺ Learn</span>
+    </div>
+  </section>
+
+  <section class="slide" data-n="04 / 10" id="roles">
+    <p class="eyebrow">Who owns the box</p>
+    <h2>You approve. We operate. Creators stay authentic.</h2>
+    <div class="roles">
+      <div class="role you">
+        <p class="who">You</p>
+        <h3>Decide</h3>
+        <ul>
+          <li>Category, buyers, and what “won” looks like this quarter</li>
+          <li>Approve every face before we contract</li>
+          <li>Sign brand-safety and claims</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="who">Verza</p>
+        <h3>Run the arm</h3>
+        <ul>
+          <li>Source, negotiate, paper, brief, calendar, UTMs, payouts</li>
+          <li>Verify posts actually went live</li>
+          <li>Show the cohort in the platform</li>
+        </ul>
+      </div>
+      <div class="role">
+        <p class="who">Creator</p>
+        <h3>Make the work</h3>
+        <ul>
+          <li>Voice stays theirs</li>
+          <li>Rails stay yours</li>
+          <li>Links and codes are unique to them</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">Nothing ships that you have not approved. No surprise talent in week six.</p>
+  </section>
+
+  <section class="slide" data-n="05 / 10" id="phase-a">
+    <p class="eyebrow">Days 1–14 · Source</p>
+    <h2>Lock the brief. Put names on a page you can say yes to.</h2>
+    <div class="handoff">
+      <div class="box">
+        <p class="label">Input</p>
+        <h3>Your category and buyer</h3>
+        <p>Who must hear this, channels that fit, voices you already trust or want avoided, and the outcome that would make the quarter worth it.</p>
+      </div>
+      <div class="arr" aria-hidden="true">→</div>
+      <div class="box">
+        <p class="label">Output you approve</p>
+        <h3>A ranked shortlist</h3>
+        <p>We match and outreach. You greenlight the roster before a contract or a dollar of media moves. Matching starts within 48 hours of paper.</p>
+      </div>
+    </div>
+    <p class="note">
+      Phase 1 target: commercially reasonable efforts to recruit and onboard <strong>up to three creators</strong>.
+      That is a working cohort — not a promise that three posts exist on day 14.
+    </p>
+  </section>
+
+  <section class="slide" data-n="06 / 10" id="phase-b">
+    <p class="eyebrow">Days 15–45 · Contract + Brief</p>
+    <h2>Paper the deal. Write the rails. Production can start.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <p class="label">Function · Contract</p>
+        <h3>Rate, usage, deliverables</h3>
+        <p>
+          We negotiate creator rates, usage windows, and what actually ships. You see the terms.
+          We hold the paper trail on Verza — including payouts when work is accepted.
+        </p>
+      </div>
+      <div class="card">
+        <p class="label">Function · Brief</p>
+        <h3>Messaging + brand safety</h3>
+        <p>
+          Talking points, proof, and what they must not say. The creator still sounds like themselves.
+          Your claims stay accurate. This is the pack that later campaigns reuse.
+        </p>
+      </div>
+    </div>
+    <p class="note">
+      If the brief needs an <strong>anchor</strong> — a long-form conversation or flagship piece — it
+      is scoped here so native posts have something real to react to, not a slogan.
+    </p>
+  </section>
+
+  <section class="slide" data-n="07 / 10" id="phase-c">
+    <p class="eyebrow">Days 46–90 · Ops + Track</p>
+    <h2>Ship on a calendar. Prove it went live. Read the cohort.</h2>
+    <div class="grid-2">
+      <div class="card">
+        <p class="label">Function · Deliverable ops</p>
+        <h3>Dates, posting, UTMs</h3>
+        <p>
+          Timeline management, posting verification, unique links and promo codes per creator.
+          If it did not go live, it is not “delivered.”
+        </p>
+      </div>
+      <div class="card">
+        <p class="label">Function · Analytics</p>
+        <h3>The platform is the close-out</h3>
+        <p>
+          You get cohort and performance tracking in Verza — views next to clicks and conversions
+          where the offer supports it. The quarter ends with what to scale, not a screenshot dump.
+        </p>
+      </div>
+    </div>
+    <div class="rail">
+      <div class="station">
+        <div class="dot" aria-hidden="true"></div>
+        <p class="when">Live</p>
+        <h3>Work ships</h3>
+        <p>On the dates we contracted</p>
+      </div>
+      <div class="station">
+        <div class="dot" aria-hidden="true"></div>
+        <p class="when">Verify</p>
+        <h3>We check the URL</h3>
+        <p>Post, link, code, UTM</p>
+      </div>
+      <div class="station">
+        <div class="dot" aria-hidden="true"></div>
+        <p class="when">Close</p>
+        <h3>You read the cohort</h3>
+        <p>What converted, what to repeat</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-n="08 / 10" id="sow">
+    <p class="eyebrow">Mapped to the SOW</p>
+    <h2>Same five deliverables. Now you can see the sequence.</h2>
+    <div class="grid-5">
+      <div class="card">
+        <p class="label">1</p>
+        <h3>Sourcing &amp; outreach</h3>
+        <p>Identify and vet. You approve the list.</p>
+      </div>
+      <div class="card">
+        <p class="label">2</p>
+        <h3>Negotiation &amp; contracting</h3>
+        <p>Rates, usage rights, deliverables.</p>
+      </div>
+      <div class="card">
+        <p class="label">3</p>
+        <h3>Creative briefs</h3>
+        <p>Messaging guidelines and brand-safety rails.</p>
+      </div>
+      <div class="card">
+        <p class="label">4</p>
+        <h3>Deliverable ops</h3>
+        <p>Timeline, posting verification, UTM setup.</p>
+      </div>
+      <div class="card">
+        <p class="label">5</p>
+        <h3>Tracking &amp; analytics</h3>
+        <p>Platform access for cohort and performance.</p>
+      </div>
+    </div>
+    <div class="goal">
+      <div class="n">3</div>
+      <p>
+        <strong style="color:var(--paper)">Initial-phase target.</strong> Commercially reasonable
+        efforts to recruit and onboard up to three creators. The number is a working cohort so we
+        can learn — not a vanity roster.
+      </p>
+    </div>
+  </section>
+
+  <section class="slide" data-n="09 / 10" id="after">
+    <p class="eyebrow">Day 91 onward</p>
+    <h2>The loop does not restart. The message gets cheaper to run.</h2>
+    <div class="clocks">
+      <div class="clock">
+        <p class="when">What is already done</p>
+        <h3>Rails exist</h3>
+        <p>
+          Contracts, usage language, UTM scheme, and a brief that has been in market. We are not
+          inventing a process — we are booking the next wave against a known story.
+        </p>
+      </div>
+      <div class="clock live">
+        <p class="when">What changes</p>
+        <h3>Cadence, not category</h3>
+        <p>
+          More consistent campaigns: same talking points, tighter targeting, more ship dates.
+          If Phase 1 proved LinkedIn and X, we do more of that before we invent a new channel mix.
+        </p>
+      </div>
+    </div>
+    <div class="loop-bar">
+      <p>
+        <strong>Track → Brief → Source</strong> is now a monthly rhythm. You still approve faces.
+        We still operate the arm. The difference is speed: the first quarter paid for the setup.
+      </p>
+      <span class="loop-mark">↺ Always-on</span>
+    </div>
+  </section>
+
+  <section class="slide" data-n="10 / 10" id="next">
+    <p class="eyebrow">On this call</p>
+    <h2>Walk the first handoff. Then we put it on paper.</h2>
+    <div class="grid-3">
+      <div class="card">
+        <p class="label">Today</p>
+        <h3>Align on the buyer</h3>
+        <p>Category, channels, and what would make 90 days a success — including the three-creator target.</p>
+      </div>
+      <div class="card">
+        <p class="label">Then</p>
+        <h3>Activation agreement</h3>
+        <p>Management fee, media envelope, usage, reporting. Same commercial shape as the services deck.</p>
+      </div>
+      <div class="card">
+        <p class="label">Within 48 hours of paper</p>
+        <h3>Source starts</h3>
+        <p>Matching and outreach. You see names before anyone is contracted.</p>
+      </div>
+    </div>
+    <div class="cta-person">
+      <img src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="48" height="48" />
+      <p>This walkthrough is with <strong>Serge</strong>. The next artifact is paper, then a shortlist.</p>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:serge@tryverza.com?subject=Activation%20quarter%20%C2%B7%20how%20we%20work">Start the Activation quarter</a>
+      <a class="btn btn-ghost" href="/pitch-services.html">Services deck</a>
+    </div>
+    <p class="foot">serge@tryverza.com · tryverza.com · © Verza · Confidential</p>
+  </section>
+
+  <script>
+    (function () {
+      const progress = document.getElementById("progress");
+      const hint = document.getElementById("hint");
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      function updateProgress() {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+        progress.style.width = pct + "%";
+        if (window.scrollY > 80) hint.style.opacity = "0";
+      }
+      window.addEventListener("scroll", updateProgress, { passive: true });
+      updateProgress();
+      function go(delta) {
+        const y = window.scrollY + window.innerHeight * 0.35;
+        let idx = slides.findIndex((s, i) => {
+          const next = slides[i + 1];
+          return y >= s.offsetTop && (!next || y < next.offsetTop);
+        });
+        if (idx < 0) idx = 0;
+        const target = slides[Math.max(0, Math.min(slides.length - 1, idx + delta))];
+        target.scrollIntoView({ behavior: "smooth" });
+      }
+      window.addEventListener("keydown", (e) => {
+        if (["ArrowDown", "PageDown", " ", "j"].includes(e.key)) { e.preventDefault(); go(1); }
+        else if (["ArrowUp", "PageUp", "k"].includes(e.key)) { e.preventDefault(); go(-1); }
+        else if (e.key === "Home") { e.preventDefault(); slides[0].scrollIntoView({ behavior: "smooth" }); }
+        else if (e.key === "End") { e.preventDefault(); slides[slides.length - 1].scrollIntoView({ behavior: "smooth" }); }
+      });
+      const exportBtn = document.getElementById("export-pdf");
+      if (exportBtn) exportBtn.addEventListener("click", () => window.print());
+    })();
+  </script>
+</body>
+</html>
