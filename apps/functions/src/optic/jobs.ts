@@ -6,9 +6,11 @@ import {loadAgencyBrandContextForUid, type AgencyBrandContext} from "./agencyCon
 import {
   OPTIC_DEFAULT_AUDIENCE_TIER,
   OPTIC_DEFAULT_BATCH_SIZE,
+  OPTIC_EXTENSION_PLATFORMS,
   OPTIC_MAX_BATCH_SIZE,
   OPTIC_PLATFORMS,
   isOpticAudienceTier,
+  opticPlatformLabel,
 } from "./constants";
 import {continueMissionForUid} from "./continuation";
 import {assertSufficientOpticCredits} from "./credits";
@@ -96,7 +98,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
   if (typeof platform !== "string" || !OPTIC_PLATFORMS.has(platform)) {
     throw new HttpsError(
       "invalid-argument",
-      "platform must be one of: youtube, instagram, tiktok, facebook, twitch, linkedin."
+      "platform must be one of: youtube, instagram, tiktok, facebook, twitch, linkedin, twitter."
     );
   }
   if (typeof objectives !== "string" || !objectives.trim()) {
@@ -124,7 +126,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
     typeof campaignId === "string" && campaignId.trim() ? campaignId.trim() : null;
 
   const wantsExtension =
-    platform === "instagram" && useBrowserExtension === true;
+    OPTIC_EXTENSION_PLATFORMS.has(platform) && useBrowserExtension === true;
 
   const tier = isOpticAudienceTier(audienceTier)
     ? audienceTier
@@ -168,7 +170,7 @@ export const enqueueOpticDiscoveryJob = onCall(async (request) => {
         ts: Timestamp.now(),
         phase: "enqueue",
         message: wantsExtension
-          ? "Mission queued — open Instagram in Chrome with the Optic extension installed."
+          ? `Mission queued — open ${opticPlatformLabel(platform)} in Chrome with the Optic extension installed.`
           : "Your scout is queued and will start shortly.",
       },
     ],

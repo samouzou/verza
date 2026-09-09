@@ -19,6 +19,7 @@ function searchBudget(targetSaved: number) {
     facebookPages: Math.min(36, Math.max(12, Math.ceil(t * 2))),
     twitchChannels: Math.min(48, Math.max(12, Math.ceil(t * 2))),
     linkedinProfiles: Math.min(48, Math.max(12, Math.ceil(t * 2))),
+    twitterProfiles: Math.min(48, Math.max(12, Math.ceil(t * 2))),
   };
 }
 
@@ -39,7 +40,9 @@ export async function generateSeedLeads(
     Based on these campaign objectives: "${objectives}",
     ${clientLine}
     provide a list of ${seedAsk} real, high-quality creators on ${platform} who would be a strong fit.
-    Include their full profile URL.
+    Include their full profile URL${
+      platform === "twitter" ? " as https://x.com/{handle} (not tweet permalinks)" : ""
+    }.
     Return the result strictly as a JSON array of objects with "name" and "url" keys.
     Do not include any markdown formatting.
   `;
@@ -234,6 +237,44 @@ export async function findCreators(
         return out.slice(0, cap);
       }, budget.linkedinProfiles);
       urls.push(...peopleUrls);
+    } else if (platform === "twitter") {
+      await page.goto(
+        `https://x.com/search?q=${encodeURIComponent(query)}&f=user`,
+        {timeout: 45_000}
+      );
+      await new Promise((r) => setTimeout(r, 4000));
+      const twitterUrls = await page.evaluate((cap: number) => {
+        const out: string[] = [];
+        const skip = new Set([
+          "home",
+          "search",
+          "explore",
+          "settings",
+          "i",
+          "intent",
+          "compose",
+          "messages",
+          "notifications",
+          "login",
+          "tos",
+          "privacy",
+          "hashtag",
+          "jobs",
+        ]);
+        document.querySelectorAll('a[href*="x.com/"], a[href*="twitter.com/"]').forEach((a) => {
+          try {
+            const u = new URL((a as HTMLAnchorElement).href, location.origin);
+            const seg = u.pathname.split("/").filter(Boolean)[0];
+            if (!seg || skip.has(seg.toLowerCase()) || seg.startsWith("i")) return;
+            const href = `https://x.com/${seg}`;
+            if (!out.includes(href)) out.push(href);
+          } catch {
+            /* ignore */
+          }
+        });
+        return out.slice(0, cap);
+      }, budget.twitterProfiles);
+      urls.push(...twitterUrls);
     }
 
     return urls;

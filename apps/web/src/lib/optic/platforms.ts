@@ -6,6 +6,7 @@ export const OPTIC_PLATFORMS = [
   { value: "facebook", label: "Facebook" },
   { value: "twitch", label: "Twitch" },
   { value: "linkedin", label: "LinkedIn" },
+  { value: "twitter", label: "X" },
 ] as const;
 
 export type OpticPlatformSlug = (typeof OPTIC_PLATFORMS)[number]["value"];
@@ -17,6 +18,8 @@ const CAMPAIGN_TO_OPTIC: Record<string, OpticPlatformSlug> = {
   facebook: "facebook",
   twitch: "twitch",
   linkedin: "linkedin",
+  x: "twitter",
+  twitter: "twitter",
 };
 
 /** Maps a campaign platform name to an Optic slug, or null if unknown. */
@@ -39,4 +42,11 @@ export function opticPlatformLabel(slug: string | undefined): string {
   if (found) return found.label;
   if (!slug) return "Unknown";
   return slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
+/** Platforms that can run in the user's signed-in Chrome session. */
+export const OPTIC_BROWSER_PLATFORMS = ["instagram", "linkedin", "twitter"] as const;
+
+export function isOpticBrowserPlatform(slug: string): boolean {
+  return (OPTIC_BROWSER_PLATFORMS as readonly string[]).includes(slug);
 }

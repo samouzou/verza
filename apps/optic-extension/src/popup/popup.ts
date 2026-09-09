@@ -10,7 +10,7 @@ chrome.runtime.sendMessage({ type: "OPTIC_GET_STATUS" }, (res) => {
   }
   if (res?.running) {
     statusEl.textContent =
-      "Searching Instagram now. You can keep working in other tabs — just leave Chrome open.";
+      "Searching now. You can keep working in other tabs — just leave Chrome open.";
     statusEl.classList.add("running");
     return;
   }

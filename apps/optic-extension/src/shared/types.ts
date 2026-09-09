@@ -55,6 +55,8 @@ export type ScrapedInstagramProfile = {
   avatarUrl: string | null;
   /** Compressed jpeg data URL for durable Storage upload. */
   avatarDataUrl: string | null;
+  /** Canonical profile URL when already resolved (LinkedIn / X). */
+  profileUrl?: string | null;
 };
 
 /** Follower bounds and quality rules the extension applies before submitting a lead. */
@@ -66,4 +68,4 @@ export type ExtensionAudienceFilter = {
   poolMultiplier: number;
 };
 
-export const EXTENSION_VERSION = "0.1.7";
+export const EXTENSION_VERSION = "0.2.0";

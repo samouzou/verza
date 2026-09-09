@@ -10,6 +10,7 @@ import {
 } from "@/lib/optic/extension-bridge";
 import type { OpticExtensionProgress, OpticJobRow } from "@/lib/optic/types";
 import { isOpticJobInFlight } from "@/lib/optic/types";
+import { opticPlatformLabel } from "@/lib/optic/platforms";
 
 const PHASE_LABELS: Record<string, string> = {
   prepare: "Getting ready",
@@ -68,7 +69,9 @@ export function OpticExtensionProgressCard({ job }: Props) {
     <div className="rounded-lg border border-violet-200/80 bg-violet-50/50 p-3 dark:border-violet-900/50 dark:bg-violet-950/30">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <Chrome className="h-4 w-4 text-violet-600" />
-        <span className="text-sm font-medium">Searching Instagram in your browser</span>
+        <span className="text-sm font-medium">
+          Searching {opticPlatformLabel(job.platform)} in your browser
+        </span>
         <Badge variant="secondary" className="gap-1">
           <Loader2 className="h-3 w-3 animate-spin" />
           {phaseLabel}

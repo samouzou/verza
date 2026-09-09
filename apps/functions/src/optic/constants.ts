@@ -10,7 +10,7 @@ export const OPTIC_MAX_BATCH_SIZE = 100;
  */
 export const OPTIC_MAX_WORKER_BATCH_SIZE = 25;
 
-/** Discovery platforms (campaign launch set, including LinkedIn people search). */
+/** Discovery platforms (campaign launch set, including LinkedIn and X). */
 export const OPTIC_PLATFORM_SLUGS = [
   "youtube",
   "instagram",
@@ -18,9 +18,36 @@ export const OPTIC_PLATFORM_SLUGS = [
   "facebook",
   "twitch",
   "linkedin",
+  "twitter",
 ] as const;
 
 export const OPTIC_PLATFORMS = new Set<string>(OPTIC_PLATFORM_SLUGS);
+
+/** Platforms that can run in the user's signed-in Chrome session. */
+export const OPTIC_EXTENSION_PLATFORM_SLUGS = ["instagram", "linkedin", "twitter"] as const;
+
+export const OPTIC_EXTENSION_PLATFORMS = new Set<string>(OPTIC_EXTENSION_PLATFORM_SLUGS);
+
+export function opticPlatformLabel(slug: string): string {
+  switch (slug) {
+    case "youtube":
+      return "YouTube";
+    case "instagram":
+      return "Instagram";
+    case "tiktok":
+      return "TikTok";
+    case "facebook":
+      return "Facebook";
+    case "twitch":
+      return "Twitch";
+    case "linkedin":
+      return "LinkedIn";
+    case "twitter":
+      return "X";
+    default:
+      return slug;
+  }
+}
 
 /**
  * Audience size bands for discovery. `any` still floors at 100 so hashtag noise

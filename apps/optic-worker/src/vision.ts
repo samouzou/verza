@@ -45,6 +45,8 @@ function dmStyleHint(platform: string): string {
       "Twitch DM: casual streamer-to-brand tone (2–3 sentences). No subject line.",
     linkedin:
       "LinkedIn message: professional and specific (2–3 sentences). No subject line. Name the mutual fit, not a spray pitch.",
+    twitter:
+      "X/Twitter DM: short and specific (1–2 sentences). No subject line. Sound like a person, not a brand blast.",
   };
   return hints[platform] ?? "Platform DM: short, friendly, no subject line (2–3 sentences).";
 }

@@ -22,15 +22,16 @@ import {
   pingOpticExtension,
   type OpticExtensionStatus,
 } from "@/lib/optic/extension-bridge";
+import { isOpticBrowserPlatform, opticPlatformLabel } from "@/lib/optic/platforms";
 
 type Props = {
-  instagramSelected: boolean;
+  platform: string;
   useExtension: boolean;
   onUseExtensionChange: (value: boolean) => void;
 };
 
 export function OpticBrowserExtensionCard({
-  instagramSelected,
+  platform,
   useExtension,
   onUseExtensionChange,
 }: Props) {
@@ -38,6 +39,8 @@ export function OpticBrowserExtensionCard({
   const [checking, setChecking] = useState(true);
   const installUrl = getOpticExtensionPrimaryInstallUrl();
   const fromStore = isChromeWebStoreInstall();
+  const selected = isOpticBrowserPlatform(platform);
+  const label = opticPlatformLabel(platform);
 
   const refresh = useCallback(async () => {
     setChecking(true);
@@ -77,20 +80,19 @@ export function OpticBrowserExtensionCard({
     };
   }, [refresh]);
 
-  if (!instagramSelected) return null;
+  if (!selected) return null;
 
   return (
     <Card className="border-violet-200/80 bg-violet-50/40 dark:border-violet-900/50 dark:bg-violet-950/20">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Chrome className="h-4 w-4 text-violet-600" />
-          Search Instagram from your own browser
+          Search {label} from your own browser
         </CardTitle>
         <CardDescription>
-          Instagram only shows follower counts, bios, and contact details to people who
-          are signed in. Verza Optic Scout is a small Chrome add-on that lets Optic look
-          through your own signed-in window, so you get the real numbers. It never sees
-          your Instagram password.
+          {label} login-walls public search. Verza Optic Scout is a small Chrome add-on
+          that lets Optic look through your own signed-in window, so you get follower
+          counts, bios, and contact details. It never sees your {label} password.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -110,7 +112,7 @@ export function OpticBrowserExtensionCard({
             <Badge variant="destructive">Not added to Chrome yet</Badge>
           )}
           {status.running && (
-            <Badge variant="secondary">Searching Instagram now</Badge>
+            <Badge variant="secondary">Searching {label} now</Badge>
           )}
         </div>
 
@@ -123,7 +125,7 @@ export function OpticBrowserExtensionCard({
         {!status.installed && !status.needsRefresh && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Add Verza Optic Scout to Chrome, sign in to Instagram, then come back to
+              Add Verza Optic Scout to Chrome, sign in to {label}, then come back to
               this page. It only takes a minute.
             </p>
             <div className="flex flex-wrap gap-2">
@@ -160,10 +162,10 @@ export function OpticBrowserExtensionCard({
             onChange={(e) => onUseExtensionChange(e.target.checked)}
           />
           <span className="text-sm">
-            <span className="font-medium">Search Instagram using my browser</span>
+            <span className="font-medium">Search {label} using my browser</span>
             <span className="mt-1 block text-muted-foreground">
-              You&apos;ll see a few Instagram tabs open and close while Optic works. Keep
-              Chrome open and stay signed in to Instagram until it finishes.
+              You&apos;ll see a few {label} tabs open and close while Optic works. Keep
+              Chrome open and stay signed in to {label} until it finishes.
             </span>
           </span>
         </label>

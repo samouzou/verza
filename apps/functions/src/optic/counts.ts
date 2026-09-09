@@ -10,7 +10,7 @@ const COUNT_SUFFIXES: Record<string, number> = {k: 1_000, m: 1_000_000, b: 1_000
  */
 export function parseCompactCount(raw: string | null | undefined): number | null {
   if (!raw) return null;
-  const text = raw.trim().toLowerCase().replace(/,/g, "");
+  const text = raw.trim().toLowerCase().replace(/,/g, "").replace(/\+$/, "");
   const match = text.match(/^(\d+(?:\.\d+)?)([kmb])?$/);
   if (!match) return null;
   const value = Number.parseFloat(match[1]);

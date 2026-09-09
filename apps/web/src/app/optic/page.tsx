@@ -58,7 +58,9 @@ import {
 import { startOpticExtensionJob } from "@/lib/optic/extension-bridge";
 import {
   firstOpticPlatformFromCampaign,
+  isOpticBrowserPlatform,
   OPTIC_PLATFORMS,
+  opticPlatformLabel,
 } from "@/lib/optic/platforms";
 import {
   isOpticJobInFlight,
@@ -95,7 +97,7 @@ export default function OpticDiscoveryPage() {
   const [platform, setPlatform] = useState("youtube");
   const [objectives, setObjectives] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(OPTIC_DEFAULT_BATCH_SIZE);
-  const [useInstagramExtension, setUseInstagramExtension] = useState(true);
+  const [useBrowserExtension, setUseBrowserExtension] = useState(true);
   const [audienceTier, setAudienceTier] = useState<OpticAudienceTier>(
     OPTIC_DEFAULT_AUDIENCE_TIER
   );
@@ -221,7 +223,7 @@ export default function OpticDiscoveryPage() {
     setSubmitting(true);
     try {
       const enqueue = httpsCallable(functions, "enqueueOpticDiscoveryJob");
-      const wantsExtension = platform === "instagram" && useInstagramExtension;
+      const wantsExtension = isOpticBrowserPlatform(platform) && useBrowserExtension;
       const res = await enqueue({
         platform,
         objectives: objectives.trim(),
@@ -242,7 +244,7 @@ export default function OpticDiscoveryPage() {
       toast({
         title: wantsExtension ? "Mission started in Chrome" : "Mission started",
         description: wantsExtension
-          ? "Leave Chrome open — you’ll see Instagram tabs open and close while Optic looks around."
+          ? `Leave Chrome open — you’ll see ${opticPlatformLabel(platform)} tabs open and close while Optic looks around.`
           : "Track progress here — we’ll add creators to your vault as we go.",
       });
     } catch (e: unknown) {
@@ -251,7 +253,7 @@ export default function OpticDiscoveryPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [agencyId, audienceTier, campaignId, canRun, handOffToExtension, maxProfiles, objectives, platform, selectJob, toast, useInstagramExtension, user]);
+  }, [agencyId, audienceTier, campaignId, canRun, handOffToExtension, maxProfiles, objectives, platform, selectJob, toast, useBrowserExtension, user]);
 
   const continueNextBatch = useCallback(async () => {
     if (!activeJobId) return;
@@ -403,8 +405,8 @@ export default function OpticDiscoveryPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                YouTube, TikTok, Twitch, Facebook, and LinkedIn run in our scout.
-                Instagram can use your Chrome session for a fuller scrape.
+                YouTube, TikTok, Twitch, and Facebook run in our scout. Instagram, LinkedIn,
+                and X can use your Chrome session for a fuller scrape.
               </p>
             </div>
 
@@ -479,17 +481,17 @@ export default function OpticDiscoveryPage() {
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Up to {OPTIC_MAX_BATCH_SIZE} per batch when you search Instagram from your own
-                browser. Other platforms review up to 25 at a time. To build a bigger list, run
+                Up to {OPTIC_MAX_BATCH_SIZE} per batch when you search Instagram, LinkedIn, or X
+                from your own browser. Other platforms review up to 25 at a time. To build a bigger list, run
                 another batch with <strong>Continue</strong>, or reply <strong>CONTINUE</strong>{" "}
                 to the text we send you.
               </p>
             </div>
 
             <OpticBrowserExtensionCard
-              instagramSelected={platform === "instagram"}
-              useExtension={useInstagramExtension}
-              onUseExtensionChange={setUseInstagramExtension}
+              platform={platform}
+              useExtension={useBrowserExtension}
+              onUseExtensionChange={setUseBrowserExtension}
             />
 
             <div className="space-y-2">
@@ -512,9 +514,8 @@ export default function OpticDiscoveryPage() {
                 <p className="text-xs text-muted-foreground">
                   {OPTIC_AUDIENCE_TIERS[audienceTier].hint}. Anyone outside this range is passed
                   over before they cost you a credit, and we always skip inactive accounts.
-                  {platform === "linkedin"
-                    ? " LinkedIn often login-walls public search — we still score and save public profiles we can open."
-                    : ""}
+                  {(platform === "linkedin" || platform === "twitter") &&
+                    " Public search is thin without a signed-in session — use the browser add-on when you can."}
                 </p>
               </div>
 

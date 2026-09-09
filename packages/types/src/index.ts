@@ -718,7 +718,7 @@ export interface Gig {
   brandLogoUrl?: string | null;
   title: string;
   description: string;
-  platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'Twitch' | 'LinkedIn')[];
+  platforms: ('TikTok' | 'Instagram' | 'YouTube' | 'Facebook' | 'Twitch' | 'LinkedIn' | 'X')[];
   ratePerCreator: number;
   creatorsNeeded: number;
   videosPerCreator: number;

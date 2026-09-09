@@ -35,9 +35,10 @@ export default function OpticExtensionInstallPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Verza Optic Scout</h1>
         </div>
         <p className="text-muted-foreground">
-          A small Chrome add-on that lets Optic find Instagram creators through your own
-          signed-in browser. Instagram only shows follower counts, bios, and contact
-          details to people who are signed in, so this is what gets you the real numbers.
+          A small Chrome add-on that lets Optic find Instagram, LinkedIn, and X creators
+          through your own signed-in browser. Those networks hide follower counts, bios,
+          and contact details from anyone who isn&apos;t signed in, so this is what gets
+          you the real numbers.
         </p>
       </div>
 
@@ -75,13 +76,13 @@ export default function OpticExtensionInstallPage() {
               <li>Open a new tab in Chrome and go to <code className="text-xs">chrome://extensions</code></li>
               <li>Turn on <strong>Developer mode</strong> with the switch in the top-right corner</li>
               <li>Choose <strong>Load unpacked</strong>, then pick the folder you just unzipped</li>
-              <li>Sign in to Instagram in this same Chrome window</li>
+              <li>Sign in to Instagram, LinkedIn, or X in this same Chrome window</li>
               <li>
                 Come back to{" "}
                 <Link href="/optic" className="text-primary underline-offset-4 hover:underline">
                   Optic
                 </Link>
-                , pick Instagram, and choose <strong>Check again</strong>
+                , pick that platform, and choose <strong>Check again</strong>
               </li>
             </ol>
           )}
@@ -89,13 +90,13 @@ export default function OpticExtensionInstallPage() {
           {fromStore && (
             <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
               <li>Choose <strong>Add to Chrome</strong> above and confirm</li>
-              <li>Sign in to Instagram in this same Chrome window</li>
+              <li>Sign in to Instagram, LinkedIn, or X in this same Chrome window</li>
               <li>
                 Open{" "}
                 <Link href="/optic" className="text-primary underline-offset-4 hover:underline">
                   Optic
                 </Link>
-                , pick Instagram, and tick <strong>Search Instagram using my browser</strong>
+                , pick the platform, and tick <strong>Search using my browser</strong>
               </li>
             </ol>
           )}
@@ -108,18 +109,19 @@ export default function OpticExtensionInstallPage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>
-            When you start an Instagram mission in Optic, the add-on opens a few Instagram
-            pages in Chrome and reads what&apos;s publicly on each creator&apos;s profile —
-            their follower count, bio, and any contact details they&apos;ve shared. Good
-            matches get a personalized outreach draft and land in your creator vault.
+            When you start an Instagram, LinkedIn, or X mission in Optic with the browser
+            option on, the add-on opens a few pages in Chrome and reads what&apos;s
+            publicly on each profile — follower count, bio, and any contact details
+            they&apos;ve shared. Good matches get a personalized outreach draft and land
+            in your creator vault.
           </p>
           <p>
-            It works through the Instagram account you&apos;re already signed in to, so you
-            never share your password with Verza. It only reads profiles: it never posts,
+            It works through the account you&apos;re already signed in to, so you never
+            share your password with Verza. It only reads profiles: it never posts,
             comments, follows, or messages anyone on your behalf.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">Instagram only</Badge>
+            <Badge variant="secondary">Instagram, LinkedIn, and X</Badge>
             <Badge variant="secondary">Runs in your browser</Badge>
             <Badge variant="secondary">Never sees your password</Badge>
             <Badge variant="secondary">Reads only — never posts</Badge>

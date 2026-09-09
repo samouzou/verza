@@ -17,6 +17,8 @@ export type ExtensionProfileInput = {
   avatarUrl?: string | null;
   /** Compressed jpeg data URL for durable Storage upload. */
   avatarDataUrl?: string | null;
+  /** Canonical profile URL when the extension already resolved it. */
+  profileUrl?: string | null;
 };
 
 export type ExtensionLeadEnrichment = {
@@ -79,6 +81,12 @@ function dmStyleHint(platform: string): string {
   if (platform === "instagram") {
     return "Instagram DM: warm and concise (2–3 short sentences). No subject line. Light emoji at most one if natural.";
   }
+  if (platform === "linkedin") {
+    return "LinkedIn message: professional and specific (2–3 sentences). No subject line. Name the mutual fit, not a spray pitch.";
+  }
+  if (platform === "twitter") {
+    return "X/Twitter DM: short and specific (1–2 sentences). No subject line. Sound like a person, not a brand blast.";
+  }
   return "Platform DM: short, friendly, no subject line (2–3 sentences).";
 }
 
@@ -116,9 +124,15 @@ const GENERIC_HASHTAGS = new Set([
 ]);
 
 /** Prompt block listing creators already in the vault, so later batches surface new names. */
-function formatExcludeBlock(excludeUsernames: string[] | undefined): string {
+function formatExcludeBlock(
+  excludeUsernames: string[] | undefined,
+  platform = "instagram"
+): string {
   if (!excludeUsernames?.length) return "";
-  const handles = excludeUsernames.map((u) => `@${u}`).join(", ");
+  const handles =
+    platform === "linkedin"
+      ? excludeUsernames.map((u) => `linkedin.com/in/${u}`).join(", ")
+      : excludeUsernames.map((u) => `@${u}`).join(", ");
   return `
 
 Already saved from earlier batches of this mission — do NOT suggest these again, and prefer creators in the same niche who are not on this list:
@@ -171,6 +185,48 @@ export type InstagramExtensionSearchPlan = {
   searchQueries: string[];
   seedProfiles: ExtensionSeedProfile[];
 };
+
+export type ExtensionSearchPlan = InstagramExtensionSearchPlan;
+
+/** Plans browser discovery for Instagram, LinkedIn, or X. */
+export async function planExtensionSearch(
+  platform: string,
+  objectives: string,
+  agencyName: string,
+  brand: OpticJobBrandContext | null | undefined,
+  maxProfiles: number,
+  excludeUsernames?: string[],
+  audienceLabel?: string | null
+): Promise<ExtensionSearchPlan> {
+  if (platform === "linkedin") {
+    return planLinkedInExtensionSearch(
+      objectives,
+      agencyName,
+      brand,
+      maxProfiles,
+      excludeUsernames,
+      audienceLabel
+    );
+  }
+  if (platform === "twitter") {
+    return planTwitterExtensionSearch(
+      objectives,
+      agencyName,
+      brand,
+      maxProfiles,
+      excludeUsernames,
+      audienceLabel
+    );
+  }
+  return planInstagramExtensionSearch(
+    objectives,
+    agencyName,
+    brand,
+    maxProfiles,
+    excludeUsernames,
+    audienceLabel
+  );
+}
 
 export type ExtensionSeedProfile = {
   username: string;
@@ -294,6 +350,184 @@ Rules:
   };
 }
 
+/** Plans LinkedIn people search from the campaign brief. */
+export async function planLinkedInExtensionSearch(
+  objectives: string,
+  agencyName: string,
+  brand: OpticJobBrandContext | null | undefined,
+  maxProfiles: number,
+  excludeUsernames?: string[],
+  audienceLabel?: string | null
+): Promise<ExtensionSearchPlan> {
+  const brief = formatExtensionBriefContext(objectives, agencyName, brand);
+  const seedAsk = Math.min(48, Math.max(12, maxProfiles * 2));
+  const excluded = new Set((excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  const audienceRule = audienceLabel
+    ? `\n- Only suggest people whose follower or connection count fits: ${audienceLabel}`
+    : "";
+
+  const prompt = `You are an expert LinkedIn scout for brand partnerships.
+
+${brief}${formatExcludeBlock(excludeUsernames, "linkedin")}
+
+Plan a discovery mission on LinkedIn People search. Be SPECIFIC to this brief.
+
+Return STRICT JSON only (no markdown):
+{
+  "summary": "One sentence describing the ideal LinkedIn profile for this brief",
+  "searchQueries": ["specific people search phrase", "another niche phrase"],
+  "seedUsernames": [{ "username": "vanity-slug", "reason": "why they fit the brief" }]
+}
+
+Rules:
+- searchQueries: 2-3 distinct 3-6 word phrases for LinkedIn People search
+- seedUsernames: up to ${seedAsk} REAL public LinkedIn people who fit THIS brief
+- username is the LinkedIn /in/ vanity slug only (e.g. "satyanadella"), never a full URL or display name
+- Prefer operators, founders, creators, and practitioners — not recruiters or closed company pages
+- Avoid generic queries like "influencer" or "marketing" unless the brief is truly that broad${audienceRule}`;
+
+  const text = await generateGeminiText(prompt, 0.35);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: {
+    summary?: string;
+    searchQueries?: string[];
+    seedUsernames?: Array<{username?: string; reason?: string}>;
+  } = {};
+  if (jsonMatch) {
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const searchQueries: string[] = [];
+  const querySeen = new Set<string>();
+  for (const raw of parsed.searchQueries ?? []) {
+    const q = cleanSearchQuery(String(raw));
+    if (!q) continue;
+    const key = q.toLowerCase();
+    if (querySeen.has(key)) continue;
+    querySeen.add(key);
+    searchQueries.push(q);
+  }
+
+  const seedProfiles: ExtensionSeedProfile[] = [];
+  const seedSeen = new Set<string>(excluded);
+  for (const row of parsed.seedUsernames ?? []) {
+    const username = String(row.username ?? "")
+      .replace(/^@/, "")
+      .replace(/^\/?in\//, "")
+      .trim();
+    if (!username || seedSeen.has(username.toLowerCase())) continue;
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{1,99}$/.test(username)) continue;
+    seedSeen.add(username.toLowerCase());
+    seedProfiles.push({
+      username,
+      profileUrl: `https://www.linkedin.com/in/${username}`,
+    });
+  }
+
+  if (searchQueries.length === 0) {
+    const fallback = cleanSearchQuery(objectives) ?? objectives.trim().slice(0, 80);
+    if (fallback) searchQueries.push(fallback);
+  }
+
+  return {
+    summary: parsed.summary?.trim() || "Searching LinkedIn for people matching your campaign brief.",
+    hashtags: [],
+    searchQueries: searchQueries.slice(0, 3),
+    seedProfiles: seedProfiles.slice(0, seedAsk),
+  };
+}
+
+/** Plans X people search from the campaign brief. */
+export async function planTwitterExtensionSearch(
+  objectives: string,
+  agencyName: string,
+  brand: OpticJobBrandContext | null | undefined,
+  maxProfiles: number,
+  excludeUsernames?: string[],
+  audienceLabel?: string | null
+): Promise<ExtensionSearchPlan> {
+  const brief = formatExtensionBriefContext(objectives, agencyName, brand);
+  const seedAsk = Math.min(48, Math.max(12, maxProfiles * 2));
+  const excluded = new Set((excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  const audienceRule = audienceLabel
+    ? `\n- Only suggest accounts whose follower count fits: ${audienceLabel}`
+    : "";
+
+  const prompt = `You are an expert X (Twitter) creator scout for brand partnerships.
+
+${brief}${formatExcludeBlock(excludeUsernames, "twitter")}
+
+Plan a discovery mission on X people search. Be SPECIFIC to this brief.
+
+Return STRICT JSON only (no markdown):
+{
+  "summary": "One sentence describing the ideal X account for this brief",
+  "searchQueries": ["specific people search phrase", "another niche phrase"],
+  "seedUsernames": [{ "username": "handle", "reason": "why they fit the brief" }]
+}
+
+Rules:
+- searchQueries: 2-3 distinct 2-5 word phrases for X People search (f=user)
+- seedUsernames: up to ${seedAsk} REAL public X accounts who fit THIS brief (handle without @)
+- Prefer active creators and operators, not brands or news orgs unless the brief asks for them
+- Avoid generic queries like "influencer" unless the brief is truly that broad${audienceRule}`;
+
+  const text = await generateGeminiText(prompt, 0.35);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: {
+    summary?: string;
+    searchQueries?: string[];
+    seedUsernames?: Array<{username?: string; reason?: string}>;
+  } = {};
+  if (jsonMatch) {
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const searchQueries: string[] = [];
+  const querySeen = new Set<string>();
+  for (const raw of parsed.searchQueries ?? []) {
+    const q = cleanSearchQuery(String(raw));
+    if (!q) continue;
+    const key = q.toLowerCase();
+    if (querySeen.has(key)) continue;
+    querySeen.add(key);
+    searchQueries.push(q);
+  }
+
+  const seedProfiles: ExtensionSeedProfile[] = [];
+  const seedSeen = new Set<string>(excluded);
+  for (const row of parsed.seedUsernames ?? []) {
+    const username = String(row.username ?? "").replace(/^@/, "").trim();
+    if (!username || seedSeen.has(username.toLowerCase())) continue;
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) continue;
+    seedSeen.add(username.toLowerCase());
+    seedProfiles.push({
+      username,
+      profileUrl: `https://x.com/${username}`,
+    });
+  }
+
+  if (searchQueries.length === 0) {
+    const fallback = cleanSearchQuery(objectives) ?? objectives.trim().slice(0, 80);
+    if (fallback) searchQueries.push(fallback);
+  }
+
+  return {
+    summary: parsed.summary?.trim() || "Searching X for accounts matching your campaign brief.",
+    hashtags: [],
+    searchQueries: searchQueries.slice(0, 3),
+    seedProfiles: seedProfiles.slice(0, seedAsk),
+  };
+}
+
 export async function generateInstagramHashtagQuery(
   objectives: string,
   agencyName?: string,
@@ -377,11 +611,18 @@ Prefer niche creators who match the campaign — not generic influencers.`;
   }
 }
 
-// Legacy single-call helpers kept for compatibility — prefer planInstagramExtensionSearch.
+function platformProfileLabel(platform: string): string {
+  if (platform === "linkedin") return "LinkedIn";
+  if (platform === "twitter") return "X";
+  return "Instagram";
+}
+
+// Legacy single-call helpers kept for compatibility — prefer planExtensionSearch.
 export async function enrichExtensionInstagramLead(
   profile: ExtensionProfileInput,
   objectives: string,
-  brand: OpticJobBrandContext | null | undefined
+  brand: OpticJobBrandContext | null | undefined,
+  platform = "instagram"
 ): Promise<ExtensionLeadEnrichment> {
   const emailFromProfile = resolveProfileEmail(profile);
   const creatorName = profile.displayName?.trim() || profile.username;
@@ -423,12 +664,12 @@ export async function enrichExtensionInstagramLead(
 
   const prompt = `
     You are an elite marketing agent powering Verza Optic.
-    Write personalized Instagram outreach for this creator based on Campaign Objectives:
+    Write personalized ${platformProfileLabel(platform)} outreach for this creator based on Campaign Objectives:
     "${objectives}"
     ${brandBlock}
 
-    Creator profile (scraped from a logged-in Instagram session — treat these fields as ground truth; do not invent contact info):
-    - Username: @${profile.username}
+    Creator profile (scraped from a logged-in ${platformProfileLabel(platform)} session — treat these fields as ground truth; do not invent contact info):
+    - Username: ${platform === "linkedin" ? profile.username : `@${profile.username}`}
     - Display name: ${creatorName}
     - Followers: ${followerCount}
     - Bio: ${profile.bio || "(empty)"}
@@ -442,7 +683,7 @@ export async function enrichExtensionInstagramLead(
     3. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate). No fluff.
     4. draftEmail (string or null): ONLY if a public contact email is listed above — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
     5. draftEmailSubject (string or null): ONLY if a public contact email is listed above — a short specific subject line.
-    6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint("instagram")} Personalized pitch the brand can paste into Instagram DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platformProfileLabel(platform)} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
 
     If a public contact email IS listed, set draftDm to null. If it is NOT listed, set draftEmail and draftEmailSubject to null and always provide draftDm.
 

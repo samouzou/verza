@@ -6,8 +6,10 @@ import {loadAgencyOpticBilling, chargeOpticPilotTopUpBlock} from "./billing";
 import {
   OPTIC_AUDIENCE_TIERS,
   OPTIC_DEFAULT_AUDIENCE_TIER,
+  OPTIC_EXTENSION_PLATFORMS,
   OPTIC_MIN_POST_COUNT,
   isOpticAudienceTier,
+  opticPlatformLabel,
   opticPoolMultiplier,
   type OpticAudienceTier,
 } from "./constants";
@@ -16,11 +18,11 @@ import {checkAudienceGate, parseCompactCount} from "./counts";
 import {composeMatchScore} from "./matchScore";
 import {
   enrichExtensionInstagramLead,
-  planInstagramExtensionSearch,
+  planExtensionSearch,
   type ExtensionProfileInput,
 } from "./extensionLead";
 import type {OpticJobBrandContext} from "./jobs";
-import {instagramProfileUrl, normalizeProfileUrl} from "./profileUrl";
+import {extensionProfileUrl, normalizeProfileUrl} from "./profileUrl";
 import {saveLeadWithOpticCreditCharge} from "./saveLead";
 import {loadVaultExclusions, vaultHasProfileUrl} from "./vaultDedup";
 
@@ -79,7 +81,7 @@ async function appendJobLog(jobId: string, phase: string, message: string) {
   });
 }
 
-/** Extension claims an Instagram mission and receives the search plan. */
+/** Extension claims a browser mission and receives the search plan. */
 export const claimOpticExtensionJob = onCall(async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign in required.");
@@ -90,16 +92,17 @@ export const claimOpticExtensionJob = onCall(async (request) => {
     }
 
     const job = await assertJobAccess(request.auth.uid, jobId.trim());
-    if (job.platform !== "instagram") {
+    if (!OPTIC_EXTENSION_PLATFORMS.has(job.platform)) {
       throw new HttpsError(
         "failed-precondition",
-        "Searching from your browser only works for Instagram right now."
+        "Searching from your browser works for Instagram, LinkedIn, and X."
       );
     }
     if (job.status !== "queued" && job.status !== "running") {
       throw new HttpsError("failed-precondition", `Mission is ${job.status}.`);
     }
 
+    const network = opticPlatformLabel(job.platform);
     const ref = db.collection("optic_jobs").doc(job.id);
     if (job.status === "queued") {
       await ref.update({
@@ -109,7 +112,7 @@ export const claimOpticExtensionJob = onCall(async (request) => {
         logs: FieldValue.arrayUnion({
           ts: Timestamp.now(),
           phase: "extension",
-          message: "Connected to Chrome — starting your Instagram search.",
+          message: `Connected to Chrome — starting your ${network} search.`,
         }),
       });
     }
@@ -119,13 +122,15 @@ export const claimOpticExtensionJob = onCall(async (request) => {
     const exclusions = await loadVaultExclusions(
       db,
       job.agencyId,
-      job.campaignId?.trim() || null
+      job.campaignId?.trim() || null,
+      job.platform
     );
 
     const tier = jobAudienceTier(job);
     const bounds = OPTIC_AUDIENCE_TIERS[tier];
 
-    const plan = await planInstagramExtensionSearch(
+    const plan = await planExtensionSearch(
+      job.platform,
       job.objectives,
       job.agencyName,
       job.brandContext ?? null,
@@ -135,13 +140,14 @@ export const claimOpticExtensionJob = onCall(async (request) => {
     );
 
     const seedProfileUrls = plan.seedProfiles
-      .map((s) => instagramProfileUrl(s.username))
+      .map((s) => extensionProfileUrl(job.platform, s.profileUrl || s.username))
       .filter((url) => !exclusions.keys.has(normalizeProfileUrl(url)));
-    const hashtag = plan.hashtags[0] ?? "creators";
+    const hashtag = plan.hashtags[0] ?? "";
     const searchQuery = plan.searchQueries[0] ?? job.objectives.trim().slice(0, 80);
 
     logger.info("[Optic extension] Claimed job", {
       jobId: job.id,
+      platform: job.platform,
       batchIndex: job.batchIndex ?? 1,
       summary: plan.summary,
       hashtags: plan.hashtags,
@@ -165,10 +171,15 @@ export const claimOpticExtensionJob = onCall(async (request) => {
       },
     });
 
+    const lookWhere =
+      plan.hashtags.length > 0
+        ? `${plan.hashtags.map((h) => `#${h}`).join(", ")} · “${plan.searchQueries.join("”, “")}”`
+        : `“${plan.searchQueries.join("”, “")}”`;
+
     await appendJobLog(
       job.id,
       "extension",
-      `Where we're looking: ${plan.summary} · ${plan.hashtags.map((h) => `#${h}`).join(", ")} · “${plan.searchQueries.join("”, “")}”.`
+      `Where we're looking: ${plan.summary} · ${lookWhere}.`
     );
 
     if (exclusions.keys.size > 0) {
@@ -301,7 +312,12 @@ export const submitOpticExtensionLead = onCall(async (request) => {
       return {ok: false as const, reason: "cancelled" as const};
     }
 
-    const profileUrl = instagramProfileUrl(profile.username);
+    const profileUrl = extensionProfileUrl(
+      job.platform,
+      typeof profile.profileUrl === "string" && profile.profileUrl.trim()
+        ? profile.profileUrl
+        : profile.username
+    );
 
     // Credit charges are keyed per job, so without this a later batch would save the
     // same creator again and bill for them again.
@@ -324,7 +340,8 @@ export const submitOpticExtensionLead = onCall(async (request) => {
     const enriched = await enrichExtensionInstagramLead(
       profile,
       job.objectives,
-      job.brandContext ?? null
+      job.brandContext ?? null,
+      job.platform
     );
 
     const followerCountNumeric = parseCompactCount(enriched.followerCount);
@@ -368,7 +385,7 @@ export const submitOpticExtensionLead = onCall(async (request) => {
       campaignId: job.campaignId ?? null,
       campaignTitle: payTitle,
       // Numeric mirror of the rendered follower string so the vault can sort and
-      // filter. Null when Instagram's count could not be parsed.
+      // filter. Null when the count could not be parsed.
       followerCountNumeric,
       postCountNumeric,
       extensionScrape: {
@@ -412,13 +429,17 @@ export const submitOpticExtensionLead = onCall(async (request) => {
     }
 
     const processed = (latest.data()?.processedCount ?? 0) + 1;
+    const handleLabel =
+      job.platform === "linkedin"
+        ? profile.displayName?.trim() || profile.username
+        : `@${profile.username.replace(/^@/, "")}`;
     await jobRef.update({
       processedCount: processed,
       updatedAt: FieldValue.serverTimestamp(),
       logs: FieldValue.arrayUnion({
         ts: Timestamp.now(),
         phase: "extension",
-        message: `Added @${profile.username.replace(/^@/, "")} (${enriched.followerCount} followers).`,
+        message: `Added ${handleLabel} (${enriched.followerCount} followers).`,
       }),
     });
 

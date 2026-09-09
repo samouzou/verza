@@ -23,7 +23,7 @@ import { marketplaceTour } from '@/lib/tours';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn', 'X'];
 
 function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?: boolean; currentUserId?: string }) {
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;

@@ -1,5 +1,5 @@
 import type {Firestore} from "firebase-admin/firestore";
-import {normalizeProfileUrl} from "./profileUrl";
+import {handleFromNormalizedKey, normalizeProfileUrl} from "./profileUrl";
 
 /** Cap on handles fed into the planner prompt so the token cost stays bounded. */
 const PLANNER_EXCLUDE_CAP = 200;
@@ -10,7 +10,7 @@ const CLIENT_EXCLUDE_CAP = 1000;
 export type VaultExclusions = {
   /** Normalized `host/path` keys for every lead already in this brand's vault. */
   keys: Set<string>;
-  /** Instagram handles for the extension to skip before opening a tab. */
+  /** Handles / vanity slugs for the extension to skip before opening a tab. */
   usernames: string[];
   /** Shorter handle list for the Gemini planning prompt. */
   plannerUsernames: string[];
@@ -51,34 +51,25 @@ export async function loadExistingProfileUrlKeys(
   return keys;
 }
 
-/** Pulls the handle out of a normalized `instagram.com/<handle>` key.
- * @param {string} key Normalized profile URL key.
- * @return {?string} Instagram handle, or null when the key is not a profile URL.
- */
-function instagramHandleFromKey(key: string): string | null {
-  const match = key.match(/^instagram\.com\/([^/]+)$/);
-  if (!match) return null;
-  const handle = match[1].trim();
-  return handle ? handle : null;
-}
-
 /**
  * Builds the exclusion payload for one extension mission.
  * @param {Firestore} db Firestore instance.
  * @param {string} agencyId Brand workspace id.
  * @param {string | null} campaignId Campaign scope, or null for agency-wide.
+ * @param {string} [platform] When set, only extract handles for that network.
  * @return {Promise<VaultExclusions>} Keys plus handle lists for the client and planner.
  */
 export async function loadVaultExclusions(
   db: Firestore,
   agencyId: string,
-  campaignId: string | null
+  campaignId: string | null,
+  platform?: string
 ): Promise<VaultExclusions> {
   const keys = await loadExistingProfileUrlKeys(db, agencyId, campaignId);
 
   const usernames: string[] = [];
   for (const key of keys) {
-    const handle = instagramHandleFromKey(key);
+    const handle = handleFromNormalizedKey(key, platform);
     if (handle) usernames.push(handle);
   }
 

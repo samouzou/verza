@@ -48,7 +48,7 @@ function humanizeLogMessage(message: string): string {
     const name = m.replace(/^Saved lead:\s*/i, "").trim();
     return name ? `Added ${name} to your vault.` : "Added a creator to your vault.";
   }
-  if (/Chrome extension connected/i.test(m)) return "Connected to Chrome — starting your Instagram search.";
+  if (/Chrome extension connected/i.test(m)) return "Connected to Chrome — starting your search.";
   if (/^AI shortlist:/i.test(m)) return m.replace(/^AI shortlist:\s*/i, "Shortlisted ");
   if (/^Search plan:/i.test(m)) return m.replace(/^Search plan:\s*/i, "Where we're looking: ");
   if (/Browsing #/i.test(m)) return m;

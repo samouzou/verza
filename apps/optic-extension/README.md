@@ -1,6 +1,6 @@
 # Verza Optic Chrome Extension
 
-Runs Instagram creator discovery in the **user's logged-in Chrome session** instead of a headless Cloud Run worker. This unlocks follower counts, bios, and contact info that Instagram blocks for automated browsers.
+Runs Instagram, LinkedIn, and X creator discovery in the **user's logged-in Chrome session** instead of a headless Cloud Run worker. This unlocks follower counts, bios, and contact info those networks hide from automated browsers.
 
 ## Build (local dev)
 
@@ -37,10 +37,10 @@ Until the store listing is live, users install via **Optic → Download extensio
 
 ## How it works
 
-1. On Optic, choose **Instagram** and enable **Use my browser for Instagram search**
+1. On Optic, choose **Instagram**, **LinkedIn**, or **X** and enable **Search using my browser**
 2. Start a mission — Verza queues a job with `runner: "extension"`
 3. The web app passes your Firebase ID token to the extension
-4. The extension opens Instagram hashtag explore + profile pages in background tabs
+4. The extension opens search + profile pages in background tabs
 5. Scraped profiles are enriched with Gemini and saved to your Optic vault via Cloud Functions
 
 ## Deploy Cloud Functions (required for cloud missions)

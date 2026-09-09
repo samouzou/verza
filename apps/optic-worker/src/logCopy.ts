@@ -9,6 +9,8 @@ export const Log = {
       tiktok: "TikTok",
       facebook: "Facebook",
       twitch: "Twitch",
+      linkedin: "LinkedIn",
+      twitter: "X",
     };
     const label = labels[platform] ?? platform;
     return `Searching ${label} for people who match your goals…`;

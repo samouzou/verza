@@ -13,7 +13,7 @@ const config = {
     background: "src/background.ts",
     "verza-bridge": "src/content/verza-bridge.ts",
     popup: "src/popup/popup.ts",
-    injected: "src/instagram/injected.ts",
+    injected: "src/injected.ts",
   },
   outdir: "dist",
 };

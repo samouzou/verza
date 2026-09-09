@@ -40,7 +40,7 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn'];
+const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn', 'X'];
 
 const quillModules = {
   toolbar: [
@@ -192,7 +192,7 @@ export default function EditGigPage() {
             campaignType,
             title: title.trim(),
             description: description.trim(),
-            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn")[],
+            platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn" | "X")[],
             ratePerCreator: rateNum,
             creatorsNeeded: creatorsNum,
             videosPerCreator: videosNum,

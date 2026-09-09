@@ -10,6 +10,10 @@ import {
   instagramUsernameFromUrl,
   parseCompactCount,
 } from "./shared/instagram";
+import {
+  canonicalProfileUrl,
+  creatorKeyFromUrl,
+} from "./shared/handles";
 import { EXTENSION_VERSION } from "./shared/types";
 
 const DEFAULT_AUDIENCE_FILTER: ExtensionAudienceFilter = {
@@ -132,7 +136,7 @@ async function waitForTabLoad(tabId: number, timeoutMs = 60_000): Promise<void> 
     }
     await sleep(500);
   }
-  throw new Error("Instagram took too long to load. Check your connection and try again.");
+  throw new Error("This page took too long to load. Check your connection and try again.");
 }
 
 async function injectOpticApi(tabId: number): Promise<void> {
@@ -162,8 +166,32 @@ function postBudget(maxProfiles: number): number {
   return Math.min(150, Math.max(24, maxProfiles * 4));
 }
 
-function profilePauseMs(maxProfiles: number): number {
+function profilePauseMs(maxProfiles: number, platform = "instagram"): number {
+  if (platform === "linkedin") return maxProfiles >= 50 ? 1800 : 2800;
+  if (platform === "twitter") return maxProfiles >= 50 ? 900 : 1600;
   return maxProfiles >= 50 ? 700 : maxProfiles >= 25 ? 900 : PROFILE_PAUSE_MS;
+}
+
+function scrapeMethodFor(platform: string): string {
+  if (platform === "linkedin") return "scrapeLinkedInProfile";
+  if (platform === "twitter") return "scrapeXProfile";
+  return "scrapeInstagramProfile";
+}
+
+function creatorKey(url: string, platform: string): string | null {
+  if (platform === "linkedin" || platform === "twitter") {
+    return creatorKeyFromUrl(url, platform);
+  }
+  const user = instagramUsernameFromUrl(url);
+  return user ? user.toLowerCase() : null;
+}
+
+function toCanonicalUrl(url: string, platform: string): string | null {
+  if (platform === "linkedin" || platform === "twitter") {
+    return canonicalProfileUrl(url, platform);
+  }
+  const user = instagramUsernameFromUrl(url);
+  return user ? instagramProfileUrl(user) : null;
 }
 
 async function broadcastProgressToOpticTabs(payload: Record<string, unknown>) {
@@ -326,7 +354,7 @@ async function discoverFromKeyword(
   }
 }
 
-async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter): Promise<string[]> {
+async function discoverInstagramProfileUrls(claimed: ClaimedJob, report: ProgressReporter): Promise<string[]> {
   const target = claimed.maxProfiles;
   const multiplier = claimed.audienceFilter?.poolMultiplier ?? DEFAULT_AUDIENCE_FILTER.poolMultiplier;
   const minPool = Math.max(target * multiplier, 8);
@@ -423,6 +451,237 @@ async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter
   return ordered;
 }
 
+async function discoverFromLinkedInSearch(
+  searchQuery: string,
+  maxProfiles: number,
+  selfSlug: string | null,
+  report: ProgressReporter,
+  target: number
+): Promise<string[]> {
+  const searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(searchQuery)}`;
+  const tab = await chrome.tabs.create({ url: searchUrl, active: true });
+  if (!tab.id) return [];
+
+  try {
+    await waitForTabLoad(tab.id);
+    const prepared = await runInTab<{ ready: boolean; reason?: string }>(
+      tab.id,
+      "prepareLinkedInPeopleSearch"
+    );
+    if (!prepared?.ready) {
+      if (prepared?.reason === "login_required") {
+        throw new Error("Please sign in to LinkedIn in Chrome, then start the mission again.");
+      }
+      return [];
+    }
+
+    const profileUrls = await runInTab<string[]>(tab.id, "collectLinkedInPeopleUrls", [
+      postBudget(maxProfiles),
+      selfSlug,
+    ]);
+
+    await report("keyword", `Found ${profileUrls.length} people matching “${searchQuery}”.`, {
+      discovered: profileUrls.length,
+      target,
+      logMessage: `Searched LinkedIn for “${searchQuery}”: ${profileUrls.length} profiles found.`,
+    });
+
+    return profileUrls;
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function discoverLinkedInProfileUrls(
+  claimed: ClaimedJob,
+  report: ProgressReporter
+): Promise<string[]> {
+  const target = claimed.maxProfiles;
+  const multiplier = claimed.audienceFilter?.poolMultiplier ?? DEFAULT_AUDIENCE_FILTER.poolMultiplier;
+  const minPool = Math.max(target * multiplier, 8);
+  const ordered: string[] = [];
+  const seen = new Set<string>((claimed.excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  const alreadyInVault = seen.size;
+  const budgetTarget = Math.ceil((target * multiplier) / 2);
+
+  const addUrls = (urls: string[]) => {
+    for (const url of urls) {
+      const canonical = toCanonicalUrl(url, "linkedin");
+      const key = creatorKey(url, "linkedin");
+      if (!canonical || !key || seen.has(key)) continue;
+      seen.add(key);
+      ordered.push(canonical);
+    }
+  };
+
+  if (claimed.seedProfileUrls.length > 0) {
+    await report("seeds", `Lining up ${claimed.seedProfileUrls.length} people who look like a fit…`, {
+      target,
+    });
+    addUrls(claimed.seedProfileUrls);
+    await report("seeds", `Shortlist ready — ${ordered.length} people to look at.`, {
+      discovered: ordered.length,
+      target,
+      logMessage: `Shortlisted ${ordered.length} LinkedIn profiles who match your campaign.`,
+    });
+  }
+
+  const searchQueries = (
+    claimed.searchQueries?.length ? claimed.searchQueries : [claimed.searchQuery]
+  ).filter(Boolean);
+
+  for (const query of searchQueries) {
+    if (ordered.length >= minPool) break;
+    await report("keyword", `Searching LinkedIn for “${query}”…`, {
+      discovered: ordered.length,
+      target,
+    });
+    const fromSearch = await discoverFromLinkedInSearch(
+      query,
+      budgetTarget,
+      null,
+      report,
+      target
+    );
+    addUrls(fromSearch);
+  }
+
+  if (ordered.length === 0) {
+    throw new Error(
+      alreadyInVault > 0
+        ? "No new people this time — everyone we found is already in your vault. " +
+          "Try widening your campaign goals before the next batch."
+        : "We couldn't find LinkedIn profiles. Make sure you're signed in to LinkedIn " +
+          "in Chrome, and try broadening your campaign goals."
+    );
+  }
+
+  await report("profiles", `Looking at ${ordered.length} LinkedIn profiles…`, {
+    discovered: ordered.length,
+    target,
+    logMessage:
+      alreadyInVault > 0
+        ? `Ready to review ${ordered.length} new people (${alreadyInVault} were already in your vault).`
+        : `Ready to review ${ordered.length} people.`,
+  });
+
+  return ordered;
+}
+
+async function discoverFromXSearch(
+  searchQuery: string,
+  maxProfiles: number,
+  selfHandle: string | null,
+  report: ProgressReporter,
+  target: number
+): Promise<string[]> {
+  const searchUrl = `https://x.com/search?q=${encodeURIComponent(searchQuery)}&src=typed_query&f=user`;
+  const tab = await chrome.tabs.create({ url: searchUrl, active: true });
+  if (!tab.id) return [];
+
+  try {
+    await waitForTabLoad(tab.id);
+    const prepared = await runInTab<{ ready: boolean; reason?: string }>(tab.id, "prepareXUserSearch");
+    if (!prepared?.ready) {
+      if (prepared?.reason === "login_required") {
+        throw new Error("Please sign in to X in Chrome, then start the mission again.");
+      }
+      return [];
+    }
+
+    const profileUrls = await runInTab<string[]>(tab.id, "collectXUserUrls", [
+      postBudget(maxProfiles),
+      selfHandle,
+    ]);
+
+    await report("keyword", `Found ${profileUrls.length} accounts matching “${searchQuery}”.`, {
+      discovered: profileUrls.length,
+      target,
+      logMessage: `Searched X for “${searchQuery}”: ${profileUrls.length} accounts found.`,
+    });
+
+    return profileUrls;
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function discoverTwitterProfileUrls(
+  claimed: ClaimedJob,
+  report: ProgressReporter
+): Promise<string[]> {
+  const target = claimed.maxProfiles;
+  const multiplier = claimed.audienceFilter?.poolMultiplier ?? DEFAULT_AUDIENCE_FILTER.poolMultiplier;
+  const minPool = Math.max(target * multiplier, 8);
+  const ordered: string[] = [];
+  const seen = new Set<string>((claimed.excludeUsernames ?? []).map((u) => u.toLowerCase()));
+  const alreadyInVault = seen.size;
+  const budgetTarget = Math.ceil((target * multiplier) / 2);
+
+  const addUrls = (urls: string[]) => {
+    for (const url of urls) {
+      const canonical = toCanonicalUrl(url, "twitter");
+      const key = creatorKey(url, "twitter");
+      if (!canonical || !key || seen.has(key)) continue;
+      seen.add(key);
+      ordered.push(canonical);
+    }
+  };
+
+  if (claimed.seedProfileUrls.length > 0) {
+    await report("seeds", `Lining up ${claimed.seedProfileUrls.length} accounts who look like a fit…`, {
+      target,
+    });
+    addUrls(claimed.seedProfileUrls);
+    await report("seeds", `Shortlist ready — ${ordered.length} accounts to look at.`, {
+      discovered: ordered.length,
+      target,
+      logMessage: `Shortlisted ${ordered.length} X accounts who match your campaign.`,
+    });
+  }
+
+  const searchQueries = (
+    claimed.searchQueries?.length ? claimed.searchQueries : [claimed.searchQuery]
+  ).filter(Boolean);
+
+  for (const query of searchQueries) {
+    if (ordered.length >= minPool) break;
+    await report("keyword", `Searching X for “${query}”…`, {
+      discovered: ordered.length,
+      target,
+    });
+    const fromSearch = await discoverFromXSearch(query, budgetTarget, null, report, target);
+    addUrls(fromSearch);
+  }
+
+  if (ordered.length === 0) {
+    throw new Error(
+      alreadyInVault > 0
+        ? "No new accounts this time — everyone we found is already in your vault. " +
+          "Try widening your campaign goals before the next batch."
+        : "We couldn't find X accounts. Make sure you're signed in to X in Chrome, " +
+          "and try broadening your campaign goals."
+    );
+  }
+
+  await report("profiles", `Looking at ${ordered.length} X profiles…`, {
+    discovered: ordered.length,
+    target,
+    logMessage:
+      alreadyInVault > 0
+        ? `Ready to review ${ordered.length} new accounts (${alreadyInVault} were already in your vault).`
+        : `Ready to review ${ordered.length} accounts.`,
+  });
+
+  return ordered;
+}
+
+async function discoverProfileUrls(claimed: ClaimedJob, report: ProgressReporter): Promise<string[]> {
+  if (claimed.platform === "linkedin") return discoverLinkedInProfileUrls(claimed, report);
+  if (claimed.platform === "twitter") return discoverTwitterProfileUrls(claimed, report);
+  return discoverInstagramProfileUrls(claimed, report);
+}
+
 async function runExtensionJob(
   jobId: string,
   idToken: string,
@@ -470,14 +729,18 @@ async function runExtensionJob(
     let skippedQuality = 0;
     const target = claimed.maxProfiles;
     const audienceFilter = claimed.audienceFilter ?? DEFAULT_AUDIENCE_FILTER;
+    const scrapeMethod = scrapeMethodFor(claimed.platform);
 
     for (let i = 0; i < profileUrls.length; i += 1) {
       if (saved >= target) break;
 
       const profileUrl = profileUrls[i];
-      const username = instagramUsernameFromUrl(profileUrl) ?? "creator";
+      const username =
+        creatorKey(profileUrl, claimed.platform) ??
+        instagramUsernameFromUrl(profileUrl) ??
+        "creator";
 
-      await report("profiles", `Checking @${username} (${i + 1} of ${profileUrls.length})…`, {
+      await report("profiles", `Checking ${username} (${i + 1} of ${profileUrls.length})…`, {
         discovered: saved,
         target,
       });
@@ -487,10 +750,7 @@ async function runExtensionJob(
 
       try {
         await waitForTabLoad(tab.id);
-        const profile = await runInTab<ScrapedInstagramProfile | null>(
-          tab.id,
-          "scrapeInstagramProfile"
-        );
+        const profile = await runInTab<ScrapedInstagramProfile | null>(tab.id, scrapeMethod);
 
         if (!profile?.username) continue;
 
@@ -500,7 +760,7 @@ async function runExtensionJob(
         if (rejection) {
           if (rejection.kind === "size") skippedSize += 1;
           else skippedQuality += 1;
-          await report("profiles", `Passed on @${username} — ${rejection.reason}.`, {
+          await report("profiles", `Passed on ${username} — ${rejection.reason}.`, {
             discovered: saved,
             target,
           });
@@ -515,7 +775,7 @@ async function runExtensionJob(
           projectId,
           "submitOpticExtensionLead",
           idToken,
-          { jobId, profile },
+          { jobId, profile: { ...profile, profileUrl } },
           useFunctionsEmulator
         );
 
@@ -532,7 +792,7 @@ async function runExtensionJob(
         /* skip */
       } finally {
         await chrome.tabs.remove(tab.id).catch(() => {});
-        await sleep(profilePauseMs(target));
+        await sleep(profilePauseMs(target, claimed.platform));
       }
     }
 

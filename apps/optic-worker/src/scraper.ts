@@ -40,6 +40,7 @@ function platformFromUrl(url: string, fallback: string): string {
     if (host.includes("instagram")) return "instagram";
     if (host.includes("facebook") || host.includes("fb.com")) return "facebook";
     if (host.includes("linkedin")) return "linkedin";
+    if (host === "x.com" || host === "twitter.com") return "twitter";
   } catch {
     /* ignore */
   }
@@ -60,6 +61,23 @@ export function canonicalizeCreatorUrl(url: string, platform: string): string {
     if (platform === "linkedin") {
       const m = u.pathname.match(/^\/in\/([^/]+)/);
       if (m) return `https://www.linkedin.com/in/${m[1]}`;
+    }
+    if (platform === "twitter") {
+      const skip = new Set([
+        "home",
+        "search",
+        "explore",
+        "settings",
+        "i",
+        "intent",
+        "compose",
+        "messages",
+        "notifications",
+        "login",
+        "hashtag",
+      ]);
+      const seg = u.pathname.split("/").filter(Boolean)[0];
+      if (seg && !skip.has(seg.toLowerCase())) return `https://x.com/${seg}`;
     }
     if (platform === "youtube") {
       u.search = "";
@@ -140,6 +158,8 @@ async function extractDomSignals(page: Page, platform: string): Promise<DomSigna
         "facebook.com",
         "fb.com",
         "linkedin.com",
+        "x.com",
+        "twitter.com",
         "google.com",
       ]);
       for (const a of Array.from(document.querySelectorAll("a[href]")) as HTMLAnchorElement[]) {
@@ -210,6 +230,21 @@ async function extractDomSignals(page: Page, platform: string): Promise<DomSigna
         textOf(".top-card-layout__headline") ||
         bio;
       externalUrl = firstExternal();
+    } else if (plat === "twitter") {
+      followerCount =
+        textOf('a[href$="/verified_followers"]') ||
+        textOf('a[href$="/followers"]') ||
+        null;
+      bio =
+        textOf('[data-testid="UserDescription"]') ||
+        textOf('[data-testid="UserProfileHeader_Items"]') ||
+        bio;
+      externalUrl =
+        abs(
+          document
+            .querySelector('[data-testid="UserUrl"] a, [data-testid="UserProfileHeader_Items"] a[href]')
+            ?.getAttribute("href")
+        ) || firstExternal();
     } else if (plat === "facebook") {
       followerCount = textOf('[href*="/followers"]') || followerCount;
       bio = textOf('[data-pagelet="ProfileTilesFeed"]') || bio;
