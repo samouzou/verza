@@ -4,8 +4,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { db, collection, query, where, getDocs, limit } from '@/lib/firebase';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { 
   CheckCircle, 
   Circle, 
@@ -17,11 +17,15 @@ import {
   Sparkles,
   Building,
   Store,
-  Users
+  Users,
+  ListChecks,
+  Minus,
+  X
 } from "lucide-react";
-import { useSidebar } from "@/components/ui/sidebar";
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
+
+const SETUP_GUIDE_COLLAPSED_KEY = "verza.setupGuide.collapsed";
 
 export interface Step {
   id: string;
@@ -47,7 +51,6 @@ export function useSetupSteps() {
       setIsLoading(true);
       try {
         if (isAgency) {
-          // --- AGENCY FLOW CHECKS ---
           const isProfileComplete = !!user.displayName && !!user.companyLogoUrl && !!user.address;
           
           let hasTalent = false;
@@ -80,7 +83,6 @@ export function useSetupSteps() {
           setSteps(definedSteps);
           setCompletedStepsCount(definedSteps.filter(s => s.isCompleted).length);
         } else {
-          // --- CREATOR FLOW CHECKS ---
           const isProfileComplete = !!user.displayName && user.displayName !== 'New User' && !!user.avatarUrl && !!user.address;
           const isSocialConnected = !!(user.instagramConnected || user.tiktokConnected || user.youtubeConnected);
           
@@ -115,67 +117,103 @@ export function useSetupSteps() {
 }
 
 export function SetupGuide() {
-  const { open } = useSidebar();
+  const { user } = useAuth();
   const { steps, isLoading, completedStepsCount, totalSteps } = useSetupSteps();
+  const [collapsed, setCollapsed] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem(SETUP_GUIDE_COLLAPSED_KEY) !== "false");
+    } catch {
+      setCollapsed(true);
+    }
+  }, []);
+
+  const persistCollapsed = (next: boolean) => {
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(SETUP_GUIDE_COLLAPSED_KEY, next ? "true" : "false");
+    } catch {
+      // ignore
+    }
+  };
 
   const progressPercentage = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
+  const isComplete = !isLoading && totalSteps > 0 && progressPercentage === 100;
 
-  if (!isLoading && progressPercentage === 100) {
+  if (!user || dismissed || isComplete || (!isLoading && totalSteps === 0)) {
     return null;
   }
-  
-  if (open) {
+
+  if (collapsed) {
     return (
-      <Card className="mx-2 my-2 bg-sidebar-accent/50 border-sidebar-border shadow-inner">
-        <CardHeader className="p-3">
-          <CardTitle className="text-sm font-semibold">Setup Guide</CardTitle>
-          <div className="flex items-center gap-2 pt-1">
-            <Progress value={progressPercentage} className="h-2 w-full" />
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {completedStepsCount} / {totalSteps}
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 text-sm">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-16">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {steps.map(step => (
-                <li key={step.id}>
-                  <Link 
-                    href={step.href} 
-                    className="flex items-center gap-2 p-1 rounded-md hover:bg-sidebar-accent transition-colors"
-                  >
-                    {step.isCompleted ? (
-                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    )}
-                    <span className={cn(
-                      'transition-colors', 
-                      step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
-                    )}>
-                      {step.label}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <button
+        type="button"
+        onClick={() => persistCollapsed(false)}
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border bg-background/95 px-3 py-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80 hover:bg-accent transition-colors"
+        aria-label="Open setup guide"
+      >
+        <ListChecks className="h-4 w-4 text-primary" />
+        <span className="text-sm font-medium">Setup</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {isLoading ? "…" : `${completedStepsCount}/${totalSteps}`}
+        </span>
+      </button>
     );
   }
 
   return (
-    <div className="mx-auto my-2 p-2">
-       <Progress value={progressPercentage} className="h-1.5 w-8 mx-auto" />
-       <p className="text-xs text-muted-foreground text-center mt-1">
-         {completedStepsCount}/{totalSteps}
-       </p>
+    <div className="fixed bottom-4 right-4 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex items-start justify-between gap-2 p-3 pb-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Setup Guide</p>
+          <div className="flex items-center gap-2 pt-1">
+            <Progress value={isLoading ? 0 : progressPercentage} className="h-2 w-full" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+              {completedStepsCount} / {totalSteps}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => persistCollapsed(true)} aria-label="Collapse setup guide">
+            <Minus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDismissed(true)} aria-label="Hide setup guide">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="p-3 pt-0 text-sm">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-16">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : (
+          <ul className="space-y-1">
+            {steps.map(step => (
+              <li key={step.id}>
+                <Link 
+                  href={step.href} 
+                  className="flex items-center gap-2 p-1.5 rounded-md hover:bg-accent transition-colors"
+                >
+                  {step.isCompleted ? (
+                    <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={cn(
+                    'transition-colors', 
+                    step.isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                  )}>
+                    {step.label}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

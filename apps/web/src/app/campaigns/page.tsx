@@ -185,19 +185,21 @@ export default function GigsPage() {
       secured: [] as Gig[]
     };
 
+    const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+
     const updateCombinedGigs = () => {
       const combined = new Map<string, Gig>();
-      results.participating.forEach(g => combined.set(g.id, g));
+      const workspaceId = isAgencyTeam ? user.primaryAgencyId : null;
+      const inWorkspace = (gig: Gig) => !workspaceId || gig.brandId === workspaceId;
+      results.participating.filter(inWorkspace).forEach(g => combined.set(g.id, g));
       results.managing.forEach(g => combined.set(g.id, g));
-      results.secured.forEach(g => combined.set(g.id, g));
+      results.secured.filter(inWorkspace).forEach(g => combined.set(g.id, g));
       
       const sorted = Array.from(combined.values()).sort((a, b) => 
         (b.createdAt as any)?.toMillis() - (a.createdAt as any)?.toMillis()
       );
       setMyGigs(sorted);
     };
-
-    const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
 
     const unsubParticipating = onSnapshot(query(
       collection(db, "gigs"),
@@ -262,12 +264,17 @@ export default function GigsPage() {
   };
 
   const canPostGig = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
+  const activeWorkspaceName = user?.agencyMemberships?.find((m) => m.agencyId === user.primaryAgencyId)?.agencyName;
 
   return (
     <>
       <PageHeader
         title="Campaigns"
-        description="Discover campaigns or manage your active campaigns."
+        description={
+          canPostGig && activeWorkspaceName
+            ? `Campaigns for ${activeWorkspaceName}. Switch ${user?.isBrandAccount ? "brands" : "agencies"} from the ${user?.isBrandAccount ? "Brand" : "Agency"} hub to see another workspace.`
+            : "Discover campaigns or manage your active campaigns."
+        }
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => startTour(marketplaceTour)}>

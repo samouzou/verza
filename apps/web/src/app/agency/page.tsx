@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -71,15 +71,24 @@ function CreateAgencyForm({ onAgencyCreated, isBrandAccount }: { onAgencyCreated
   );
 }
 
+function isActiveTeamOf(user: UserProfile, agency: Agency): boolean {
+  if (agency.ownerId === user.uid) return true;
+  const membership = user.agencyMemberships?.find((m) => m.agencyId === agency.id);
+  return !!membership && membership.status === 'active' && (membership.role === 'admin' || membership.role === 'member' || membership.role === 'owner');
+}
+
 export default function AgencyPage() {
   const { user, isLoading: authLoading, refreshAuthUser } = useAuth();
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
   const [selectedAgencyOwner, setSelectedAgencyOwner] = useState<UserProfile | null>(null);
+  const [switchingToId, setSwitchingToId] = useState<string | null>(null);
+  const didAutoSelect = useRef(false);
   const { startTour } = useTour();
   const { toast } = useToast();
   const router = useRouter();
+  const switchPrimaryAgency = httpsCallable(functions, 'switchPrimaryAgency');
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -103,11 +112,6 @@ export default function AgencyPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedAgencies = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agency));
       setAgencies(fetchedAgencies);
-      
-      if (fetchedAgencies.length === 1 && !selectedAgencyId) {
-        setSelectedAgencyId(fetchedAgencies[0].id);
-      }
-      
       setIsLoadingAgencies(false);
     }, (error) => {
       console.error("Error fetching agencies:", error);
@@ -116,7 +120,21 @@ export default function AgencyPage() {
     });
 
     return () => unsubscribe();
-  }, [user, authLoading, selectedAgencyId, toast]);
+  }, [user, authLoading, toast]);
+
+  useEffect(() => {
+    if (didAutoSelect.current || !user || agencies.length === 0 || selectedAgencyId) return;
+    const preferred = user.primaryAgencyId
+      ? agencies.find((agency) => agency.id === user.primaryAgencyId)
+      : undefined;
+    if (preferred) {
+      setSelectedAgencyId(preferred.id);
+      didAutoSelect.current = true;
+    } else if (agencies.length === 1) {
+      setSelectedAgencyId(agencies[0].id);
+      didAutoSelect.current = true;
+    }
+  }, [agencies, user, selectedAgencyId]);
 
   useEffect(() => {
     if (!selectedAgencyId || !agencies.length) return;
@@ -139,6 +157,36 @@ export default function AgencyPage() {
 
   const handleAgencyCreated = () => {
     refreshAuthUser();
+  };
+
+  const handleSelectAgency = async (agencyId: string) => {
+    if (!user || switchingToId) return;
+    const agency = agencies.find((item) => item.id === agencyId);
+    if (!agency) return;
+
+    const membership = user.agencyMemberships?.find((m) => m.agencyId === agency.id);
+    const isPending = membership?.status === 'pending';
+    const shouldSwitchWorkspace = !isPending && isActiveTeamOf(user, agency) && user.primaryAgencyId !== agency.id;
+
+    if (shouldSwitchWorkspace) {
+      setSwitchingToId(agency.id);
+      try {
+        await switchPrimaryAgency({ agencyId: agency.id });
+        await refreshAuthUser();
+      } catch (error: any) {
+        console.error("Error switching workspace:", error);
+        toast({
+          title: "Could not switch workspace",
+          description: error.message || "Campaigns and billing would still point at the previous brand.",
+          variant: "destructive",
+        });
+        setSwitchingToId(null);
+        return;
+      }
+      setSwitchingToId(null);
+    }
+
+    setSelectedAgencyId(agency.id);
   };
 
   if (authLoading || (user && isLoadingAgencies)) {
@@ -194,7 +242,7 @@ export default function AgencyPage() {
     <>
       <PageHeader
         title={user.isBrandAccount ? "Brand Hub" : "Agency Hub"}
-        description={user.isBrandAccount ? "Select a brand profile to manage your campaigns." : "Select an agency to manage or view your representation."}
+        description={user.isBrandAccount ? "Select a brand to make it the active workspace for campaigns, Optic, and wallet." : "Select an agency to manage or view your representation. Team workspaces also become the active one for campaigns."}
       />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -206,13 +254,14 @@ export default function AgencyPage() {
             const isTalent = membership?.role === 'talent';
             
             return (
-              <Card key={agency.id} className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => setSelectedAgencyId(agency.id)}>
+              <Card key={agency.id} className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => handleSelectAgency(agency.id)}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-lg truncate pr-2">{agency.name}</CardTitle>
                   <Briefcase className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                 </CardHeader>
                 <CardContent className="pb-4">
                   <div className="flex flex-wrap gap-2 mb-4">
+                    {agency.id === user.primaryAgencyId && <Badge>Active workspace</Badge>}
                     {isOwner && <Badge className="bg-emerald-600">Owner</Badge>}
                     {isPending && <Badge variant="secondary" className="animate-pulse">Pending Invite</Badge>}
                     {isTalent && <Badge variant="outline">Talent</Badge>}
@@ -224,9 +273,15 @@ export default function AgencyPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="pt-0 border-t bg-muted/5 group-hover:bg-muted/20 transition-colors">
-                  <Button variant="ghost" className="w-full justify-between mt-2" onClick={(e) => { e.stopPropagation(); setSelectedAgencyId(agency.id); }}>
+                  <Button variant="ghost" className="w-full justify-between mt-2" disabled={!!switchingToId} onClick={(e) => { e.stopPropagation(); handleSelectAgency(agency.id); }}>
+                    {switchingToId === agency.id ? (
+                      <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Switching workspace…</span>
+                    ) : (
+                      <>
                     {isPending ? 'View Invitation' : (isOwner || (membership && membership.role !== 'talent') ? `Manage ${user.isBrandAccount ? 'Brand' : 'Agency'}` : 'View Representation')}
                     <ChevronRight className="h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 </CardFooter>
               </Card>

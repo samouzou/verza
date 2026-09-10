@@ -68,7 +68,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SetupGuide } from "./setup-guide";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import { NotificationBell } from "./notification-bell";
 import { SupportDialog } from "./support-dialog";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
@@ -363,7 +363,7 @@ export function SidebarNav() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 space-y-3">
         <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
           <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:mx-auto">
               <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
@@ -371,6 +371,7 @@ export function SidebarNav() {
           </Link>
           <NotificationBell />
         </div>
+        <WorkspaceSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -554,7 +555,6 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
-         <SetupGuide />
           {showOpticCredits && activeUser?.primaryAgencyId && (
             <SidebarOpticCreditsBlock agencyId={activeUser.primaryAgencyId} />
           )}

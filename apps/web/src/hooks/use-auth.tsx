@@ -254,10 +254,6 @@ const createUserDocument = async (firebaseUser: FirebaseUser) => {
       updates.role = 'individual_creator';
       needsUpdate = true;
     }
-    if (existingData.agencyMemberships === undefined) {
-      updates.agencyMemberships = [];
-      needsUpdate = true;
-    }
     
     if (existingData.stripeCustomerId === undefined) { updates.stripeCustomerId = null; needsUpdate = true; }
     if (existingData.stripeSubscriptionId === undefined) { updates.stripeSubscriptionId = null; needsUpdate = true; }

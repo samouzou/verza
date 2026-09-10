@@ -6,6 +6,8 @@ import * as React from "react";
 import Image from "next/image";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { SetupGuide } from "@/components/layout/setup-guide";
+import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,14 +30,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <SidebarNav />
       <main className="flex-1 overflow-y-auto bg-background/50 flex flex-col">
         {/* Mobile Header */}
-        <div className="md:hidden flex h-14 items-center justify-between border-b bg-background px-4 sticky top-0 z-10 w-full">
-          <div className="flex items-center">
+        <div className="md:hidden flex h-14 items-center justify-between border-b bg-background px-4 sticky top-0 z-10 w-full gap-2">
+          <div className="flex items-center min-w-0">
              <SidebarTrigger className="mr-2" />
              <div className="flex items-center gap-2">
                 <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} />
                 <span className="font-semibold text-lg">Verza</span>
               </div>
           </div>
+          <WorkspaceSwitcher compact />
         </div>
 
         {/* Centered Content Container */}
@@ -66,6 +69,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </div>
+        <SetupGuide />
       </main>
     </div>
   );

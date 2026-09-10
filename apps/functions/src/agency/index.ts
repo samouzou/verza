@@ -170,10 +170,18 @@ export const inviteTalentToAgency = onCall(async (request) => {
 
     const batch = db.batch();
     batch.update(agencyDocRef, {talent: FieldValue.arrayUnion(newTalentMember)});
-    batch.update(talentUserDocRef, {
-      agencyMemberships: FieldValue.arrayUnion(talentAgencyMembership),
-      primaryAgencyId: agencyId, // Set primary agency ID on invite for existing users
-    });
+    const repairedTalentMemberships = upsertMembership(
+      asMemberships(talentDocData?.agencyMemberships),
+      talentAgencyMembership
+    );
+    if (!talentDocData?.primaryAgencyId) {
+      batch.update(talentUserDocRef, {
+        agencyMemberships: repairedTalentMemberships,
+        primaryAgencyId: agencyId,
+      });
+    } else {
+      batch.update(talentUserDocRef, {agencyMemberships: repairedTalentMemberships});
+    }
 
     await batch.commit();
 
@@ -188,6 +196,25 @@ export const inviteTalentToAgency = onCall(async (request) => {
   }
 });
 
+
+function asMemberships(value: unknown): AgencyMembership[] {
+  return Array.isArray(value) ? value.filter((m) => m && typeof m === "object") as AgencyMembership[] : [];
+}
+
+function upsertMembership(list: AgencyMembership[], entry: AgencyMembership): AgencyMembership[] {
+  const next = [...list];
+  const idx = next.findIndex((m) => m.agencyId === entry.agencyId);
+  if (idx === -1) {
+    next.push(entry);
+    return next;
+  }
+  next[idx] = {...next[idx], ...entry};
+  return next;
+}
+
+function isActiveTeamStatus(status: string | undefined): boolean {
+  return status === "active" || status === undefined;
+}
 
 export const inviteTeamMemberToAgency = onCall(async (request) => {
   if (!request.auth) {
@@ -247,6 +274,8 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
 
     const memberUserId = memberUser.uid;
     const memberUserDocRef = db.collection("users").doc(memberUserId);
+    const memberUserSnap = await memberUserDocRef.get();
+    const memberUserData = memberUserSnap.data() as UserProfileFirestoreData | undefined;
 
     const newTeamMember: TeamMember = {
       userId: memberUserId,
@@ -262,9 +291,14 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
       status: "pending",
     };
 
+    const repairedMemberships = upsertMembership(
+      asMemberships(memberUserData?.agencyMemberships),
+      teamAgencyMembership
+    );
+
     const batch = db.batch();
     batch.update(agencyDocRef, {team: FieldValue.arrayUnion(newTeamMember)});
-    batch.update(memberUserDocRef, {agencyMemberships: FieldValue.arrayUnion(teamAgencyMembership)});
+    batch.update(memberUserDocRef, {agencyMemberships: repairedMemberships});
     await batch.commit();
 
     await sendAgencyInvitationEmail(memberEmailCleaned, agencyData.name, true, "team", role);
@@ -307,17 +341,45 @@ export const acceptAgencyInvitation = onCall(async (request) => {
 
       const agencyData = agencyDoc.data() as Agency;
       const userData = userDoc.data() as UserProfileFirestoreData;
+      const currentMemberships = asMemberships(userData.agencyMemberships);
 
-      const membershipIndex = userData.agencyMemberships?.findIndex(
-        (m) => m.agencyId === agencyId && m.status === "pending"
+      let membershipIndex = currentMemberships.findIndex(
+        (m) => m.agencyId === agencyId && (m.status === "pending" || !m.status)
       );
-      if (membershipIndex === -1 || membershipIndex === undefined) {
+      const pendingTeamMember = (agencyData.team || []).find(
+        (t) => t.userId === userId && (t.status === "pending" || !t.status) &&
+          (t.role === "admin" || t.role === "member")
+      );
+      const pendingTalent = (agencyData.talent || []).find(
+        (t) => t.userId === userId && (t.status === "pending" || !t.status)
+      );
+
+      if (membershipIndex === -1) {
+        if (pendingTeamMember) {
+          currentMemberships.push({
+            agencyId,
+            agencyName: agencyData.name,
+            role: pendingTeamMember.role,
+            status: "pending",
+          });
+          membershipIndex = currentMemberships.length - 1;
+        } else if (pendingTalent) {
+          currentMemberships.push({
+            agencyId,
+            agencyName: agencyData.name,
+            role: "talent",
+            status: "pending",
+          });
+          membershipIndex = currentMemberships.length - 1;
+        }
+      }
+      if (membershipIndex === -1) {
         throw new HttpsError("failed-precondition", "No pending invitation found for this user.");
       }
 
       // 3. PREPARE WRITES
-      const membership = userData.agencyMemberships![membershipIndex];
-      const updatedMembershipsArray = [...(userData.agencyMemberships || [])];
+      const membership = currentMemberships[membershipIndex];
+      const updatedMembershipsArray = [...currentMemberships];
       updatedMembershipsArray[membershipIndex] = {...membership, status: "active"};
 
       const claimsUpdate: { [key: string]: any } = {primaryAgencyId: agencyId};
@@ -328,7 +390,9 @@ export const acceptAgencyInvitation = onCall(async (request) => {
       let updatedTeamArray: TeamMember[] | null = null;
 
       if (membership.role === "talent") {
-        const talentIndex = agencyData.talent.findIndex((t) => t.userId === userId && t.status === "pending");
+        const talentIndex = agencyData.talent.findIndex(
+          (t) => t.userId === userId && (t.status === "pending" || !t.status)
+        );
         if (talentIndex !== -1) {
           updatedTalentArray = [...agencyData.talent];
           updatedTalentArray[talentIndex] = {
@@ -339,7 +403,9 @@ export const acceptAgencyInvitation = onCall(async (request) => {
           };
         }
       } else if (membership.role === "admin" || membership.role === "member") {
-        const teamMemberIndex = (agencyData.team || []).findIndex((t) => t.userId === userId && t.status === "pending");
+        const teamMemberIndex = (agencyData.team || []).findIndex(
+          (t) => t.userId === userId && (t.status === "pending" || !t.status)
+        );
         if (teamMemberIndex !== -1) {
           updatedTeamArray = [...(agencyData.team || [])];
           updatedTeamArray[teamMemberIndex] = {
@@ -395,6 +461,105 @@ export const acceptAgencyInvitation = onCall(async (request) => {
 });
 
 
+/**
+ * Resolves the team role a user should have while working in a given agency.
+ * Talent-only memberships cannot become the active workspace.
+ * @param {string} userId Firebase Auth uid.
+ * @param {UserProfileFirestoreData} userData User profile.
+ * @param {Agency} agencyData Agency document.
+ * @return {{role: UserProfileFirestoreData["role"], isAgencyAdmin: boolean} | null}
+ */
+function resolveWorkspaceRole(
+  userId: string,
+  userData: UserProfileFirestoreData,
+  agencyData: Agency
+): {role: UserProfileFirestoreData["role"]; isAgencyAdmin: boolean} | null {
+  if (agencyData.ownerId === userId) {
+    return {role: "agency_owner", isAgencyAdmin: false};
+  }
+  const membership = userData.agencyMemberships?.find(
+    (m) => m.agencyId === agencyData.id && isActiveTeamStatus(m.status)
+  );
+  if (membership?.role === "admin") {
+    return {role: "agency_admin", isAgencyAdmin: true};
+  }
+  if (membership?.role === "member") {
+    return {role: "agency_member", isAgencyAdmin: false};
+  }
+  const teamMember = (agencyData.team || []).find(
+    (t) => t.userId === userId && isActiveTeamStatus(t.status)
+  );
+  if (teamMember?.role === "admin") {
+    return {role: "agency_admin", isAgencyAdmin: true};
+  }
+  if (teamMember?.role === "member") {
+    return {role: "agency_member", isAgencyAdmin: false};
+  }
+  return null;
+}
+
+/**
+ * Sets the caller's active brand/agency workspace (primaryAgencyId).
+ * Campaigns, Optic, wallet, and launch all follow this id.
+ */
+export const switchPrimaryAgency = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to switch workspace.");
+  }
+  const userId = request.auth.uid;
+  const agencyId = typeof request.data?.agencyId === "string" ? request.data.agencyId.trim() : "";
+  if (!agencyId) {
+    throw new HttpsError("invalid-argument", "Agency ID is required.");
+  }
+
+  const userDocRef = db.collection("users").doc(userId);
+  const agencyDocRef = db.collection("agencies").doc(agencyId);
+  const [userSnap, agencySnap] = await Promise.all([userDocRef.get(), agencyDocRef.get()]);
+
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "User profile not found.");
+  }
+  if (!agencySnap.exists) {
+    throw new HttpsError("not-found", "Brand or agency not found.");
+  }
+
+  const userData = userSnap.data() as UserProfileFirestoreData;
+  const agencyData = {id: agencySnap.id, ...agencySnap.data()} as Agency;
+  const resolved = resolveWorkspaceRole(userId, userData, agencyData);
+  if (!resolved) {
+    throw new HttpsError(
+      "permission-denied",
+      "You can only switch to a brand or agency where you are an active owner, admin, or member."
+    );
+  }
+
+  const membershipRole =
+    resolved.role === "agency_owner" ? "owner" :
+    resolved.role === "agency_admin" ? "admin" : "member";
+  const repairedMemberships = upsertMembership(asMemberships(userData.agencyMemberships), {
+    agencyId,
+    agencyName: agencyData.name,
+    role: membershipRole,
+    status: "active",
+  });
+
+  await userDocRef.update({
+    primaryAgencyId: agencyId,
+    role: resolved.role,
+    agencyMemberships: repairedMemberships,
+  });
+
+  const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+  await admin.auth().setCustomUserClaims(userId, {
+    ...currentClaims,
+    primaryAgencyId: agencyId,
+    isAgencyAdmin: resolved.isAgencyAdmin,
+  });
+
+  logger.info(`User ${userId} switched primary workspace to ${agencyId} as ${resolved.role}`);
+  return {success: true, primaryAgencyId: agencyId, role: resolved.role};
+});
+
 export const declineAgencyInvitation = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated to decline an invitation.");
@@ -408,7 +573,8 @@ export const declineAgencyInvitation = onCall(async (request) => {
   const agencyDocRef = db.collection("agencies").doc(agencyId);
   const userDocRef = db.collection("users").doc(userId);
 
-  return db.runTransaction(async (transaction) => {
+  try {
+    const result = await db.runTransaction(async (transaction) => {
     const agencyDoc = await transaction.get(agencyDocRef);
     const userDoc = await transaction.get(userDocRef);
 
@@ -420,11 +586,21 @@ export const declineAgencyInvitation = onCall(async (request) => {
 
     const membership = userData.agencyMemberships?.find((m) => m.agencyId === agencyId);
 
-    const updatedMembershipsArray = userData.agencyMemberships?.filter((m) => m.agencyId !== agencyId) || [];
-    transaction.update(userDocRef, {
+    const updatedMembershipsArray = asMemberships(userData.agencyMemberships).filter((m) => m.agencyId !== agencyId);
+    const userUpdate: {agencyMemberships: AgencyMembership[]; primaryAgencyId?: string | null} = {
       agencyMemberships: updatedMembershipsArray,
-      primaryAgencyId: null, // Clear the primary agency ID
-    });
+    };
+    let nextPrimaryAgencyId = userData.primaryAgencyId ?? null;
+    let didChangePrimary = false;
+    if (userData.primaryAgencyId === agencyId) {
+      const fallback = updatedMembershipsArray.find(
+        (m) => m.status === "active" && (m.role === "owner" || m.role === "admin" || m.role === "member")
+      );
+      nextPrimaryAgencyId = fallback?.agencyId ?? null;
+      userUpdate.primaryAgencyId = nextPrimaryAgencyId;
+      didChangePrimary = true;
+    }
+    transaction.update(userDocRef, userUpdate);
 
     if (membership?.role === "talent") {
       const updatedTalentArray = agencyData.talent.filter((t) => t.userId !== userId);
@@ -434,12 +610,23 @@ export const declineAgencyInvitation = onCall(async (request) => {
       transaction.update(agencyDocRef, {team: updatedTeamArray});
     }
 
+    return {success: true as const, didChangePrimary, nextPrimaryAgencyId};
+    });
+
+    if (result.didChangePrimary) {
+      const currentClaims = (await admin.auth().getUser(userId)).customClaims || {};
+      await admin.auth().setCustomUserClaims(userId, {
+        ...currentClaims,
+        primaryAgencyId: result.nextPrimaryAgencyId,
+      });
+    }
+
     return {success: true, message: "Invitation declined successfully."};
-  }).catch((error) => {
+  } catch (error) {
     logger.error(`Error declining invitation for user ${userId} to agency ${agencyId}:`, error);
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "An unexpected error occurred while declining the invitation.");
-  });
+  }
 });
 
 

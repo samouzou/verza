@@ -4,31 +4,91 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o { // This matches all files in your bucket
 
-    // Helper function to check if the requester is part of the specified agency via custom claims
-    function isMemberOfAgency(agencyId) {
-      return request.auth != null && request.auth.token.get('primaryAgencyId', null) == agencyId;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    // Agency staff by Firestore profile (matches Firestore isTeamMemberOf for agencies/{id} updates).
-    // JWT primaryAgencyId is often missing for admins/members until token refresh.
+    function requesterProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAgencyOwnerOf(agencyId) {
+      return signedIn() &&
+             firestore.exists(/databases/(default)/documents/agencies/$(agencyId)) &&
+             firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
+    }
+
+    function membershipIsActiveTeam(m) {
+      return (!('status' in m) || m.status == 'active') &&
+             (m.role == 'owner' || m.role == 'admin' || m.role == 'member');
+    }
+
+    function hasActiveTeamMembership(agencyId) {
+      return signedIn() &&
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+             'agencyMemberships' in requesterProfile() &&
+             requesterProfile().agencyMemberships.exists(m,
+               m.agencyId == agencyId && membershipIsActiveTeam(m)
+             );
+    }
+
+    function isOnAgencyTeamRoster(agencyId) {
+      return signedIn() &&
+             firestore.exists(/databases/(default)/documents/agencies/$(agencyId)) &&
+             'team' in firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data &&
+             firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.team.exists(t,
+               t.userId == request.auth.uid &&
+               (!('status' in t) || t.status == 'active') &&
+               (t.role == 'admin' || t.role == 'member')
+             );
+    }
+
+    function hasLegacyPrimaryAccess(agencyId) {
+      return signedIn() &&
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+             requesterProfile().get('primaryAgencyId', null) == agencyId &&
+             (requesterProfile().get('role', '') == 'agency_owner' ||
+              requesterProfile().get('role', '') == 'agency_admin' ||
+              requesterProfile().get('role', '') == 'agency_member');
+    }
+
+    function isTeamMemberOf(agencyId) {
+      return isAgencyOwnerOf(agencyId) ||
+             hasActiveTeamMembership(agencyId) ||
+             isOnAgencyTeamRoster(agencyId) ||
+             hasLegacyPrimaryAccess(agencyId);
+    }
+
+    // Helper function to check if the requester is part of the specified agency
+    function isMemberOfAgency(agencyId) {
+      return isTeamMemberOf(agencyId);
+    }
+
+    // Agency staff by Firestore memberships (not the selected JWT primaryAgencyId).
     function isAgencyTeamStaffFromProfile() {
-      return request.auth != null &&
+      return signedIn() &&
         firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('primaryAgencyId', null) != null &&
-        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_owner' ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_admin' ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'agency_member');
+        (
+          requesterProfile().get('role', '') == 'agency_owner' ||
+          requesterProfile().get('role', '') == 'agency_admin' ||
+          requesterProfile().get('role', '') == 'agency_member' ||
+          (
+            'agencyMemberships' in requesterProfile() &&
+            requesterProfile().agencyMemberships.exists(m, membershipIsActiveTeam(m))
+          )
+        );
     }
 
     function canWriteAgencySharedMedia() {
-      return request.auth != null &&
-        (isAgencyTeamStaffFromProfile() || request.auth.token.get('primaryAgencyId', null) != null);
+      return isAgencyTeamStaffFromProfile();
     }
 
-    // Helper to determine if the target user is a talent in the requester's agency
+    // Helper to determine if the target user is a talent in the requester's active agency
     function isTalentInMyAgency(targetUserId) {
-      let agencyId = request.auth.token.get('primaryAgencyId', null);
-      return agencyId != null && 
+      let agencyId = requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null));
+      return signedIn() &&
+             agencyId != null &&
+             firestore.exists(/databases/(default)/documents/agencies/$(agencyId)) &&
              firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.talent.exists(t, t.userId == targetUserId);
     }
 
@@ -135,9 +195,7 @@ service firebase.storage {
 
     // LinkedIn OS carousel slide PNGs (worker writes via Admin SDK; agency team reads)
     match /linkedin_os_carousels/{agencyId}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        isAgencyTeamStaffFromProfile() &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('primaryAgencyId', null) == agencyId;
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
       allow write: if false;
     }
 
