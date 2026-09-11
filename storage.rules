@@ -18,78 +18,48 @@ service firebase.storage {
              firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
-    function membershipIsActiveTeam(m) {
-      return (!('status' in m) || m.status == 'active') &&
-             (m.role == 'owner' || m.role == 'admin' || m.role == 'member');
+    function isTeamRole() {
+      return requesterProfile().get('role', '') == 'agency_owner' ||
+             requesterProfile().get('role', '') == 'agency_admin' ||
+             requesterProfile().get('role', '') == 'agency_member';
     }
 
-    function hasActiveTeamMembership(agencyId) {
-      return signedIn() &&
-             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-             'agencyMemberships' in requesterProfile() &&
-             requesterProfile().agencyMemberships.exists(m,
-               m.agencyId == agencyId && membershipIsActiveTeam(m)
-             );
-    }
-
-    function isOnAgencyTeamRoster(agencyId) {
-      return signedIn() &&
-             firestore.exists(/databases/(default)/documents/agencies/$(agencyId)) &&
-             'team' in firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data &&
-             firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.team.exists(t,
-               t.userId == request.auth.uid &&
-               (!('status' in t) || t.status == 'active') &&
-               (t.role == 'admin' || t.role == 'member')
-             );
-    }
-
-    function hasLegacyPrimaryAccess(agencyId) {
+    function hasSelectedWorkspaceAccess(agencyId) {
       return signedIn() &&
              firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
              requesterProfile().get('primaryAgencyId', null) == agencyId &&
-             (requesterProfile().get('role', '') == 'agency_owner' ||
-              requesterProfile().get('role', '') == 'agency_admin' ||
-              requesterProfile().get('role', '') == 'agency_member');
+             isTeamRole();
     }
 
     function isTeamMemberOf(agencyId) {
-      return isAgencyOwnerOf(agencyId) ||
-             hasActiveTeamMembership(agencyId) ||
-             isOnAgencyTeamRoster(agencyId) ||
-             hasLegacyPrimaryAccess(agencyId);
+      return isAgencyOwnerOf(agencyId) || hasSelectedWorkspaceAccess(agencyId);
     }
 
-    // Helper function to check if the requester is part of the specified agency
     function isMemberOfAgency(agencyId) {
       return isTeamMemberOf(agencyId);
     }
 
-    // Agency staff by Firestore memberships (not the selected JWT primaryAgencyId).
     function isAgencyTeamStaffFromProfile() {
       return signedIn() &&
         firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        (
-          requesterProfile().get('role', '') == 'agency_owner' ||
-          requesterProfile().get('role', '') == 'agency_admin' ||
-          requesterProfile().get('role', '') == 'agency_member' ||
-          (
-            'agencyMemberships' in requesterProfile() &&
-            requesterProfile().agencyMemberships.exists(m, membershipIsActiveTeam(m))
-          )
-        );
+        isTeamRole();
     }
 
     function canWriteAgencySharedMedia() {
       return isAgencyTeamStaffFromProfile();
     }
 
-    // Helper to determine if the target user is a talent in the requester's active agency
     function isTalentInMyAgency(targetUserId) {
-      let agencyId = requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null));
       return signedIn() &&
-             agencyId != null &&
-             firestore.exists(/databases/(default)/documents/agencies/$(agencyId)) &&
-             firestore.get(/databases/(default)/documents/agencies/$(agencyId)).data.talent.exists(t, t.userId == targetUserId);
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+             firestore.exists(/databases/(default)/documents/users/$(targetUserId)) &&
+             requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) != null &&
+             (
+               firestore.get(/databases/(default)/documents/users/$(targetUserId)).data.get('primaryAgencyId', null) ==
+                 requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) ||
+               requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) in
+                 firestore.get(/databases/(default)/documents/users/$(targetUserId)).data.get('giggingForAgencies', [])
+             );
     }
 
     // Rules for user avatars

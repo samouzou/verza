@@ -23,115 +23,64 @@ service cloud.firestore {
              get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
     }
 
-    // Source of truth for workspace access: memberships, agency roster, or ownership.
-    // Older accounts often have team/owner rows but missing status on memberships.
-    function membershipIsActiveTeam(m) {
-      return (!('status' in m) || m.status == 'active') &&
-             (m.role == 'owner' || m.role == 'admin' || m.role == 'member');
+    function isTeamRole() {
+      return requesterProfile().get('role', '') == 'agency_owner' ||
+             requesterProfile().get('role', '') == 'agency_admin' ||
+             requesterProfile().get('role', '') == 'agency_member';
     }
 
-    function hasActiveTeamMembership(agencyId) {
-      return signedIn() &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             'agencyMemberships' in requesterProfile() &&
-             requesterProfile().agencyMemberships.exists(m,
-               m.agencyId == agencyId && membershipIsActiveTeam(m)
-             );
-    }
-
-    function isOnAgencyTeamRoster(agencyId) {
-      return signedIn() &&
-             exists(/databases/$(database)/documents/agencies/$(agencyId)) &&
-             'team' in get(/databases/$(database)/documents/agencies/$(agencyId)).data &&
-             get(/databases/$(database)/documents/agencies/$(agencyId)).data.team.exists(t,
-               t.userId == request.auth.uid &&
-               (!('status' in t) || t.status == 'active') &&
-               (t.role == 'admin' || t.role == 'member')
-             );
-    }
-
-    // Safe now that clients cannot write primaryAgencyId. Covers pre-membership profiles.
-    function hasLegacyPrimaryAccess(agencyId) {
+    // Selected workspace only. Clients cannot write primaryAgencyId; switch/accept do it via Admin SDK.
+    // Avoid list.exists(item, …) — the deploy linter treats that as invalid even though runtime accepts it.
+    function hasSelectedWorkspaceAccess(agencyId) {
       return signedIn() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              requesterProfile().get('primaryAgencyId', null) == agencyId &&
-             (requesterProfile().get('role', '') == 'agency_owner' ||
-              requesterProfile().get('role', '') == 'agency_admin' ||
-              requesterProfile().get('role', '') == 'agency_member');
+             isTeamRole();
     }
 
     function isAgencyAdminOf(agencyId) {
       return isAgencyOwnerOf(agencyId) ||
+             (hasSelectedWorkspaceAccess(agencyId) && requesterProfile().get('role', '') == 'agency_admin') ||
              (signedIn() &&
-              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-              'agencyMemberships' in requesterProfile() &&
-              requesterProfile().agencyMemberships.exists(m,
-                m.agencyId == agencyId &&
-                (!('status' in m) || m.status == 'active') &&
-                m.role == 'admin'
-              )) ||
-             (signedIn() &&
-              exists(/databases/$(database)/documents/agencies/$(agencyId)) &&
-              'team' in get(/databases/$(database)/documents/agencies/$(agencyId)).data &&
-              get(/databases/$(database)/documents/agencies/$(agencyId)).data.team.exists(t,
-                t.userId == request.auth.uid &&
-                (!('status' in t) || t.status == 'active') &&
-                t.role == 'admin'
-              ));
+              request.auth.token.get('isAgencyAdmin', false) == true &&
+              request.auth.token.get('primaryAgencyId', '') == agencyId);
     }
 
     function isTeamMemberOf(agencyId) {
-      return isAgencyOwnerOf(agencyId) ||
-             hasActiveTeamMembership(agencyId) ||
-             isOnAgencyTeamRoster(agencyId) ||
-             hasLegacyPrimaryAccess(agencyId);
+      return isAgencyOwnerOf(agencyId) || hasSelectedWorkspaceAccess(agencyId);
     }
 
     function isMemberOfAgency(agencyId) {
       return isTeamMemberOf(agencyId);
     }
 
-    // Helper to determine if the target user is a talent in the requester's active agency
     function isTalentInMyAgency(targetUserId) {
-      let requesterAgencyId = requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null));
       return signedIn() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             requesterAgencyId != null &&
-             exists(/databases/$(database)/documents/agencies/$(requesterAgencyId)) &&
-             'talent' in get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data &&
-             get(/databases/$(database)/documents/agencies/$(requesterAgencyId)).data.talent.exists(t, t.userId == targetUserId);
-    }
-    
-    // Helper to check if a creator has accepted a gig for an agency the requester belongs to
-    function isGigAffiliated(userId) {
-      let targetUser = get(/databases/$(database)/documents/users/$(userId)).data;
-      let affiliated = targetUser.get('giggingForAgencies', []);
-      let myPrimary = requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null));
-      return signedIn() &&
-             'giggingForAgencies' in targetUser &&
+             exists(/databases/$(database)/documents/users/$(targetUserId)) &&
+             requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) != null &&
              (
-               (myPrimary != null && myPrimary in affiliated) ||
-               (
-                 'agencyMemberships' in requesterProfile() &&
-                 requesterProfile().agencyMemberships.exists(m,
-                   membershipIsActiveTeam(m) &&
-                   m.agencyId in affiliated
-                 )
-               )
+               get(/databases/$(database)/documents/users/$(targetUserId)).data.get('primaryAgencyId', null) ==
+                 requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) ||
+               requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) in
+                 get(/databases/$(database)/documents/users/$(targetUserId)).data.get('giggingForAgencies', [])
              );
     }
 
-    // Helper to check if the requester is in the same agency as the target user (allows inheriting subscription checks)
+    function isGigAffiliated(userId) {
+      return signedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             exists(/databases/$(database)/documents/users/$(userId)) &&
+             requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) != null &&
+             requesterProfile().get('primaryAgencyId', request.auth.token.get('primaryAgencyId', null)) in
+               get(/databases/$(database)/documents/users/$(userId)).data.get('giggingForAgencies', []);
+    }
+
     function isSameAgencyTeam(targetUserId) {
-      let targetUser = get(/databases/$(database)/documents/users/$(targetUserId)).data;
-      let targetPrimary = targetUser.get('primaryAgencyId', null);
-      let myPrimary = requesterProfile().get('primaryAgencyId', null);
-      return signedIn() && (
-        (targetPrimary != null && isTeamMemberOf(targetPrimary)) ||
-        (myPrimary != null && isTeamMemberOf(myPrimary) &&
-          'agencyMemberships' in targetUser &&
-          targetUser.agencyMemberships.exists(m, m.agencyId == myPrimary && (!('status' in m) || m.status == 'active')))
-      );
+      return signedIn() &&
+             exists(/databases/$(database)/documents/users/$(targetUserId)) &&
+             get(/databases/$(database)/documents/users/$(targetUserId)).data.get('primaryAgencyId', null) != null &&
+             isTeamMemberOf(get(/databases/$(database)/documents/users/$(targetUserId)).data.get('primaryAgencyId', null));
     }
 
     function requesterPrivilegeFieldsUnchanged() {
