@@ -4,7 +4,12 @@ import { Mail, MessageCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { draftParagraphs, type LeadOutreachDraft } from "@/lib/optic/outreach-draft";
+import {
+  draftParagraphs,
+  looksLikeEmailHtml,
+  sanitizeEmailHtml,
+  type LeadOutreachDraft,
+} from "@/lib/optic/outreach-draft";
 
 type Props = {
   draft: LeadOutreachDraft;
@@ -60,17 +65,27 @@ export function OutreachDraftCard({ draft, compact, className }: Props) {
       )}
 
       <div className={cn("space-y-1.5", compact && "max-h-[7.5rem] overflow-y-auto pr-0.5")}>
-        {paragraphs.map((para, i) => (
-          <p
-            key={i}
+        {isEmail && looksLikeEmailHtml(draft.body) ? (
+          <div
             className={cn(
-              "leading-relaxed text-foreground/90",
+              "optic-gmail-preview leading-relaxed text-foreground/90 [&_a]:underline",
               compact ? "text-[11px]" : "text-xs"
             )}
-          >
-            {para}
-          </p>
-        ))}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(draft.body) }}
+          />
+        ) : (
+          paragraphs.map((para, i) => (
+            <p
+              key={i}
+              className={cn(
+                "leading-relaxed text-foreground/90",
+                compact ? "text-[11px]" : "text-xs"
+              )}
+            >
+              {para}
+            </p>
+          ))
+        )}
       </div>
     </div>
   );

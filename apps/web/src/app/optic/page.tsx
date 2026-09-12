@@ -353,6 +353,7 @@ export default function OpticDiscoveryPage() {
         <OpticIntegrationsSection
           gmailConnected={Boolean(user?.opticGmailConnected)}
           gmailEmail={user?.opticGmailEmail ?? null}
+          gmailCanRead={user?.opticGmailCanRead === true}
           smsEnabled={Boolean(user?.opticSmsEnabled)}
           smsPhone={user?.opticSmsPhone ?? null}
         />

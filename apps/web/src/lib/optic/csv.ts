@@ -1,3 +1,10 @@
+import {
+  OPTIC_LEAD_STAGE_LABELS,
+  OPTIC_LEAD_RESPONSE_LABELS,
+  OPTIC_PASS_REASON_LABELS,
+  resolveLastContactedAt,
+  resolveLeadStage,
+} from "./crm";
 import type { OpticLeadRow } from "./types";
 
 function csvEscape(value: string): string {
@@ -49,6 +56,11 @@ export function downloadLeadsCsv(leads: OpticLeadRow[], filename = "optic-leads.
     "source",
     "campaignId",
     "campaignTitle",
+    "pipelineStage",
+    "outreachResponse",
+    "passReason",
+    "crmNote",
+    "lastContactedAt",
     "outreachEmailed",
     "outreachEmailedAt",
     "createdAt",
@@ -86,6 +98,11 @@ export function downloadLeadsCsv(leads: OpticLeadRow[], filename = "optic-leads.
       l.source ?? "",
       l.campaignId ?? "",
       l.campaignTitle ?? "",
+      OPTIC_LEAD_STAGE_LABELS[resolveLeadStage(l)],
+      l.outreachResponse ? OPTIC_LEAD_RESPONSE_LABELS[l.outreachResponse] : "",
+      l.passReason ? OPTIC_PASS_REASON_LABELS[l.passReason] : "",
+      l.crmNote ?? "",
+      tsToIso(resolveLastContactedAt(l)),
       l.outreachEmailed ? "yes" : "no",
       tsToIso(l.outreachEmailedAt),
       tsToIso(l.createdAt),

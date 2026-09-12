@@ -8,16 +8,33 @@ import {
   ExternalLink,
   Flame,
   Loader2,
+  Mail,
   Send,
 } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -25,7 +42,27 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { GmailThread } from "@/components/optic/gmail-thread";
 import { OutreachDraftCard } from "@/components/optic/outreach-draft-card";
+import { OutreachEmailEditor } from "@/components/optic/outreach-email-editor";
+import type { OpticGmailThreadMessage } from "@/hooks/use-optic-gmail";
+import { Textarea } from "@/components/ui/textarea";
+import type {
+  OpticLeadCrmPatch,
+  OpticLeadDraftPatch,
+} from "@/hooks/use-optic-lead-outreach";
+import {
+  OPTIC_LEAD_RESPONSE_LABELS,
+  OPTIC_LEAD_RESPONSES,
+  OPTIC_LEAD_STAGE_LABELS,
+  OPTIC_LEAD_STAGES,
+  OPTIC_PASS_REASON_LABELS,
+  OPTIC_PASS_REASONS,
+  passReasonLabel,
+  resolveLastContactedAt,
+  resolveLeadStage,
+  stageBadgeClasses,
+} from "@/lib/optic/crm";
 import {
   leadInitials,
   matchBand,
@@ -33,9 +70,16 @@ import {
   matchBandLabel,
   platformChipClasses,
 } from "@/lib/optic/match-score";
-import { getLeadOutreachDraft, outreachCopyText } from "@/lib/optic/outreach-draft";
+import {
+  emailBodyForEditor,
+  getLeadOutreachDraft,
+  isEmailDraftEmpty,
+  normalizeEmailHtml,
+  outreachCopyText,
+} from "@/lib/optic/outreach-draft";
 import type { OpticLeadRow } from "@/lib/optic/types";
 import { cn } from "@/lib/utils";
+import type { OpticLeadResponse, OpticLeadStage, OpticPassReason } from "@verza/types";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -54,10 +98,21 @@ export type LeadReportSheetProps = {
   gmailConnected?: boolean;
   onCreateGmailDraft?: (leadId: string) => void;
   draftingLeadId?: string | null;
-  onOutreachToggle?: (leadId: string, emailed: boolean) => void;
+  onSendGmail?: (leadId: string) => void;
+  sendingLeadId?: string | null;
+  gmailCanRead?: boolean;
+  onReconnectGmail?: () => void;
+  onLoadThread?: (leadId: string) => void;
+  threadLeadId?: string | null;
+  threadMessages?: OpticGmailThreadMessage[];
+  threadReplyCount?: number;
+  threadLoading?: boolean;
   outreachUpdatingId?: string | null;
+  onCrmChange?: (leadId: string, patch: OpticLeadCrmPatch) => void;
   onEmailChange?: (leadId: string, email: string) => void;
   emailUpdatingId?: string | null;
+  onDraftChange?: (leadId: string, patch: OpticLeadDraftPatch) => Promise<boolean>;
+  draftUpdatingId?: string | null;
 };
 
 function BreakdownBar({ label, value }: { label: string; value?: number }) {
@@ -89,30 +144,86 @@ export function LeadReportSheet({
   gmailConnected,
   onCreateGmailDraft,
   draftingLeadId,
-  onOutreachToggle,
+  onSendGmail,
+  sendingLeadId,
+  gmailCanRead,
+  onReconnectGmail,
+  onLoadThread,
+  threadLeadId,
+  threadMessages,
+  threadReplyCount,
+  threadLoading,
   outreachUpdatingId,
+  onCrmChange,
   onEmailChange,
   emailUpdatingId,
+  onDraftChange,
+  draftUpdatingId,
 }: LeadReportSheetProps) {
   const [emailValue, setEmailValue] = useState("");
+  const [noteValue, setNoteValue] = useState("");
+  const [subjectValue, setSubjectValue] = useState("");
+  const [bodyValue, setBodyValue] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   useEffect(() => {
     setEmailValue(lead?.email ?? "");
+    setNoteValue(lead?.crmNote ?? "");
+    setSubjectValue(lead?.draftEmailSubject ?? "");
+    const emailBody = lead?.draftEmail?.trim() ?? "";
+    const dmBody = lead?.draftDm ?? "";
+    setBodyValue(
+      emailBody ? emailBodyForEditor(emailBody) : dmBody
+    );
     setCopied(false);
-  }, [lead?.id, lead?.email]);
+  }, [lead?.id, lead?.email, lead?.crmNote, lead?.draftEmail, lead?.draftEmailSubject, lead?.draftDm]);
+
+  useEffect(() => {
+    if (!open || !lead?.id || !lead.gmailThreadId || !onLoadThread || !gmailCanRead) {
+      return;
+    }
+    onLoadThread(lead.id);
+  }, [open, lead?.id, lead?.gmailThreadId, onLoadThread, gmailCanRead]);
 
   if (!lead) return null;
 
   const band = matchBand(lead.matchScore);
   const outreach = getLeadOutreachDraft(lead);
   const created = tsToDate(lead.createdAt);
-  const contacted = Boolean(lead.outreachEmailed);
-  const busyOutreach = outreachUpdatingId === lead.id;
+  const lastContact = tsToDate(resolveLastContactedAt(lead));
+  const stage = resolveLeadStage(lead);
+  const busyCrm = outreachUpdatingId === lead.id;
   const busyEmail = emailUpdatingId === lead.id;
+  const busyDraft = draftUpdatingId === lead.id;
   const bio = lead.extensionScrape?.bio?.trim() || null;
   const externalUrl = lead.extensionScrape?.externalUrl?.trim() || null;
   const platform = lead.discoveryPlatform ?? "creator";
+  const draftChannel =
+    outreach?.channel ??
+    (lead.email?.trim() || lead.draftEmail?.trim() ? "email" : "dm");
+  const savedBody =
+    draftChannel === "email" ? (lead.draftEmail ?? "") : (lead.draftDm ?? "");
+  const savedSubject = lead.draftEmailSubject ?? "";
+  const savedEditorBody =
+    draftChannel === "email" ? emailBodyForEditor(savedBody) : savedBody;
+  const bodyDirty =
+    draftChannel === "email"
+      ? normalizeEmailHtml(bodyValue) !== normalizeEmailHtml(savedEditorBody)
+      : bodyValue.trim() !== savedBody.trim();
+  const draftDirty =
+    bodyDirty ||
+    (draftChannel === "email" && subjectValue.trim() !== savedSubject.trim());
+  const hasBody =
+    draftChannel === "email" ? !isEmailDraftEmpty(bodyValue) : Boolean(bodyValue.trim());
+  const localDraft = hasBody
+    ? {
+        channel: draftChannel,
+        subject: draftChannel === "email" ? subjectValue.trim() || undefined : undefined,
+        body: bodyValue,
+        platformLabel: outreach?.platformLabel ?? platform,
+      }
+    : outreach;
 
   const commitEmail = () => {
     if (!onEmailChange) return;
@@ -121,16 +232,57 @@ export function LeadReportSheet({
     if (trimmed !== current) onEmailChange(lead.id, trimmed);
   };
 
+  const persistDraft = async (): Promise<boolean> => {
+    if (!onDraftChange) return true;
+    if (!draftDirty) return true;
+    if (!hasBody) return false;
+    if (draftChannel === "email") {
+      return onDraftChange(lead.id, {
+        draftEmail: bodyValue,
+        draftEmailSubject: subjectValue.trim() || null,
+      });
+    }
+    return onDraftChange(lead.id, { draftDm: bodyValue });
+  };
+
   const copyDraft = () => {
-    if (!outreach) return;
-    void navigator.clipboard.writeText(outreachCopyText(outreach));
+    if (!localDraft) return;
+    void navigator.clipboard.writeText(outreachCopyText(localDraft));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const flushThen = async (fn: () => void) => {
+    const ok = await persistDraft();
+    if (ok) fn();
+  };
+
+  const restorePointerEvents = () => {
+    document.body.style.removeProperty("pointer-events");
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+    <>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && sendOpen) return;
+        if (!next) restorePointerEvents();
+        onOpenChange(next);
+      }}
+    >
+      <SheetContent
+        className="w-full sm:max-w-lg overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (sendOpen) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (sendOpen) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (sendOpen) e.preventDefault();
+        }}
+      >
         <SheetHeader className="space-y-4 text-left">
           <div className="flex items-start gap-4">
             <Avatar className="h-16 w-16 border-2 border-primary/20">
@@ -163,9 +315,15 @@ export function LeadReportSheet({
                     {lead.niche}
                   </Badge>
                 )}
-                {contacted && (
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">
-                    Contacted
+                <Badge
+                  variant="outline"
+                  className={cn("font-medium", stageBadgeClasses(stage))}
+                >
+                  {OPTIC_LEAD_STAGE_LABELS[stage]}
+                </Badge>
+                {stage === "passed" && lead.passReason && (
+                  <Badge variant="secondary" className="font-normal">
+                    {passReasonLabel(lead.passReason)}
                   </Badge>
                 )}
               </div>
@@ -174,6 +332,132 @@ export function LeadReportSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {onCrmChange && (
+            <div className="space-y-3 rounded-xl border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Pipeline</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={busyCrm}
+                  onClick={() => onCrmChange(lead.id, { touchLastContacted: true })}
+                >
+                  Log contact
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Stage</Label>
+                  <Select
+                    value={stage}
+                    disabled={busyCrm}
+                    onValueChange={(value) =>
+                      onCrmChange(lead.id, {
+                        pipelineStage: value as OpticLeadStage,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OPTIC_LEAD_STAGES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {OPTIC_LEAD_STAGE_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Reply</Label>
+                  <Select
+                    value={lead.outreachResponse ?? "__none__"}
+                    disabled={busyCrm}
+                    onValueChange={(value) =>
+                      onCrmChange(lead.id, {
+                        outreachResponse:
+                          value === "__none__"
+                            ? null
+                            : (value as OpticLeadResponse),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No reply yet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No reply yet</SelectItem>
+                      {OPTIC_LEAD_RESPONSES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {OPTIC_LEAD_RESPONSE_LABELS[r]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {stage === "passed" && (
+                <div className="space-y-1.5">
+                  <Label>Pass reason</Label>
+                  <Select
+                    value={lead.passReason ?? "__none__"}
+                    disabled={busyCrm}
+                    onValueChange={(value) =>
+                      onCrmChange(lead.id, {
+                        pipelineStage: "passed",
+                        passReason:
+                          value === "__none__"
+                            ? null
+                            : (value as OpticPassReason),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Why they passed" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Choose a reason</SelectItem>
+                      {OPTIC_PASS_REASONS.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {OPTIC_PASS_REASON_LABELS[reason]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="crm-note">Note</Label>
+                <Textarea
+                  id="crm-note"
+                  value={noteValue}
+                  onChange={(e) => setNoteValue(e.target.value)}
+                  onBlur={() => {
+                    const trimmed = noteValue.trim();
+                    if (trimmed !== (lead.crmNote ?? "").trim()) {
+                      onCrmChange(lead.id, { crmNote: trimmed || null });
+                    }
+                  }}
+                  placeholder="Rate, usage, manager, next step…"
+                  disabled={busyCrm}
+                  className="min-h-[72px]"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Last contacted{" "}
+                {lastContact
+                  ? formatDistanceToNow(lastContact, { addSuffix: true })
+                  : "—"}
+                {busyCrm && (
+                  <Loader2 className="ml-2 inline h-3 w-3 animate-spin" />
+                )}
+              </p>
+            </div>
+          )}
+
           <div className="rounded-xl border bg-gradient-to-br from-orange-500/10 via-background to-background p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -285,26 +569,30 @@ export function LeadReportSheet({
                 <p className="text-sm">{lead.email || "—"}</p>
               )}
             </div>
-            {onOutreachToggle && (
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={contacted}
-                  disabled={busyOutreach}
-                  onCheckedChange={(v) => onOutreachToggle(lead.id, v === true)}
-                />
-                Mark as contacted
-                {busyOutreach && (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                )}
-              </label>
-            )}
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">Outreach</h3>
-              {outreach && (
-                <div className="flex gap-1">
+              {localDraft && (
+                <div className="flex flex-wrap gap-1">
+                  {onDraftChange && draftDirty && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8"
+                      disabled={busyDraft || !hasBody}
+                      onClick={() => void persistDraft()}
+                    >
+                      {busyDraft ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      <span className="ml-1.5">Save</span>
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"
@@ -319,7 +607,7 @@ export function LeadReportSheet({
                     )}
                     <span className="ml-1.5">Copy</span>
                   </Button>
-                  {onCreateGmailDraft && outreach.channel === "email" && (
+                  {onCreateGmailDraft && draftChannel === "email" && (
                     <Button
                       type="button"
                       variant="outline"
@@ -328,25 +616,124 @@ export function LeadReportSheet({
                       disabled={
                         !gmailConnected ||
                         !lead.email ||
-                        draftingLeadId === lead.id
+                        !hasBody ||
+                        draftingLeadId === lead.id ||
+                        sendingLeadId === lead.id ||
+                        busyDraft
                       }
-                      onClick={() => onCreateGmailDraft(lead.id)}
+                      onClick={() => void flushThen(() => onCreateGmailDraft(lead.id))}
                     >
                       {draftingLeadId === lead.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Send className="h-3.5 w-3.5" />
+                        <Mail className="h-3.5 w-3.5" />
                       )}
                       <span className="ml-1.5">To drafts</span>
+                    </Button>
+                  )}
+                  {onSendGmail && draftChannel === "email" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8"
+                      disabled={
+                        !gmailConnected ||
+                        !lead.email ||
+                        !hasBody ||
+                        sendingLeadId === lead.id ||
+                        draftingLeadId === lead.id ||
+                        busyDraft
+                      }
+                      onClick={() => setSendOpen(true)}
+                    >
+                      {sendingLeadId === lead.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      <span className="ml-1.5">
+                        {lead.gmailThreadId ? "Follow up" : "Send"}
+                      </span>
                     </Button>
                   )}
                 </div>
               )}
             </div>
-            {outreach ? (
+            {onDraftChange ? (
+              <div className="space-y-2">
+                {draftChannel === "email" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="outreach-subject">Subject</Label>
+                    <Input
+                      id="outreach-subject"
+                      value={subjectValue}
+                      onChange={(e) => setSubjectValue(e.target.value)}
+                      maxLength={200}
+                      disabled={busyDraft}
+                      placeholder="Subject line"
+                    />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="outreach-body">
+                    {draftChannel === "email" ? "Email" : `${platform} DM`}
+                  </Label>
+                  {draftChannel === "email" ? (
+                    <>
+                      <OutreachEmailEditor
+                        key={lead.id}
+                        value={bodyValue}
+                        onChange={setBodyValue}
+                        readOnly={busyDraft}
+                        placeholder="Edit the note before you send…"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Bold, lists, and links send the way they do in Gmail.
+                      </p>
+                    </>
+                  ) : (
+                    <Textarea
+                      id="outreach-body"
+                      value={bodyValue}
+                      onChange={(e) => setBodyValue(e.target.value)}
+                      maxLength={8000}
+                      disabled={busyDraft}
+                      placeholder="Edit the DM, then copy into the app…"
+                      className="min-h-[180px]"
+                    />
+                  )}
+                </div>
+                {draftDirty && (
+                  <p className="text-xs text-muted-foreground">
+                    Unsaved edits — Save, or Send / To drafts will save first.
+                  </p>
+                )}
+              </div>
+            ) : outreach ? (
               <OutreachDraftCard draft={outreach} />
             ) : (
               <p className="text-sm text-muted-foreground">No outreach draft for this lead.</p>
+            )}
+            {tsToDate(lead.gmailSentAt) && (
+              <p className="text-xs text-muted-foreground">
+                Last emailed{" "}
+                {formatDistanceToNow(tsToDate(lead.gmailSentAt)!, { addSuffix: true })}
+              </p>
+            )}
+            {lead.gmailThreadId && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Thread</h3>
+                <GmailThread
+                  messages={threadLeadId === lead.id ? threadMessages ?? [] : []}
+                  replyCount={threadLeadId === lead.id ? threadReplyCount ?? 0 : 0}
+                  loading={threadLoading}
+                  canRead={gmailCanRead}
+                  onReconnect={onReconnectGmail}
+                  onRefresh={
+                    onLoadThread ? () => onLoadThread(lead.id) : undefined
+                  }
+                />
+              </div>
             )}
           </div>
 
@@ -360,5 +747,38 @@ export function LeadReportSheet({
         </div>
       </SheetContent>
     </Sheet>
+    <AlertDialog
+      open={sendOpen}
+      onOpenChange={(next) => {
+        setSendOpen(next);
+        if (!next) restorePointerEvents();
+      }}
+    >
+      <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {lead.gmailThreadId ? "Send a follow-up?" : "Send this email?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Sends from your connected Gmail
+            {lead.email ? ` to ${lead.email}` : ""}. This uses the compose
+            permission you already granted — it will leave your Sent folder.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              void flushThen(() => {
+                if (onSendGmail) onSendGmail(lead.id);
+              });
+            }}
+          >
+            {lead.gmailThreadId ? "Send follow-up" : "Send now"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

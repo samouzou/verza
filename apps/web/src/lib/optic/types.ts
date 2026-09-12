@@ -1,4 +1,9 @@
 import type { Timestamp } from "firebase/firestore";
+import type {
+  OpticLeadResponse,
+  OpticLeadStage,
+  OpticPassReason,
+} from "@verza/types";
 
 export const OPTIC_CAMPAIGN_STORAGE_KEY = "optic-selected-campaign-id";
 export const OPTIC_ACTIVE_JOB_STORAGE_KEY = "optic-active-job-id";
@@ -88,6 +93,16 @@ export type OpticLeadRow = {
   /** User marked they've reached out (draft sent, email sent, etc.). */
   outreachEmailed?: boolean;
   outreachEmailedAt?: Timestamp | null;
+  /** CRM pipeline. Absent on older leads — derive from outreachEmailed. */
+  pipelineStage?: OpticLeadStage | null;
+  lastContactedAt?: Timestamp | null;
+  outreachResponse?: OpticLeadResponse | null;
+  passReason?: OpticPassReason | null;
+  crmNote?: string | null;
+  gmailDraftId?: string | null;
+  gmailThreadId?: string | null;
+  gmailMessageId?: string | null;
+  gmailSentAt?: Timestamp | null;
   /** Composite campaign fit 0–100 (brief + audience + contact + activity). */
   matchScore?: number | null;
   /** One-sentence why they fit. */

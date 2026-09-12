@@ -114,10 +114,13 @@ import {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadCrm,
   setOpticLeadEmail,
+  setOpticLeadOutreachDraft,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
+import {askOpticVaultChat} from "./optic/vaultChat";
 import {
   claimOpticExtensionJob,
   submitOpticExtensionLead,
@@ -149,6 +152,8 @@ import {
   completeGmailConnect,
   disconnectGmail,
   createOpticGmailDraft,
+  sendOpticGmailMessage,
+  getOpticGmailThread,
 } from "./gmail";
 import {
   upsertStoreProduct,
@@ -234,7 +239,10 @@ export {
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,
   setOpticLeadOutreachStatus,
+  setOpticLeadCrm,
   setOpticLeadEmail,
+  setOpticLeadOutreachDraft,
+  askOpticVaultChat,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
   claimOpticExtensionJob,
@@ -261,6 +269,8 @@ export {
   completeGmailConnect,
   disconnectGmail,
   createOpticGmailDraft,
+  sendOpticGmailMessage,
+  getOpticGmailThread,
   upsertStoreProduct,
   manageStoreProduct,
   createStoreCheckoutSession,

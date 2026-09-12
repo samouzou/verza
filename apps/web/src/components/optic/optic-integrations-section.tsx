@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   gmailConnected: boolean;
   gmailEmail: string | null;
+  gmailCanRead?: boolean;
   smsEnabled: boolean;
   smsPhone: string | null;
   /** Public /sms-opt-in page: expanded integrations UI, no OAuth / save. */
@@ -23,10 +24,12 @@ type Props = {
 
 function integrationsNeedSetup(
   gmailConnected: boolean,
+  gmailCanRead: boolean | undefined,
   smsEnabled: boolean,
   smsPhone: string | null
 ): boolean {
   if (!gmailConnected) return true;
+  if (gmailConnected && !gmailCanRead) return true;
   if (smsEnabled && !smsPhone?.trim()) return true;
   return false;
 }
@@ -67,8 +70,14 @@ function IntegrationSummary({
 export function OpticIntegrationsSection(props: Props) {
   const { preview = false } = props;
   const needsSetup = useMemo(
-    () => integrationsNeedSetup(props.gmailConnected, props.smsEnabled, props.smsPhone),
-    [props.gmailConnected, props.smsEnabled, props.smsPhone]
+    () =>
+      integrationsNeedSetup(
+        props.gmailConnected,
+        props.gmailCanRead,
+        props.smsEnabled,
+        props.smsPhone
+      ),
+    [props.gmailConnected, props.gmailCanRead, props.smsEnabled, props.smsPhone]
   );
 
   const [open, setOpen] = useState(preview || needsSetup);
@@ -104,6 +113,7 @@ export function OpticIntegrationsSection(props: Props) {
             <GmailConnectCard
               connected={props.gmailConnected}
               email={props.gmailEmail}
+              canRead={props.gmailCanRead}
               disabled={preview}
             />
             <OpticSmsCard

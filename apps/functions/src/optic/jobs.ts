@@ -15,6 +15,15 @@ import {
 import {continueMissionForUid} from "./continuation";
 import {assertSufficientOpticCredits} from "./credits";
 import {normalizeSmsPhone} from "./twilio";
+import {
+  isOpticLeadResponse,
+  isOpticLeadStage,
+  isOpticPassReason,
+  type OpticLeadResponse,
+  type OpticLeadStage,
+  type OpticPassReason,
+} from "./leadCrm";
+import {isEmailDraftEmpty, sanitizeStoredEmailDraft} from "../gmail/emailHtml";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
@@ -230,6 +239,35 @@ export const cancelOpticDiscoveryJob = onCall(async (request) => {
   return {ok: true as const};
 });
 
+async function loadVaultLeadForTeam(uid: string, leadId: string) {
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("failed-precondition", "User profile not found.");
+  }
+  const u = userSnap.data()!;
+  const primary = u.primaryAgencyId as string | undefined;
+  const role = String(u.role ?? "");
+  if (!primary || !TEAM_ROLES.has(role)) {
+    throw new HttpsError("permission-denied", "You cannot update vault leads for this brand.");
+  }
+
+  const ref = db.collection("optic_outreach_leads").doc(leadId.trim());
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Lead not found.");
+  }
+  const lead = snap.data()!;
+  if (String(lead.agencyId ?? "") !== primary) {
+    throw new HttpsError("permission-denied", "This lead belongs to another brand.");
+  }
+  return {ref, lead};
+}
+
+function currentLeadStage(lead: {pipelineStage?: unknown; outreachEmailed?: unknown}): OpticLeadStage {
+  if (isOpticLeadStage(lead.pipelineStage)) return lead.pipelineStage;
+  return lead.outreachEmailed ? "contacted" : "new";
+}
+
 /** Sets whether the team has contacted a vault lead (outreach checkmark). */
 export const setOpticLeadOutreachStatus = onCall(async (request) => {
   if (!request.auth) {
@@ -244,33 +282,121 @@ export const setOpticLeadOutreachStatus = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "emailed must be true or false.");
   }
 
-  const userSnap = await db.collection("users").doc(uid).get();
-  if (!userSnap.exists) {
-    throw new HttpsError("failed-precondition", "User profile not found.");
-  }
-  const u = userSnap.data()!;
-  const primary = u.primaryAgencyId as string | undefined;
-  const role = String(u.role ?? "");
-  if (!primary || !TEAM_ROLES.has(role)) {
-    throw new HttpsError("permission-denied", "You cannot update vault outreach for this brand.");
-  }
-
-  const ref = db.collection("optic_outreach_leads").doc(leadId.trim());
-  const snap = await ref.get();
-  if (!snap.exists) {
-    throw new HttpsError("not-found", "Lead not found.");
-  }
-  const lead = snap.data()!;
-  if (String(lead.agencyId ?? "") !== primary) {
-    throw new HttpsError("permission-denied", "This lead belongs to another brand.");
-  }
-
-  await ref.update({
+  const {ref, lead} = await loadVaultLeadForTeam(uid, leadId);
+  const stage = currentLeadStage(lead);
+  const patch: Record<string, unknown> = {
     outreachEmailed: emailed,
-    outreachEmailedAt: emailed ? FieldValue.serverTimestamp() : null,
-    outreachEmailedBy: emailed ? uid : null,
+    outreachEmailedAt: emailed ? FieldValue.serverTimestamp() : lead.outreachEmailedAt ?? null,
+    outreachEmailedBy: emailed ? uid : lead.outreachEmailedBy ?? null,
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (emailed) {
+    patch.lastContactedAt = FieldValue.serverTimestamp();
+    if (stage === "new") patch.pipelineStage = "contacted";
+  } else if (stage === "contacted") {
+    patch.pipelineStage = "new";
+  }
+
+  await ref.update(patch);
+  return {success: true as const};
+});
+
+const CRM_NOTE_MAX = 500;
+
+/** Updates vault CRM fields: stage, last contact, reply, pass reason, note. */
+export const setOpticLeadCrm = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to update vault CRM.");
+  }
+  const uid = request.auth.uid;
+  const {
+    leadId,
+    pipelineStage,
+    outreachResponse,
+    passReason,
+    crmNote,
+    touchLastContacted,
+  } = request.data as {
+    leadId?: unknown;
+    pipelineStage?: unknown;
+    outreachResponse?: unknown;
+    passReason?: unknown;
+    crmNote?: unknown;
+    touchLastContacted?: unknown;
+  };
+  if (typeof leadId !== "string" || !leadId.trim()) {
+    throw new HttpsError("invalid-argument", "leadId is required.");
+  }
+
+  const hasStage = pipelineStage !== undefined;
+  const hasResponse = outreachResponse !== undefined;
+  const hasPassReason = passReason !== undefined;
+  const hasNote = crmNote !== undefined;
+  const touch = touchLastContacted === true;
+  if (!hasStage && !hasResponse && !hasPassReason && !hasNote && !touch) {
+    throw new HttpsError("invalid-argument", "Provide a CRM field to update.");
+  }
+  if (hasStage && !isOpticLeadStage(pipelineStage)) {
+    throw new HttpsError("invalid-argument", "Invalid pipeline stage.");
+  }
+  if (hasResponse && outreachResponse !== null && !isOpticLeadResponse(outreachResponse)) {
+    throw new HttpsError("invalid-argument", "Invalid outreach response.");
+  }
+  if (hasPassReason && passReason !== null && !isOpticPassReason(passReason)) {
+    throw new HttpsError("invalid-argument", "Invalid pass reason.");
+  }
+  if (hasNote && crmNote !== null && typeof crmNote !== "string") {
+    throw new HttpsError("invalid-argument", "crmNote must be a string.");
+  }
+
+  const {ref, lead} = await loadVaultLeadForTeam(uid, leadId);
+  const nextStage: OpticLeadStage = hasStage ? pipelineStage : currentLeadStage(lead);
+  const patch: Record<string, unknown> = {
+    updatedAt: FieldValue.serverTimestamp(),
+    crmUpdatedBy: uid,
+  };
+
+  if (hasStage) {
+    patch.pipelineStage = nextStage;
+    if (nextStage === "new") {
+      patch.passReason = null;
+    } else if (nextStage === "passed") {
+      /* keep or set pass reason below */
+    } else {
+      patch.passReason = null;
+      patch.outreachEmailed = true;
+      if (nextStage === "contacted" || !lead.lastContactedAt) {
+        patch.lastContactedAt = FieldValue.serverTimestamp();
+      }
+    }
+  }
+
+  if (hasResponse) {
+    patch.outreachResponse = outreachResponse as OpticLeadResponse | null;
+  }
+  if (hasPassReason) {
+    patch.passReason = nextStage === "passed" ? (passReason as OpticPassReason | null) : null;
+  } else if (hasStage && nextStage !== "passed") {
+    patch.passReason = null;
+  }
+  if (hasNote) {
+    const trimmed = typeof crmNote === "string" ? crmNote.trim() : "";
+    if (trimmed.length > CRM_NOTE_MAX) {
+      throw new HttpsError("invalid-argument", `Note must be ${CRM_NOTE_MAX} characters or fewer.`);
+    }
+    patch.crmNote = trimmed || null;
+  }
+  if (touch) {
+    patch.lastContactedAt = FieldValue.serverTimestamp();
+    patch.outreachEmailed = true;
+    patch.outreachEmailedAt = FieldValue.serverTimestamp();
+    patch.outreachEmailedBy = uid;
+    if (currentLeadStage(lead) === "new" && !hasStage) {
+      patch.pipelineStage = "contacted";
+    }
+  }
+
+  await ref.update(patch);
   return {success: true as const};
 });
 
@@ -321,6 +447,78 @@ export const setOpticLeadEmail = onCall(async (request) => {
     emailUpdatedBy: uid,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  return {success: true as const};
+});
+
+const DRAFT_SUBJECT_MAX = 200;
+const DRAFT_BODY_MAX = 8000;
+
+/** Updates the vault outreach draft (email subject/body or platform DM) before send. */
+export const setOpticLeadOutreachDraft = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to edit outreach.");
+  }
+  const uid = request.auth.uid;
+  const {leadId, draftEmail, draftEmailSubject, draftDm} = request.data as {
+    leadId?: unknown;
+    draftEmail?: unknown;
+    draftEmailSubject?: unknown;
+    draftDm?: unknown;
+  };
+  if (typeof leadId !== "string" || !leadId.trim()) {
+    throw new HttpsError("invalid-argument", "leadId is required.");
+  }
+  const hasEmail = draftEmail !== undefined;
+  const hasSubject = draftEmailSubject !== undefined;
+  const hasDm = draftDm !== undefined;
+  if (!hasEmail && !hasSubject && !hasDm) {
+    throw new HttpsError("invalid-argument", "Provide a draft field to update.");
+  }
+
+  const patch: Record<string, unknown> = {
+    updatedAt: FieldValue.serverTimestamp(),
+    draftUpdatedBy: uid,
+    draftUpdatedAt: FieldValue.serverTimestamp(),
+  };
+  if (hasEmail) {
+    if (typeof draftEmail !== "string") {
+      throw new HttpsError("invalid-argument", "draftEmail must be a string.");
+    }
+    const body = sanitizeStoredEmailDraft(draftEmail);
+    if (!body || isEmailDraftEmpty(body)) {
+      throw new HttpsError("invalid-argument", "Email body cannot be empty.");
+    }
+    if (body.length > DRAFT_BODY_MAX) {
+      throw new HttpsError("invalid-argument", `Email must be ${DRAFT_BODY_MAX} characters or fewer.`);
+    }
+    patch.draftEmail = body;
+  }
+  if (hasSubject) {
+    if (typeof draftEmailSubject !== "string") {
+      throw new HttpsError("invalid-argument", "draftEmailSubject must be a string.");
+    }
+    const subject = draftEmailSubject.trim();
+    if (subject.length > DRAFT_SUBJECT_MAX) {
+      throw new HttpsError("invalid-argument", `Subject must be ${DRAFT_SUBJECT_MAX} characters or fewer.`);
+    }
+    patch.draftEmailSubject = subject || null;
+  }
+  if (hasDm) {
+    if (typeof draftDm !== "string") {
+      throw new HttpsError("invalid-argument", "draftDm must be a string.");
+    }
+    const dm = draftDm.trim();
+    if (!dm) {
+      throw new HttpsError("invalid-argument", "DM cannot be empty.");
+    }
+    if (dm.length > DRAFT_BODY_MAX) {
+      throw new HttpsError("invalid-argument", `DM must be ${DRAFT_BODY_MAX} characters or fewer.`);
+    }
+    patch.draftDm = dm;
+  }
+
+  const {ref} = await loadVaultLeadForTeam(uid, leadId);
+  await ref.update(patch);
   return {success: true as const};
 });
 

@@ -15,10 +15,11 @@ import { useOpticGmail } from "@/hooks/use-optic-gmail";
 type Props = {
   connected: boolean;
   email: string | null;
+  canRead?: boolean;
   disabled?: boolean;
 };
 
-export function GmailConnectCard({ connected, email, disabled }: Props) {
+export function GmailConnectCard({ connected, email, canRead, disabled }: Props) {
   const gmail = useOpticGmail({ connected, email });
 
   return (
@@ -29,14 +30,15 @@ export function GmailConnectCard({ connected, email, disabled }: Props) {
           Gmail
         </CardTitle>
         <CardDescription>
-          Connect Gmail so Optic can push outreach drafts into your Gmail Drafts folder. We only request
-          permission to create drafts — not to send mail for you.
+          Connect Gmail to draft, send, and read replies on threads you start from Verza.
+          Seeing replies needs inbox read — reconnect once after that permission is enabled.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <ConnectStatus connected={connected} email={email} />
+        <ConnectStatus connected={connected} email={email} canRead={canRead} />
         <ConnectActions
           connected={connected}
+          canRead={canRead}
           disabled={disabled}
           connecting={gmail.connecting}
           disconnecting={gmail.disconnecting}
@@ -51,27 +53,33 @@ export function GmailConnectCard({ connected, email, disabled }: Props) {
 function ConnectStatus({
   connected,
   email,
+  canRead,
 }: {
   connected: boolean;
   email: string | null;
+  canRead?: boolean;
 }) {
   if (connected && email) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
         Connected as <span className="font-medium text-foreground">{email}</span>
+        {canRead
+          ? " · can read replies"
+          : " · reconnect to see replies"}
       </p>
     );
   }
   return (
     <p className="text-sm text-muted-foreground">
-      Not connected — vault leads can still be copied; connect to push drafts to Gmail.
+      Not connected — you can still copy drafts. Connect to send from Verza.
     </p>
   );
 }
 
 function ConnectActions({
   connected,
+  canRead,
   disabled,
   connecting,
   disconnecting,
@@ -79,6 +87,7 @@ function ConnectActions({
   onDisconnect,
 }: {
   connected: boolean;
+  canRead?: boolean;
   disabled?: boolean;
   connecting: boolean;
   disconnecting: boolean;
@@ -87,15 +96,27 @@ function ConnectActions({
 }) {
   if (connected) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled || disconnecting}
-        onClick={onDisconnect}
-      >
-        {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Disconnect"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        {!canRead && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || connecting}
+            onClick={onConnect}
+          >
+            {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Reconnect for replies"}
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || disconnecting}
+          onClick={onDisconnect}
+        >
+          {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Disconnect"}
+        </Button>
+      </div>
     );
   }
   return (

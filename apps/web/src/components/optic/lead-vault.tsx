@@ -17,7 +17,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,6 +34,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { OpticGmailThreadMessage } from "@/hooks/use-optic-gmail";
+import type {
+  OpticLeadCrmPatch,
+  OpticLeadDraftPatch,
+} from "@/hooks/use-optic-lead-outreach";
+import {
+  OPTIC_LEAD_STAGE_LABELS,
+  OPTIC_LEAD_STAGES,
+  resolveLastContactedAt,
+  resolveLeadStage,
+  responseLabel,
+  stageBadgeClasses,
+} from "@/lib/optic/crm";
 import { downloadLeadsCsv } from "@/lib/optic/csv";
 import {
   leadInitials,
@@ -45,6 +57,7 @@ import {
 } from "@/lib/optic/match-score";
 import type { OpticCampaignOption, OpticLeadRow } from "@/lib/optic/types";
 import { cn } from "@/lib/utils";
+import type { OpticLeadStage } from "@verza/types";
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -61,14 +74,25 @@ export type LeadVaultProps = {
   gmailConnected?: boolean;
   onCreateGmailDraft?: (leadId: string) => void;
   draftingLeadId?: string | null;
+  onSendGmail?: (leadId: string) => void;
+  sendingLeadId?: string | null;
+  gmailCanRead?: boolean;
+  onReconnectGmail?: () => void;
+  onLoadThread?: (leadId: string) => void;
+  threadLeadId?: string | null;
+  threadMessages?: OpticGmailThreadMessage[];
+  threadReplyCount?: number;
+  threadLoading?: boolean;
   campaigns: OpticCampaignOption[];
   campaignsLoading?: boolean;
   campaignFilter: string;
   onCampaignFilterChange: (value: string) => void;
-  onOutreachToggle?: (leadId: string, emailed: boolean) => void;
   outreachUpdatingId?: string | null;
+  onCrmChange?: (leadId: string, patch: OpticLeadCrmPatch) => void;
   onEmailChange?: (leadId: string, email: string) => void;
   emailUpdatingId?: string | null;
+  onDraftChange?: (leadId: string, patch: OpticLeadDraftPatch) => Promise<boolean>;
+  draftUpdatingId?: string | null;
 };
 
 type SortMode = "score" | "followers-desc" | "followers-asc";
@@ -79,16 +103,28 @@ export function LeadVault({
   gmailConnected,
   onCreateGmailDraft,
   draftingLeadId,
+  onSendGmail,
+  sendingLeadId,
+  gmailCanRead,
+  onReconnectGmail,
+  onLoadThread,
+  threadLeadId,
+  threadMessages,
+  threadReplyCount,
+  threadLoading,
   campaigns,
   campaignsLoading,
   campaignFilter,
   onCampaignFilterChange,
-  onOutreachToggle,
   outreachUpdatingId,
+  onCrmChange,
   onEmailChange,
   emailUpdatingId,
+  onDraftChange,
+  draftUpdatingId,
 }: LeadVaultProps) {
   const [filter, setFilter] = useState("");
+  const [stageFilter, setStageFilter] = useState<string>("__all__");
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -100,10 +136,16 @@ export function LeadVault({
     return leads.filter((l) => l.campaignId === campaignFilter);
   }, [leads, campaignFilter]);
 
+  const staged = useMemo(() => {
+    if (stageFilter === "__all__") return byCampaign;
+    return byCampaign.filter((l) => resolveLeadStage(l) === stageFilter);
+  }, [byCampaign, stageFilter]);
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return byCampaign;
-    return byCampaign.filter((l) => {
+    if (!q) return staged;
+    return staged.filter((l) => {
+      const stage = resolveLeadStage(l);
       const blob = [
         l.creatorName,
         l.profileUrl,
@@ -116,13 +158,17 @@ export function LeadVault({
         l.campaignId,
         l.matchReason,
         typeof l.matchScore === "number" ? String(l.matchScore) : "",
+        OPTIC_LEAD_STAGE_LABELS[stage],
+        l.outreachResponse ? responseLabel(l.outreachResponse) : "",
+        l.passReason,
+        l.crmNote,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [byCampaign, filter]);
+  }, [staged, filter]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -210,6 +256,22 @@ export function LeadVault({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2 min-w-[180px]">
+              <Label>Stage</Label>
+              <Select value={stageFilter} onValueChange={setStageFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All stages" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All stages</SelectItem>
+                  {OPTIC_LEAD_STAGES.map((stage) => (
+                    <SelectItem key={stage} value={stage}>
+                      {OPTIC_LEAD_STAGE_LABELS[stage]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2 flex-1 min-w-[200px] max-w-xl">
               <Label htmlFor="vault-search" className="sr-only">
                 Search
@@ -217,7 +279,7 @@ export function LeadVault({
               <Input
                 id="vault-search"
                 type="search"
-                placeholder="Search name, niche, email, campaign…"
+                placeholder="Search name, niche, stage, reply…"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -243,9 +305,14 @@ export function LeadVault({
           {loading
             ? "Loading…"
             : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
-          {(filter.trim() || campaignFilter !== "__all__") &&
-          byCampaign.length !== filtered.length
-            ? ` (search narrowed from ${byCampaign.length})`
+          {(filter.trim() || stageFilter !== "__all__") &&
+          staged.length !== filtered.length
+            ? ` (search narrowed from ${staged.length})`
+            : ""}
+          {!loading &&
+          stageFilter !== "__all__" &&
+          byCampaign.length !== staged.length
+            ? ` · ${staged.length} ${OPTIC_LEAD_STAGE_LABELS[stageFilter as OpticLeadStage].toLowerCase()}`
             : ""}
           {!loading &&
           campaignFilter !== "__all__" &&
@@ -267,11 +334,11 @@ export function LeadVault({
           </p>
         ) : (
           <div className="rounded-md border overflow-x-auto">
-            <Table className="min-w-[720px]">
+            <Table className="min-w-[860px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20 whitespace-nowrap px-2">
-                    Contacted
+                  <TableHead className="w-[148px] whitespace-nowrap">
+                    Stage
                   </TableHead>
                   <TableHead>Creator</TableHead>
                   <TableHead className="w-28">
@@ -288,7 +355,8 @@ export function LeadVault({
                       )}
                     </button>
                   </TableHead>
-                  <TableHead className="hidden md:table-cell">Niche</TableHead>
+                  <TableHead className="hidden lg:table-cell">Reply</TableHead>
+                  <TableHead className="hidden xl:table-cell">Niche</TableHead>
                   <TableHead className="whitespace-nowrap">
                     <button
                       type="button"
@@ -308,14 +376,14 @@ export function LeadVault({
                       )}
                     </button>
                   </TableHead>
-                  <TableHead className="whitespace-nowrap">Found</TableHead>
+                  <TableHead className="whitespace-nowrap">Last contact</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sorted.map((lead) => {
-                  const created = tsToDate(lead.createdAt);
-                  const contacted = Boolean(lead.outreachEmailed);
+                  const lastContact = tsToDate(resolveLastContactedAt(lead));
+                  const stage = resolveLeadStage(lead);
                   const busy = outreachUpdatingId === lead.id;
                   const band = matchBand(lead.matchScore);
                   const platform = lead.discoveryPlatform;
@@ -329,20 +397,45 @@ export function LeadVault({
                       onClick={() => setSelectedId(lead.id)}
                     >
                       <TableCell
-                        className="align-middle py-3 w-20 px-2"
+                        className="align-middle py-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {onOutreachToggle ? (
-                          <Checkbox
-                            checked={contacted}
+                        {onCrmChange ? (
+                          <Select
+                            value={stage}
                             disabled={busy}
-                            onCheckedChange={(v) =>
-                              onOutreachToggle(lead.id, v === true)
+                            onValueChange={(value) =>
+                              onCrmChange(lead.id, {
+                                pipelineStage: value as OpticLeadStage,
+                              })
                             }
-                            aria-label={`Marked contacted: ${lead.creatorName ?? lead.id}`}
-                          />
+                          >
+                            <SelectTrigger
+                              className={cn(
+                                "h-8 w-[136px] text-xs font-medium",
+                                stageBadgeClasses(stage)
+                              )}
+                              aria-label={`Stage for ${lead.creatorName ?? lead.id}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {OPTIC_LEAD_STAGES.map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {OPTIC_LEAD_STAGE_LABELS[s]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
-                          "—"
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
+                              stageBadgeClasses(stage)
+                            )}
+                          >
+                            {OPTIC_LEAD_STAGE_LABELS[stage]}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="align-middle">
@@ -399,15 +492,22 @@ export function LeadVault({
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="align-middle text-muted-foreground text-sm hidden md:table-cell">
+                      <TableCell className="align-middle text-muted-foreground text-sm hidden lg:table-cell">
+                        <span className="line-clamp-1">
+                          {lead.outreachResponse
+                            ? responseLabel(lead.outreachResponse)
+                            : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="align-middle text-muted-foreground text-sm hidden xl:table-cell">
                         <span className="line-clamp-1">{lead.niche ?? "—"}</span>
                       </TableCell>
                       <TableCell className="align-middle text-muted-foreground text-sm tabular-nums">
                         {lead.followerCount ?? "—"}
                       </TableCell>
                       <TableCell className="align-middle text-xs text-muted-foreground whitespace-nowrap">
-                        {created
-                          ? formatDistanceToNow(created, { addSuffix: true })
+                        {lastContact
+                          ? formatDistanceToNow(lastContact, { addSuffix: true })
                           : "—"}
                       </TableCell>
                       <TableCell className="align-middle text-right text-muted-foreground">
@@ -431,10 +531,21 @@ export function LeadVault({
           gmailConnected={gmailConnected}
           onCreateGmailDraft={onCreateGmailDraft}
           draftingLeadId={draftingLeadId}
-          onOutreachToggle={onOutreachToggle}
+          onSendGmail={onSendGmail}
+          sendingLeadId={sendingLeadId}
+          gmailCanRead={gmailCanRead}
+          onReconnectGmail={onReconnectGmail}
+          onLoadThread={onLoadThread}
+          threadLeadId={threadLeadId}
+          threadMessages={threadMessages}
+          threadReplyCount={threadReplyCount}
+          threadLoading={threadLoading}
           outreachUpdatingId={outreachUpdatingId}
+          onCrmChange={onCrmChange}
           onEmailChange={onEmailChange}
           emailUpdatingId={emailUpdatingId}
+          onDraftChange={onDraftChange}
+          draftUpdatingId={draftUpdatingId}
         />
       </CardContent>
     </Card>

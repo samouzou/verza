@@ -1,9 +1,11 @@
+import {randomBytes} from "crypto";
 import {FieldValue} from "firebase-admin/firestore";
 import {HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {APP_URL, GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET} from "../config/params";
-import {GMAIL_COMPOSE_SCOPE, GMAIL_CREDENTIAL_DOC_ID} from "./constants";
+import {GMAIL_CREDENTIAL_DOC_ID, GMAIL_OAUTH_SCOPES, gmailScopeListHasRead} from "./constants";
+import {prepareGmailBodies} from "./emailHtml";
 
 type GmailCredentialDoc = {
   refreshToken: string;
@@ -47,7 +49,7 @@ export function buildGmailOAuthUrl(): string {
     client_id: clientId,
     redirect_uri: gmailRedirectUri(),
     response_type: "code",
-    scope: GMAIL_COMPOSE_SCOPE,
+    scope: GMAIL_OAUTH_SCOPES,
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -64,6 +66,7 @@ async function exchangeToken(body: Record<string, string>): Promise<{
   access_token: string;
   refresh_token?: string;
   expires_in: number;
+  scope?: string;
 }> {
   const {clientId, clientSecret} = oauthClientConfig();
   const form = new URLSearchParams({...body, client_id: clientId, client_secret: clientSecret});
@@ -77,7 +80,12 @@ async function exchangeToken(body: Record<string, string>): Promise<{
     logger.error("[Gmail] Token exchange failed", {status: res.status, text: text.slice(0, 300)});
     throw new HttpsError("internal", "Could not complete Gmail authorization.");
   }
-  return JSON.parse(text) as {access_token: string; refresh_token?: string; expires_in: number};
+  return JSON.parse(text) as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    scope?: string;
+  };
 }
 
 /**
@@ -107,6 +115,8 @@ async function saveGmailConnection(uid: string, tokens: {
   accessToken: string;
   expiresIn: number;
   email: string;
+  canRead: boolean;
+  scopes: string;
 }): Promise<void> {
   const expiresAt = Date.now() + tokens.expiresIn * 1000 - 60_000;
   const credRef = db
@@ -120,12 +130,15 @@ async function saveGmailConnection(uid: string, tokens: {
     accessToken: tokens.accessToken,
     accessTokenExpiresAt: expiresAt,
     email: tokens.email,
+    scopes: tokens.scopes,
+    canRead: tokens.canRead,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
   await db.collection("users").doc(uid).update({
     opticGmailConnected: true,
     opticGmailEmail: tokens.email,
+    opticGmailCanRead: tokens.canRead,
     opticGmailConnectedAt: FieldValue.serverTimestamp(),
   });
 }
@@ -135,7 +148,10 @@ async function saveGmailConnection(uid: string, tokens: {
  * @param {string} uid Firebase Auth uid.
  * @param {string} code Authorization code from Google.
  */
-export async function completeGmailOAuthForUser(uid: string, code: string): Promise<{email: string}> {
+export async function completeGmailOAuthForUser(
+  uid: string,
+  code: string
+): Promise<{email: string; canRead: boolean}> {
   const token = await exchangeToken({
     code,
     redirect_uri: gmailRedirectUri(),
@@ -159,13 +175,17 @@ export async function completeGmailOAuthForUser(uid: string, code: string): Prom
       "Gmail did not return a refresh token. Disconnect in Google Account and try again with consent."
     );
   }
+  const scopes = token.scope ?? "";
+  const canRead = gmailScopeListHasRead(scopes);
   await saveGmailConnection(uid, {
     refreshToken,
     accessToken: token.access_token,
     expiresIn: token.expires_in,
     email,
+    canRead,
+    scopes,
   });
-  return {email};
+  return {email, canRead};
 }
 
 /**
@@ -186,6 +206,7 @@ export async function disconnectGmailForUser(uid: string): Promise<void> {
   await db.collection("users").doc(uid).update({
     opticGmailConnected: false,
     opticGmailEmail: null,
+    opticGmailCanRead: false,
     opticGmailConnectedAt: null,
   });
 }
@@ -237,23 +258,67 @@ export async function getGmailAccessTokenForUser(uid: string): Promise<string> {
   return refreshed.accessToken;
 }
 
+function headerValue(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+function encodeRfc2047(value: string): string {
+  const cleaned = headerValue(value);
+  for (let i = 0; i < cleaned.length; i++) {
+    const code = cleaned.charCodeAt(i);
+    if (code < 32 || code > 126) {
+      return `=?UTF-8?B?${Buffer.from(cleaned, "utf8").toString("base64")}?=`;
+    }
+  }
+  return cleaned;
+}
+
+function wrap76(value: string): string {
+  const parts: string[] = [];
+  for (let i = 0; i < value.length; i += 76) {
+    parts.push(value.slice(i, i + 76));
+  }
+  return parts.join("\r\n");
+}
+
 /**
  * Builds a base64url-encoded RFC 2822 message for the Gmail API.
- * @param {object} opts To, subject, and plain-text body.
+ * Sends multipart/alternative (plain + HTML) so formatting matches Gmail compose.
+ * @param {object} opts To, subject, and draft body (plain or basic HTML).
  * @return {string} Base64url raw message.
  */
 export function buildGmailRawMessage(opts: {
   to: string;
   subject: string;
   body: string;
+  inReplyTo?: string;
 }): string {
-  const lines = [
-    `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
+  const {plain, html} = prepareGmailBodies(opts.body);
+  const boundary = `verza_${randomBytes(12).toString("hex")}`;
+  const mime = [
+    `To: ${headerValue(opts.to)}`,
+    `Subject: ${encodeRfc2047(opts.subject)}`,
+    ...(opts.inReplyTo
+      ? [
+        `In-Reply-To: ${headerValue(opts.inReplyTo)}`,
+        `References: ${headerValue(opts.inReplyTo)}`,
+      ]
+      : []),
     "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
     "",
-    opts.body,
-  ];
-  return Buffer.from(lines.join("\r\n"), "utf8").toString("base64url");
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrap76(Buffer.from(plain, "utf8").toString("base64")),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrap76(Buffer.from(html, "utf8").toString("base64")),
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+  return Buffer.from(mime, "utf8").toString("base64url");
 }

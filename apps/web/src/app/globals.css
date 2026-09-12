@@ -504,6 +504,42 @@ del.diff-del {
   line-height: 18px;
 }
 
+.optic-gmail-editor .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 6px 8px;
+}
+.optic-gmail-editor .ql-container.ql-snow {
+  border: none;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+.optic-gmail-editor .ql-editor {
+  min-height: 160px;
+  color: hsl(var(--foreground));
+}
+.optic-gmail-editor .ql-editor.ql-blank::before {
+  color: hsl(var(--muted-foreground));
+  font-style: normal;
+}
+.optic-gmail-editor .ql-stroke {
+  stroke: hsl(var(--foreground));
+}
+.optic-gmail-editor .ql-fill {
+  fill: hsl(var(--foreground));
+}
+.optic-gmail-editor .ql-picker {
+  color: hsl(var(--foreground));
+}
+.optic-gmail-preview a {
+  color: hsl(var(--primary));
+}
+.optic-gmail-preview ul,
+.optic-gmail-preview ol {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+
 .e-ribbon.e-rbn .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn, .e-ribbon-group-overflow-ddb .e-ribbon-item:not(:has(.e-ribbon-template)) .e-btn {
   box-shadow: none;
 }

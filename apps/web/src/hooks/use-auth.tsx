@@ -116,6 +116,7 @@ export interface UserProfile {
   /** Optic: Gmail connected for saving outreach drafts (tokens stored server-side). */
   opticGmailConnected?: boolean;
   opticGmailEmail?: string | null;
+  opticGmailCanRead?: boolean;
   opticSmsEnabled?: boolean;
   opticSmsPhone?: string | null;
 }
@@ -453,6 +454,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               walletBalance: firestoreUserData.walletBalance,
               opticGmailConnected: firestoreUserData.opticGmailConnected ?? false,
               opticGmailEmail: firestoreUserData.opticGmailEmail ?? null,
+              opticGmailCanRead: firestoreUserData.opticGmailCanRead === true,
               opticSmsEnabled: firestoreUserData.opticSmsEnabled ?? false,
               opticSmsPhone: firestoreUserData.opticSmsPhone ?? null,
             });

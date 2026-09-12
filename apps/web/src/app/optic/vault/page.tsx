@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
 import { LeadVault } from "@/components/optic/lead-vault";
+import { VaultAskPanel } from "@/components/optic/vault-ask-panel";
 import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
 import { useOpticGmail } from "@/hooks/use-optic-gmail";
 import { useOpticLeadOutreach } from "@/hooks/use-optic-lead-outreach";
+import { useOpticVaultChat } from "@/hooks/use-optic-vault-chat";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,28 @@ export default function OpticVaultPage() {
     user?.displayName ?? null
   );
   const [campaignFilter, setCampaignFilter] = useState("__all__");
+  const {
+    messages: vaultMessages,
+    asking: vaultAsking,
+    snapshot: vaultSnapshot,
+    ask: askVault,
+    clear: clearVaultChat,
+  } = useOpticVaultChat();
+  const scopedLeadCount = useMemo(() => {
+    if (campaignFilter === "__all__") return leads.length;
+    if (campaignFilter === "__pooled__") {
+      return leads.filter((l) => !l.campaignId).length;
+    }
+    return leads.filter((l) => l.campaignId === campaignFilter).length;
+  }, [leads, campaignFilter]);
+  const selectedCampaignTitle = useMemo(() => {
+    if (campaignFilter === "__all__" || campaignFilter === "__pooled__") return undefined;
+    return campaigns.find((c) => c.id === campaignFilter)?.title;
+  }, [campaigns, campaignFilter]);
+
+  useEffect(() => {
+    clearVaultChat();
+  }, [campaignFilter, clearVaultChat]);
   const gmail = useOpticGmail({
     connected: Boolean(user?.opticGmailConnected),
     email: user?.opticGmailEmail ?? null,
@@ -57,7 +81,7 @@ export default function OpticVaultPage() {
     <div className="w-full space-y-6 py-8">
       <PageHeader
         title="Optic vault"
-        description="Qualified creators land here with a draft note you can send or drop into Gmail."
+        description="Qualified creators land here with a draft you can send — plus stage, last contact, replies, and why a pass."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {agencyId && isAgencyTeam && (
@@ -99,6 +123,22 @@ export default function OpticVaultPage() {
         <GmailConnectCard
           connected={gmail.connected}
           email={gmail.email}
+          canRead={user.opticGmailCanRead === true}
+        />
+      )}
+
+      {isAgencyTeam && agencyId && (
+        <VaultAskPanel
+          campaignFilter={campaignFilter}
+          campaignTitle={selectedCampaignTitle}
+          leadCount={scopedLeadCount}
+          messages={vaultMessages}
+          asking={vaultAsking}
+          snapshot={vaultSnapshot}
+          disabled={loading}
+          onAsk={(question) =>
+            askVault(question, campaignFilter, selectedCampaignTitle)
+          }
         />
       )}
 
@@ -108,14 +148,25 @@ export default function OpticVaultPage() {
         gmailConnected={gmail.connected}
         onCreateGmailDraft={isAgencyTeam ? gmail.createDraft : undefined}
         draftingLeadId={gmail.draftingLeadId}
+        onSendGmail={isAgencyTeam ? gmail.sendMessage : undefined}
+        sendingLeadId={gmail.sendingLeadId}
+        gmailCanRead={user.opticGmailCanRead === true}
+        onReconnectGmail={isAgencyTeam ? () => void gmail.connect() : undefined}
+        onLoadThread={isAgencyTeam ? gmail.loadThread : undefined}
+        threadLeadId={gmail.threadLeadId}
+        threadMessages={gmail.threadMessages}
+        threadReplyCount={gmail.threadReplyCount}
+        threadLoading={gmail.threadLoadingId != null}
         campaigns={campaigns}
         campaignsLoading={campaignsLoading && !!agencyId}
         campaignFilter={campaignFilter}
         onCampaignFilterChange={setCampaignFilter}
-        onOutreachToggle={isAgencyTeam ? outreach.setOutreachEmailed : undefined}
         outreachUpdatingId={outreach.updatingId}
+        onCrmChange={isAgencyTeam ? outreach.setLeadCrm : undefined}
         onEmailChange={isAgencyTeam ? outreach.setLeadEmail : undefined}
         emailUpdatingId={outreach.emailUpdatingId}
+        onDraftChange={isAgencyTeam ? outreach.setLeadDraft : undefined}
+        draftUpdatingId={outreach.draftUpdatingId}
       />
     </div>
   );
