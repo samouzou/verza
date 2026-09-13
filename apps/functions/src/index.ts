@@ -120,6 +120,7 @@ import {
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
+import {createMcpApiKey, listMcpApiKeys, revokeMcpApiKey} from "./mcp/apiKeys";
 import {askOpticVaultChat} from "./optic/vaultChat";
 import {
   claimOpticExtensionJob,
@@ -245,6 +246,9 @@ export {
   askOpticVaultChat,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
+  createMcpApiKey,
+  listMcpApiKeys,
+  revokeMcpApiKey,
   claimOpticExtensionJob,
   submitOpticExtensionLead,
   completeOpticExtensionJob,

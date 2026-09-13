@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Settings2 } from "lucide-react";
 
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
+import { McpApiKeysCard } from "@/components/optic/mcp-api-keys-card";
 import { OpticSmsCard } from "@/components/optic/optic-sms-card";
 import {
   Collapsible,
@@ -109,18 +110,21 @@ export function OpticIntegrationsSection(props: Props) {
           <ChevronDown className="chevron h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="grid gap-4 border-t p-4 md:grid-cols-2">
-            <GmailConnectCard
-              connected={props.gmailConnected}
-              email={props.gmailEmail}
-              canRead={props.gmailCanRead}
-              disabled={preview}
-            />
-            <OpticSmsCard
-              enabled={props.smsEnabled}
-              phone={props.smsPhone}
-              preview={preview}
-            />
+          <div className="space-y-4 border-t p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <GmailConnectCard
+                connected={props.gmailConnected}
+                email={props.gmailEmail}
+                canRead={props.gmailCanRead}
+                disabled={preview}
+              />
+              <OpticSmsCard
+                enabled={props.smsEnabled}
+                phone={props.smsPhone}
+                preview={preview}
+              />
+            </div>
+            <McpApiKeysCard preview={preview} />
           </div>
         </CollapsibleContent>
       </div>

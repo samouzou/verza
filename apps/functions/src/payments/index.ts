@@ -1046,7 +1046,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
         gigId: gigRef.id,
       },
     } as any);
-    return {url: session.url};
+    return {url: session.url, gigId: gigRef.id};
   } catch (error: any) {
     logger.error(`Error creating deployment funding checkout for user ${userId}:`, error);
     if (!existingGigId) {

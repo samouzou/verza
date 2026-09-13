@@ -311,6 +311,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // MCP personal API keys (Admin SDK / callables only — never client-readable)
+    match /mcp_api_keys/{keyId} {
+      allow read, write: if false;
+    }
+
     // LinkedIn OS — company LinkedIn draft jobs (worker writes; agency team reads)
     match /linkedin_os_jobs/{jobId} {
       allow read: if request.auth != null &&
