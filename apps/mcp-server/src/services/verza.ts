@@ -8,6 +8,7 @@ import type {VerzaActor} from "../context.js";
 import {isActiveRecruitingStatus, numOrZero} from "../context.js";
 import type {GigBudgetInput} from "../lib/budget.js";
 import {billingFromActor, saveLeadWithOpticCreditCharge} from "../lib/credits.js";
+import {ensureStoredEmailHtml} from "../lib/emailHtml.js";
 import {
   OPTIC_AUDIENCE_TIERS,
   canonicalizeProfileUrl,
@@ -178,6 +179,7 @@ export async function listLeads(
     limit?: number;
     minMatchScore?: number | null;
     hasEmail?: boolean | null;
+    contacted?: boolean | null;
   }
 ) {
   const limit = Math.min(100, Math.max(1, opts?.limit ?? 25));
@@ -209,6 +211,8 @@ export async function listLeads(
       draftEmailSubject: data.draftEmailSubject ?? null,
       hasDraftEmail: Boolean(data.draftEmail),
       hasDraftDm: Boolean(data.draftDm),
+      gmailDraftId: data.gmailDraftId ?? null,
+      gmailThreadId: data.gmailThreadId ?? null,
       createdAt: data.createdAt ?? null,
     };
   });
@@ -223,6 +227,11 @@ export async function listLeads(
     rows = rows.filter((r) => typeof r.email === "string" && r.email.trim().length > 0);
   } else if (opts?.hasEmail === false) {
     rows = rows.filter((r) => !(typeof r.email === "string" && r.email.trim()));
+  }
+  if (opts?.contacted === true) {
+    rows = rows.filter((r) => r.outreachEmailed);
+  } else if (opts?.contacted === false) {
+    rows = rows.filter((r) => !r.outreachEmailed);
   }
 
   rows.sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
@@ -560,7 +569,8 @@ export async function prepareAgentMission(
       "Skip anyone already in excludeHandles — they’re already in the vault.",
       "Search with your own tools. Prefer real public profiles with follower counts.",
       "For each strong fit, save them with optic_submit_agent_lead (profile link, name, followers, niche, bio, email if visible, and a short why-they-fit note).",
-      "Include a short outreach draft when you can (email or DM).",
+      "Include a short outreach draft when you can. Email bodies must be simple HTML (<p>, <br>, <strong>, <em>, <a>); platform DMs stay plain text.",
+      "After saving creators with emails, check optic_gmail_status and use optic_create_gmail_draft to put HTML drafts in Gmail.",
       "When finished, mark the mission complete with optic_complete_agent_mission.",
       "Talk to the brand in plain language — don’t mention tools, APIs, or extension internals.",
     ].join("\n"),
@@ -696,7 +706,7 @@ export async function submitAgentLead(
     postCountNumeric: match.postCountNumeric,
     draftEmail:
       typeof input.draftEmail === "string" && input.draftEmail.trim()
-        ? input.draftEmail.trim().slice(0, 8000)
+        ? ensureStoredEmailHtml(input.draftEmail).slice(0, 8000) || null
         : null,
     draftEmailSubject:
       typeof input.draftEmailSubject === "string" && input.draftEmailSubject.trim()

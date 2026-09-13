@@ -1,6 +1,6 @@
 # Verza MCP Server
 
-Expose **Optic creator discovery**, **campaign draft/launch from URL**, and **budget / predicted ROAS** tools to Claude, Cursor, ChatGPT, and other MCP clients.
+Expose **Optic creator discovery**, **Gmail HTML outreach drafts**, **campaign draft/launch from URL**, and **budget / predicted ROAS** tools to Claude, Cursor, ChatGPT, and other MCP clients.
 
 ## Tools
 
@@ -17,7 +17,12 @@ Expose **Optic creator discovery**, **campaign draft/launch from URL**, and **bu
 | `optic_submit_agent_lead` | Save one agent-found creator (1 credit) |
 | `optic_complete_agent_mission` | Mark agent mission done |
 | `optic_list_jobs` / `optic_get_job` / `optic_cancel_job` | Mission status |
-| `optic_list_leads` / `optic_get_lead` | Vault creators + match scores |
+| `optic_list_leads` / `optic_get_lead` | Vault creators + match scores (`contacted` filter available) |
+| `optic_gmail_status` | Whether the MCP-key user has Gmail connected |
+| `optic_gmail_connect` | Returns Optic app URL to connect Gmail (OAuth finishes in the browser) |
+| `optic_create_gmail_draft` | Create HTML Gmail **draft(s)** from vault outreach copy (does not send) |
+| `optic_send_gmail` | Send from connected Gmail — **requires `confirm=true`** |
+| `optic_mark_lead_contacted` | Mark vault lead(s) contacted after they send from Gmail |
 | `campaign_estimate_budget` | rate × creators + fee illustration |
 | `campaign_predict_roas` | Heuristic ROAS; also writes vault ROAS card |
 
@@ -131,4 +136,14 @@ Use when Instagram / LinkedIn / X need a logged-in browser the agent already has
 1. `optic_prepare_agent_mission` — get `jobId`, brief, `excludeHandles`, `agentInstructions`
 2. Search with your own tools; for each fit call `optic_submit_agent_lead`
 3. `optic_complete_agent_mission` → `optic_list_leads`
+
+### Gmail outreach (HTML drafts)
+1. `optic_gmail_status` — if not connected, give the brand `connectUrl` (`/optic`) and wait
+2. `optic_list_leads` (`hasEmail=true`, `contacted=false`)
+3. `optic_create_gmail_draft` (`leadId` or `leadIds`) — writes a **Gmail draft** with an HTML body (multipart/alternative). They open Gmail → Drafts and hit send.
+4. After they send, `optic_mark_lead_contacted`
+
+`optic_send_gmail` exists (same backend as the vault “Send now” button) but **must** be called with `confirm=true` after the brand explicitly asks to send. Prefer drafts.
+
+**Email bodies are HTML.** `optic_submit_agent_lead` `draftEmail`, worker-generated drafts, and vault edits store sanitized HTML (`<p>`, `<br>`, `<strong>`, `<em>`, `<a>`). Platform DMs stay plain text.
 
