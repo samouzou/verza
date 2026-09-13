@@ -21,7 +21,8 @@
     "deploy:dev": "bash scripts/deploy-cloud-run.sh verza-canvas-dev",
     "deploy:prod": "bash scripts/deploy-cloud-run.sh verza-canvas",
     "typecheck": "tsc --noEmit",
-    "check:math": "node --import tsx scripts/check-math.mts"
+    "check:math": "node --import tsx scripts/check-math.mts",
+    "check:email-html": "node --import tsx scripts/check-email-html.mts"
   },
   "engines": {
     "node": ">=20"

@@ -1,4 +1,5 @@
 import {GoogleGenerativeAI} from "@google/generative-ai";
+import {DRAFT_EMAIL_HTML_HINT, ensureStoredEmailHtml} from "./emailHtml";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -108,9 +109,9 @@ export async function analyzeProfileWithGemini(
     7. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand. Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
     8. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate).
 
-    9. draftEmail (string or null): ONLY if email is not null — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    9. draftEmail (string or null): ONLY if email is not null — ${DRAFT_EMAIL_HTML_HINT}
     10. draftEmailSubject (string or null): ONLY if email is not null — a short specific subject line.
-    11. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    11. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown. Keep DMs plain text (not HTML).
 
     If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
 
@@ -138,6 +139,7 @@ export async function analyzeProfileWithGemini(
 
   if (hasEmail) {
     parsed.draftDm = null;
+    parsed.draftEmail = ensureStoredEmailHtml(parsed.draftEmail);
   } else {
     parsed.email = null;
     parsed.draftEmail = null;

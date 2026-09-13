@@ -113,13 +113,39 @@ export function sanitizeEmailFragment(html: string): string {
 }
 
 /**
- * Stores either sanitized HTML or the original plaintext.
- * @param {string} raw Draft from the client.
- * @return {string} Value to write on the lead.
+ * Drops ```html fences agents sometimes wrap around a body.
+ * @param {string} raw Draft text or HTML.
+ * @return {string} Inner content.
+ */
+export function stripEmailCodeFences(raw: string): string {
+  const trimmed = raw.trim();
+  const fence = trimmed.match(/^```(?:html)?\s*([\s\S]*?)\s*```$/i);
+  return fence ? fence[1].trim() : trimmed;
+}
+
+/**
+ * Converts plain paragraphs into Quill/Gmail-safe HTML fragments.
+ * @param {string} text Plain outreach copy.
+ * @return {string} HTML using p/br only.
+ */
+export function plaintextToEmailHtml(text: string): string {
+  const escaped = escapeHtml(text.replace(/\r\n/g, "\n").trim());
+  if (!escaped) return "";
+  return escaped
+    .split(/\n{2,}/)
+    .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+/**
+ * Stores sanitized HTML (never bare plain text).
+ * @param {string} raw Draft from the client, worker, or MCP.
+ * @return {string} HTML fragment to write on the lead.
  */
 export function sanitizeStoredEmailDraft(raw: string): string {
-  const trimmed = raw.trim();
-  if (!looksLikeEmailHtml(trimmed)) return trimmed;
+  const trimmed = stripEmailCodeFences(raw);
+  if (!trimmed) return "";
+  if (!looksLikeEmailHtml(trimmed)) return plaintextToEmailHtml(trimmed);
   return sanitizeEmailFragment(trimmed);
 }
 
@@ -138,7 +164,7 @@ function plaintextToGmailHtml(text: string): string {
  * @return {{plain: string, html: string}} MIME bodies.
  */
 export function prepareGmailBodies(raw: string): {plain: string; html: string} {
-  const trimmed = raw.trim();
+  const trimmed = stripEmailCodeFences(raw);
   const fragment = looksLikeEmailHtml(trimmed)
     ? sanitizeEmailFragment(trimmed)
     : plaintextToGmailHtml(trimmed);

@@ -1,5 +1,6 @@
 import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
+import {sanitizeStoredEmailDraft} from "../gmail/emailHtml";
 import type {OpticJobBrandContext} from "./jobs";
 
 const MODEL = "gemini-3.6-flash";
@@ -681,9 +682,9 @@ export async function enrichExtensionInstagramLead(
     1. niche (string, e.g. tech, beauty, gaming)
     2. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand (content angle, niche, audience). Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
     3. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate). No fluff.
-    4. draftEmail (string or null): ONLY if a public contact email is listed above — a 3-sentence email body. Use blank lines between paragraphs (\\n\\n). No markdown.
+    4. draftEmail (string or null): ONLY if a public contact email is listed above — a short HTML email (2–4 <p> blocks). Use only <p>, <br>, <strong>, <em>, and <a href="https://...">. No markdown, no <html>/<body>, no CSS. Sign off in the last paragraph.
     5. draftEmailSubject (string or null): ONLY if a public contact email is listed above — a short specific subject line.
-    6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platformProfileLabel(platform)} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown.
+    6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platformProfileLabel(platform)} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown. Keep DMs plain text (not HTML).
 
     If a public contact email IS listed, set draftDm to null. If it is NOT listed, set draftEmail and draftEmailSubject to null and always provide draftDm.
 
@@ -719,7 +720,9 @@ export async function enrichExtensionInstagramLead(
     niche: parsed.niche?.trim() || "Creator",
     email: emailFromProfile,
     followerCount,
-    draftEmail: hasEmail ? parsed.draftEmail?.trim() || null : null,
+    draftEmail: hasEmail
+      ? sanitizeStoredEmailDraft(parsed.draftEmail?.trim() || "") || null
+      : null,
     draftEmailSubject: hasEmail ? parsed.draftEmailSubject?.trim() || null : null,
     draftDm: hasEmail ? null : parsed.draftDm?.trim() || null,
     briefFitScore: briefFit,

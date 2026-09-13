@@ -14,6 +14,14 @@ import {
   buildCampaignLaunchBrief,
 } from "./lib/launchBrief.js";
 import {predictCampaignRoas} from "./lib/roas.js";
+import {
+  beginGmailConnectFromMcp,
+  createGmailDraftsForLeads,
+  getGmailStatus,
+  markLeadsContacted,
+  sendGmailForLead,
+  updateLeadOutreachDraft,
+} from "./lib/gmailOutreach.js";
 import {toolError, toolText} from "./lib/serialize.js";
 import {
   AGENT_PREFERRED_PLATFORMS,
@@ -74,7 +82,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         opticCreditsBalance: actor.opticCreditsBalance,
         opticPlan: actor.opticPlan,
         opticSubscriptionActive: actor.opticSubscriptionActive,
-        note: "You’re working in this user’s primary brand workspace.",
+        note: "You’re working in this user’s primary brand workspace. Use optic_gmail_status before drafting outreach in Gmail.",
       }))
   );
 
@@ -224,9 +232,17 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .max(100)
         .optional()
         .describe("Your fit score from 0–100 (default 70)"),
-      draftEmail: z.string().optional(),
+      draftEmail: z
+        .string()
+        .optional()
+        .describe(
+          "HTML email body for Gmail (<p>, <br>, <strong>, <em>, <a>). Plain text is converted to HTML. Do not use HTML for DMs."
+        ),
       draftEmailSubject: z.string().optional(),
-      draftDm: z.string().optional(),
+      draftDm: z
+        .string()
+        .optional()
+        .describe("Plain-text platform DM. Do not wrap this in HTML."),
     },
     async (args) =>
       withActor(async (actor) => submitAgentLead(deps.db, actor, args))
@@ -293,6 +309,10 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .optional()
         .describe("Only include creators at or above this match score"),
       hasEmail: z.boolean().optional().describe("Only creators with or without an email"),
+      contacted: z
+        .boolean()
+        .optional()
+        .describe("Only creators already marked contacted (true) or not yet contacted (false)"),
     },
     async (args) =>
       withActor(async (actor) => {
@@ -312,6 +332,112 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         const lead = await getLead(deps.db, actor, leadId);
         if (!lead) throw new Error(`Lead ${leadId} not found`);
         return lead;
+      })
+  );
+
+  server.tool(
+    "optic_gmail_status",
+    "Check whether the brand user behind this MCP key has Gmail connected for Optic outreach.",
+    {},
+    async () =>
+      withActor(async (actor) => getGmailStatus(deps.db, actor, deps.config.appBaseUrl))
+  );
+
+  server.tool(
+    "optic_gmail_connect",
+    "Start Gmail connect for Optic outreach. Returns the Optic app URL (required — OAuth finishes in the browser). Does not complete OAuth or store tokens from this chat.",
+    {},
+    async () =>
+      withActor(async (actor) =>
+        beginGmailConnectFromMcp(deps.db, actor, getCallable(), deps.config.appBaseUrl)
+      )
+  );
+
+  server.tool(
+    "optic_create_gmail_draft",
+    "Create a Gmail draft (HTML body) from a vault lead’s outreach copy. Does not send. Gmail must already be connected. Review in Gmail → Drafts, then send.",
+    {
+      leadId: z.string().min(1).optional().describe("Vault lead id"),
+      leadIds: z
+        .array(z.string().min(1))
+        .max(25)
+        .optional()
+        .describe("Batch of vault lead ids (max 25)"),
+      draftEmail: z
+        .string()
+        .optional()
+        .describe(
+          "Optional HTML body override for a single lead (plain text is converted). Ignored for batches."
+        ),
+      draftEmailSubject: z
+        .string()
+        .optional()
+        .describe("Optional subject override for a single lead. Ignored for batches."),
+    },
+    async ({leadId, leadIds, draftEmail, draftEmailSubject}) =>
+      withActor(async (actor) => {
+        const ids = [
+          ...(leadId ? [leadId] : []),
+          ...(Array.isArray(leadIds) ? leadIds : []),
+        ];
+        const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+        if (unique.length === 0) {
+          throw new Error("Provide leadId or leadIds.");
+        }
+        const client = getCallable();
+        const hasOverride =
+          typeof draftEmail === "string" || typeof draftEmailSubject === "string";
+        if (hasOverride && unique.length !== 1) {
+          throw new Error("draftEmail / draftEmailSubject can only be set for a single lead.");
+        }
+        if (hasOverride) {
+          await updateLeadOutreachDraft(client, actor, {
+            leadId: unique[0],
+            draftEmail,
+            draftEmailSubject,
+          });
+        }
+        return createGmailDraftsForLeads(client, actor, unique, deps.config.appBaseUrl);
+      })
+  );
+
+  server.tool(
+    "optic_send_gmail",
+    "Send the vault lead’s outreach email from the connected Gmail account. This actually sends — require explicit brand approval and confirm=true. Prefer optic_create_gmail_draft so they review in Gmail first.",
+    {
+      leadId: z.string().min(1),
+      confirm: z
+        .boolean()
+        .describe("Must be true after the brand approves sending. Prevents accidental sends."),
+    },
+    async ({leadId, confirm}) =>
+      withActor(async (actor) => {
+        if (confirm !== true) {
+          throw new Error(
+            "Hold on — only send after the brand approves (set confirm to true). Prefer creating a Gmail draft instead."
+          );
+        }
+        return sendGmailForLead(getCallable(), actor, leadId);
+      })
+  );
+
+  server.tool(
+    "optic_mark_lead_contacted",
+    "Mark vault lead(s) as contacted (or not) after outreach. Use when they sent from Gmail drafts themselves.",
+    {
+      leadId: z.string().min(1).optional(),
+      leadIds: z.array(z.string().min(1)).max(50).optional(),
+      contacted: z
+        .boolean()
+        .describe("True after outreach was sent; false to clear the contacted flag"),
+    },
+    async ({leadId, leadIds, contacted}) =>
+      withActor(async (actor) => {
+        const ids = [
+          ...(leadId ? [leadId] : []),
+          ...(Array.isArray(leadIds) ? leadIds : []),
+        ];
+        return markLeadsContacted(getCallable(), actor, ids, contacted);
       })
   );
 
