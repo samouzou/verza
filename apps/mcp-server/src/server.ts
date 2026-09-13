@@ -8,17 +8,26 @@ import {estimateCampaignBudget} from "./lib/budget.js";
 import {VerzaCallableClient} from "./lib/callable.js";
 import {createCampaignViaCallables} from "./lib/createCampaign.js";
 import {CAMPAIGN_PLATFORMS, CAMPAIGN_TYPES, draftCampaignFromUrl} from "./lib/draft.js";
+import {buildRoasInsightSnapshot, saveRoasInsightOnGig} from "./lib/insights.js";
+import {
+  LAUNCH_BRIEF_DEFAULTS,
+  buildCampaignLaunchBrief,
+} from "./lib/launchBrief.js";
 import {predictCampaignRoas} from "./lib/roas.js";
 import {toolError, toolText} from "./lib/serialize.js";
 import {
+  AGENT_PREFERRED_PLATFORMS,
   cancelDiscovery,
+  completeAgentMission,
   getCampaign,
   getJob,
   getLead,
   listCampaigns,
   listJobs,
   listLeads,
+  prepareAgentMission,
   startDiscovery,
+  submitAgentLead,
 } from "./services/verza.js";
 
 export type ServerDeps = {
@@ -52,7 +61,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "verza_whoami",
-    "Show which Verza user + agency this MCP is acting as (from your MCP API key or login). Agency is always the signed-in user's primary brand workspace.",
+    "Show which Verza brand workspace you’re helping right now — account, brand name, and remaining Optic credits.",
     {},
     async () =>
       withActor(async (actor) => ({
@@ -65,18 +74,18 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         opticCreditsBalance: actor.opticCreditsBalance,
         opticPlan: actor.opticPlan,
         opticSubscriptionActive: actor.opticSubscriptionActive,
-        note: "Agency comes from this user's primaryAgencyId — not a shared env brand.",
+        note: "You’re working in this user’s primary brand workspace.",
       }))
   );
 
   server.tool(
     "optic_list_campaigns",
-    "List Verza campaigns (gigs) for the brand that Optic can recruit against. Defaults to open/in-progress only.",
+    "List this brand’s Verza campaigns you can recruit creators for. By default, only open and in-progress campaigns.",
     {
       activeOnly: z
         .boolean()
         .optional()
-        .describe("If true (default), only open/in-progress campaigns. Set false for all recent gigs."),
+        .describe("If true (default), only open or in-progress campaigns. Set false to include recent closed ones too."),
       limit: z.number().int().min(1).max(50).optional(),
     },
     async ({activeOnly, limit}) =>
@@ -91,9 +100,9 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_get_campaign",
-    "Get a single Verza campaign/gig by id, including pay, slots, and affiliate settings.",
+    "Get details for one campaign — pay, open slots, platforms, and affiliate settings.",
     {
-      campaignId: z.string().min(1).describe("Gig / campaign document id"),
+      campaignId: z.string().min(1).describe("Campaign id"),
     },
     async ({campaignId}) =>
       withActor(async (actor) => {
@@ -105,7 +114,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_start_discovery",
-    "Start an Optic creator-discovery mission (same as the /optic New mission UI). Uses Optic credits. Prefer scoping campaignId so drafts include pay + vault attribution.",
+    "Start Verza’s automatic creator discovery for a platform (best for YouTube, TikTok, and similar). For Instagram, LinkedIn, or X, prefer optic_prepare_agent_mission so you can search alongside the brand.",
     {
       platform: z
         .enum([
@@ -117,41 +126,125 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           "linkedin",
           "twitter",
         ])
-        .describe("Platform to scout"),
+        .describe("Where to look for creators"),
       objectives: z
         .string()
         .min(1)
         .max(4000)
-        .describe("Campaign objectives / brief for creator fit"),
+        .describe("What kind of creators fit — goals, audience, tone, must-haves"),
       maxProfiles: z
         .number()
         .int()
         .min(1)
         .max(100)
         .optional()
-        .describe("Creators to save this batch (default 10)"),
+        .describe("How many creators to save this round (default 10)"),
       campaignId: z
         .string()
         .optional()
-        .describe("Optional Verza gig id to scope pay + vault leads"),
+        .describe("Optional campaign to attach pay and vault results to"),
       audienceTier: z
         .enum(["any", "nano", "micro", "mid", "macro"])
         .optional()
-        .describe("Audience size band (default any = 100+)"),
+        .describe("Follower size band (default: any, 100+)"),
     },
     async (args) =>
       withActor(async (actor) => {
         const started = await startDiscovery(deps.db, actor, args);
+        const preferAgent = AGENT_PREFERRED_PLATFORMS.has(args.platform);
         return {
           ...started,
-          note: "Poll optic_get_job until status is completed/failed/cancelled, then optic_list_leads.",
+          note: preferAgent
+            ? "Discovery is queued. For Instagram, LinkedIn, or X, assisted search (optic_prepare_agent_mission) is usually a better fit."
+            : "Check progress with optic_get_job, then review creators in the vault with optic_list_leads.",
         };
       })
   );
 
   server.tool(
+    "optic_prepare_agent_mission",
+    "Start an assisted creator search: you find creators (especially on Instagram, LinkedIn, or X) and save the best matches to the brand’s Optic vault.",
+    {
+      platform: z
+        .enum([
+          "youtube",
+          "instagram",
+          "tiktok",
+          "facebook",
+          "twitch",
+          "linkedin",
+          "twitter",
+        ])
+        .describe("Platform you’ll search"),
+      objectives: z
+        .string()
+        .min(1)
+        .max(4000)
+        .describe("What kind of creators fit — goals, audience, tone, must-haves"),
+      maxProfiles: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Max creators to save this round (default 10)"),
+      campaignId: z
+        .string()
+        .optional()
+        .describe("Optional campaign to attach pay and vault results to"),
+      audienceTier: z
+        .enum(["any", "nano", "micro", "mid", "macro"])
+        .optional()
+        .describe("Follower size band (default: any, 100+)"),
+    },
+    async (args) =>
+      withActor(async (actor) => prepareAgentMission(deps.db, actor, args))
+  );
+
+  server.tool(
+    "optic_submit_agent_lead",
+    "Save one creator you found into the Optic vault. Uses 1 Optic credit when accepted. Repeat until you hit the batch size or finish the search.",
+    {
+      jobId: z.string().min(1),
+      profileUrl: z.string().min(1).describe("Full profile link (https)"),
+      creatorName: z.string().optional(),
+      followerCount: z
+        .string()
+        .optional()
+        .describe("Followers as shown on the profile (e.g. 12.4K)"),
+      postCount: z.string().optional(),
+      niche: z.string().optional(),
+      bio: z.string().optional(),
+      email: z.string().optional(),
+      externalUrl: z.string().optional().describe("Website or link in bio"),
+      matchReason: z.string().optional().describe("Short note on why they fit"),
+      briefFitScore: z
+        .number()
+        .min(0)
+        .max(100)
+        .optional()
+        .describe("Your fit score from 0–100 (default 70)"),
+      draftEmail: z.string().optional(),
+      draftEmailSubject: z.string().optional(),
+      draftDm: z.string().optional(),
+    },
+    async (args) =>
+      withActor(async (actor) => submitAgentLead(deps.db, actor, args))
+  );
+
+  server.tool(
+    "optic_complete_agent_mission",
+    "Mark the assisted creator search as finished once you’ve saved the creators you want.",
+    {
+      jobId: z.string().min(1),
+    },
+    async ({jobId}) =>
+      withActor(async (actor) => completeAgentMission(deps.db, actor, jobId))
+  );
+
+  server.tool(
     "optic_list_jobs",
-    "List recent Optic discovery missions for this brand.",
+    "List recent creator-discovery searches for this brand.",
     {
       limit: z.number().int().min(1).max(40).optional(),
       campaignId: z.string().optional(),
@@ -165,7 +258,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_get_job",
-    "Get status, progress, and recent logs for an Optic discovery job.",
+    "Check status and progress for one creator-discovery search.",
     {
       jobId: z.string().min(1),
     },
@@ -179,7 +272,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_cancel_job",
-    "Request cancellation of an in-flight Optic discovery mission.",
+    "Cancel a creator-discovery search that’s still running or waiting.",
     {
       jobId: z.string().min(1),
     },
@@ -189,7 +282,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_list_leads",
-    "List Optic vault leads (discovered creators), optionally filtered by campaign and match score. Sorted by matchScore desc.",
+    "List creators in the Optic vault — optionally for one campaign, and optionally by match score. Best matches first.",
     {
       campaignId: z.string().optional(),
       limit: z.number().int().min(1).max(100).optional(),
@@ -198,8 +291,8 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .min(0)
         .max(100)
         .optional()
-        .describe("Only leads with matchScore >= this value"),
-      hasEmail: z.boolean().optional().describe("Filter to leads with/without email"),
+        .describe("Only include creators at or above this match score"),
+      hasEmail: z.boolean().optional().describe("Only creators with or without an email"),
     },
     async (args) =>
       withActor(async (actor) => {
@@ -210,7 +303,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "optic_get_lead",
-    "Get full Optic vault lead including outreach drafts and match breakdown.",
+    "Get the full vault profile for one creator, including outreach drafts and why they matched.",
     {
       leadId: z.string().min(1),
     },
@@ -224,7 +317,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_estimate_budget",
-    "Estimate campaign cash budget from a Verza gig: creator compensation (rate × creators), platform fee illustration, remaining slots, and affiliate layer.",
+    "Estimate campaign budget: creator pay, fees, open slots, and any affiliate bonuses.",
     {
       campaignId: z.string().min(1),
     },
@@ -237,44 +330,96 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
   );
 
   server.tool(
-    "campaign_predict_roas",
-    "Predict ROAS for a campaign using hire spend + Optic vault lead reach (followers × viewRate × conversionRate × AOV). Heuristic model — not measured ROAS. Run Optic discovery first for better estimates.",
+    "campaign_launch_brief",
+    "Build a brand-friendly campaign report: budget, predicted return, and clear next steps. Also saves the estimate to the Optic vault. Use right after launching a campaign, and again after more creators are found.",
     {
       campaignId: z.string().min(1),
       averageOrderValueUsd: z
         .number()
         .positive()
-        .describe("Brand average order value / revenue per conversion in USD"),
+        .optional()
+        .describe(
+          `Typical order value in USD (default $${LAUNCH_BRIEF_DEFAULTS.averageOrderValueUsd})`
+        ),
       conversionRate: z
         .number()
         .min(0)
         .max(1)
-        .describe("Fraction of estimated views that convert (e.g. 0.005 = 0.5%)"),
+        .optional()
+        .describe(
+          `Share of viewers who buy (e.g. 0.005 = 0.5%; default ${LAUNCH_BRIEF_DEFAULTS.conversionRate})`
+        ),
       viewRate: z
         .number()
         .min(0)
         .max(1)
         .optional()
-        .describe("Views as a fraction of followers (default 0.08)"),
+        .describe(
+          `Share of followers who see the post (default ${LAUNCH_BRIEF_DEFAULTS.viewRate})`
+        ),
+      hireCount: z.number().int().min(1).max(100).optional(),
+      engagementRate: z.number().min(0).max(1).optional(),
+      minMatchScore: z.number().min(0).max(100).optional(),
+      persist: z
+        .boolean()
+        .optional()
+        .describe("Also save this estimate on the campaign for the vault (default true)"),
+    },
+    async (args) =>
+      withActor(async (actor) =>
+        buildCampaignLaunchBrief(deps.db, actor, {
+          campaignId: args.campaignId,
+          averageOrderValueUsd: args.averageOrderValueUsd,
+          conversionRate: args.conversionRate,
+          viewRate: args.viewRate,
+          hireCount: args.hireCount,
+          engagementRate: args.engagementRate,
+          minMatchScore: args.minMatchScore,
+          persist: args.persist,
+          appBaseUrl: deps.config.appBaseUrl,
+        })
+      )
+  );
+
+  server.tool(
+    "campaign_predict_roas",
+    "Estimate predicted return for a campaign from creator pay and vault reach. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
+    {
+      campaignId: z.string().min(1),
+      averageOrderValueUsd: z
+        .number()
+        .positive()
+        .describe("Typical order value / revenue per purchase in USD"),
+      conversionRate: z
+        .number()
+        .min(0)
+        .max(1)
+        .describe("Share of estimated views that become a purchase (e.g. 0.005 = 0.5%)"),
+      viewRate: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Share of followers who see the content (default 0.08)"),
       hireCount: z
         .number()
         .int()
         .min(1)
         .max(100)
         .optional()
-        .describe("Creators to hire for the model (default = campaign creatorsNeeded)"),
+        .describe("How many creators to model (default = campaign creator count)"),
       engagementRate: z
         .number()
         .min(0)
         .max(1)
         .optional()
-        .describe("Optional narrative engagement rate; not used in revenue math"),
+        .describe("Optional engagement rate for context only"),
       minMatchScore: z
         .number()
         .min(0)
         .max(100)
         .optional()
-        .describe("Only use vault leads at/above this match score"),
+        .describe("Only use vault creators at or above this match score"),
     },
     async ({
       campaignId,
@@ -303,24 +448,31 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           viewRate: viewRate ?? 0.08,
           engagementRate,
         });
-        return {budget, prediction};
+        const snapshot = buildRoasInsightSnapshot(prediction, budget, "mcp");
+        await saveRoasInsightOnGig(deps.db, campaignId, snapshot);
+        return {
+          budget,
+          prediction,
+          savedToVault: true,
+          note: "This estimate is also on the campaign’s Optic vault report.",
+        };
       })
   );
 
   server.tool(
     "campaign_draft_from_url",
-    "Draft a Verza creator campaign from a product or brand URL. Scrapes the page, generates title/brief/platforms/pay suggestions. Does NOT launch or charge — review then call campaign_create.",
+    "Draft a creator campaign from a product or brand page. Builds a title, brief, platforms, and pay suggestion — does not launch or charge. Review with the brand, then launch when they approve.",
     {
       productUrl: z.string().min(1).describe("Product or brand page URL"),
       userNotes: z
         .string()
         .optional()
-        .describe("Extra brief from the brand (audience, offer, must-say lines, budget hints)"),
+        .describe("Extra notes from the brand (audience, offer, must-says, budget)"),
       campaignType: z.enum(CAMPAIGN_TYPES).optional(),
       platforms: z
         .array(z.enum(CAMPAIGN_PLATFORMS))
         .optional()
-        .describe("Force platforms; otherwise model chooses"),
+        .describe("Prefer these platforms; otherwise we’ll choose"),
       ratePerCreator: z.number().min(0).optional(),
       creatorsNeeded: z.number().int().min(0).max(100).optional(),
       videosPerCreator: z.number().int().min(1).max(5).optional(),
@@ -340,23 +492,23 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         });
         return {
           draft,
-          hint: "Show the draft to the brand. If they approve, call campaign_create with the draft fields and confirm=true.",
+          hint: "Show the draft to the brand. When they approve, launch it with campaign_create (confirm set to true).",
         };
       })
   );
 
   server.tool(
     "campaign_create",
-    "Launch a Verza campaign from an approved draft. Requires confirm=true. Paid campaigns return a Stripe checkoutUrl to fund escrow; $0/cause/barter go live immediately. Prefer fields from campaign_draft_from_url.",
+    "Launch an approved campaign draft. Paid campaigns return a checkout link to fund creator pay; free / cause / barter campaigns go live right away. Returns a brand-friendly launch report with budget and predicted return.",
     {
       confirm: z
         .boolean()
-        .describe("Must be true to create — prevents accidental launches"),
+        .describe("Must be true after the brand approves — prevents accidental launches"),
       title: z.string().min(1),
       description: z
         .string()
         .min(1)
-        .describe("Campaign brief HTML or plain text (use draft.descriptionHtml when available)"),
+        .describe("Campaign brief (plain text or HTML from the draft)"),
       platforms: z.array(z.enum(CAMPAIGN_PLATFORMS)).min(1),
       campaignType: z.enum(CAMPAIGN_TYPES),
       ratePerCreator: z.number().min(0),
@@ -366,20 +518,31 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
       allowWhitelisting: z.boolean().optional(),
       requireVerzaScore: z.boolean().optional(),
       verzaScoreThreshold: z.number().int().min(1).max(100).optional(),
-      deliverablesDueDate: z.string().optional().describe("ISO date YYYY-MM-DD"),
+      deliverablesDueDate: z.string().optional().describe("Due date as YYYY-MM-DD"),
       enableAffiliateFromUrl: z
         .string()
         .optional()
-        .describe("If set, enables a simple CPC affiliate layer to this destination URL"),
+        .describe("If set, adds a simple click-based affiliate bonus to this URL"),
+      averageOrderValueUsd: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Optional typical order value for the launch report"),
+      conversionRate: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Optional conversion rate for the launch report"),
     },
     async (args) =>
       withActor(async (actor) => {
         if (args.confirm !== true) {
           throw new Error(
-            "Refusing to create: set confirm=true after the brand approves the draft."
+            "Hold on — only launch after the brand approves the draft (set confirm to true)."
           );
         }
-        return createCampaignViaCallables(
+        const created = await createCampaignViaCallables(
           getCallable(),
           actor,
           {
@@ -399,6 +562,32 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           },
           deps.config.appBaseUrl
         );
+
+        if (!created.gigId) {
+          return created;
+        }
+
+        const launchBrief = await buildCampaignLaunchBrief(deps.db, actor, {
+          campaignId: created.gigId,
+          averageOrderValueUsd: args.averageOrderValueUsd,
+          conversionRate: args.conversionRate,
+          campaignUrl: created.campaignUrl,
+          fundingUrl: created.fundingUrl,
+          createMode: created.mode,
+          appBaseUrl: deps.config.appBaseUrl,
+        });
+
+        return {
+          ...created,
+          // Keep raw Stripe URL out of the brand-facing surface; fundingUrl is safe to share.
+          checkoutUrl: undefined,
+          launchBrief,
+          howToPresent: [
+            "Show launchBrief as a simple report card: predicted return, hire spend, expected revenue, and creator budget.",
+            "If funding is needed, give the brand fundingUrl only (a Verza link). Never paste raw checkout.stripe.com links — chat truncates them and Stripe rejects the payment.",
+            "Walk through nextActions in order, in plain language.",
+          ].join(" "),
+        };
       })
   );
 

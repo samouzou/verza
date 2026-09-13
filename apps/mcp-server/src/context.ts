@@ -63,12 +63,12 @@ export async function resolveActor(
   const role = String(user.role ?? "");
   if (!TEAM_ROLES.has(role)) {
     throw new Error(
-      `User ${uid} role "${role}" cannot use Optic MCP tools (need agency_owner/admin/member).`
+      `This account’s role (“${role}”) can’t use Optic tools. Brand owners, admins, or members only.`
     );
   }
   const agencyId = typeof user.primaryAgencyId === "string" ? user.primaryAgencyId : "";
   if (!agencyId) {
-    throw new Error(`User ${uid} has no primaryAgencyId — link a brand workspace first.`);
+    throw new Error(`User ${uid} has no brand workspace linked yet — set a primary brand first.`);
   }
 
   const agencySnap = await db.collection("agencies").doc(agencyId).get();

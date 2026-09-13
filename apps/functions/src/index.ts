@@ -122,6 +122,7 @@ import {
 } from "./optic/jobs";
 import {createMcpApiKey, listMcpApiKeys, revokeMcpApiKey} from "./mcp/apiKeys";
 import {askOpticVaultChat} from "./optic/vaultChat";
+import {refreshOpticCampaignRoasInsight} from "./optic/roasInsight";
 import {
   claimOpticExtensionJob,
   submitOpticExtensionLead,
@@ -244,6 +245,7 @@ export {
   setOpticLeadEmail,
   setOpticLeadOutreachDraft,
   askOpticVaultChat,
+  refreshOpticCampaignRoasInsight,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
   createMcpApiKey,

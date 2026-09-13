@@ -113,14 +113,16 @@ export const opticTwilioSmsWebhook = onRequest(
 
         const source = await loadLatestContinuableJob(uid);
 
-        // Extension missions run in the user's Chrome session, so there is nothing
-        // for SMS to start. Queuing one here would just wedge the next batch.
-        if (source.runner === "extension") {
+        // Extension missions run in the user's Chrome session; MCP agent missions
+        // are driven by Claude/Cursor/etc. SMS cannot start either.
+        if (source.runner === "extension" || source.runner === "agent") {
           res
             .type("text/xml")
             .send(
               twiml(
-                "This mission runs in your Chrome browser. Open Verza Optic in Chrome and tap Run next batch."
+                source.runner === "agent"
+                  ? "This mission runs in your MCP client (Claude, Cursor, ChatGPT). Ask it to prepare the next agent batch."
+                  : "This mission runs in your Chrome browser. Open Verza Optic in Chrome and tap Run next batch."
               )
             );
           return;

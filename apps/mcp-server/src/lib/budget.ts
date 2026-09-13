@@ -86,13 +86,13 @@ export function estimateCampaignBudget(gig: GigBudgetInput): BudgetEstimate {
       rewardType,
       rewardAmountUsd: rewardAmount,
       note: affiliateEnabled
-        ? "Performance rewards are additive to base pay and depend on tracked clicks/conversions."
-        : "No affiliate CPC/CPA layer enabled on this campaign.",
+        ? "Performance bonuses (clicks or sales) are on top of base pay and depend on tracked results."
+        : "No affiliate or performance bonus layer is enabled on this campaign.",
     },
     assumptions: [
-      "Creator compensation = ratePerCreator × creatorsNeeded (same as Verza gig funding checkout).",
-      `Platform fee modeled at ${GIG_PLATFORM_FEE_FRACTION * 100}% of creator payout (taken at payout, not an extra brand charge at funding).`,
-      "Cause/barter campaigns may show $0 cash rate — treat ROAS separately.",
+      "Creator budget = pay per creator × number of creators (same as campaign funding).",
+      `Verza’s platform fee is modeled at ${GIG_PLATFORM_FEE_FRACTION * 100}% of creator payouts (taken at payout).`,
+      "Cause or barter campaigns may show $0 cash pay — treat return estimates separately.",
     ],
   };
 }

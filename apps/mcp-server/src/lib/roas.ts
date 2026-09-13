@@ -143,17 +143,19 @@ export function predictCampaignRoas(input: RoasPredictInput): RoasPrediction {
 
   const usedProxies = creatorsModeled.some((c) => c.id.startsWith("proxy-"));
   const caveats = [
-    "This is a predictive model, not measured campaign ROAS.",
-    "Follower counts on Optic leads are often vision estimates from profile screenshots.",
-    "Tune averageOrderValueUsd, conversionRate, and viewRate for your brand funnel.",
+    "This is a forecast, not historical results from a finished campaign.",
+    "Follower numbers are often estimated from public profiles.",
+    "Update average order value, conversion rate, and view rate to match your real funnel.",
   ];
   if (usedProxies) {
     caveats.push(
-      "One or more hire slots used proxy reach because the vault did not have enough scored leads — run Optic discovery first for better estimates."
+      "We filled some creator slots with placeholder reach because there aren’t enough vault matches yet — discover more creators to sharpen this estimate."
     );
   }
   if (input.budget.campaignType === "cause_campaign" || input.budget.campaignType === "barter_campaign") {
-    caveats.push("Cause/barter campaigns may have $0 cash spend; ROAS vs cash outlay may be undefined or infinite.");
+    caveats.push(
+      "This campaign type may have little or no cash spend, so return on cash outlay can look unusual."
+    );
   }
 
   return {

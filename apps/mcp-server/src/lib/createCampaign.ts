@@ -42,6 +42,7 @@ export async function createCampaignViaCallables(
   mode: "funded_checkout" | "live";
   gigId: string | null;
   checkoutUrl: string | null;
+  fundingUrl: string | null;
   campaignUrl: string | null;
   budgetPreview: ReturnType<typeof estimateCampaignBudget> | null;
   message: string;
@@ -95,15 +96,16 @@ export async function createCampaignViaCallables(
   if (totalAmount === 0) {
     const result = await client.call<{gigId?: string}>(actor.uid, "launchFreeCampaign", basePayload);
     const gigId = result?.gigId ?? null;
-    if (!gigId) throw new Error("Campaign was created but no gigId was returned.");
+    if (!gigId) throw new Error("Campaign was created, but we couldn’t get its link back. Try refreshing campaigns.");
     return {
-      mode: "live",
+      mode: "live" as const,
       gigId,
       checkoutUrl: null,
+      fundingUrl: null,
       campaignUrl: `${app}/campaigns/${gigId}`,
       budgetPreview: null,
       message:
-        "Campaign is live (no escrow funding). Next: optic_start_discovery with this campaignId.",
+        "Your campaign is live. Next, review the launch report (budget and predicted return), then start finding creators.",
     };
   }
 
@@ -120,9 +122,16 @@ export async function createCampaignViaCallables(
   if (!checkoutUrl) {
     throw new Error("Checkout session did not return a URL.");
   }
+  if (!gigId) {
+    throw new Error("Campaign was created, but we couldn’t get its link back. Try refreshing campaigns.");
+  }
+
+  // Prefer Verza-hosted funding link: Stripe URLs include a # fragment that chat
+  // clients often strip ("This link is incomplete").
+  const fundingUrl = `${app}/campaigns/${gigId}/fund`;
 
   const budgetPreview = estimateCampaignBudget({
-    id: gigId ?? "pending",
+    id: gigId,
     title,
     status: "pending_payment",
     campaignType: input.campaignType,
@@ -135,12 +144,14 @@ export async function createCampaignViaCallables(
   });
 
   return {
-    mode: "funded_checkout",
+    mode: "funded_checkout" as const,
     gigId,
+    /** @deprecated Prefer fundingUrl — raw Stripe links break when chat truncates the # fragment. */
     checkoutUrl,
-    campaignUrl: gigId ? `${app}/campaigns/${gigId}` : null,
+    fundingUrl,
+    campaignUrl: `${app}/campaigns/${gigId}`,
     budgetPreview,
     message:
-      "Open checkoutUrl to fund escrow. After payment, the campaign is open — then optic_start_discovery.",
+      "Open fundingUrl (Verza) to pay — you’ll be signed in and sent to Stripe. Don’t share or shorten the raw Stripe checkout link.",
   };
 }

@@ -69,22 +69,28 @@ async function handleMcpHttpRequest(opts: {
   }
 
   const path = pathnameOf(req);
-  if (req.method === "GET" && (path === "/health" || path === "/")) {
+  if (req.method === "GET" && path === "/health") {
     res.writeHead(200, {"content-type": "application/json"});
     res.end(
       JSON.stringify({
         ok: true,
         name: "verza-mcp",
         transport: "streamable-http",
-        mcpPath: "/mcp",
       })
     );
     return;
   }
 
-  if (path !== "/mcp" && !path.startsWith("/mcp/")) {
+  // Root is the public endpoint (api.tryverza.com). /mcp kept for older clients / run.app URLs.
+  const isMcpPath = path === "/" || path === "/mcp" || path.startsWith("/mcp/");
+  if (!isMcpPath) {
     res.writeHead(404, {"content-type": "application/json"});
-    res.end(JSON.stringify({error: "not_found", hint: "MCP endpoint is POST/GET /mcp"}));
+    res.end(
+      JSON.stringify({
+        error: "not_found",
+        hint: "MCP endpoint is the server root (or /mcp).",
+      })
+    );
     return;
   }
 
@@ -174,7 +180,7 @@ async function main() {
 
     httpServer.listen(port, host, () => {
       console.error(
-        `[verza-mcp] HTTP listening on http://${host}:${port}/mcp (Bearer vzmcp_… per user)`
+        `[verza-mcp] HTTP listening on http://${host}:${port}/ (Bearer vzmcp_… per user; /mcp also works)`
       );
     });
     return;

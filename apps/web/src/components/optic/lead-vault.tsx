@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ChevronLeft,
   ChevronRight,
   Flame,
 } from "lucide-react";
@@ -39,6 +40,7 @@ import type {
   OpticLeadCrmPatch,
   OpticLeadDraftPatch,
 } from "@/hooks/use-optic-lead-outreach";
+import type { OpticLeadsPagination } from "@/hooks/use-optic-leads";
 import {
   OPTIC_LEAD_STAGE_LABELS,
   OPTIC_LEAD_STAGES,
@@ -71,6 +73,7 @@ function tsToDate(ts: Timestamp | undefined | null): Date | null {
 export type LeadVaultProps = {
   leads: OpticLeadRow[];
   loading?: boolean;
+  pagination?: OpticLeadsPagination;
   gmailConnected?: boolean;
   onCreateGmailDraft?: (leadId: string) => void;
   draftingLeadId?: string | null;
@@ -100,6 +103,7 @@ type SortMode = "score" | "followers-desc" | "followers-asc";
 export function LeadVault({
   leads,
   loading,
+  pagination,
   gmailConnected,
   onCreateGmailDraft,
   draftingLeadId,
@@ -128,13 +132,7 @@ export function LeadVault({
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const byCampaign = useMemo(() => {
-    if (campaignFilter === "__all__") return leads;
-    if (campaignFilter === "__pooled__") {
-      return leads.filter((l) => !l.campaignId);
-    }
-    return leads.filter((l) => l.campaignId === campaignFilter);
-  }, [leads, campaignFilter]);
+  const byCampaign = leads;
 
   const staged = useMemo(() => {
     if (stageFilter === "__all__") return byCampaign;
@@ -301,28 +299,57 @@ export function LeadVault({
           </div>
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          {loading
-            ? "Loading…"
-            : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
-          {(filter.trim() || stageFilter !== "__all__") &&
-          staged.length !== filtered.length
-            ? ` (search narrowed from ${staged.length})`
-            : ""}
-          {!loading &&
-          stageFilter !== "__all__" &&
-          byCampaign.length !== staged.length
-            ? ` · ${staged.length} ${OPTIC_LEAD_STAGE_LABELS[stageFilter as OpticLeadStage].toLowerCase()}`
-            : ""}
-          {!loading &&
-          campaignFilter !== "__all__" &&
-          leads.length !== byCampaign.length
-            ? ` · ${byCampaign.length} in this campaign view (of ${leads.length})`
-            : ""}
-          {!loading && sortMode === "score"
-            ? " · Sorted by match score"
-            : ""}
-        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {loading
+              ? "Loading…"
+              : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
+            {pagination && !loading
+              ? ` · page ${pagination.pageIndex + 1} · ${pagination.pageSize} per page · newest first`
+              : ""}
+            {(filter.trim() || stageFilter !== "__all__") &&
+            staged.length !== filtered.length
+              ? ` (search narrowed from ${staged.length})`
+              : ""}
+            {!loading &&
+            stageFilter !== "__all__" &&
+            byCampaign.length !== staged.length
+              ? ` · ${staged.length} ${OPTIC_LEAD_STAGE_LABELS[stageFilter as OpticLeadStage].toLowerCase()}`
+              : ""}
+            {!loading &&
+            campaignFilter !== "__all__" &&
+            leads.length !== byCampaign.length
+              ? ` · ${byCampaign.length} in this campaign view (of ${leads.length} on this page)`
+              : ""}
+            {!loading && sortMode === "score"
+              ? " · Sorted by match score"
+              : ""}
+          </p>
+          {pagination && (pagination.hasPrevPage || pagination.hasNextPage) && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || !pagination.hasPrevPage}
+                onClick={pagination.goPrevPage}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Newer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || !pagination.hasNextPage}
+                onClick={pagination.goNextPage}
+              >
+                Older
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading vault…</p>
@@ -518,6 +545,37 @@ export function LeadVault({
                 })}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {pagination && !loading && leads.length > 0 && (
+          <div className="flex items-center justify-between gap-2 border-t pt-4">
+            <p className="text-xs text-muted-foreground">
+              Page {pagination.pageIndex + 1}
+              {pagination.hasNextPage ? " · more older leads available" : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!pagination.hasPrevPage}
+                onClick={pagination.goPrevPage}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Newer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!pagination.hasNextPage}
+                onClick={pagination.goNextPage}
+              >
+                Older
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
 

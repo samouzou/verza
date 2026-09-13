@@ -89,7 +89,7 @@ export async function draftCampaignFromUrl(input: DraftFromUrlInput): Promise<Ca
   );
 
   const genAI = new GoogleGenerativeAI(input.geminiApiKey);
-  const model = genAI.getGenerativeModel({model: "gemini-2.0-flash"});
+  const model = genAI.getGenerativeModel({model: "gemini-3.6-flash"});
 
   const system = `You are a senior campaign strategist for Verza (tryverza.com), the OS for the creator economy.
 Draft a creator campaign from a product/brand page for the brand "${input.actor.agencyName}".
@@ -238,8 +238,8 @@ Rules:
       campaignType === "cause_campaign" ||
       campaignType === "barter_campaign" ||
       ratePerCreator <= 0
-        ? "Review this draft, then call campaign_create with confirm=true to go live (no Stripe funding)."
-        : "Review this draft, then call campaign_create with confirm=true to create the gig and get a Stripe checkout URL to fund it.",
+        ? "Review this draft with the brand. When they’re happy, launch the campaign — it can go live without funding."
+        : "Review this draft with the brand. When they’re happy, launch the campaign and complete checkout to fund creator pay.",
   };
 
   return draft;

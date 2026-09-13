@@ -83,11 +83,20 @@ export async function enqueueOpticContinuationJob(
 
   await assertSufficientOpticCredits(source.agencyId, maxProfiles);
 
+  const runner =
+    source.runner === "extension"
+      ? "extension"
+      : source.runner === "agent"
+        ? "agent"
+        : "worker";
+  const isAgent = runner === "agent";
+
   const jobRef = db.collection("optic_jobs").doc();
   await jobRef.set({
-    status: "queued",
+    status: isAgent ? "running" : "queued",
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
+    ...(isAgent ? {workerStartedAt: FieldValue.serverTimestamp()} : {}),
     uid: source.uid,
     agencyId: source.agencyId,
     agencyName: source.agencyName,
@@ -102,12 +111,14 @@ export async function enqueueOpticContinuationJob(
     rootJobId: rootJobId || jobRef.id,
     continuedFromJobId: opts?.fromJobId ?? null,
     smsNotify: opts?.smsNotify ?? true,
-    runner: source.runner === "extension" ? "extension" : "worker",
+    runner,
     logs: [
       {
         ts: Timestamp.now(),
-        phase: "enqueue",
-        message: `Batch ${batchIndex} queued. Your scout will pick up shortly.`,
+        phase: isAgent ? "agent" : "enqueue",
+        message: isAgent
+          ? `Batch ${batchIndex} ready for MCP agent scout (no Chrome extension).`
+          : `Batch ${batchIndex} queued. Your scout will pick up shortly.`,
       },
     ],
     error: null,
@@ -184,7 +195,7 @@ async function assertNoInFlightOpticJob(uid: string): Promise<void> {
 export async function continueMissionForUid(
   uid: string,
   fromJobId?: string
-): Promise<{jobId: string; runner: "extension" | "worker"}> {
+): Promise<{jobId: string; runner: "extension" | "worker" | "agent"}> {
   await assertNoInFlightOpticJob(uid);
   let source: SourceJob & {id: string};
   if (fromJobId?.trim()) {
@@ -200,5 +211,11 @@ export async function continueMissionForUid(
     source = await loadLatestContinuableJob(uid);
   }
   const jobId = await enqueueOpticContinuationJob(source, {smsNotify: true, fromJobId: source.id});
-  return {jobId, runner: source.runner === "extension" ? "extension" : "worker"};
+  const runner =
+    source.runner === "extension"
+      ? ("extension" as const)
+      : source.runner === "agent"
+        ? ("agent" as const)
+        : ("worker" as const);
+  return {jobId, runner};
 }

@@ -11,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 
+const MCP_SERVER_URL =
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "verza-canvas"
+    ? "https://api.tryverza.com"
+    : "https://dev-api.tryverza.com";
+
 type KeyRow = {
   id: string;
   label: string;
@@ -104,9 +109,17 @@ export function McpApiKeysCard({ preview = false }: Props) {
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">Verza MCP (Claude / ChatGPT / Cursor)</p>
           <p className="text-xs text-muted-foreground">
-            Your login defines the agency. Create a personal API key, put it in your MCP client
-            as <code className="text-[11px]">VERZA_MCP_API_KEY</code>, and tools run as{" "}
-            <strong>you</strong> on your brand workspace.
+            Connect Claude, ChatGPT, or Cursor to your brand workspace. Server URL:{" "}
+            <code className="text-[11px]">{MCP_SERVER_URL}</code>
+            {" · "}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => void copy(MCP_SERVER_URL)}
+            >
+              Copy
+            </button>
+            . Create a personal API key below and use it as the Bearer token in your MCP client.
           </p>
         </div>
       </div>

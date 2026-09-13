@@ -7,7 +7,9 @@ import Link from "next/link";
 import { GmailConnectCard } from "@/components/optic/gmail-connect-card";
 import { LeadVault } from "@/components/optic/lead-vault";
 import { VaultAskPanel } from "@/components/optic/vault-ask-panel";
+import { VaultRoasCard } from "@/components/optic/vault-roas-card";
 import { OpticCreditsBadge } from "@/components/optic/optic-credits-badge";
+import { useOpticCampaignRoasInsight } from "@/hooks/use-optic-campaign-roas";
 import { useOpticGmail } from "@/hooks/use-optic-gmail";
 import { useOpticLeadOutreach } from "@/hooks/use-optic-lead-outreach";
 import { useOpticVaultChat } from "@/hooks/use-optic-vault-chat";
@@ -22,12 +24,19 @@ import { useOpticLeads } from "@/hooks/use-optic-leads";
 export default function OpticVaultPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const agencyId = user?.primaryAgencyId ?? null;
-  const { leads, error, loading } = useOpticLeads(agencyId);
+  const [campaignFilter, setCampaignFilter] = useState("__all__");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("campaignId");
+    if (fromUrl?.trim()) setCampaignFilter(fromUrl.trim());
+  }, []);
+
+  const { leads, error, loading, pagination } = useOpticLeads(agencyId, campaignFilter);
   const { campaigns, loading: campaignsLoading } = useOpticCampaigns(
     agencyId,
     user?.displayName ?? null
   );
-  const [campaignFilter, setCampaignFilter] = useState("__all__");
   const {
     messages: vaultMessages,
     asking: vaultAsking,
@@ -35,17 +44,14 @@ export default function OpticVaultPage() {
     ask: askVault,
     clear: clearVaultChat,
   } = useOpticVaultChat();
-  const scopedLeadCount = useMemo(() => {
-    if (campaignFilter === "__all__") return leads.length;
-    if (campaignFilter === "__pooled__") {
-      return leads.filter((l) => !l.campaignId).length;
-    }
-    return leads.filter((l) => l.campaignId === campaignFilter).length;
-  }, [leads, campaignFilter]);
+  const scopedLeadCount = leads.length;
   const selectedCampaignTitle = useMemo(() => {
     if (campaignFilter === "__all__" || campaignFilter === "__pooled__") return undefined;
     return campaigns.find((c) => c.id === campaignFilter)?.title;
   }, [campaigns, campaignFilter]);
+  const campaignScoped =
+    campaignFilter !== "__all__" && campaignFilter !== "__pooled__";
+  const roas = useOpticCampaignRoasInsight(campaignScoped ? campaignFilter : null);
 
   useEffect(() => {
     clearVaultChat();
@@ -127,6 +133,17 @@ export default function OpticVaultPage() {
         />
       )}
 
+      {isAgencyTeam && agencyId && campaignScoped && (
+        <VaultRoasCard
+          campaignTitle={selectedCampaignTitle}
+          insight={roas.insight}
+          loading={roas.loading}
+          refreshing={roas.refreshing}
+          error={roas.error}
+          onRefresh={(opts) => void roas.refresh(opts)}
+        />
+      )}
+
       {isAgencyTeam && agencyId && (
         <VaultAskPanel
           campaignFilter={campaignFilter}
@@ -145,6 +162,7 @@ export default function OpticVaultPage() {
       <LeadVault
         leads={leads}
         loading={loading && !!agencyId}
+        pagination={pagination}
         gmailConnected={gmail.connected}
         onCreateGmailDraft={isAgencyTeam ? gmail.createDraft : undefined}
         draftingLeadId={gmail.draftingLeadId}

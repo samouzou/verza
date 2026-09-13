@@ -3,6 +3,10 @@
 # Usage:
 #   ./scripts/deploy-cloud-run.sh verza-canvas-dev
 #   ./scripts/deploy-cloud-run.sh verza-canvas
+#
+# Customer-facing endpoints (after domain mapping + DNS):
+#   Dev:  https://dev-api.tryverza.com
+#   Prod: https://api.tryverza.com
 set -euo pipefail
 
 PROJECT_ID="${1:-verza-canvas-dev}"
@@ -12,11 +16,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ "$PROJECT_ID" == "verza-canvas" ]]; then
   APP_URL="https://app.tryverza.com"
-  WEB_API_KEY_DEFAULT=""
+  MCP_PUBLIC_HOST="api.tryverza.com"
 else
   APP_URL="https://dev-app.tryverza.com"
-  WEB_API_KEY_DEFAULT=""
+  MCP_PUBLIC_HOST="dev-api.tryverza.com"
 fi
+MCP_PUBLIC_URL="https://${MCP_PUBLIC_HOST}"
 
 # Prefer keys already in the local project env file (gitignored).
 ENV_FILE="$ROOT/.env.$PROJECT_ID"
@@ -29,7 +34,7 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-WEB_API_KEY="${VERZA_FIREBASE_WEB_API_KEY:-${WEB_API_KEY:-$WEB_API_KEY_DEFAULT}}"
+WEB_API_KEY="${VERZA_FIREBASE_WEB_API_KEY:-${WEB_API_KEY:-}}"
 GEMINI_KEY="${GEMINI_API_KEY:-${GEMINI_KEY:-}}"
 
 if [[ -z "$WEB_API_KEY" ]]; then
@@ -42,6 +47,7 @@ if [[ -z "$GEMINI_KEY" ]]; then
 fi
 
 echo "Deploying $SERVICE to $PROJECT_ID ($REGION)…"
+echo "Public MCP URL (after DNS): ${MCP_PUBLIC_URL}"
 
 gcloud run deploy "$SERVICE" \
   --project="$PROJECT_ID" \
@@ -56,14 +62,24 @@ gcloud run deploy "$SERVICE" \
   --allow-unauthenticated \
   --set-env-vars="VERZA_MCP_TRANSPORT=http,VERZA_FIREBASE_PROJECT_ID=${PROJECT_ID},VERZA_APP_URL=${APP_URL},VERZA_FUNCTIONS_REGION=us-central1,VERZA_FIREBASE_WEB_API_KEY=${WEB_API_KEY},GEMINI_API_KEY=${GEMINI_KEY}"
 
-URL="$(gcloud run services describe "$SERVICE" \
+RUN_URL="$(gcloud run services describe "$SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --format='value(status.url)')"
 
 echo
-echo "Deployed: ${URL}"
-echo "MCP endpoint: ${URL}/mcp"
+echo "Cloud Run (internal): ${RUN_URL}"
+echo "Customer URL:         ${MCP_PUBLIC_URL}"
+echo
+echo "── One-time domain mapping (if not done yet) ──"
+echo "  gcloud beta run domain-mappings create \\"
+echo "    --service=${SERVICE} \\"
+echo "    --domain=${MCP_PUBLIC_HOST} \\"
+echo "    --region=${REGION} \\"
+echo "    --project=${PROJECT_ID}"
+echo
+echo "  Then in DNS for tryverza.com, add the CNAME Google shows for ${MCP_PUBLIC_HOST}"
+echo "  (often pointing at ghs.googlehosted.com). Wait for certificate Active."
 echo
 echo "Cursor ~/.cursor/mcp.json:"
 echo
@@ -71,7 +87,7 @@ cat <<EOF
 {
   "mcpServers": {
     "verza": {
-      "url": "${URL}/mcp",
+      "url": "${MCP_PUBLIC_URL}",
       "headers": {
         "Authorization": "Bearer vzmcp_YOUR_KEY_FROM_OPTIC"
       }

@@ -24,6 +24,38 @@ export type OpticCampaignOption = {
   description?: string;
 };
 
+/** Persisted on `gigs/{id}.opticRoasInsight` by MCP launch brief or vault refresh. */
+export type OpticRoasInsight = {
+  predictedRoas: number | null;
+  spendUsd: number;
+  expectedRevenueUsd: number;
+  expectedViews: number;
+  expectedConversions: number;
+  hireCount: number;
+  confidence: "low" | "medium";
+  vaultLeadsUsed: number;
+  usedProxies: boolean;
+  inputs: {
+    averageOrderValueUsd: number;
+    conversionRate: number;
+    viewRate: number;
+    engagementRate: number | null;
+  };
+  budget: {
+    creatorCompensationUsd: number;
+    ratePerCreator: number;
+    creatorsNeeded: number;
+  };
+  creatorsPreview: Array<{
+    name: string | null;
+    followers: number;
+    matchScore: number | null;
+  }>;
+  caveats: string[];
+  source: "mcp" | "web";
+  updatedAt?: Timestamp | null;
+};
+
 export type OpticExtensionProgress = {
   phase?: string;
   message?: string;

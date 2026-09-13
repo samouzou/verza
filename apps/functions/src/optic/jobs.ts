@@ -219,21 +219,22 @@ export const cancelOpticDiscoveryJob = onCall(async (request) => {
     throw new HttpsError("permission-denied", "You cannot cancel this job.");
   }
 
-  // A queued extension job is only ever claimed by an explicit browser hand-off, so
-  // no runner will observe cancelRequested. Close it out here or it stays in flight
-  // forever and blocks the next batch.
-  const abandonedExtensionJob = d.status === "queued" && d.runner === "extension";
+  // Extension + MCP agent missions have no Cloud Run worker watching cancelRequested.
+  // Close them out here or they stay in flight and block the next batch.
+  const closeLocalRunner =
+    (d.runner === "extension" || d.runner === "agent") &&
+    (d.status === "queued" || d.status === "running");
 
   await ref.update({
     cancelRequested: true,
-    ...(abandonedExtensionJob ?
+    ...(closeLocalRunner ?
       {status: "cancelled", workerCompletedAt: FieldValue.serverTimestamp()} :
       {}),
     updatedAt: FieldValue.serverTimestamp(),
     logs: FieldValue.arrayUnion({
       ts: Timestamp.now(),
       phase: "cancel",
-      message: abandonedExtensionJob ? "Mission cancelled." : "Cancellation requested.",
+      message: closeLocalRunner ? "Mission cancelled." : "Cancellation requested.",
     }),
   });
   return {ok: true as const};
