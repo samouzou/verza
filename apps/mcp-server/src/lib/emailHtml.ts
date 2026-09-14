@@ -83,8 +83,20 @@ export function sanitizeEmailFragment(html: string): string {
   return s.trim();
 }
 
+function lightMarkdownToHtmlHints(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>");
+}
+
 export function plaintextToEmailHtml(text: string): string {
-  const escaped = escapeHtml(text.replace(/\r\n/g, "\n").trim());
+  const withHints = lightMarkdownToHtmlHints(text.replace(/\r\n/g, "\n").trim());
+  if (!withHints) return "";
+  if (looksLikeEmailHtml(withHints)) {
+    return sanitizeEmailFragment(withHints);
+  }
+  const escaped = escapeHtml(withHints);
   if (!escaped) return "";
   return escaped
     .split(/\n{2,}/)

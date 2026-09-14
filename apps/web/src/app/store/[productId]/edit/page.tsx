@@ -37,6 +37,8 @@ export default function StoreCourseEditPage() {
   const isCreator =
     user?.role === "individual_creator" || user?.role === "talent";
   const connectReady = !!(user?.stripeAccountId && user?.stripePayoutsEnabled);
+  const storeApproved = (user?.storeSellerStatus ?? "none") === "approved";
+  const canPublish = connectReady && storeApproved;
 
   useEffect(() => {
     if (!productId || authLoading) return;
@@ -150,10 +152,12 @@ export default function StoreCourseEditPage() {
       });
       return;
     }
-    if (form.status === "active" && !connectReady) {
+    if (form.status === "active" && !canPublish) {
       toast({
-        title: "Connect payouts required",
-        description: "Enable payouts in Settings before publishing.",
+        title: storeApproved ? "Connect payouts required" : "Store review required",
+        description: storeApproved
+          ? "Enable payouts in Settings before publishing."
+          : "Get approved to sell from the Store page before publishing.",
         variant: "destructive",
       });
       return;
@@ -206,6 +210,7 @@ export default function StoreCourseEditPage() {
       saving={saving}
       loadingContent={loadingContent}
       connectReady={connectReady}
+      canPublish={canPublish}
       userId={user.uid}
     />
   );

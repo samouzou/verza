@@ -20,6 +20,10 @@ import {
   resolveLatestChargeId,
   transferToConnectAccountIfNeeded,
 } from "../payments/stripeConnect";
+import {
+  assertCanPublishStoreProduct,
+  canReceiveStoreCheckout,
+} from "./sellerReview";
 
 /** Verza take rate on creator Store sales (Stripe card fees deducted separately). */
 export const STORE_PLATFORM_FEE_FRACTION = 0.1;
@@ -481,13 +485,22 @@ export const upsertStoreProduct = onCall(async (request) => {
 
   const fields = sanitizeProductInput(raw);
 
+  let publisher = userData;
   if (fields.status === "active") {
-    if (!userData.stripeAccountId || !userData.stripePayoutsEnabled) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Connect payouts must be enabled in Settings before publishing a product."
-      );
+    let wasAlreadyActive = false;
+    if (productId && typeof productId === "string") {
+      const existingSnap = await db.collection("storeProducts").doc(productId).get();
+      if (existingSnap.exists) {
+        const existing = existingSnap.data() as StoreProduct;
+        if (existing.creatorId !== creatorId) {
+          throw new HttpsError("permission-denied", "Not your product.");
+        }
+        wasAlreadyActive = existing.status === "active";
+      }
     }
+    publisher = await assertCanPublishStoreProduct(creatorId, userData, {
+      wasAlreadyActive,
+    });
   }
 
   const now = FieldValue.serverTimestamp();
@@ -513,8 +526,8 @@ export const upsertStoreProduct = onCall(async (request) => {
     chapterOutline,
     lessonOutline: FieldValue.delete(),
     status: fields.status,
-    creatorDisplayName: userData.displayName || null,
-    creatorAvatarUrl: userData.avatarUrl || null,
+    creatorDisplayName: publisher.displayName || null,
+    creatorAvatarUrl: publisher.avatarUrl || null,
     updatedAt: now,
     // Stop exposing paid URLs on the public product doc.
     accessUrl: FieldValue.delete(),
@@ -544,8 +557,8 @@ export const upsertStoreProduct = onCall(async (request) => {
     try {
       await maybeStartStoreLaunchDrip({
         uid: creatorId,
-        email: userData.email,
-        name: userData.displayName || "there",
+        email: publisher.email,
+        name: publisher.displayName || "there",
         productId: id,
       });
     } catch (error) {
@@ -575,8 +588,8 @@ export const upsertStoreProduct = onCall(async (request) => {
   const ref = db.collection("storeProducts").doc();
   await ref.set({
     creatorId,
-    creatorDisplayName: userData.displayName || null,
-    creatorAvatarUrl: userData.avatarUrl || null,
+    creatorDisplayName: publisher.displayName || null,
+    creatorAvatarUrl: publisher.avatarUrl || null,
     title: fields.title,
     description: fields.description,
     priceCents: fields.priceCents,
@@ -846,6 +859,12 @@ export const createStoreCheckoutSession = onCall({
     throw new HttpsError(
       "failed-precondition",
       "This creator cannot receive Store payments right now."
+    );
+  }
+  if (!canReceiveStoreCheckout(creator)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This creator’s Store is not available for checkout right now."
     );
   }
 

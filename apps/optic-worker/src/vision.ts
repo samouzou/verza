@@ -114,6 +114,7 @@ export async function analyzeProfileWithGemini(
     11. draftDm (string or null): REQUIRED when email is null — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platLabel} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown. Keep DMs plain text (not HTML).
 
     If email IS found, set draftDm to null. If email is NOT found, set draftEmail and draftEmailSubject to null and always provide draftDm.
+    Critical: draftEmail must contain HTML tags (<p>…</p>). Do not return a plain-text email body.
 
     Do not include markdown outside the JSON. Use null for unknown fields.
   `;

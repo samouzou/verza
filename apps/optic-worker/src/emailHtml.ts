@@ -83,8 +83,25 @@ function sanitizeEmailFragment(html: string): string {
   return s.trim();
 }
 
+export const DRAFT_EMAIL_HTML_HINT =
+  "REQUIRED HTML email (not plain text): 2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href=\"https://...\">. " +
+  "Put real tags in the JSON string (e.g. \"<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>\"). " +
+  "Bold the brand name once with <strong>. No markdown (**bold** or [links](url)), no <html>/<body>, no CSS. Sign off in the last <p>.";
+
+function lightMarkdownToHtmlHints(text: string): string {
+  // Best-effort if the model ignores HTML and returns markdown instead.
+  return text
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>");
+}
+
 function plaintextToEmailHtml(text: string): string {
-  const escaped = escapeHtml(text.replace(/\r\n/g, "\n").trim());
+  const withHints = lightMarkdownToHtmlHints(text.replace(/\r\n/g, "\n").trim());
+  if (looksLikeEmailHtml(withHints)) {
+    return sanitizeEmailFragment(withHints);
+  }
+  const escaped = escapeHtml(withHints);
   if (!escaped) return "";
   return escaped
     .split(/\n{2,}/)
@@ -102,6 +119,3 @@ export function ensureStoredEmailHtml(raw: string | null | undefined): string | 
     : plaintextToEmailHtml(trimmed);
   return html || null;
 }
-
-export const DRAFT_EMAIL_HTML_HINT =
-  "a short HTML email (2–4 <p> blocks). Use only <p>, <br>, <strong>, <em>, and <a href=\"https://...\">. No markdown, no <html>/<body>, no CSS. Sign off in the last paragraph.";

@@ -74,7 +74,7 @@ export async function analyzeProfileWithGemini(
     The draftEmail must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where it feels natural, align with Campaign Objectives, and invite the creator to learn more (do not use generic "the Verza network" as the only sender identity).
     `
     : `
-    If an email is found, draftEmail is a short, 3-sentence personalized pitch inviting them to explore the Verza network, aligned with Campaign Objectives.
+    If an email is found, draftEmail is a short HTML pitch (2–4 <p> blocks) inviting them to explore the Verza network, aligned with Campaign Objectives. Use <strong> for the brand/network name once.
     `;
 
   const prompt = `
@@ -89,8 +89,10 @@ export async function analyzeProfileWithGemini(
     3. email (if visible in the bio or description)
     4. followerCount (estimate based on visible numbers)
 
-    If an email is found, also generate a draftEmail string:
-    A short, 3-sentence personalized pitch as specified above.
+    If an email is found, also generate a draftEmail string as REQUIRED HTML (not plain text):
+    2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href="https://...">.
+    Example: "<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>"
+    No markdown. Sign off in the last <p>.
 
     Do not include any markdown formatting outside of the JSON.
     If you cannot find a piece of information, return null for that field.

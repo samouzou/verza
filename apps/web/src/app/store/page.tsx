@@ -23,6 +23,7 @@ import {
   Heart,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { StoreSellerReviewCard } from "@/components/store/store-seller-review-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -132,6 +133,8 @@ export default function StorePage() {
   const isCreator =
     user?.role === "individual_creator" || user?.role === "talent";
   const connectReady = !!(user?.stripeAccountId && user?.stripePayoutsEnabled);
+  const storeApproved = (user?.storeSellerStatus ?? "none") === "approved";
+  const canPublish = connectReady && storeApproved;
 
   const totals = useMemo(() => {
     const sales = products.reduce((n, p) => n + (p.salesCount || 0), 0);
@@ -292,10 +295,12 @@ export default function StorePage() {
       });
       return;
     }
-    if (form.status === "active" && !connectReady) {
+    if (form.status === "active" && !canPublish) {
       toast({
-        title: "Connect payouts required",
-        description: "Enable payouts in Settings before publishing.",
+        title: storeApproved ? "Connect payouts required" : "Store review required",
+        description: storeApproved
+          ? "Enable payouts in Settings before publishing."
+          : "Get approved to sell on the Store page before publishing.",
         variant: "destructive",
       });
       return;
@@ -384,7 +389,9 @@ export default function StorePage() {
         }
       />
 
-      {!connectReady && (
+      <StoreSellerReviewCard connectReady={connectReady} />
+
+      {!connectReady && storeApproved && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div className="space-y-1 text-sm">
@@ -703,8 +710,13 @@ export default function StorePage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="active" disabled={!connectReady}>
-                      Active {connectReady ? "" : "(needs Connect)"}
+                    <SelectItem value="active" disabled={!canPublish}>
+                      Active{" "}
+                      {!canPublish
+                        ? storeApproved
+                          ? "(needs Connect)"
+                          : "(needs review)"
+                        : ""}
                     </SelectItem>
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>

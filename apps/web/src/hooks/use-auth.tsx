@@ -119,6 +119,14 @@ export interface UserProfile {
   opticGmailCanRead?: boolean;
   opticSmsEnabled?: boolean;
   opticSmsPhone?: string | null;
+
+  /** Store seller review gate. */
+  storeSellerStatus?: "none" | "pending_review" | "approved" | "rejected" | "suspended";
+  storeSellerSubmittedAt?: Timestamp | null;
+  storeSellerReviewedAt?: Timestamp | null;
+  storeSellerReviewedBy?: string | null;
+  storeSellerReviewNote?: string | null;
+  storeSellerRejectReason?: string | null;
 }
 
 interface AuthContextType {
@@ -457,6 +465,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               opticGmailCanRead: firestoreUserData.opticGmailCanRead === true,
               opticSmsEnabled: firestoreUserData.opticSmsEnabled ?? false,
               opticSmsPhone: firestoreUserData.opticSmsPhone ?? null,
+              storeSellerStatus: firestoreUserData.storeSellerStatus ?? "none",
+              storeSellerSubmittedAt: firestoreUserData.storeSellerSubmittedAt ?? null,
+              storeSellerReviewedAt: firestoreUserData.storeSellerReviewedAt ?? null,
+              storeSellerReviewedBy: firestoreUserData.storeSellerReviewedBy ?? null,
+              storeSellerReviewNote: firestoreUserData.storeSellerReviewNote ?? null,
+              storeSellerRejectReason: firestoreUserData.storeSellerRejectReason ?? null,
             });
           } else {
              setUser(null);

@@ -40,6 +40,12 @@ export const SENDGRID_FROM_EMAIL = defineString("SENDGRID_FROM_EMAIL", {
   description: "The 'from' email address for automated emails.",
 });
 
+/** Comma-separated emails allowed to approve/reject Store sellers. */
+export const STORE_REVIEWER_EMAILS = defineString("STORE_REVIEWER_EMAILS", {
+  default: "support@tryverza.com,serge@tryverza.com",
+  description: "Staff emails that can review Store seller applications.",
+});
+
 export const APP_STORAGE_BUCKET = defineString("APP_STORAGE_BUCKET", {
   description: "The default Firebase Storage bucket name.",
 });

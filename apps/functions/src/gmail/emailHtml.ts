@@ -128,14 +128,32 @@ export function stripEmailCodeFences(raw: string): string {
  * @param {string} text Plain outreach copy.
  * @return {string} HTML using p/br only.
  */
+function lightMarkdownToHtmlHints(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>");
+}
+
 export function plaintextToEmailHtml(text: string): string {
-  const escaped = escapeHtml(text.replace(/\r\n/g, "\n").trim());
+  const withHints = lightMarkdownToHtmlHints(text.replace(/\r\n/g, "\n").trim());
+  if (!withHints) return "";
+  if (looksLikeEmailHtml(withHints)) {
+    return sanitizeEmailFragment(withHints);
+  }
+  const escaped = escapeHtml(withHints);
   if (!escaped) return "";
   return escaped
     .split(/\n{2,}/)
     .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
     .join("");
 }
+
+/** Prompt fragment: models must emit HTML tags for draftEmail, not bare plain text. */
+export const DRAFT_EMAIL_HTML_HINT =
+  "REQUIRED HTML email (not plain text): 2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href=\"https://...\">. " +
+  "Put real tags in the JSON string (e.g. \"<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>\"). " +
+  "Bold the brand name once with <strong>. No markdown (**bold** or [links](url)), no <html>/<body>, no CSS. Sign off in the last <p>.";
 
 /**
  * Stores sanitized HTML (never bare plain text).

@@ -322,6 +322,45 @@ export interface UserProfileFirestoreData {
 
   /** Public storefront slug for creator Store (/c/{storeSlug}). */
   storeSlug?: string | null;
+
+  /**
+   * Store seller trust gate — must be approved before publishing products.
+   * Missing/`none` means not yet submitted (legacy active sellers are grandfathered on save).
+   */
+  storeSellerStatus?: StoreSellerStatus;
+  storeSellerSubmittedAt?: Timestamp | null;
+  storeSellerReviewedAt?: Timestamp | null;
+  storeSellerReviewedBy?: string | null;
+  storeSellerReviewNote?: string | null;
+  storeSellerRejectReason?: string | null;
+}
+
+/** Creator must pass review before any Store product can go live. */
+export type StoreSellerStatus =
+  | "none"
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "suspended";
+
+/** Queue row for Verza staff reviewing Store seller applications. */
+export interface StoreSellerReviewRequest {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  status: Exclude<StoreSellerStatus, "none">;
+  stripeAccountId?: string | null;
+  stripePayoutsEnabled?: boolean;
+  hasConnectedSocial?: boolean;
+  instagramConnected?: boolean;
+  youtubeConnected?: boolean;
+  tiktokConnected?: boolean;
+  submittedAt?: Timestamp | null;
+  reviewedAt?: Timestamp | null;
+  reviewedBy?: string | null;
+  rejectReason?: string | null;
+  note?: string | null;
+  updatedAt?: Timestamp | null;
 }
 
 /** Creator-sold digital product (fan commerce / Whop-style Store). */

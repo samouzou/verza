@@ -569,7 +569,7 @@ export async function prepareAgentMission(
       "Skip anyone already in excludeHandles — they’re already in the vault.",
       "Search with your own tools. Prefer real public profiles with follower counts.",
       "For each strong fit, save them with optic_submit_agent_lead (profile link, name, followers, niche, bio, email if visible, and a short why-they-fit note).",
-      "Include a short outreach draft when you can. Email bodies must be simple HTML (<p>, <br>, <strong>, <em>, <a>); platform DMs stay plain text.",
+      "Include a short outreach draft when you can. For emails, draftEmail MUST be HTML with <p> tags (and optional <strong>, <em>, <a>) — never plain text paragraphs. Example: <p>Hi …</p><p>I'm with <strong>Brand</strong>…</p>. Platform DMs stay plain text.",
       "After saving creators with emails, check optic_gmail_status and use optic_create_gmail_draft to put HTML drafts in Gmail.",
       "When finished, mark the mission complete with optic_complete_agent_mission.",
       "Talk to the brand in plain language — don’t mention tools, APIs, or extension internals.",

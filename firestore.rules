@@ -85,7 +85,19 @@ service cloud.firestore {
 
     function requesterPrivilegeFieldsUnchanged() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return !changed.hasAny(['primaryAgencyId', 'isAgencyOwner', 'isBrandAccount', 'role', 'agencyMemberships']);
+      return !changed.hasAny([
+        'primaryAgencyId',
+        'isAgencyOwner',
+        'isBrandAccount',
+        'role',
+        'agencyMemberships',
+        'storeSellerStatus',
+        'storeSellerSubmittedAt',
+        'storeSellerReviewedAt',
+        'storeSellerReviewedBy',
+        'storeSellerReviewNote',
+        'storeSellerRejectReason'
+      ]);
     }
 
     function isMissingFieldBackfill() {
@@ -361,6 +373,11 @@ service cloud.firestore {
     match /storePurchases/{purchaseId} {
       allow read: if request.auth != null && isOwner(resource.data.creatorId);
       allow write: if false;
+    }
+
+    // Store seller review queue — Admin SDK / callables only
+    match /storeSellerReviews/{uid} {
+      allow read, write: if false;
     }
   }
 }

@@ -65,6 +65,7 @@ type CourseEditorProps = {
   saving: boolean;
   loadingContent: boolean;
   connectReady: boolean;
+  canPublish?: boolean;
   userId: string;
 };
 
@@ -77,8 +78,10 @@ export function CourseEditor({
   saving,
   loadingContent,
   connectReady,
+  canPublish,
   userId,
 }: CourseEditorProps) {
+  const publishReady = canPublish ?? connectReady;
   const [activeView, setActiveView] = useState<EditorView>("settings");
   const bodyDraftRef = useRef<{ id: string; html: string } | null>(null);
 
@@ -375,8 +378,8 @@ export function CourseEditor({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="active" disabled={!connectReady}>
-                        Active {connectReady ? "" : "(needs payouts)"}
+                      <SelectItem value="active" disabled={!publishReady}>
+                        Active {publishReady ? "" : "(needs review or payouts)"}
                       </SelectItem>
                       <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>

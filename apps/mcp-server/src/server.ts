@@ -236,7 +236,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .string()
         .optional()
         .describe(
-          "HTML email body for Gmail (<p>, <br>, <strong>, <em>, <a>). Plain text is converted to HTML. Do not use HTML for DMs."
+          "REQUIRED HTML when email is known: 2–4 <p> blocks with optional <strong>/<em>/<a href>. Example: <p>Hi …</p><p>I'm with <strong>Brand</strong> on Verza…</p>. Never plain text. Do not use HTML for DMs."
         ),
       draftEmailSubject: z.string().optional(),
       draftDm: z

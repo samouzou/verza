@@ -165,6 +165,12 @@ import {
   getStoreProductContent,
   getStoreAccess,
 } from "./store";
+import {
+  submitStoreSellerReview,
+  reviewStoreSeller,
+  listStoreSellerReviews,
+  getStoreReviewerAccess,
+} from "./store/sellerReview";
 import {generateStoreCourseContent} from "./store/generateCourseContent";
 import {writeFromYouTubeVideo} from "./youtube-writer/writeFromYouTubeVideo";
 import {adaptYouTubeWriterDraft} from "./youtube-writer/adaptYouTubeWriterDraft";
@@ -284,6 +290,10 @@ export {
   createStoreCheckoutSession,
   getStoreProductContent,
   getStoreAccess,
+  submitStoreSellerReview,
+  reviewStoreSeller,
+  listStoreSellerReviews,
+  getStoreReviewerAccess,
   generateStoreCourseContent,
   writeFromYouTubeVideo,
   adaptYouTubeWriterDraft,

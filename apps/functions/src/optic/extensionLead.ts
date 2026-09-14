@@ -1,6 +1,6 @@
 import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
-import {sanitizeStoredEmailDraft} from "../gmail/emailHtml";
+import {DRAFT_EMAIL_HTML_HINT, sanitizeStoredEmailDraft} from "../gmail/emailHtml";
 import type {OpticJobBrandContext} from "./jobs";
 
 const MODEL = "gemini-3.6-flash";
@@ -682,11 +682,12 @@ export async function enrichExtensionInstagramLead(
     1. niche (string, e.g. tech, beauty, gaming)
     2. briefFitScore (integer 0-100): how well this creator matches the Campaign Objectives and brand (content angle, niche, audience). Be discriminating — typical good matches are 60-85; reserve 90+ for exceptional fit; use below 55 when the niche is a stretch.
     3. matchReason (string, max 160 chars): one concrete sentence on why they fit (or why the score is moderate). No fluff.
-    4. draftEmail (string or null): ONLY if a public contact email is listed above — a short HTML email (2–4 <p> blocks). Use only <p>, <br>, <strong>, <em>, and <a href="https://...">. No markdown, no <html>/<body>, no CSS. Sign off in the last paragraph.
+    4. draftEmail (string or null): ONLY if a public contact email is listed above — ${DRAFT_EMAIL_HTML_HINT}
     5. draftEmailSubject (string or null): ONLY if a public contact email is listed above — a short specific subject line.
     6. draftDm (string or null): REQUIRED when no public contact email is listed — a ${dmStyleHint(platform)} Personalized pitch the brand can paste into ${platformProfileLabel(platform)} DMs. Use \\n\\n between paragraphs if more than one thought. No markdown. Keep DMs plain text (not HTML).
 
     If a public contact email IS listed, set draftDm to null. If it is NOT listed, set draftEmail and draftEmailSubject to null and always provide draftDm.
+    Critical: draftEmail must contain HTML tags (<p>…</p>). Do not return a plain-text email body.
 
     Personalize using the bio and display name where natural. Do not invent emails, follower counts, or facts not listed above.
     Do not include markdown outside the JSON. Use null for unknown fields.
