@@ -679,18 +679,13 @@ export function LeadReportSheet({
                     {draftChannel === "email" ? "Email" : `${platform} DM`}
                   </Label>
                   {draftChannel === "email" ? (
-                    <>
-                      <OutreachEmailEditor
-                        key={lead.id}
-                        value={bodyValue}
-                        onChange={setBodyValue}
-                        readOnly={busyDraft}
-                        placeholder="Edit the note before you send…"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Bold, lists, and links send the way they do in Gmail.
-                      </p>
-                    </>
+                    <OutreachEmailEditor
+                      key={lead.id}
+                      value={bodyValue}
+                      onChange={setBodyValue}
+                      readOnly={busyDraft}
+                      placeholder="Edit the note before you send…"
+                    />
                   ) : (
                     <Textarea
                       id="outreach-body"

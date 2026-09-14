@@ -31,7 +31,6 @@ export function GmailConnectCard({ connected, email, canRead, disabled }: Props)
         </CardTitle>
         <CardDescription>
           Connect Gmail to draft, send, and read replies on threads you start from Verza.
-          Seeing replies needs inbox read — reconnect once after that permission is enabled.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
