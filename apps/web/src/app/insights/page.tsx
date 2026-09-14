@@ -11,7 +11,7 @@ import { useTour } from "@/hooks/use-tour";
 import { insightsTour } from "@/lib/tours";
 import { Textarea } from '@/components/ui/textarea';
 import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/creator-analysis-flow';
-import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, linkWithPopup } from '@/lib/firebase';
+import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, linkWithPopup, reauthenticateWithPopup } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -143,26 +143,47 @@ function InsightsContent() {
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
-      provider.setCustomParameters({ prompt: 'select_account' });
-      
-      try {
-        const result = await linkWithPopup(auth.currentUser, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        const token = credential?.accessToken;
+      // Consent so we can request youtube.readonly even if Google was used only for sign-in.
+      provider.setCustomParameters({ prompt: 'consent select_account' });
 
-        if (!token) throw new Error("Could not obtain access token from Google.");
-        await performYoutubeSync(token);
-      } catch (linkError: any) {
-        if (linkError.code === 'auth/credential-already-in-use') {
-          const credential = GoogleAuthProvider.credentialFromError(linkError);
-          const token = credential?.accessToken;
-          if (token) {
-            await performYoutubeSync(token);
-            return;
-          }
+      const currentUser = auth.currentUser;
+      const googleAlreadyLinked = currentUser.providerData.some((p) => p.providerId === 'google.com');
+
+      // Google sign-up already linked google.com — linkWithPopup fails with provider-already-linked.
+      // Reauth with the YouTube scope instead so we still get an access token for sync.
+      const getGoogleResult = async () => {
+        if (googleAlreadyLinked) {
+          return reauthenticateWithPopup(currentUser, provider);
         }
-        throw linkError;
-      }
+        try {
+          return await linkWithPopup(currentUser, provider);
+        } catch (linkError: any) {
+          if (
+            linkError.code === 'auth/provider-already-linked' ||
+            linkError.code === 'auth/credential-already-in-use'
+          ) {
+            // Fallback: same Google identity already on this (or another) account.
+            if (linkError.code === 'auth/provider-already-linked') {
+              return reauthenticateWithPopup(currentUser, provider);
+            }
+            const credential = GoogleAuthProvider.credentialFromError(linkError);
+            const token = credential?.accessToken;
+            if (token) {
+              await performYoutubeSync(token);
+              return null;
+            }
+          }
+          throw linkError;
+        }
+      };
+
+      const result = await getGoogleResult();
+      if (!result) return;
+
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (!token) throw new Error("Could not obtain access token from Google.");
+      await performYoutubeSync(token);
     } catch (error: any) {
       console.error("YouTube connection failed:", error);
       toast({ 

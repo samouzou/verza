@@ -306,9 +306,53 @@ function GigDetailContent() {
       return;
     }
 
+    const targetUserId = isAgencyAcceptance && selectedTalentId ? selectedTalentId : user.uid;
+    let applicantSocial = {
+      instagramConnected: user.instagramConnected,
+      youtubeConnected: user.youtubeConnected,
+      tiktokConnected: user.tiktokConnected,
+    };
+    if (targetUserId !== user.uid) {
+      const talentSnap = await getDoc(doc(db, "users", targetUserId));
+      if (!talentSnap.exists()) {
+        toast({
+          title: "Talent not found",
+          description: "Could not load this talent’s profile. Pick another creator or try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const talent = talentSnap.data() as UserProfile;
+      applicantSocial = {
+        instagramConnected: talent.instagramConnected,
+        youtubeConnected: talent.youtubeConnected,
+        tiktokConnected: talent.tiktokConnected,
+      };
+    }
+    const hasConnectedSocial = !!(
+      applicantSocial.instagramConnected ||
+      applicantSocial.youtubeConnected ||
+      applicantSocial.tiktokConnected
+    );
+    if (!hasConnectedSocial) {
+      toast({
+        title: "Connect a social account",
+        description:
+          targetUserId === user.uid
+            ? "Connect at least one Instagram, YouTube, or TikTok account in Insights before applying — brands need verified reach."
+            : "This talent needs at least one connected Instagram, YouTube, or TikTok account in Insights before you can apply for them.",
+        variant: "destructive",
+        action: (
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/insights">Open Insights</Link>
+          </Button>
+        ),
+      });
+      return;
+    }
+
     setIsAccepting(true);
     const gigDocRef = doc(db, 'gigs', gig.id);
-    const targetUserId = isAgencyAcceptance && selectedTalentId ? selectedTalentId : user.uid;
 
     try {
       const currentGigSnap = await getDoc(gigDocRef);
@@ -993,6 +1037,11 @@ function GigDetailContent() {
   const isAssignedAgent = user && gig && Object.values(gig.assignments || {}).some(a => a.agentId === user.uid);
   const canManageGig = isBrandTeam || isAssignedAgent;
   const isStripeSetup = user?.stripeAccountId && user?.stripePayoutsEnabled;
+  const hasConnectedSocial = !!(
+    user?.instagramConnected ||
+    user?.youtubeConnected ||
+    user?.tiktokConnected
+  );
   const canDeleteGig = isBrandTeam && (gig.status === 'pending_payment' || (gig.status === 'open' && acceptedIds.length === 0));
   const isCompleted = gig.status === 'completed';
 
@@ -1993,10 +2042,27 @@ function GigDetailContent() {
                             </AlertDescription>
                           </Alert>
                         )}
+                        {!isAgencyAcceptance && !hasConnectedSocial && (
+                          <Alert variant="destructive" className="py-2 px-3 text-xs">
+                            <AlertTriangle className="h-3 w-3" />
+                            <AlertDescription>
+                              Connect Instagram, YouTube, or TikTok in{" "}
+                              <Link href="/insights" className="underline font-medium">
+                                Insights
+                              </Link>{" "}
+                              before applying.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                         <Button
                           className="w-full"
                           onClick={handleApplyGig}
-                          disabled={isAccepting || !hasAgreedToLegal || (isAgencyAcceptance && !selectedTalentId)}
+                          disabled={
+                            isAccepting ||
+                            !hasAgreedToLegal ||
+                            (isAgencyAcceptance && !selectedTalentId) ||
+                            (!isAgencyAcceptance && !hasConnectedSocial)
+                          }
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           {isCauseCampaign ? "Claim Campaign" : "Apply for Campaign"}

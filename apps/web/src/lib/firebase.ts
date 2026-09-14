@@ -11,6 +11,7 @@ import {
   updateProfile,
   sendPasswordResetEmail,
   linkWithPopup, // Added for connecting accounts without switching users
+  reauthenticateWithPopup, // Refresh Google OAuth when Google is already the sign-in provider
   type User as FirebaseUser
 } from 'firebase/auth';
 import {
@@ -99,6 +100,7 @@ export {
   sendPasswordResetEmail,
   updateProfile,
   linkWithPopup, // Exported for connecting accounts
+  reauthenticateWithPopup,
   type FirebaseUser,
   collection,
   doc,
