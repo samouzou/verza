@@ -103,6 +103,8 @@ export type LeadReportSheetProps = {
   gmailCanRead?: boolean;
   onReconnectGmail?: () => void;
   onLoadThread?: (leadId: string) => void;
+  onLinkThread?: (leadId: string) => void;
+  linkingLeadId?: string | null;
   threadLeadId?: string | null;
   threadMessages?: OpticGmailThreadMessage[];
   threadReplyCount?: number;
@@ -149,6 +151,8 @@ export function LeadReportSheet({
   gmailCanRead,
   onReconnectGmail,
   onLoadThread,
+  onLinkThread,
+  linkingLeadId,
   threadLeadId,
   threadMessages,
   threadReplyCount,
@@ -715,17 +719,60 @@ export function LeadReportSheet({
                 {formatDistanceToNow(tsToDate(lead.gmailSentAt)!, { addSuffix: true })}
               </p>
             )}
-            {lead.gmailThreadId && (
+            {!lead.gmailThreadId &&
+              lead.email &&
+              onLinkThread &&
+              !(threadLeadId === lead.id && (threadMessages?.length ?? 0) > 0) && (
+              <div className="rounded-md border border-dashed p-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  No thread linked yet. If you already emailed this creator from this Gmail,
+                  we can search your inbox and attach the conversation.
+                </p>
+                {gmailCanRead ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!gmailConnected || linkingLeadId === lead.id}
+                    onClick={() => onLinkThread(lead.id)}
+                  >
+                    {linkingLeadId === lead.id ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    Find in Gmail
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!onReconnectGmail}
+                    onClick={() => onReconnectGmail?.()}
+                  >
+                    Reconnect Gmail to search
+                  </Button>
+                )}
+              </div>
+            )}
+            {(lead.gmailThreadId ||
+              (threadLeadId === lead.id && (threadMessages?.length ?? 0) > 0)) && (
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold">Thread</h3>
                 <GmailThread
                   messages={threadLeadId === lead.id ? threadMessages ?? [] : []}
                   replyCount={threadLeadId === lead.id ? threadReplyCount ?? 0 : 0}
-                  loading={threadLoading}
+                  loading={
+                    (threadLoading && threadLeadId === lead.id) ||
+                    linkingLeadId === lead.id
+                  }
                   canRead={gmailCanRead}
                   onReconnect={onReconnectGmail}
                   onRefresh={
-                    onLoadThread ? () => onLoadThread(lead.id) : undefined
+                    onLoadThread && lead.gmailThreadId
+                      ? () => onLoadThread(lead.id)
+                      : undefined
                   }
                 />
               </div>

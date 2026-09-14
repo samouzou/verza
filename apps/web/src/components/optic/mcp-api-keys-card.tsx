@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { Copy, KeyRound, Loader2, Trash2 } from "lucide-react";
 
@@ -15,6 +15,25 @@ const MCP_SERVER_URL =
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "verza-canvas"
     ? "https://api.tryverza.com"
     : "https://dev-api.tryverza.com";
+
+const KEY_PLACEHOLDER = "vzmcp_YOUR_KEY_FROM_OPTIC";
+
+function buildMcpConfigJson(apiKey: string) {
+  return JSON.stringify(
+    {
+      mcpServers: {
+        verza: {
+          url: MCP_SERVER_URL,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        },
+      },
+    },
+    null,
+    2
+  );
+}
 
 type KeyRow = {
   id: string;
@@ -36,6 +55,11 @@ export function McpApiKeysCard({ preview = false }: Props) {
   const [creating, setCreating] = useState(false);
   const [label, setLabel] = useState("Claude / Cursor");
   const [freshKey, setFreshKey] = useState<string | null>(null);
+
+  const configJson = useMemo(
+    () => buildMcpConfigJson(freshKey ?? KEY_PLACEHOLDER),
+    [freshKey]
+  );
 
   const refresh = useCallback(async () => {
     if (preview) return;
@@ -69,7 +93,7 @@ export function McpApiKeysCard({ preview = false }: Props) {
       setFreshKey(data.apiKey);
       toast({
         title: "MCP API key created",
-        description: "Copy it now — it won’t be shown again.",
+        description: "Copy the Cursor config below — the key won’t be shown again.",
       });
       await refresh();
     } catch (e: unknown) {
@@ -93,10 +117,10 @@ export function McpApiKeysCard({ preview = false }: Props) {
     }
   };
 
-  const copy = async (text: string) => {
+  const copy = async (text: string, title = "Copied") => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: "Copied" });
+      toast({ title });
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
     }
@@ -109,32 +133,68 @@ export function McpApiKeysCard({ preview = false }: Props) {
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">Verza MCP (Claude / ChatGPT / Cursor)</p>
           <p className="text-xs text-muted-foreground">
-            Connect Claude, ChatGPT, or Cursor to your brand workspace. Server URL:{" "}
-            <code className="text-[11px]">{MCP_SERVER_URL}</code>
-            {" · "}
-            <button
-              type="button"
-              className="underline underline-offset-2"
-              onClick={() => void copy(MCP_SERVER_URL)}
-            >
-              Copy
-            </button>
-            . Create a personal API key below and use it as the Bearer token in your MCP client.
+            Create a key, copy the config into Cursor Settings → MCP (or{" "}
+            <code className="text-[11px]">~/.cursor/mcp.json</code>), then refresh MCP tools.
           </p>
         </div>
       </div>
 
       {freshKey && (
         <Alert>
-          <AlertTitle>Copy your new key</AlertTitle>
+          <AlertTitle>Copy your Cursor config</AlertTitle>
           <AlertDescription className="space-y-2">
-            <p className="break-all font-mono text-xs">{freshKey}</p>
-            <Button type="button" size="sm" variant="outline" onClick={() => void copy(freshKey)}>
-              <Copy className="mr-2 h-3.5 w-3.5" />
-              Copy
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Paste this into <code className="text-[11px]">~/.cursor/mcp.json</code>. Your API key
+              is included — it won’t be shown again.
+            </p>
+            <pre className="max-h-48 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
+              {configJson}
+            </pre>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void copy(configJson, "Cursor config copied")}
+              >
+                <Copy className="mr-2 h-3.5 w-3.5" />
+                Copy config
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void copy(freshKey, "API key copied")}
+              >
+                Copy key only
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
+      )}
+
+      {!freshKey && (
+        <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium">Cursor / Claude config</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void copy(configJson, "Config template copied")}
+            >
+              <Copy className="mr-2 h-3.5 w-3.5" />
+              Copy config
+            </Button>
+          </div>
+          <pre className="max-h-40 overflow-auto font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {configJson}
+          </pre>
+          <p className="text-[11px] text-muted-foreground">
+            Create a key below, then replace{" "}
+            <code className="text-[10px]">{KEY_PLACEHOLDER}</code> — or create a key and we’ll fill
+            it in for you.
+          </p>
+        </div>
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

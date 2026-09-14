@@ -277,6 +277,186 @@ export const sendOpticGmailMessage = onCall(
   }
 );
 
+type LinkedThreadSource = "existing" | "message_id" | "search";
+
+/**
+ * Builds Gmail search queries from most specific to broadest.
+ * @param {string} toEmail Creator email.
+ * @param {string} [subject] Optional draft / known subject.
+ * @return {string[]} Query strings for users.threads.list.
+ */
+function buildGmailThreadSearchQueries(toEmail: string, subject?: string): string[] {
+  const email = toEmail.trim();
+  const queries: string[] = [];
+  const cleanedSubject = (subject ?? "").replace(/["'\\(){}]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (cleanedSubject) {
+    queries.push(`to:${email} subject:(${cleanedSubject})`);
+    queries.push(`from:${email} subject:(${cleanedSubject})`);
+  }
+  queries.push(`in:sent to:${email}`);
+  queries.push(`to:${email} OR from:${email}`);
+  return queries;
+}
+
+/**
+ * Lists thread ids for a Gmail search query.
+ * @param {string} accessToken OAuth access token.
+ * @param {string} q Gmail search query.
+ * @return {Promise<string[]>} Thread ids (most recent first).
+ */
+async function listGmailThreadIds(accessToken: string, q: string): Promise<string[]> {
+  const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/threads");
+  url.searchParams.set("q", q);
+  url.searchParams.set("maxResults", "5");
+  const res = await fetch(url.toString(), {
+    headers: {Authorization: `Bearer ${accessToken}`},
+  });
+  const payload = await res.json().catch(() => ({})) as {
+    threads?: Array<{id?: string}>;
+    error?: {message?: string};
+  };
+  if (res.status === 403 || res.status === 401) {
+    logger.warn("[Gmail] Thread search denied", {status: res.status, payload});
+    throw new HttpsError(
+      "failed-precondition",
+      "Reconnect Gmail and allow inbox read to find past threads."
+    );
+  }
+  if (!res.ok) {
+    logger.error("[Gmail] Thread search failed", {status: res.status, payload, q});
+    throw new HttpsError("internal", "Could not search Gmail for this lead.");
+  }
+  return (payload.threads ?? [])
+    .map((t) => (typeof t.id === "string" ? t.id.trim() : ""))
+    .filter(Boolean);
+}
+
+/**
+ * Resolves a Gmail thread id for a vault lead (existing, message id, or search).
+ * @param {DocumentData} lead Lead document.
+ * @param {string} accessToken OAuth access token.
+ * @return {Promise<{threadId: string, messageId: string | null, source: LinkedThreadSource}>}
+ */
+async function resolveGmailThreadForLead(
+  lead: DocumentData,
+  accessToken: string
+): Promise<{threadId: string; messageId: string | null; source: LinkedThreadSource}> {
+  const existing =
+    typeof lead.gmailThreadId === "string" ? lead.gmailThreadId.trim() : "";
+  if (existing) {
+    return {
+      threadId: existing,
+      messageId: typeof lead.gmailMessageId === "string" ? lead.gmailMessageId.trim() : null,
+      source: "existing",
+    };
+  }
+
+  const storedMessageId =
+    typeof lead.gmailMessageId === "string" ? lead.gmailMessageId.trim() : "";
+  if (storedMessageId) {
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(storedMessageId)}?format=minimal`,
+      {headers: {Authorization: `Bearer ${accessToken}`}}
+    );
+    const payload = await res.json().catch(() => ({})) as {
+      id?: string;
+      threadId?: string;
+    };
+    if (res.status === 403 || res.status === 401) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Reconnect Gmail and allow inbox read to find past threads."
+      );
+    }
+    if (res.ok && typeof payload.threadId === "string" && payload.threadId.trim()) {
+      return {
+        threadId: payload.threadId.trim(),
+        messageId: typeof payload.id === "string" ? payload.id : storedMessageId,
+        source: "message_id",
+      };
+    }
+  }
+
+  const toEmail = typeof lead.email === "string" ? lead.email.trim() : "";
+  if (!toEmail) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This lead has no email — add one before searching Gmail."
+    );
+  }
+  const subject =
+    typeof lead.draftEmailSubject === "string" ? lead.draftEmailSubject.trim() : "";
+  for (const q of buildGmailThreadSearchQueries(toEmail, subject)) {
+    const ids = await listGmailThreadIds(accessToken, q);
+    if (ids.length > 0) {
+      return {threadId: ids[0], messageId: storedMessageId || null, source: "search"};
+    }
+  }
+
+  throw new HttpsError(
+    "not-found",
+    "No Gmail thread found for this creator in the connected inbox. They may have been emailed from another account."
+  );
+}
+
+/**
+ * Fetches a thread, updates CRM fields on the lead, and returns parsed messages.
+ * @param {DocumentSnapshot} leadSnap Lead snapshot.
+ * @param {DocumentData} lead Lead data.
+ * @param {string} threadId Gmail thread id.
+ * @param {string} accessToken OAuth access token.
+ * @param {string} connectedEmail Connected Gmail address.
+ * @param {Record<string, unknown>} [extraPatch] Extra fields to merge (e.g. link metadata).
+ */
+async function fetchThreadAndUpdateLead(
+  leadSnap: DocumentSnapshot,
+  lead: DocumentData,
+  threadId: string,
+  accessToken: string,
+  connectedEmail: string,
+  extraPatch: Record<string, unknown> = {}
+): Promise<{messages: ReturnType<typeof parseGmailThread>; replyCount: number}> {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(threadId)}?format=full`,
+    {headers: {Authorization: `Bearer ${accessToken}`}}
+  );
+  const payload = await res.json().catch(() => ({}));
+  if (res.status === 403 || res.status === 401) {
+    logger.warn("[Gmail] Thread read denied", {status: res.status, payload});
+    throw new HttpsError(
+      "failed-precondition",
+      "Reconnect Gmail and allow inbox read to see replies."
+    );
+  }
+  if (!res.ok) {
+    logger.error("[Gmail] Thread fetch failed", {status: res.status, payload});
+    throw new HttpsError("internal", "Could not load the Gmail thread.");
+  }
+
+  const messages = parseGmailThread(payload, connectedEmail);
+  const inbound = messages.filter((m) => m.direction === "inbound");
+  const lastInbound = inbound.at(-1);
+  const stage = isOpticLeadStage(lead.pipelineStage)
+    ? lead.pipelineStage
+    : lead.outreachEmailed === true ? "contacted" : "new";
+  const crmPatch: Record<string, unknown> = {
+    gmailReplyCount: inbound.length,
+    gmailThreadFetchedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    ...extraPatch,
+  };
+  if (lastInbound) {
+    crmPatch.gmailLastInboundAt = lastInbound.date
+      ? new Date(lastInbound.date)
+      : FieldValue.serverTimestamp();
+    if (stage === "new" || stage === "contacted") {
+      crmPatch.pipelineStage = "replied";
+    }
+  }
+  await leadSnap.ref.update(crmPatch);
+  return {messages, replyCount: inbound.length};
+}
+
 /**
  * Loads the Gmail thread for a vault lead so the team can read replies.
  */
@@ -296,7 +476,10 @@ export const getOpticGmailThread = onCall(
     const threadId =
       typeof lead.gmailThreadId === "string" ? lead.gmailThreadId.trim() : "";
     if (!threadId) {
-      throw new HttpsError("failed-precondition", "No Gmail thread yet. Send from Verza first.");
+      throw new HttpsError(
+        "failed-precondition",
+        "No Gmail thread linked yet. Use Find in Gmail, or send from Verza first."
+      );
     }
 
     const userSnap = await db.collection("users").doc(uid).get();
@@ -306,44 +489,81 @@ export const getOpticGmailThread = onCall(
         : "";
 
     const accessToken = await getGmailAccessTokenForUser(uid);
-    const res = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(threadId)}?format=full`,
-      {headers: {Authorization: `Bearer ${accessToken}`}}
+    const {messages, replyCount} = await fetchThreadAndUpdateLead(
+      leadSnap,
+      lead,
+      threadId,
+      accessToken,
+      connectedEmail
     );
-    const payload = await res.json().catch(() => ({}));
-    if (res.status === 403 || res.status === 401) {
-      logger.warn("[Gmail] Thread read denied", {status: res.status, payload});
+
+    return {success: true as const, threadId, messages, replyCount};
+  }
+);
+
+/**
+ * Finds an existing Gmail conversation for a vault lead and links gmailThreadId
+ * (for emails sent before reply sync, or from Gmail drafts).
+ */
+export const linkOpticGmailThread = onCall(
+  {secrets: [GMAIL_OAUTH_CLIENT_SECRET]},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to link a Gmail thread.");
+    }
+    const uid = request.auth.uid;
+    const {leadId} = request.data as {leadId?: unknown};
+    if (typeof leadId !== "string" || !leadId.trim()) {
+      throw new HttpsError("invalid-argument", "leadId is required.");
+    }
+
+    const {leadSnap, lead} = await loadVaultLeadForGmail(uid, leadId);
+    const userSnap = await db.collection("users").doc(uid).get();
+    const userData = userSnap.data() ?? {};
+    if (userData.opticGmailCanRead !== true) {
       throw new HttpsError(
         "failed-precondition",
-        "Reconnect Gmail and allow inbox read to see replies."
+        "Reconnect Gmail and allow inbox read to find past threads."
       );
     }
-    if (!res.ok) {
-      logger.error("[Gmail] Thread fetch failed", {status: res.status, payload});
-      throw new HttpsError("internal", "Could not load the Gmail thread.");
-    }
+    const connectedEmail =
+      typeof userData.opticGmailEmail === "string"
+        ? String(userData.opticGmailEmail).trim()
+        : "";
 
-    const messages = parseGmailThread(payload, connectedEmail);
-    const inbound = messages.filter((m) => m.direction === "inbound");
-    const lastInbound = inbound.at(-1);
-    const stage = isOpticLeadStage(lead.pipelineStage)
-      ? lead.pipelineStage
-      : lead.outreachEmailed === true ? "contacted" : "new";
-    const crmPatch: Record<string, unknown> = {
-      gmailReplyCount: inbound.length,
-      gmailThreadFetchedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+    const accessToken = await getGmailAccessTokenForUser(uid);
+    const resolved = await resolveGmailThreadForLead(lead, accessToken);
+    const extraPatch: Record<string, unknown> = {
+      gmailThreadId: resolved.threadId,
+      gmailThreadLinkedAt: FieldValue.serverTimestamp(),
+      gmailThreadLinkSource: resolved.source,
     };
-    if (lastInbound) {
-      crmPatch.gmailLastInboundAt = lastInbound.date
-        ? new Date(lastInbound.date)
-        : FieldValue.serverTimestamp();
-      if (stage === "new" || stage === "contacted") {
-        crmPatch.pipelineStage = "replied";
-      }
+    if (resolved.messageId) {
+      extraPatch.gmailMessageId = resolved.messageId;
     }
-    await leadSnap.ref.update(crmPatch);
 
-    return {success: true as const, threadId, messages, replyCount: inbound.length};
+    const {messages, replyCount} = await fetchThreadAndUpdateLead(
+      leadSnap,
+      lead,
+      resolved.threadId,
+      accessToken,
+      connectedEmail,
+      extraPatch
+    );
+
+    logger.info("[Gmail] Linked thread", {
+      uid,
+      leadId: leadSnap.id,
+      source: resolved.source,
+      replyCount,
+    });
+
+    return {
+      success: true as const,
+      threadId: resolved.threadId,
+      source: resolved.source,
+      messages,
+      replyCount,
+    };
   }
 );

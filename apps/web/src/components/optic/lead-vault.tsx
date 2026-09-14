@@ -82,6 +82,8 @@ export type LeadVaultProps = {
   gmailCanRead?: boolean;
   onReconnectGmail?: () => void;
   onLoadThread?: (leadId: string) => void;
+  onLinkThread?: (leadId: string) => void;
+  linkingLeadId?: string | null;
   threadLeadId?: string | null;
   threadMessages?: OpticGmailThreadMessage[];
   threadReplyCount?: number;
@@ -112,6 +114,8 @@ export function LeadVault({
   gmailCanRead,
   onReconnectGmail,
   onLoadThread,
+  onLinkThread,
+  linkingLeadId,
   threadLeadId,
   threadMessages,
   threadReplyCount,
@@ -594,6 +598,8 @@ export function LeadVault({
           gmailCanRead={gmailCanRead}
           onReconnectGmail={onReconnectGmail}
           onLoadThread={onLoadThread}
+          onLinkThread={onLinkThread}
+          linkingLeadId={linkingLeadId}
           threadLeadId={threadLeadId}
           threadMessages={threadMessages}
           threadReplyCount={threadReplyCount}

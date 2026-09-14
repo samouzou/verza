@@ -156,6 +156,7 @@ import {
   createOpticGmailDraft,
   sendOpticGmailMessage,
   getOpticGmailThread,
+  linkOpticGmailThread,
 } from "./gmail";
 import {
   upsertStoreProduct,
@@ -277,6 +278,7 @@ export {
   createOpticGmailDraft,
   sendOpticGmailMessage,
   getOpticGmailThread,
+  linkOpticGmailThread,
   upsertStoreProduct,
   manageStoreProduct,
   createStoreCheckoutSession,

@@ -171,6 +171,8 @@ export default function OpticVaultPage() {
         gmailCanRead={user.opticGmailCanRead === true}
         onReconnectGmail={isAgencyTeam ? () => void gmail.connect() : undefined}
         onLoadThread={isAgencyTeam ? gmail.loadThread : undefined}
+        onLinkThread={isAgencyTeam ? (id) => void gmail.linkThread(id) : undefined}
+        linkingLeadId={gmail.linkingLeadId}
         threadLeadId={gmail.threadLeadId}
         threadMessages={gmail.threadMessages}
         threadReplyCount={gmail.threadReplyCount}

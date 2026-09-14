@@ -135,6 +135,8 @@ export type OpticLeadRow = {
   gmailThreadId?: string | null;
   gmailMessageId?: string | null;
   gmailSentAt?: Timestamp | null;
+  gmailThreadLinkedAt?: Timestamp | null;
+  gmailThreadLinkSource?: string | null;
   /** Composite campaign fit 0–100 (brief + audience + contact + activity). */
   matchScore?: number | null;
   /** One-sentence why they fit. */
