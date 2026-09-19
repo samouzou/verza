@@ -733,3 +733,111 @@ export async function enrichExtensionInstagramLead(
         : "Matches the campaign brief based on niche and profile.",
   };
 }
+
+export type VaultDraftRegenInput = {
+  creatorName: string;
+  platform: string;
+  email: string;
+  niche?: string | null;
+  bio?: string | null;
+  followerCount?: string | null;
+  externalUrl?: string | null;
+  profileUrl?: string | null;
+  matchReason?: string | null;
+  objectives?: string | null;
+};
+
+/**
+ * Regenerates an HTML email outreach draft after a contact email is added to a vault lead.
+ * @param {VaultDraftRegenInput} input Lead + contact fields.
+ * @param {OpticJobBrandContext | null | undefined} brand Brand / pay context for tone.
+ * @return {Promise<{draftEmail: string; draftEmailSubject: string}>} Sanitized email draft.
+ */
+export async function regenerateVaultEmailDraft(
+  input: VaultDraftRegenInput,
+  brand: OpticJobBrandContext | null | undefined
+): Promise<{draftEmail: string; draftEmailSubject: string}> {
+  const platform = input.platform || "instagram";
+  const creatorName = input.creatorName.trim() || "Creator";
+  const email = input.email.trim();
+  const objectives =
+    (typeof input.objectives === "string" && input.objectives.trim()) ||
+    (typeof input.matchReason === "string" && input.matchReason.trim()) ||
+    "Find creators who fit this brand for a Verza partnership.";
+
+  const brandBlock = brand
+    ? `
+    Outreach sender context (use for draft tone and sign-off; do not invent a different company name):
+    - Agency / team name: "${brand.agencyName}"
+    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
+    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    ${
+      brand.campaignPaySummary
+        ? isCauseOrBarter(brand.paySourceCampaignType)
+          ? `
+    Campaign partnership context (cause or in-kind — do not imply cash unless USD figures appear below):
+    ${brand.campaignPaySummary}
+    `
+          : `
+    Pay transparency (from live Verza campaigns):
+    ${brand.campaignPaySummary}
+    `
+        : ""
+    }
+
+    Drafts must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza.
+    `
+    : `
+    Drafts invite the creator to explore the Verza network.
+    `;
+
+  const prompt = `
+    You are an elite marketing agent powering Verza Optic.
+    A brand just found a public email for this creator and needs a fresh email outreach draft.
+    Write personalized ${platformProfileLabel(platform)} email outreach based on:
+    "${objectives}"
+    ${brandBlock}
+
+    Creator (treat as ground truth; do not invent facts):
+    - Name: ${creatorName}
+    - Niche: ${input.niche || "(unknown)"}
+    - Followers: ${input.followerCount || "(unknown)"}
+    - Bio: ${input.bio || "(empty)"}
+    - External link: ${input.externalUrl || "(none)"}
+    - Profile URL: ${input.profileUrl || "(none)"}
+    - Contact email: ${email}
+    ${input.matchReason ? `- Why they fit: ${input.matchReason}` : ""}
+
+    Return strictly a JSON object with:
+    1. draftEmail (string): ${DRAFT_EMAIL_HTML_HINT}
+    2. draftEmailSubject (string): a short specific subject line.
+
+    Critical: draftEmail must contain HTML tags (<p>…</p>). Do not return plain text.
+    Personalize using the bio and name where natural. Do not invent emails or follower counts.
+    Do not include markdown outside the JSON.
+  `;
+
+  const text = await generateGeminiText(prompt, 0.5);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: {draftEmail?: string | null; draftEmailSubject?: string | null} = {};
+  if (jsonMatch) {
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const draftEmail =
+    sanitizeStoredEmailDraft(parsed.draftEmail?.trim() || "") ||
+    sanitizeStoredEmailDraft(
+      `<p>Hi ${creatorName.split(" ")[0] || "there"},</p><p>We'd love to explore a partnership via Verza — happy to share details if you're open to it.</p>`
+    ) ||
+    "<p>Hi — we'd love to connect about a Verza partnership.</p>";
+  const draftEmailSubject =
+    (typeof parsed.draftEmailSubject === "string" &&
+      parsed.draftEmailSubject.trim().slice(0, 200)) ||
+    `Partnership idea for ${creatorName.slice(0, 60)}`;
+
+  return {draftEmail, draftEmailSubject};
+}

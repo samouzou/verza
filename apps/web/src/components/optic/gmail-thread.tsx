@@ -13,6 +13,8 @@ export function GmailThread({
   loading,
   onRefresh,
   canRead,
+  readOnly,
+  syncedByEmail,
   onReconnect,
 }: {
   messages: OpticGmailThreadMessage[];
@@ -20,9 +22,14 @@ export function GmailThread({
   loading?: boolean;
   onRefresh?: () => void;
   canRead?: boolean;
+  /** Shared team snapshot — view only, no live inbox refresh. */
+  readOnly?: boolean;
+  syncedByEmail?: string | null;
   onReconnect?: () => void;
 }) {
-  if (!canRead) {
+  const showMessages = messages.length > 0 || readOnly || canRead;
+
+  if (!showMessages && !canRead && !readOnly) {
     return (
       <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
         <p className="text-sm text-muted-foreground">
@@ -40,12 +47,21 @@ export function GmailThread({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {replyCount === 0
-            ? "No replies yet"
-            : `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
-        </p>
-        {onRefresh && (
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground">
+            {replyCount === 0
+              ? "No replies yet"
+              : `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
+            {readOnly ? " · Team view (read-only)" : ""}
+          </p>
+          {readOnly && syncedByEmail && (
+            <p className="text-[11px] text-muted-foreground">
+              Synced from {syncedByEmail}. A teammate with that inbox can refresh for
+              newer replies.
+            </p>
+          )}
+        </div>
+        {onRefresh && !readOnly && (
           <Button
             type="button"
             variant="ghost"
@@ -68,6 +84,12 @@ export function GmailThread({
           <Loader2 className="h-3 w-3 animate-spin" />
           Loading thread…
         </p>
+      ) : messages.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {readOnly
+            ? "No shared messages yet. Ask a teammate with Gmail connected to open this thread once."
+            : "No messages in this thread yet."}
+        </p>
       ) : (
         <div className="max-h-72 space-y-2 overflow-y-auto">
           {messages.map((m) => (
@@ -82,7 +104,11 @@ export function GmailThread({
             >
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium text-foreground">
-                  {m.direction === "outbound" ? "You" : m.from}
+                  {m.direction === "outbound"
+                    ? readOnly
+                      ? m.from || "Team"
+                      : "You"
+                    : m.from}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   {m.date

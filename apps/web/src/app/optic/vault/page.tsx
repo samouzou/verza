@@ -177,6 +177,8 @@ export default function OpticVaultPage() {
         threadMessages={gmail.threadMessages}
         threadReplyCount={gmail.threadReplyCount}
         threadLoading={gmail.threadLoadingId != null}
+        threadReadOnly={gmail.threadReadOnly}
+        threadSyncedByEmail={gmail.threadSyncedByEmail}
         campaigns={campaigns}
         campaignsLoading={campaignsLoading && !!agencyId}
         campaignFilter={campaignFilter}
@@ -185,8 +187,13 @@ export default function OpticVaultPage() {
         onCrmChange={isAgencyTeam ? outreach.setLeadCrm : undefined}
         onEmailChange={isAgencyTeam ? outreach.setLeadEmail : undefined}
         emailUpdatingId={outreach.emailUpdatingId}
+        onProfileChange={isAgencyTeam ? outreach.setLeadProfile : undefined}
+        profileUpdatingId={outreach.profileUpdatingId}
         onDraftChange={isAgencyTeam ? outreach.setLeadDraft : undefined}
         draftUpdatingId={outreach.draftUpdatingId}
+        onRegenerateDraft={isAgencyTeam ? outreach.regenerateLeadDraft : undefined}
+        regeneratingDraftId={outreach.regeneratingDraftId}
+        canAddManual={isAgencyTeam}
       />
     </div>
   );

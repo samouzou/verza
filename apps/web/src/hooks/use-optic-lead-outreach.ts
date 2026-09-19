@@ -25,11 +25,25 @@ export type OpticLeadCrmPatch = {
   touchLastContacted?: boolean;
 };
 
+export type OpticLeadProfilePatch = {
+  creatorName?: string;
+  niche?: string | null;
+  bio?: string | null;
+  followerCount?: string | null;
+  externalUrl?: string | null;
+  matchReason?: string | null;
+  discoveryPlatform?: string;
+};
+
 export function useOpticLeadOutreach() {
   const { toast } = useToast();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [emailUpdatingId, setEmailUpdatingId] = useState<string | null>(null);
   const [draftUpdatingId, setDraftUpdatingId] = useState<string | null>(null);
+  const [profileUpdatingId, setProfileUpdatingId] = useState<string | null>(null);
+  const [regeneratingDraftId, setRegeneratingDraftId] = useState<string | null>(
+    null
+  );
 
   const setOutreachEmailed = useCallback(
     async (leadId: string, emailed: boolean) => {
@@ -82,6 +96,25 @@ export function useOpticLeadOutreach() {
     [toast]
   );
 
+  const setLeadProfile = useCallback(
+    async (leadId: string, patch: OpticLeadProfilePatch): Promise<boolean> => {
+      setProfileUpdatingId(leadId);
+      try {
+        const callable = httpsCallable(functions, "updateOpticLeadProfile");
+        await callable({ leadId, ...patch });
+        return true;
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Could not save creator details.";
+        toast({ variant: "destructive", title: "Vault", description: message });
+        return false;
+      } finally {
+        setProfileUpdatingId(null);
+      }
+    },
+    [toast]
+  );
+
   const setLeadDraft = useCallback(
     async (leadId: string, patch: OpticLeadDraftPatch): Promise<boolean> => {
       setDraftUpdatingId(leadId);
@@ -101,13 +134,44 @@ export function useOpticLeadOutreach() {
     [toast]
   );
 
+  const regenerateLeadDraft = useCallback(
+    async (leadId: string): Promise<boolean> => {
+      setRegeneratingDraftId(leadId);
+      try {
+        const callable = httpsCallable(functions, "regenerateOpticLeadDraft");
+        await callable({ leadId });
+        toast({
+          title: "Outreach",
+          description: "Email draft regenerated from the latest contact info.",
+        });
+        return true;
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Could not regenerate the draft.";
+        toast({
+          variant: "destructive",
+          title: "Outreach",
+          description: message,
+        });
+        return false;
+      } finally {
+        setRegeneratingDraftId(null);
+      }
+    },
+    [toast]
+  );
+
   return {
     updatingId,
     emailUpdatingId,
     draftUpdatingId,
+    profileUpdatingId,
+    regeneratingDraftId,
     setOutreachEmailed,
     setLeadCrm,
     setLeadEmail,
+    setLeadProfile,
     setLeadDraft,
+    regenerateLeadDraft,
   };
 }

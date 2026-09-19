@@ -141,3 +141,73 @@ export function composeMatchScore(input: {
     matchBreakdown: {brief, audience, contact, activity},
   };
 }
+
+export type StoredLeadMatchFields = {
+  matchBreakdown?: Partial<MatchBreakdown> | null;
+  matchReason?: string | null;
+  followerCount?: string | number | null;
+  followerCountNumeric?: number | null;
+  postCountNumeric?: number | null;
+  email?: string | null;
+  agentScrape?: {externalUrl?: string | null; postCount?: string | null} | null;
+  extensionScrape?: {externalUrl?: string | null; postCount?: string | null} | null;
+};
+
+/**
+ * Recomputes vault match score from stored lead signals (keeps original brief fit).
+ * Use when contactability or other hard signals change after save (e.g. email added).
+ * @param {StoredLeadMatchFields} lead Existing vault lead fields.
+ * @param {object} overrides Optional field overrides (e.g. new email).
+ * @return {MatchScoreResult} Updated score + breakdown.
+ */
+export function recomposeMatchScoreFromLead(
+  lead: StoredLeadMatchFields,
+  overrides?: {email?: string | null; externalUrl?: string | null}
+): MatchScoreResult {
+  const storedBrief = lead.matchBreakdown?.brief;
+  const brief =
+    typeof storedBrief === "number" && Number.isFinite(storedBrief)
+      ? clampBriefFitScore(storedBrief)
+      : 65;
+
+  const followers =
+    typeof lead.followerCountNumeric === "number" &&
+    Number.isFinite(lead.followerCountNumeric)
+      ? lead.followerCountNumeric
+      : typeof lead.followerCount === "number"
+        ? lead.followerCount
+        : parseCompactCount(
+            typeof lead.followerCount === "string" ? lead.followerCount : null
+          );
+
+  const posts =
+    typeof lead.postCountNumeric === "number" &&
+    Number.isFinite(lead.postCountNumeric)
+      ? lead.postCountNumeric
+      : parseCompactCount(
+          lead.extensionScrape?.postCount ?? lead.agentScrape?.postCount ?? null
+        );
+
+  const email =
+    overrides && "email" in overrides
+      ? overrides.email
+      : typeof lead.email === "string"
+        ? lead.email
+        : null;
+  const externalUrl =
+    overrides && "externalUrl" in overrides
+      ? overrides.externalUrl
+      : lead.agentScrape?.externalUrl ??
+        lead.extensionScrape?.externalUrl ??
+        null;
+
+  return composeMatchScore({
+    briefFitScore: brief,
+    matchReason: lead.matchReason,
+    followerCount: followers,
+    postCount: posts,
+    email,
+    externalUrl,
+    audienceTier: "any",
+  });
+}

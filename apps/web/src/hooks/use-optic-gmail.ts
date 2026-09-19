@@ -30,6 +30,10 @@ export function useOpticGmail(opts: {
   const [threadMessages, setThreadMessages] = useState<OpticGmailThreadMessage[]>([]);
   const [threadReplyCount, setThreadReplyCount] = useState(0);
   const [threadLoadingId, setThreadLoadingId] = useState<string | null>(null);
+  const [threadReadOnly, setThreadReadOnly] = useState(false);
+  const [threadSyncedByEmail, setThreadSyncedByEmail] = useState<string | null>(
+    null
+  );
 
   const connect = useCallback(async () => {
     setConnecting(true);
@@ -128,7 +132,6 @@ export function useOpticGmail(opts: {
 
   const loadThread = useCallback(
     async (leadId: string) => {
-      if (!opts.connected) return;
       setThreadLoadingId(leadId);
       try {
         const callable = httpsCallable(functions, "getOpticGmailThread");
@@ -136,11 +139,19 @@ export function useOpticGmail(opts: {
         const data = res.data as {
           messages?: OpticGmailThreadMessage[];
           replyCount?: number;
+          readOnly?: boolean;
+          syncedByEmail?: string | null;
         };
         setThreadLeadId(leadId);
         setThreadMessages(Array.isArray(data.messages) ? data.messages : []);
         setThreadReplyCount(
           typeof data.replyCount === "number" ? data.replyCount : 0
+        );
+        setThreadReadOnly(data.readOnly === true);
+        setThreadSyncedByEmail(
+          typeof data.syncedByEmail === "string" && data.syncedByEmail.trim()
+            ? data.syncedByEmail.trim()
+            : null
         );
       } catch (e) {
         const message =
@@ -150,7 +161,7 @@ export function useOpticGmail(opts: {
         setThreadLoadingId(null);
       }
     },
-    [opts.connected, toast]
+    [toast]
   );
 
   const linkThread = useCallback(
@@ -177,12 +188,18 @@ export function useOpticGmail(opts: {
         setThreadReplyCount(
           typeof data.replyCount === "number" ? data.replyCount : 0
         );
+        setThreadReadOnly(false);
+        setThreadSyncedByEmail(
+          typeof opts.email === "string" && opts.email.trim()
+            ? opts.email.trim()
+            : null
+        );
         toast({
           title: "Gmail thread linked",
           description:
             data.source === "existing"
-              ? "This lead was already linked — replies refreshed."
-              : "Found the conversation in your inbox and loaded replies.",
+              ? "This lead was already linked — replies refreshed. Teammates can now read it."
+              : "Found the conversation and loaded replies. Teammates can now read it.",
         });
         return true;
       } catch (e) {
@@ -194,7 +211,7 @@ export function useOpticGmail(opts: {
         setLinkingLeadId(null);
       }
     },
-    [opts.connected, toast]
+    [opts.connected, opts.email, toast]
   );
 
   return {
@@ -215,5 +232,7 @@ export function useOpticGmail(opts: {
     threadMessages,
     threadReplyCount,
     threadLoadingId,
+    threadReadOnly,
+    threadSyncedByEmail,
   };
 }

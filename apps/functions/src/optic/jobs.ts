@@ -24,6 +24,9 @@ import {
   type OpticPassReason,
 } from "./leadCrm";
 import {isEmailDraftEmpty, sanitizeStoredEmailDraft} from "../gmail/emailHtml";
+import {parseCompactCount} from "./counts";
+import {regenerateVaultEmailDraft} from "./extensionLead";
+import {recomposeMatchScoreFromLead} from "./matchScore";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
@@ -442,14 +445,330 @@ export const setOpticLeadEmail = onCall(async (request) => {
     throw new HttpsError("permission-denied", "This lead belongs to another brand.");
   }
 
+  const nextEmail = trimmed || null;
+  const match = recomposeMatchScoreFromLead(lead, {email: nextEmail});
+
   await ref.update({
-    email: trimmed || null,
+    email: nextEmail,
     emailUpdatedAt: FieldValue.serverTimestamp(),
     emailUpdatedBy: uid,
+    matchScore: match.matchScore,
+    matchBreakdown: match.matchBreakdown,
+    // Keep original matchReason; only hard-signal components move.
     updatedAt: FieldValue.serverTimestamp(),
   });
-  return {success: true as const};
+  return {
+    success: true as const,
+    matchScore: match.matchScore,
+    matchBreakdown: match.matchBreakdown,
+    contactability: match.matchBreakdown.contact,
+  };
 });
+
+function optionalProfileString(value: unknown, max: number): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") {
+    throw new HttpsError("invalid-argument", "Expected a string field.");
+  }
+  const t = value.trim();
+  return t ? t.slice(0, max) : null;
+}
+
+/**
+ * Updates editable vault creator profile fields (name, niche, bio, followers, etc.).
+ * Recalculates match score when audience/contact signals change.
+ */
+export const updateOpticLeadProfile = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in to update creator details.");
+  }
+  const uid = request.auth.uid;
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const leadId = typeof data.leadId === "string" ? data.leadId.trim() : "";
+  if (!leadId) {
+    throw new HttpsError("invalid-argument", "leadId is required.");
+  }
+
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("failed-precondition", "User profile not found.");
+  }
+  const u = userSnap.data()!;
+  const primary = u.primaryAgencyId as string | undefined;
+  const role = String(u.role ?? "");
+  if (!primary || !TEAM_ROLES.has(role)) {
+    throw new HttpsError("permission-denied", "You cannot update vault leads for this brand.");
+  }
+
+  const ref = db.collection("optic_outreach_leads").doc(leadId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Lead not found.");
+  }
+  const lead = snap.data()!;
+  if (String(lead.agencyId ?? "") !== primary) {
+    throw new HttpsError("permission-denied", "This lead belongs to another brand.");
+  }
+
+  const creatorName = optionalProfileString(data.creatorName, 200);
+  const niche = optionalProfileString(data.niche, 200);
+  const bio = optionalProfileString(data.bio, 2000);
+  const followerCount = optionalProfileString(data.followerCount, 40);
+  const externalUrl = optionalProfileString(data.externalUrl, 500);
+  const matchReason = optionalProfileString(data.matchReason, 220);
+  let platform: string | undefined;
+  if (data.discoveryPlatform !== undefined) {
+    if (typeof data.discoveryPlatform !== "string" || !data.discoveryPlatform.trim()) {
+      throw new HttpsError("invalid-argument", "discoveryPlatform must be a platform slug.");
+    }
+    platform = data.discoveryPlatform.trim().toLowerCase();
+    if (!OPTIC_PLATFORMS.has(platform)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Unsupported platform. Use one of: ${[...OPTIC_PLATFORMS].join(", ")}.`
+      );
+    }
+  }
+
+  const hasAny =
+    creatorName !== undefined ||
+    niche !== undefined ||
+    bio !== undefined ||
+    followerCount !== undefined ||
+    externalUrl !== undefined ||
+    matchReason !== undefined ||
+    platform !== undefined;
+  if (!hasAny) {
+    throw new HttpsError("invalid-argument", "Provide at least one profile field to update.");
+  }
+
+  const patch: Record<string, unknown> = {
+    profileUpdatedAt: FieldValue.serverTimestamp(),
+    profileUpdatedBy: uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (creatorName !== undefined) {
+    if (!creatorName) {
+      throw new HttpsError("invalid-argument", "Creator name cannot be empty.");
+    }
+    patch.creatorName = creatorName;
+  }
+  if (niche !== undefined) patch.niche = niche;
+  if (matchReason !== undefined) patch.matchReason = matchReason;
+  if (platform !== undefined) patch.discoveryPlatform = platform;
+
+  let nextFollowerCount =
+    typeof lead.followerCount === "string" ? lead.followerCount : null;
+  let nextFollowerNumeric =
+    typeof lead.followerCountNumeric === "number" ? lead.followerCountNumeric : null;
+  if (followerCount !== undefined) {
+    nextFollowerCount = followerCount;
+    nextFollowerNumeric = parseCompactCount(followerCount);
+    patch.followerCount = followerCount;
+    patch.followerCountNumeric = nextFollowerNumeric;
+  }
+
+  const existingAgent: Record<string, unknown> =
+    lead.agentScrape && typeof lead.agentScrape === "object"
+      ? {...(lead.agentScrape as Record<string, unknown>)}
+      : {};
+  const existingExt: Record<string, unknown> | null =
+    lead.extensionScrape && typeof lead.extensionScrape === "object"
+      ? {...(lead.extensionScrape as Record<string, unknown>)}
+      : null;
+
+  let nextExternalUrl =
+    (typeof existingAgent.externalUrl === "string" ? existingAgent.externalUrl : null) ??
+    (typeof existingExt?.externalUrl === "string" ? existingExt.externalUrl : null);
+
+  let scrapeTouched = false;
+  if (bio !== undefined) {
+    existingAgent.bio = bio;
+    if (existingExt) existingExt.bio = bio;
+    scrapeTouched = true;
+  }
+  if (externalUrl !== undefined) {
+    existingAgent.externalUrl = externalUrl;
+    if (existingExt) existingExt.externalUrl = externalUrl;
+    nextExternalUrl = externalUrl;
+    scrapeTouched = true;
+  }
+  if (scrapeTouched) {
+    patch.agentScrape = existingAgent;
+    if (existingExt) patch.extensionScrape = existingExt;
+  }
+
+  const match = recomposeMatchScoreFromLead(
+    {
+      ...lead,
+      followerCount: nextFollowerCount,
+      followerCountNumeric: nextFollowerNumeric,
+      matchReason:
+        matchReason !== undefined
+          ? matchReason
+          : typeof lead.matchReason === "string"
+            ? lead.matchReason
+            : null,
+      agentScrape: {
+        externalUrl: nextExternalUrl,
+        postCount:
+          typeof existingAgent.postCount === "string" ? existingAgent.postCount : null,
+      },
+      extensionScrape: existingExt
+        ? {
+            externalUrl:
+              typeof existingExt.externalUrl === "string"
+                ? existingExt.externalUrl
+                : nextExternalUrl,
+            postCount:
+              typeof existingExt.postCount === "string" ? existingExt.postCount : null,
+          }
+        : lead.extensionScrape ?? null,
+    },
+    {externalUrl: nextExternalUrl}
+  );
+  patch.matchScore = match.matchScore;
+  patch.matchBreakdown = match.matchBreakdown;
+
+  await ref.update(patch);
+  return {
+    success: true as const,
+    matchScore: match.matchScore,
+    matchBreakdown: match.matchBreakdown,
+  };
+});
+
+/**
+ * Regenerates an HTML email outreach draft for a vault lead that now has a contact email.
+ * Clears the DM draft when switching to email outreach.
+ */
+export const regenerateOpticLeadDraft = onCall(
+  {region: "us-central1", timeoutSeconds: 120},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to regenerate outreach.");
+    }
+    const uid = request.auth.uid;
+    const {leadId} = request.data as {leadId?: unknown};
+    if (typeof leadId !== "string" || !leadId.trim()) {
+      throw new HttpsError("invalid-argument", "leadId is required.");
+    }
+
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("failed-precondition", "User profile not found.");
+    }
+    const u = userSnap.data()!;
+    const primary = u.primaryAgencyId as string | undefined;
+    const role = String(u.role ?? "");
+    if (!primary || !TEAM_ROLES.has(role)) {
+      throw new HttpsError(
+        "permission-denied",
+        "You cannot regenerate drafts for this brand."
+      );
+    }
+
+    const ref = db.collection("optic_outreach_leads").doc(leadId.trim());
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Lead not found.");
+    }
+    const lead = snap.data()!;
+    if (String(lead.agencyId ?? "") !== primary) {
+      throw new HttpsError("permission-denied", "This lead belongs to another brand.");
+    }
+
+    const email =
+      typeof lead.email === "string" && lead.email.trim() ? lead.email.trim() : "";
+    if (!email || !EMAIL_RE.test(email)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Add a valid contact email before regenerating an email draft."
+      );
+    }
+
+    const campaignId =
+      typeof lead.campaignId === "string" && lead.campaignId.trim()
+        ? lead.campaignId.trim()
+        : undefined;
+    let brand: OpticJobBrandContext | null = null;
+    try {
+      const full = await loadAgencyBrandContextForUid(uid, {campaignId});
+      brand = toJobBrandContext(full);
+    } catch (e) {
+      logger.warn("[Optic] Draft regen brand context failed", {
+        uid,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    const scrape =
+      (lead.agentScrape && typeof lead.agentScrape === "object"
+        ? (lead.agentScrape as Record<string, unknown>)
+        : null) ||
+      (lead.extensionScrape && typeof lead.extensionScrape === "object"
+        ? (lead.extensionScrape as Record<string, unknown>)
+        : null);
+    const bio =
+      typeof scrape?.bio === "string"
+        ? scrape.bio
+        : typeof lead.bio === "string"
+          ? lead.bio
+          : null;
+    const externalUrl =
+      typeof scrape?.externalUrl === "string" ? scrape.externalUrl : null;
+
+    const drafts = await regenerateVaultEmailDraft(
+      {
+        creatorName:
+          typeof lead.creatorName === "string" && lead.creatorName.trim()
+            ? lead.creatorName
+            : "Creator",
+        platform:
+          typeof lead.discoveryPlatform === "string"
+            ? lead.discoveryPlatform
+            : "instagram",
+        email,
+        niche: typeof lead.niche === "string" ? lead.niche : null,
+        bio,
+        followerCount:
+          typeof lead.followerCount === "string" ? lead.followerCount : null,
+        externalUrl,
+        profileUrl: typeof lead.profileUrl === "string" ? lead.profileUrl : null,
+        matchReason: typeof lead.matchReason === "string" ? lead.matchReason : null,
+        objectives:
+          typeof lead.campaignTitle === "string" && lead.campaignTitle.trim()
+            ? `Campaign: ${lead.campaignTitle}`
+            : null,
+      },
+      brand
+    );
+
+    // Also refresh contactability now that email is confirmed on the lead.
+    const match = recomposeMatchScoreFromLead(lead, {email});
+
+    await ref.update({
+      draftEmail: drafts.draftEmail,
+      draftEmailSubject: drafts.draftEmailSubject,
+      draftDm: null,
+      draftUpdatedBy: uid,
+      draftUpdatedAt: FieldValue.serverTimestamp(),
+      draftRegeneratedAt: FieldValue.serverTimestamp(),
+      matchScore: match.matchScore,
+      matchBreakdown: match.matchBreakdown,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true as const,
+      draftEmail: drafts.draftEmail,
+      draftEmailSubject: drafts.draftEmailSubject,
+      matchScore: match.matchScore,
+      matchBreakdown: match.matchBreakdown,
+    };
+  }
+);
 
 const DRAFT_SUBJECT_MAX = 200;
 const DRAFT_BODY_MAX = 8000;

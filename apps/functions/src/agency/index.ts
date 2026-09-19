@@ -243,10 +243,6 @@ export const inviteTeamMemberToAgency = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Only agency owners or admins can invite team members.");
     }
 
-    if (isOwner !== true && role === "admin") {
-      throw new HttpsError("permission-denied", "Only agency owners can invite new admins.");
-    }
-
     if ((agencyData.team || []).some((m) => m.email === memberEmailCleaned)) {
       throw new HttpsError("already-exists", "This user is already on the team.");
     }

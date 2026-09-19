@@ -117,9 +117,12 @@ import {
   setOpticLeadCrm,
   setOpticLeadEmail,
   setOpticLeadOutreachDraft,
+  regenerateOpticLeadDraft,
+  updateOpticLeadProfile,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
 } from "./optic/jobs";
+import {addOpticManualLead} from "./optic/manualLead";
 import {createMcpApiKey, listMcpApiKeys, revokeMcpApiKey} from "./mcp/apiKeys";
 import {askOpticVaultChat} from "./optic/vaultChat";
 import {refreshOpticCampaignRoasInsight} from "./optic/roasInsight";
@@ -251,6 +254,9 @@ export {
   setOpticLeadCrm,
   setOpticLeadEmail,
   setOpticLeadOutreachDraft,
+  regenerateOpticLeadDraft,
+  updateOpticLeadProfile,
+  addOpticManualLead,
   askOpticVaultChat,
   refreshOpticCampaignRoasInsight,
   setOpticSmsSettings,

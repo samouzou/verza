@@ -9,6 +9,7 @@ import {
   Flame,
   Loader2,
   Mail,
+  RefreshCw,
   Send,
 } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
@@ -50,6 +51,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type {
   OpticLeadCrmPatch,
   OpticLeadDraftPatch,
+  OpticLeadProfilePatch,
 } from "@/hooks/use-optic-lead-outreach";
 import {
   OPTIC_LEAD_RESPONSE_LABELS,
@@ -77,6 +79,7 @@ import {
   normalizeEmailHtml,
   outreachCopyText,
 } from "@/lib/optic/outreach-draft";
+import { OPTIC_PLATFORMS } from "@/lib/optic/platforms";
 import type { OpticLeadRow } from "@/lib/optic/types";
 import { cn } from "@/lib/utils";
 import type { OpticLeadResponse, OpticLeadStage, OpticPassReason } from "@verza/types";
@@ -109,12 +112,21 @@ export type LeadReportSheetProps = {
   threadMessages?: OpticGmailThreadMessage[];
   threadReplyCount?: number;
   threadLoading?: boolean;
+  threadReadOnly?: boolean;
+  threadSyncedByEmail?: string | null;
   outreachUpdatingId?: string | null;
   onCrmChange?: (leadId: string, patch: OpticLeadCrmPatch) => void;
   onEmailChange?: (leadId: string, email: string) => void;
   emailUpdatingId?: string | null;
+  onProfileChange?: (
+    leadId: string,
+    patch: OpticLeadProfilePatch
+  ) => Promise<boolean>;
+  profileUpdatingId?: string | null;
   onDraftChange?: (leadId: string, patch: OpticLeadDraftPatch) => Promise<boolean>;
   draftUpdatingId?: string | null;
+  onRegenerateDraft?: (leadId: string) => Promise<boolean>;
+  regeneratingDraftId?: string | null;
 };
 
 function BreakdownBar({ label, value }: { label: string; value?: number }) {
@@ -157,17 +169,30 @@ export function LeadReportSheet({
   threadMessages,
   threadReplyCount,
   threadLoading,
+  threadReadOnly,
+  threadSyncedByEmail,
   outreachUpdatingId,
   onCrmChange,
   onEmailChange,
   emailUpdatingId,
+  onProfileChange,
+  profileUpdatingId,
   onDraftChange,
   draftUpdatingId,
+  onRegenerateDraft,
+  regeneratingDraftId,
 }: LeadReportSheetProps) {
   const [emailValue, setEmailValue] = useState("");
   const [noteValue, setNoteValue] = useState("");
   const [subjectValue, setSubjectValue] = useState("");
   const [bodyValue, setBodyValue] = useState("");
+  const [nameValue, setNameValue] = useState("");
+  const [nicheValue, setNicheValue] = useState("");
+  const [bioValue, setBioValue] = useState("");
+  const [followersValue, setFollowersValue] = useState("");
+  const [externalUrlValue, setExternalUrlValue] = useState("");
+  const [matchReasonValue, setMatchReasonValue] = useState("");
+  const [platformValue, setPlatformValue] = useState("instagram");
   const [copied, setCopied] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
 
@@ -177,18 +202,45 @@ export function LeadReportSheet({
     setSubjectValue(lead?.draftEmailSubject ?? "");
     const emailBody = lead?.draftEmail?.trim() ?? "";
     const dmBody = lead?.draftDm ?? "";
-    setBodyValue(
-      emailBody ? emailBodyForEditor(emailBody) : dmBody
+    setBodyValue(emailBody ? emailBodyForEditor(emailBody) : dmBody);
+    setNameValue(lead?.creatorName ?? "");
+    setNicheValue(lead?.niche ?? "");
+    setBioValue(
+      lead?.extensionScrape?.bio?.trim() || lead?.agentScrape?.bio?.trim() || ""
     );
+    setFollowersValue(lead?.followerCount ?? "");
+    setExternalUrlValue(
+      lead?.extensionScrape?.externalUrl?.trim() ||
+        lead?.agentScrape?.externalUrl?.trim() ||
+        ""
+    );
+    setMatchReasonValue(lead?.matchReason ?? "");
+    setPlatformValue(lead?.discoveryPlatform ?? "instagram");
     setCopied(false);
-  }, [lead?.id, lead?.email, lead?.crmNote, lead?.draftEmail, lead?.draftEmailSubject, lead?.draftDm]);
+  }, [
+    lead?.id,
+    lead?.email,
+    lead?.crmNote,
+    lead?.draftEmail,
+    lead?.draftEmailSubject,
+    lead?.draftDm,
+    lead?.creatorName,
+    lead?.niche,
+    lead?.followerCount,
+    lead?.matchReason,
+    lead?.discoveryPlatform,
+    lead?.extensionScrape?.bio,
+    lead?.extensionScrape?.externalUrl,
+    lead?.agentScrape?.bio,
+    lead?.agentScrape?.externalUrl,
+  ]);
 
   useEffect(() => {
-    if (!open || !lead?.id || !lead.gmailThreadId || !onLoadThread || !gmailCanRead) {
+    if (!open || !lead?.id || !lead.gmailThreadId || !onLoadThread) {
       return;
     }
     onLoadThread(lead.id);
-  }, [open, lead?.id, lead?.gmailThreadId, onLoadThread, gmailCanRead]);
+  }, [open, lead?.id, lead?.gmailThreadId, onLoadThread]);
 
   if (!lead) return null;
 
@@ -200,9 +252,36 @@ export function LeadReportSheet({
   const busyCrm = outreachUpdatingId === lead.id;
   const busyEmail = emailUpdatingId === lead.id;
   const busyDraft = draftUpdatingId === lead.id;
-  const bio = lead.extensionScrape?.bio?.trim() || null;
-  const externalUrl = lead.extensionScrape?.externalUrl?.trim() || null;
+  const busyRegen = regeneratingDraftId === lead.id;
+  const busyProfile = profileUpdatingId === lead.id;
+  const canRegenerateEmailDraft = Boolean(
+    onRegenerateDraft && lead.email?.trim()
+  );
+  const bio =
+    lead.extensionScrape?.bio?.trim() ||
+    lead.agentScrape?.bio?.trim() ||
+    null;
+  const externalUrl =
+    lead.extensionScrape?.externalUrl?.trim() ||
+    lead.agentScrape?.externalUrl?.trim() ||
+    null;
   const platform = lead.discoveryPlatform ?? "creator";
+
+  const savedName = (lead.creatorName ?? "").trim();
+  const savedNiche = (lead.niche ?? "").trim();
+  const savedBio = (bio ?? "").trim();
+  const savedFollowers = (lead.followerCount ?? "").trim();
+  const savedExternal = (externalUrl ?? "").trim();
+  const savedMatchReason = (lead.matchReason ?? "").trim();
+  const savedPlatform = lead.discoveryPlatform ?? "instagram";
+  const profileDirty =
+    nameValue.trim() !== savedName ||
+    nicheValue.trim() !== savedNiche ||
+    bioValue.trim() !== savedBio ||
+    followersValue.trim() !== savedFollowers ||
+    externalUrlValue.trim() !== savedExternal ||
+    matchReasonValue.trim() !== savedMatchReason ||
+    platformValue !== savedPlatform;
   const draftChannel =
     outreach?.channel ??
     (lead.email?.trim() || lead.draftEmail?.trim() ? "email" : "dm");
@@ -234,6 +313,20 @@ export function LeadReportSheet({
     const trimmed = emailValue.trim();
     const current = (lead.email ?? "").trim();
     if (trimmed !== current) onEmailChange(lead.id, trimmed);
+  };
+
+  const persistProfile = async (): Promise<boolean> => {
+    if (!onProfileChange || !profileDirty) return true;
+    if (!nameValue.trim()) return false;
+    return onProfileChange(lead.id, {
+      creatorName: nameValue.trim(),
+      niche: nicheValue.trim() || null,
+      bio: bioValue.trim() || null,
+      followerCount: followersValue.trim() || null,
+      externalUrl: externalUrlValue.trim() || null,
+      matchReason: matchReasonValue.trim() || null,
+      discoveryPlatform: platformValue,
+    });
   };
 
   const persistDraft = async (): Promise<boolean> => {
@@ -515,13 +608,128 @@ export function LeadReportSheet({
             </div>
           </div>
 
-          {(bio || externalUrl || lead.profileUrl) && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Profile</h3>
-              {bio && (
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {bio}
-                </p>
+          {(onProfileChange || bio || externalUrl || lead.profileUrl) && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Profile</h3>
+                {onProfileChange && profileDirty && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8"
+                    disabled={busyProfile || !nameValue.trim()}
+                    onClick={() => void persistProfile()}
+                  >
+                    {busyProfile ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    <span className="ml-1.5">Save</span>
+                  </Button>
+                )}
+              </div>
+              {onProfileChange ? (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="report-name">Name</Label>
+                      <Input
+                        id="report-name"
+                        value={nameValue}
+                        onChange={(e) => setNameValue(e.target.value)}
+                        disabled={busyProfile}
+                        placeholder="Creator name"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Platform</Label>
+                      <Select
+                        value={platformValue}
+                        onValueChange={setPlatformValue}
+                        disabled={busyProfile}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {OPTIC_PLATFORMS.map((p) => (
+                            <SelectItem key={p.value} value={p.value}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="report-niche">Niche</Label>
+                      <Input
+                        id="report-niche"
+                        value={nicheValue}
+                        onChange={(e) => setNicheValue(e.target.value)}
+                        disabled={busyProfile}
+                        placeholder="Beauty, tech…"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="report-followers">Followers</Label>
+                      <Input
+                        id="report-followers"
+                        value={followersValue}
+                        onChange={(e) => setFollowersValue(e.target.value)}
+                        disabled={busyProfile}
+                        placeholder="12.4K"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="report-external">Link in bio</Label>
+                      <Input
+                        id="report-external"
+                        value={externalUrlValue}
+                        onChange={(e) => setExternalUrlValue(e.target.value)}
+                        disabled={busyProfile}
+                        placeholder="https://…"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-bio">Bio / notes</Label>
+                    <Textarea
+                      id="report-bio"
+                      value={bioValue}
+                      onChange={(e) => setBioValue(e.target.value)}
+                      disabled={busyProfile}
+                      placeholder="Bio or notes about this creator…"
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-match-reason">Match note</Label>
+                    <Input
+                      id="report-match-reason"
+                      value={matchReasonValue}
+                      onChange={(e) => setMatchReasonValue(e.target.value)}
+                      disabled={busyProfile}
+                      placeholder="Why they fit"
+                    />
+                  </div>
+                  {profileDirty && (
+                    <p className="text-xs text-muted-foreground">
+                      Unsaved profile edits — Save to update the vault
+                      {followersValue.trim() !== savedFollowers ||
+                      externalUrlValue.trim() !== savedExternal
+                        ? " (match score may update)."
+                        : "."}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                bio && (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {bio}
+                  </p>
+                )
               )}
               <div className="flex flex-wrap gap-2">
                 {lead.profileUrl && (
@@ -532,9 +740,17 @@ export function LeadReportSheet({
                     </a>
                   </Button>
                 )}
-                {externalUrl && (
+                {(onProfileChange ? externalUrlValue.trim() : externalUrl) && (
                   <Button variant="ghost" size="sm" asChild>
-                    <a href={externalUrl} target="_blank" rel="noreferrer">
+                    <a
+                      href={
+                        onProfileChange
+                          ? externalUrlValue.trim()
+                          : (externalUrl as string)
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Link in bio
                       <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
                     </a>
@@ -572,14 +788,42 @@ export function LeadReportSheet({
               ) : (
                 <p className="text-sm">{lead.email || "—"}</p>
               )}
+              {lead.email?.trim() &&
+                !lead.draftEmail?.trim() &&
+                canRegenerateEmailDraft && (
+                  <p className="text-xs text-muted-foreground">
+                    Email saved — generate an email draft below (contactability
+                    score updates automatically).
+                  </p>
+                )}
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">Outreach</h3>
-              {localDraft && (
-                <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1">
+                {canRegenerateEmailDraft && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={busyRegen || busyDraft || busyEmail}
+                    onClick={() => void onRegenerateDraft!(lead.id)}
+                  >
+                    {busyRegen ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    <span className="ml-1.5">
+                      {lead.draftEmail?.trim() ? "Regenerate" : "Generate email"}
+                    </span>
+                  </Button>
+                )}
+                {localDraft && (
+                  <>
                   {onDraftChange && draftDirty && (
                     <Button
                       type="button"
@@ -660,8 +904,9 @@ export function LeadReportSheet({
                       </span>
                     </Button>
                   )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </div>
             {onDraftChange ? (
               <div className="space-y-2">
@@ -768,9 +1013,13 @@ export function LeadReportSheet({
                     linkingLeadId === lead.id
                   }
                   canRead={gmailCanRead}
+                  readOnly={threadLeadId === lead.id ? threadReadOnly : false}
+                  syncedByEmail={
+                    threadLeadId === lead.id ? threadSyncedByEmail : null
+                  }
                   onReconnect={onReconnectGmail}
                   onRefresh={
-                    onLoadThread && lead.gmailThreadId
+                    onLoadThread && lead.gmailThreadId && gmailCanRead
                       ? () => onLoadThread(lead.id)
                       : undefined
                   }

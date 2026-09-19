@@ -149,6 +149,24 @@ export type OpticLeadRow = {
     externalUrl?: string | null;
     email?: string | null;
   } | null;
+  /** Manual / agent-found profile notes. */
+  agentScrape?: {
+    bio?: string | null;
+    externalUrl?: string | null;
+    normalizedKey?: string | null;
+  } | null;
+  /** Team-shared Gmail thread copy (read-only for teammates). */
+  gmailThreadSnapshot?: Array<{
+    id?: string;
+    from?: string;
+    fromEmail?: string;
+    date?: string | null;
+    snippet?: string;
+    body?: string;
+    direction?: "outbound" | "inbound";
+  }> | null;
+  gmailThreadSyncedByEmail?: string | null;
+  gmailReplyCount?: number | null;
 };
 
 /** Brand workspace context shown on the discovery page (loaded from Verza agency/brand doc). */

@@ -12,9 +12,56 @@ import {
 } from "./tokens";
 import {isOpticLeadStage} from "../optic/leadCrm";
 import {isEmailDraftEmpty} from "./emailHtml";
-import {parseGmailThread} from "./thread";
+import {parseGmailThread, type GmailThreadMessage} from "./thread";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
+const THREAD_SNAPSHOT_MAX = 20;
+const THREAD_BODY_MAX = 8000;
+
+/**
+ * Sanitizes parsed Gmail messages for Firestore team read-only sharing.
+ * @param {GmailThreadMessage[]} messages Parsed thread messages.
+ * @return {GmailThreadMessage[]} Capped, size-bounded copy.
+ */
+function sanitizeThreadSnapshot(messages: GmailThreadMessage[]): GmailThreadMessage[] {
+  return messages.slice(-THREAD_SNAPSHOT_MAX).map((m) => ({
+    id: String(m.id ?? "").slice(0, 128),
+    from: String(m.from ?? "").slice(0, 200),
+    fromEmail: String(m.fromEmail ?? "").slice(0, 200),
+    date: typeof m.date === "string" ? m.date.slice(0, 40) : null,
+    snippet: String(m.snippet ?? "").slice(0, 500),
+    body: String(m.body ?? "").slice(0, THREAD_BODY_MAX),
+    direction: m.direction === "outbound" ? "outbound" : "inbound",
+  }));
+}
+
+/**
+ * Builds lead fields that store a team-visible, read-only thread copy.
+ * @param {GmailThreadMessage[]} messages Parsed messages.
+ * @param {string} uid Synced-by uid.
+ * @param {string} email Synced-by mailbox.
+ * @return {Record<string, unknown>} Firestore patch fields.
+ */
+function threadSnapshotPatch(
+  messages: GmailThreadMessage[],
+  uid: string,
+  email: string
+): Record<string, unknown> {
+  return {
+    gmailThreadSnapshot: sanitizeThreadSnapshot(messages),
+    gmailThreadSyncedAt: FieldValue.serverTimestamp(),
+    gmailThreadSyncedByUid: uid,
+    gmailThreadSyncedByEmail: email.trim() || null,
+  };
+}
+
+function snapshotFromLead(lead: DocumentData): GmailThreadMessage[] {
+  const raw = lead.gmailThreadSnapshot;
+  if (!Array.isArray(raw)) return [];
+  return sanitizeThreadSnapshot(
+    raw.filter((m): m is GmailThreadMessage => !!m && typeof m === "object")
+  );
+}
 
 /**
  * Ensures the caller is a brand team member with a primary workspace.
@@ -259,13 +306,66 @@ export const sendOpticGmailMessage = onCall(
     const messageId = typeof payload.id === "string" ? payload.id : null;
     const nextThreadId = typeof payload.threadId === "string" ? payload.threadId : threadId;
     const followUp = Boolean(threadId);
-    await leadSnap.ref.update(markLeadContacted(lead, uid, {
-      gmailMessageId: messageId,
-      gmailThreadId: nextThreadId,
-      gmailSentAt: FieldValue.serverTimestamp(),
-      gmailSentBy: uid,
-      gmailLastSendKind: followUp ? "follow_up" : "initial",
-    }));
+
+    const senderSnap = await db.collection("users").doc(uid).get();
+    const senderEmail =
+      typeof senderSnap.data()?.opticGmailEmail === "string"
+        ? String(senderSnap.data()!.opticGmailEmail).trim()
+        : "";
+    const canRead = senderSnap.data()?.opticGmailCanRead === true;
+
+    let snapshotMessages: GmailThreadMessage[] | null = null;
+    if (nextThreadId && canRead) {
+      try {
+        const {messages} = await fetchThreadAndUpdateLead(
+          leadSnap,
+          lead,
+          nextThreadId,
+          accessToken,
+          senderEmail,
+          uid,
+          markLeadContacted(lead, uid, {
+            gmailMessageId: messageId,
+            gmailThreadId: nextThreadId,
+            gmailSentAt: FieldValue.serverTimestamp(),
+            gmailSentBy: uid,
+            gmailLastSendKind: followUp ? "follow_up" : "initial",
+          })
+        );
+        snapshotMessages = messages;
+      } catch (e) {
+        logger.warn("[Gmail] Post-send thread sync failed", {
+          uid,
+          leadId: leadSnap.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    if (!snapshotMessages) {
+      const prior = snapshotFromLead(lead);
+      const outbound: GmailThreadMessage = {
+        id: messageId || `sent_${Date.now()}`,
+        from: senderEmail || "You",
+        fromEmail: senderEmail.toLowerCase(),
+        date: new Date().toISOString(),
+        snippet: subject.slice(0, 140),
+        body: body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, THREAD_BODY_MAX) ||
+          subject,
+        direction: "outbound",
+      };
+      const seeded = sanitizeThreadSnapshot([...prior, outbound]);
+      await leadSnap.ref.update(
+        markLeadContacted(lead, uid, {
+          gmailMessageId: messageId,
+          gmailThreadId: nextThreadId,
+          gmailSentAt: FieldValue.serverTimestamp(),
+          gmailSentBy: uid,
+          gmailLastSendKind: followUp ? "follow_up" : "initial",
+          ...threadSnapshotPatch(seeded, uid, senderEmail),
+        })
+      );
+    }
 
     logger.info("[Gmail] Sent outreach", {uid, leadId: leadSnap.id, followUp});
     return {
@@ -401,11 +501,14 @@ async function resolveGmailThreadForLead(
 
 /**
  * Fetches a thread, updates CRM fields on the lead, and returns parsed messages.
+ * Also writes a team-readable snapshot so other brand members can view replies
+ * without sharing Gmail OAuth credentials.
  * @param {DocumentSnapshot} leadSnap Lead snapshot.
  * @param {DocumentData} lead Lead data.
  * @param {string} threadId Gmail thread id.
  * @param {string} accessToken OAuth access token.
  * @param {string} connectedEmail Connected Gmail address.
+ * @param {string} syncedByUid User who performed the live sync.
  * @param {Record<string, unknown>} [extraPatch] Extra fields to merge (e.g. link metadata).
  */
 async function fetchThreadAndUpdateLead(
@@ -414,6 +517,7 @@ async function fetchThreadAndUpdateLead(
   threadId: string,
   accessToken: string,
   connectedEmail: string,
+  syncedByUid: string,
   extraPatch: Record<string, unknown> = {}
 ): Promise<{messages: ReturnType<typeof parseGmailThread>; replyCount: number}> {
   const res = await fetch(
@@ -443,6 +547,7 @@ async function fetchThreadAndUpdateLead(
     gmailReplyCount: inbound.length,
     gmailThreadFetchedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
+    ...threadSnapshotPatch(messages, syncedByUid, connectedEmail),
     ...extraPatch,
   };
   if (lastInbound) {
@@ -458,7 +563,9 @@ async function fetchThreadAndUpdateLead(
 }
 
 /**
- * Loads the Gmail thread for a vault lead so the team can read replies.
+ * Loads the Gmail thread for a vault lead.
+ * Prefer a live inbox sync when the caller has Gmail read connected; otherwise
+ * serve the team snapshot written on the lead (read-only).
  */
 export const getOpticGmailThread = onCall(
   {secrets: [GMAIL_OAUTH_CLIENT_SECRET]},
@@ -483,21 +590,74 @@ export const getOpticGmailThread = onCall(
     }
 
     const userSnap = await db.collection("users").doc(uid).get();
+    const userData = userSnap.data() ?? {};
     const connectedEmail =
-      typeof userSnap.data()?.opticGmailEmail === "string"
-        ? String(userSnap.data()!.opticGmailEmail).trim()
+      typeof userData.opticGmailEmail === "string"
+        ? String(userData.opticGmailEmail).trim()
         : "";
+    const canLiveSync =
+      userData.opticGmailConnected === true && userData.opticGmailCanRead === true;
 
-    const accessToken = await getGmailAccessTokenForUser(uid);
-    const {messages, replyCount} = await fetchThreadAndUpdateLead(
-      leadSnap,
-      lead,
-      threadId,
-      accessToken,
-      connectedEmail
+    if (canLiveSync) {
+      try {
+        const accessToken = await getGmailAccessTokenForUser(uid);
+        const {messages, replyCount} = await fetchThreadAndUpdateLead(
+          leadSnap,
+          lead,
+          threadId,
+          accessToken,
+          connectedEmail,
+          uid
+        );
+        return {
+          success: true as const,
+          threadId,
+          messages,
+          replyCount,
+          readOnly: false as const,
+          source: "live" as const,
+          syncedByEmail: connectedEmail || null,
+        };
+      } catch (e) {
+        logger.warn("[Gmail] Live thread sync failed; trying team snapshot", {
+          uid,
+          leadId: leadSnap.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
+    const snapshot = snapshotFromLead(lead);
+    if (snapshot.length > 0) {
+      const replyCount =
+        typeof lead.gmailReplyCount === "number" && Number.isFinite(lead.gmailReplyCount)
+          ? lead.gmailReplyCount
+          : snapshot.filter((m) => m.direction === "inbound").length;
+      const syncedByEmail =
+        typeof lead.gmailThreadSyncedByEmail === "string"
+          ? lead.gmailThreadSyncedByEmail
+          : null;
+      return {
+        success: true as const,
+        threadId,
+        messages: snapshot,
+        replyCount,
+        readOnly: true as const,
+        source: "snapshot" as const,
+        syncedByEmail,
+      };
+    }
+
+    if (!canLiveSync) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This conversation isn’t shared yet. A teammate with Gmail connected needs to open or refresh the thread once — then the whole team can read it."
+      );
+    }
+    throw new HttpsError(
+      "failed-precondition",
+      "Could not load this thread from Gmail, and no shared copy is available yet."
     );
-
-    return {success: true as const, threadId, messages, replyCount};
   }
 );
 
@@ -548,6 +708,7 @@ export const linkOpticGmailThread = onCall(
       resolved.threadId,
       accessToken,
       connectedEmail,
+      uid,
       extraPatch
     );
 

@@ -14,6 +14,7 @@ import {
 import type { Timestamp } from "firebase/firestore";
 
 import { LeadReportSheet } from "@/components/optic/lead-report-sheet";
+import { AddManualLeadDialog } from "@/components/optic/add-manual-lead-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ import type { OpticGmailThreadMessage } from "@/hooks/use-optic-gmail";
 import type {
   OpticLeadCrmPatch,
   OpticLeadDraftPatch,
+  OpticLeadProfilePatch,
 } from "@/hooks/use-optic-lead-outreach";
 import type { OpticLeadsPagination } from "@/hooks/use-optic-leads";
 import {
@@ -88,6 +90,8 @@ export type LeadVaultProps = {
   threadMessages?: OpticGmailThreadMessage[];
   threadReplyCount?: number;
   threadLoading?: boolean;
+  threadReadOnly?: boolean;
+  threadSyncedByEmail?: string | null;
   campaigns: OpticCampaignOption[];
   campaignsLoading?: boolean;
   campaignFilter: string;
@@ -96,8 +100,16 @@ export type LeadVaultProps = {
   onCrmChange?: (leadId: string, patch: OpticLeadCrmPatch) => void;
   onEmailChange?: (leadId: string, email: string) => void;
   emailUpdatingId?: string | null;
+  onProfileChange?: (
+    leadId: string,
+    patch: OpticLeadProfilePatch
+  ) => Promise<boolean>;
+  profileUpdatingId?: string | null;
   onDraftChange?: (leadId: string, patch: OpticLeadDraftPatch) => Promise<boolean>;
   draftUpdatingId?: string | null;
+  onRegenerateDraft?: (leadId: string) => Promise<boolean>;
+  regeneratingDraftId?: string | null;
+  canAddManual?: boolean;
 };
 
 type SortMode = "score" | "followers-desc" | "followers-asc";
@@ -120,6 +132,8 @@ export function LeadVault({
   threadMessages,
   threadReplyCount,
   threadLoading,
+  threadReadOnly,
+  threadSyncedByEmail,
   campaigns,
   campaignsLoading,
   campaignFilter,
@@ -128,8 +142,13 @@ export function LeadVault({
   onCrmChange,
   onEmailChange,
   emailUpdatingId,
+  onProfileChange,
+  profileUpdatingId,
   onDraftChange,
   draftUpdatingId,
+  onRegenerateDraft,
+  regeneratingDraftId,
+  canAddManual,
 }: LeadVaultProps) {
   const [filter, setFilter] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("__all__");
@@ -288,6 +307,12 @@ export function LeadVault({
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
+            {canAddManual && (
+              <AddManualLeadDialog
+                campaigns={campaigns}
+                campaignFilter={campaignFilter}
+              />
+            )}
             <Button
               type="button"
               variant="outline"
@@ -604,12 +629,18 @@ export function LeadVault({
           threadMessages={threadMessages}
           threadReplyCount={threadReplyCount}
           threadLoading={threadLoading}
+          threadReadOnly={threadReadOnly}
+          threadSyncedByEmail={threadSyncedByEmail}
           outreachUpdatingId={outreachUpdatingId}
           onCrmChange={onCrmChange}
           onEmailChange={onEmailChange}
           emailUpdatingId={emailUpdatingId}
+          onProfileChange={onProfileChange}
+          profileUpdatingId={profileUpdatingId}
           onDraftChange={onDraftChange}
           draftUpdatingId={draftUpdatingId}
+          onRegenerateDraft={onRegenerateDraft}
+          regeneratingDraftId={regeneratingDraftId}
         />
       </CardContent>
     </Card>
