@@ -2,12 +2,13 @@ import {createHash} from "node:crypto";
 import {AsyncLocalStorage} from "node:async_hooks";
 import type {Firestore} from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
+import {resolveUidFromOauthAccessToken} from "./oauth/store.js";
 import {resolveActor, type VerzaActor} from "./context.js";
 
 const KEY_PREFIX = "vzmcp_";
 
 export type AuthIdentity = {
-  kind: "api_key" | "id_token" | "env_user";
+  kind: "api_key" | "id_token" | "oauth_token" | "env_user";
   uid: string;
   agencyIdHint?: string | null;
 };
@@ -69,7 +70,7 @@ export async function resolveUidFromFirebaseIdToken(
 
 /**
  * Parse Authorization / x-verza-mcp-key into an AuthIdentity.
- * Supports: vzmcp_… API keys and Firebase ID tokens.
+ * Supports: vzmcp_… API keys, vzato_… OAuth access tokens, and Firebase ID tokens.
  */
 export async function identityFromBearer(
   db: Firestore,
@@ -84,6 +85,11 @@ export async function identityFromBearer(
       throw new Error("Invalid or revoked Verza MCP API key.");
     }
     return {kind: "api_key", uid: hit.uid, agencyIdHint: hit.agencyId};
+  }
+
+  const oauth = await resolveUidFromOauthAccessToken(db, token);
+  if (oauth) {
+    return {kind: "oauth_token", uid: oauth.uid, agencyIdHint: oauth.agencyId};
   }
 
   const uid = await resolveUidFromFirebaseIdToken(token);

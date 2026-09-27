@@ -96,6 +96,29 @@ Edit `~/.cursor/mcp.json`:
 
 Prod: use `https://api.tryverza.com`. No local `node` process. Refresh MCP in Cursor Settings → MCP, then try `verza_whoami`.
 
+## Claude.ai & ChatGPT (OAuth)
+
+Remote connectors on Claude and ChatGPT use OAuth (not API-key headers). Verza supports CIMD + PKCE + soft DCR:
+
+### Claude.ai
+1. Settings → Connectors → Add custom connector  
+2. **URL:** `https://api.tryverza.com` (or `https://dev-api.tryverza.com`)  
+3. **Authentication:** Sign in when needed  
+4. **OAuth Client:** Use Claude’s published identity (CIMD)  
+5. Approve in Verza when prompted  
+
+### ChatGPT (Developer Mode / custom connector)
+1. Enable Developer Mode (Plus/Pro/Business/Enterprise; web) under Settings → Security  
+2. Add MCP / connector URL: `https://api.tryverza.com` (or `https://dev-api.tryverza.com`)  
+3. Prefer OAuth with CIMD (Verza advertises `client_id_metadata_document_supported`)  
+4. Approve in Verza when prompted  
+5. Allowed ChatGPT redirects include:
+   - `https://chatgpt.com/connector_platform_oauth_redirect` (legacy)
+   - `https://chatgpt.com/connector/oauth/{callback_id}` (current)
+
+### Cursor / Codex
+Keep using `vzmcp_…` API keys in config headers (see above).
+
 ## Local stdio (optional)
 
 ```bash

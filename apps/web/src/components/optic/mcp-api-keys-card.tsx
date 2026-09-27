@@ -53,7 +53,7 @@ export function McpApiKeysCard({ preview = false }: Props) {
   const [keys, setKeys] = useState<KeyRow[]>([]);
   const [loading, setLoading] = useState(!preview);
   const [creating, setCreating] = useState(false);
-  const [label, setLabel] = useState("Claude / Cursor");
+  const [label, setLabel] = useState("Cursor / Claude / ChatGPT");
   const [freshKey, setFreshKey] = useState<string | null>(null);
 
   const configJson = useMemo(
@@ -133,8 +133,11 @@ export function McpApiKeysCard({ preview = false }: Props) {
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">Verza MCP (Claude / ChatGPT / Cursor)</p>
           <p className="text-xs text-muted-foreground">
-            Create a key, copy the config into Cursor Settings → MCP (or{" "}
-            <code className="text-[11px]">~/.cursor/mcp.json</code>), then refresh MCP tools.
+            <strong>Cursor / Codex:</strong> create a key and paste the config below.{" "}
+            <strong>Claude.ai / ChatGPT:</strong> add connector URL{" "}
+            <code className="text-[11px]">{MCP_SERVER_URL}</code>, use OAuth sign-in (CIMD /
+            Claude&apos;s or ChatGPT&apos;s published identity), then approve in Verza — no API key
+            required.
           </p>
         </div>
       </div>
@@ -175,7 +178,7 @@ export function McpApiKeysCard({ preview = false }: Props) {
       {!freshKey && (
         <div className="space-y-2 rounded-md border bg-muted/20 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium">Cursor / Claude config</p>
+            <p className="text-xs font-medium">Cursor / Codex config (API key)</p>
             <Button
               type="button"
               size="sm"
@@ -207,7 +210,7 @@ export function McpApiKeysCard({ preview = false }: Props) {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             disabled={preview || creating}
-            placeholder="Claude / Cursor"
+            placeholder="Cursor / Claude / ChatGPT"
           />
         </div>
         <Button

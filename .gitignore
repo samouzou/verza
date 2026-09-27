@@ -2,6 +2,8 @@
 
 # dependencies
 node_modules/
+# iCloud skip: real deps live here; node_modules is a symlink (see scripts/icloud-nosync-node-modules.sh)
+node_modules.nosync/
 /.pnp
 .pnp.*
 .yarn/*

@@ -13,6 +13,8 @@ import {
 import {assertFirebaseCredentialsHint, loadConfig, type VerzaMcpConfig} from "./config.js";
 import type {Firestore} from "firebase-admin/firestore";
 import {getDb} from "./firebase.js";
+import {handleOauthHttp} from "./oauth/handlers.js";
+import {mcpPublicOrigin, wwwAuthenticateHeader} from "./oauth/metadata.js";
 import {createVerzaMcpServer} from "./server.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -53,6 +55,25 @@ function setCors(res: ServerResponse) {
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 }
 
+function writeUnauthorized(
+  req: IncomingMessage,
+  res: ServerResponse,
+  config: VerzaMcpConfig,
+  message: string
+): void {
+  const issuer = mcpPublicOrigin(req.headers.host, config.appBaseUrl);
+  res.writeHead(401, {
+    "content-type": "application/json",
+    "WWW-Authenticate": wwwAuthenticateHeader(issuer),
+  });
+  res.end(
+    JSON.stringify({
+      error: message,
+      hint: "Use an MCP API key (Cursor/Codex) or complete Claude/ChatGPT OAuth sign-in.",
+    })
+  );
+}
+
 async function handleMcpHttpRequest(opts: {
   req: IncomingMessage;
   res: ServerResponse;
@@ -76,10 +97,20 @@ async function handleMcpHttpRequest(opts: {
         ok: true,
         name: "verza-mcp",
         transport: "streamable-http",
+        oauth: true,
       })
     );
     return;
   }
+
+  // OAuth discovery + authorize/token/consent APIs (no MCP session auth).
+  const handledOauth = await handleOauthHttp({
+    req,
+    res,
+    db,
+    appBaseUrl: config.appBaseUrl,
+  });
+  if (handledOauth) return;
 
   // Root is the public endpoint (api.tryverza.com). /mcp kept for older clients / run.app URLs.
   const isMcpPath = path === "/" || path === "/mcp" || path.startsWith("/mcp/");
@@ -88,7 +119,7 @@ async function handleMcpHttpRequest(opts: {
     res.end(
       JSON.stringify({
         error: "not_found",
-        hint: "MCP endpoint is the server root (or /mcp).",
+        hint: "MCP endpoint is the server root (or /mcp). OAuth lives under /.well-known and /oauth/*.",
       })
     );
     return;
@@ -98,8 +129,7 @@ async function handleMcpHttpRequest(opts: {
     const gate = req.headers["x-verza-mcp-gate"];
     const gateVal = Array.isArray(gate) ? gate[0] : gate;
     if (gateVal !== config.httpToken) {
-      res.writeHead(401, {"content-type": "application/json"});
-      res.end(JSON.stringify({error: "unauthorized_gate"}));
+      writeUnauthorized(req, res, config, "unauthorized_gate");
       return;
     }
   }
@@ -108,22 +138,21 @@ async function handleMcpHttpRequest(opts: {
   try {
     identity = await identityFromBearer(db, extractBearer(req));
   } catch (err) {
-    res.writeHead(401, {"content-type": "application/json"});
-    res.end(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : "unauthorized",
-      })
+    writeUnauthorized(
+      req,
+      res,
+      config,
+      err instanceof Error ? err.message : "unauthorized"
     );
     return;
   }
 
   if (!identity) {
-    res.writeHead(401, {"content-type": "application/json"});
-    res.end(
-      JSON.stringify({
-        error:
-          "Missing Authorization: Bearer <vzmcp_… API key>. Create one in Optic → Integrations.",
-      })
+    writeUnauthorized(
+      req,
+      res,
+      config,
+      "Missing Authorization. Create an MCP API key in Optic → Integrations (Cursor/Codex), or sign in via Claude/ChatGPT connector OAuth."
     );
     return;
   }
@@ -180,7 +209,7 @@ async function main() {
 
     httpServer.listen(port, host, () => {
       console.error(
-        `[verza-mcp] HTTP listening on http://${host}:${port}/ (Bearer vzmcp_… per user; /mcp also works)`
+        `[verza-mcp] HTTP listening on http://${host}:${port}/ (API keys + OAuth; /mcp also works)`
       );
     });
     return;
