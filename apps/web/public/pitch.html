@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Verza — Seed Round · $100K</title>
-  <meta name="description" content="Verza seed pitch: creator campaign infrastructure with attribution, payouts, and commerce rails." />
+  <meta name="description" content="Verza seed pitch: the creator campaign agent inside Claude, ChatGPT, and Cursor — discovery, unique links, attribution, and payouts." />
   <meta name="robots" content="noindex" />
   <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -357,7 +357,7 @@
     }
 
     @media (min-width: 960px) {
-      .brands { grid-template-columns: 1fr 1fr 1fr; }
+      .brands { grid-template-columns: repeat(4, 1fr); }
     }
 
     .brand-tile {
@@ -425,7 +425,11 @@
     }
 
     @media (min-width: 720px) {
-      .metric-grid { grid-template-columns: repeat(3, 1fr); }
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 960px) {
+      .metric-grid { grid-template-columns: repeat(4, 1fr); }
     }
 
     .funds {
@@ -699,7 +703,223 @@
       .market-table td.num-cell { color: #0E7C5A; }
     }
 
-    .slide.cover h1 { max-width: 14ch; }
+    .slide.cover h1 { max-width: 16ch; }
+
+    .product-split {
+      display: grid;
+      gap: 1.5rem;
+      margin-top: 1rem;
+      align-items: start;
+    }
+
+    @media (min-width: 960px) {
+      .product-split { grid-template-columns: 1.05fr 1fr; gap: 2rem; }
+    }
+
+    .chat-mock {
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #14120f;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      font-size: 0.82rem;
+    }
+
+    .chat-mock .chat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: #1a1713;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .chat-mock .who {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      min-width: 0;
+    }
+
+    .chat-mock .mark {
+      position: relative;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.6rem;
+      background: rgba(217, 119, 87, 0.14);
+      border: 1px solid rgba(217, 119, 87, 0.25);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .chat-mock .mark .verza-badge {
+      position: absolute;
+      right: -0.3rem;
+      bottom: -0.3rem;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      background: #0B100E;
+      border: 1px solid rgba(22, 192, 136, 0.45);
+      display: grid;
+      place-items: center;
+    }
+
+    .chat-mock .mark .verza-badge img { width: 0.55rem; height: auto; }
+
+    .chat-mock .who strong {
+      display: block;
+      color: #f4efe6;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .chat-mock .who .sub {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.15rem;
+      color: rgba(244, 239, 230, 0.5);
+      font-size: 0.68rem;
+      line-height: 1.2;
+    }
+
+    .chat-mock .who .sub code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.64rem;
+      color: rgba(110, 231, 183, 0.8);
+    }
+
+    .chat-mock .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #6ee7b7;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .chat-mock .live::before {
+      content: "";
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+    }
+
+    .chat-mock .body { padding: 1rem; display: grid; gap: 0.8rem; }
+
+    .chat-mock .user {
+      margin-left: auto;
+      max-width: 92%;
+      background: #2a261f;
+      color: #f4efe6;
+      padding: 0.65rem 0.85rem;
+      border-radius: 0.9rem 0.9rem 0.25rem 0.9rem;
+      line-height: 1.45;
+    }
+
+    .chat-mock .user .url {
+      color: #9fd8c3;
+      text-decoration: underline;
+      text-decoration-color: rgba(159, 216, 195, 0.4);
+      text-underline-offset: 2px;
+      word-break: break-all;
+    }
+
+    .chat-mock .agent-label { color: #d97757; font-weight: 600; font-size: 0.7rem; }
+    .chat-mock .agent { color: rgba(244, 239, 230, 0.85); line-height: 1.5; }
+
+    .chat-mock .matches {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.7rem;
+      background: #1c1915;
+    }
+
+    .chat-mock .match {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0.8rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .chat-mock .match:first-child { border-top: 0; }
+    .chat-mock .match strong { color: #f4efe6; font-size: 0.78rem; }
+    .chat-mock .match span { display: block; color: rgba(244, 239, 230, 0.45); font-size: 0.66rem; }
+
+    .chat-mock .fit {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #6ee7b7;
+      background: rgba(16, 185, 129, 0.12);
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .chat-mock .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+    .chat-mock .chips span {
+      font-size: 0.68rem;
+      color: #f4efe6;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #1c1915;
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+    }
+
+    .client-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .client-row > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--paper);
+      border: 1px solid rgba(22, 192, 136, 0.3);
+      background: rgba(22, 192, 136, 0.08);
+      padding: 0.3rem 0.8rem 0.3rem 0.35rem;
+      border-radius: 999px;
+    }
+
+    .client-row .logo {
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: #f7f7f4;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .client-row .logo img {
+      width: 1rem;
+      height: 1rem;
+      object-fit: contain;
+    }
+
+    .client-row .logo img.fill {
+      width: 100%;
+      height: 100%;
+    }
+    .chat-mock .mark > img { width: 1.05rem; height: 1.05rem; object-fit: contain; }
 
     @media (max-width: 640px) {
       .stack-row { grid-template-columns: 1fr; gap: 0.25rem; }
@@ -733,85 +953,120 @@
 
   <!-- 01 -->
   <section class="slide cover" data-n="01 / 14" id="cover">
-    <p class="eyebrow">Seed round · creator-first</p>
-    <h1>Get creators paid. Matched. And free of the gatekeepers.</h1>
+    <p class="eyebrow">Seed round · the agent inside your LLM</p>
+    <h1>Run creator campaigns from Claude, ChatGPT, or Cursor.</h1>
     <p class="lede">
-      Verza is the operating system for creators to <strong>earn from brand work and their own audience</strong> — with contracts, attribution, wallets, and global payouts in one place.
+      Verza is the creator campaign agent brands already have open. Ask in chat — Verza finds creators who fit, drafts the first hello, mints a <strong>unique link and code per creator</strong>, shows <strong>who sold</strong>, and pays them from the campaign wallet.
     </p>
     <div class="ask-pill">
       <span class="amt">$100K</span>
       <span class="lbl">post-money SAFE</span>
     </div>
-    <p class="foot">tryverza.com · app.tryverza.com · August 2026</p>
+    <p class="foot">tryverza.com · app.tryverza.com · September 2026</p>
   </section>
 
   <!-- 02 -->
   <section class="slide" data-n="02 / 14" id="problem">
     <p class="eyebrow">Problem</p>
-    <h2>Creators built the audiences. Platforms and brands still own the economics.</h2>
+    <h2>Brands pay for creator posts and hope something sold.</h2>
     <ul class="list">
-      <li>Creators wait <strong>45+ days</strong> (often 60–120) to get paid for work already delivered.</li>
-      <li>They spend hours chasing invoices instead of creating.</li>
-      <li>FB, IG, YouTube keep moving the monetization goalposts — gatekeeping audiences creators built.</li>
-      <li>Loyal mid-size followings often beat vanity 1M accounts stuck on platform RPM rules.</li>
-      <li>Matching with brands that already need their niche still takes double work and cold outreach.</li>
-      <li>Brand campaign cycles drag — planning and fulfillment stretch while creators sit idle.</li>
-      <li>Global South creators stay locked into differential pricing and weaker payout rails.</li>
+      <li>Casting still means scrolling comments and spreadsheets — weeks to months before a shortlist.</li>
+      <li>Every first email is written from scratch; outreach stalls before a campaign ever goes live.</li>
+      <li>One discount code for the whole campaign — nobody can say which creator drove the sale.</li>
+      <li>Discovery, outreach, tracking, and payouts live in four different tools and a dozen tabs.</li>
+      <li>Creators wait <strong>45+ days</strong> (avg 47 past due) to get paid — so the best ones stop saying yes.</li>
+      <li>Meanwhile, the people running campaigns now do their work inside AI assistants — and their creator tools aren’t there.</li>
     </ul>
   </section>
 
   <!-- 03 -->
   <section class="slide" data-n="03 / 14" id="solution">
     <p class="eyebrow">Solution</p>
-    <h2>Verza puts creators at the center of the money and the match.</h2>
+    <h2>One loop — match, unique link, who sold — run from the chat you already use.</h2>
     <div class="grid-2">
       <div class="card">
-        <h3>Get paid</h3>
-        <p>Contracts, invoices, wallets, and global payout paths — so settlement isn’t a side hustle.</p>
+        <h3>Chat the campaign</h3>
+        <p>Paste a product URL. Verza drafts the brief, estimates budget, and shows predicted ROAS before a dollar moves.</p>
       </div>
       <div class="card">
-        <h3>Get matched</h3>
-        <p>Campaigns with briefs and Optic discovery so brands find niche creators without months of spreadsheet casting.</p>
+        <h3>Optic finds the fit</h3>
+        <p>Discovery across Instagram, TikTok, YouTube, Facebook, and Twitch with match scores — or let creators apply.</p>
       </div>
       <div class="card">
-        <h3>Own the outcome</h3>
-        <p>Per-creator links and codes, performance rewards (CPC/CPA), and a Store to monetize fans off-platform.</p>
+        <h3>Outreach from Gmail</h3>
+        <p>Every match comes with a first hello. Draft or send from the brand’s connected Gmail, straight from chat.</p>
       </div>
       <div class="card">
-        <h3>Stay global</h3>
-        <p>Payout infrastructure built for creators outside US-only banking — including Global South settlement paths.</p>
+        <h3>See who sold · pay from the wallet</h3>
+        <p>Per-creator links and codes tied to Shopify/WooCommerce orders. CPC/CPA payouts settle on Verza rails.</p>
       </div>
     </div>
   </section>
 
   <!-- 04 -->
   <section class="slide" data-n="04 / 14" id="product">
-    <p class="eyebrow">Product</p>
-    <h2>One stack: match → deliver → track → pay → own audience.</h2>
-    <dl class="stack">
-      <div class="stack-row">
-        <dt>Campaigns</dt>
-        <dd>Join briefs, submit work, earn fixed base + performance rewards — not screenshot proof.</dd>
+    <p class="eyebrow">Product · live today</p>
+    <h2>Verza MCP: the full campaign, inside the assistant.</h2>
+    <div class="product-split">
+      <div class="chat-mock" role="img" aria-label="Verza running inside a Claude chat: launching a campaign, matching creators, drafting first hellos, and minting unique links">
+        <div class="chat-head">
+          <div class="who">
+            <span class="mark">
+              <img src="/Claude-AI-Logo.webp" alt="" />
+              <span class="verza-badge"><img src="/verza-icon.svg" alt="" /></span>
+            </span>
+            <div>
+              <strong>Claude · Verza</strong>
+              <span class="sub">Connected via MCP · <code>api.tryverza.com</code></span>
+            </div>
+          </div>
+          <span class="live">Live</span>
+        </div>
+        <div class="body">
+          <div class="user">Launch a creator campaign for <span class="url">https://www.maybelline-ma.com/</span></div>
+          <div class="agent-label">Verza</div>
+          <div class="agent">Drafted the brief from the site and ran Optic on TikTok, Instagram, and YouTube. First hellos are ready — each creator gets their own link + code so you can see who sold.</div>
+          <div class="matches">
+            <div class="match"><div><strong>Maya Chen</strong><span>@maya.glam · TikTok · Drugstore makeup reviews</span></div><span class="fit">92</span></div>
+            <div class="match"><div><strong>Jordan Hale</strong><span>@jordanhale · Instagram · Everyday glam routines</span></div><span class="fit">88</span></div>
+            <div class="match"><div><strong>Priya Shah</strong><span>@priya.lashes · YouTube · Mascara &amp; lash tests</span></div><span class="fit">85</span></div>
+          </div>
+          <div class="chips"><span>Launch campaign</span><span>Draft Gmail hellos</span><span>Predicted ROAS</span></div>
+        </div>
       </div>
-      <div class="stack-row">
-        <dt>Money</dt>
-        <dd>Wallets, contract invoices, cash-out, and global payout options.</dd>
-      </div>
-      <div class="stack-row">
-        <dt>Attribution</dt>
-        <dd>Unique links (<code style="color:var(--emerald)">/l/…</code>) and promo codes tied to store conversions.</dd>
-      </div>
-      <div class="stack-row">
-        <dt>Optic + Store</dt>
-        <dd>AI discovery into live campaigns; digital products so followers pay creators directly.</dd>
-      </div>
-    </dl>
+      <dl class="stack" style="margin-top:0">
+        <div class="stack-row">
+          <dt>Campaigns</dt>
+          <dd>Draft from a URL, launch, and update live campaigns from chat — budget and predicted ROAS included.</dd>
+        </div>
+        <div class="stack-row">
+          <dt>Optic</dt>
+          <dd>AI discovery, match scores, and a shared vault of leads with outreach drafts ready.</dd>
+        </div>
+        <div class="stack-row">
+          <dt>Outreach</dt>
+          <dd>HTML drafts and sends from connected Gmail; leads marked contacted automatically.</dd>
+        </div>
+        <div class="stack-row">
+          <dt>Attribution</dt>
+          <dd>Unique links (<code style="color:var(--emerald)">/l/…</code>) and codes tied to store conversions.</dd>
+        </div>
+        <div class="stack-row">
+          <dt>Money</dt>
+          <dd>Campaign wallet, CPC/CPA bonuses, contracts, tax forms, and global creator payouts.</dd>
+        </div>
+      </dl>
+    </div>
+    <div class="client-row" aria-label="Supported assistants">
+      <span><span class="logo"><img src="/Claude-AI-Logo.webp" alt="" /></span>Claude</span>
+      <span><span class="logo"><img src="/ChatGPT-Logo.webp" alt="" /></span>ChatGPT</span>
+      <span><span class="logo"><img class="fill" src="/cursor-APP_ICON_2D_LIGHT.png" alt="" /></span>Cursor</span>    </div>
   </section>
 
   <!-- 05 MARKET TABLE — Jinmi ask -->
   <section class="slide" data-n="05 / 14" id="market">
     <p class="eyebrow">Market · researched</p>
-    <h2>Creator TAM, SAM, and the cost of slow matching.</h2>
+    <h2>Creator spend that needs matching, attribution, and payout rails.</h2>
     <div class="market-table-wrap">
       <table class="market-table">
         <thead>
@@ -867,23 +1122,23 @@
 
   <!-- 06 -->
   <section class="slide" data-n="06 / 14" id="why-now">
-    <p class="eyebrow">Why this matters</p>
-    <h2>Lag isn’t a paperwork issue — it shrinks creator output and brand ROI.</h2>
+    <p class="eyebrow">Why now</p>
+    <h2>The assistant is the new front door for work software.</h2>
     <div class="grid-3">
       <div class="card">
-        <div class="num">47d</div>
-        <h3>Avg days past due</h3>
-        <p>Late brand payments are normal, not edge cases — cash stress forces creators to stop creating.</p>
+        <div class="num">MCP</div>
+        <h3>A standard for agents</h3>
+        <p>Claude, ChatGPT, and Cursor now connect to outside tools through MCP. Software that plugs in gets used where the work happens.</p>
       </div>
       <div class="card">
-        <div class="num">20%</div>
-        <h3>Hard cut in activity</h3>
-        <p>One in five creators significantly reduce work when payouts lag — compounding into missed campaigns.</p>
+        <div class="num">Early</div>
+        <h3>Creator tools aren’t there yet</h3>
+        <p>Legacy influencer platforms are dashboards. Verza is live as a connector today — first-mover inside the assistants brands already pay for.</p>
       </div>
       <div class="card">
-        <div class="num">Months</div>
-        <h3>Match cycles</h3>
-        <p>Manual discovery + outreach turns “we need creators” into quarters of non-execution.</p>
+        <div class="num">Rails</div>
+        <h3>Agents need something to act on</h3>
+        <p>An LLM can suggest creators. It can’t mint attributed links, sync store orders, or pay people. Verza gives the agent those rails.</p>
       </div>
     </div>
   </section>
@@ -891,7 +1146,7 @@
   <!-- 07 TEAM -->
   <section class="slide" data-n="07 / 14" id="team">
     <p class="eyebrow">Company</p>
-    <h2>Founded June 23, 2025. Built for creators, by operators who’ve shipped fintech.</h2>
+    <h2>Founded June 23, 2025. Built by an operator who’s shipped fintech and AI.</h2>
     <div class="team-grid">
       <div class="card team-card">
         <img class="team-photo" src="/serge-amouzou-speaking-2.png" alt="Serge Amouzou" width="88" height="88" />
@@ -910,9 +1165,9 @@
   <!-- 08 TRACTION -->
   <section class="slide" data-n="08 / 14" id="traction">
     <p class="eyebrow">Traction</p>
-    <h2>Paying logos, recurring SaaS, and campaigns that settle.</h2>
+    <h2>Every paying customer runs live campaigns — through Verza MCP.</h2>
     <p class="lede">
-      Live on <strong>app.tryverza.com</strong>. Growth is logo quality + retention first — then GMV. Optic sources creators so reach isn’t gated on a closed network.
+      Four brand customers, all with campaigns running and all operating through the Verza connector in their AI assistant. Growth is logo quality + retention first — then GMV.
     </p>
 
     <div class="brands" aria-label="Paying brands">
@@ -921,25 +1176,37 @@
           <img src="/Illuminate-the-Arts-Logo.jpeg" alt="Illuminate logo" />
         </div>
         <span class="name">Illuminate</span>
-        <span class="role">Paying brand</span>
+        <span class="role">Campaign live · via MCP</span>
       </div>
       <div class="brand-tile">
         <div class="logo-plate dark">
           <img src="/cais-white.png" alt="Center for AI Safety logo" />
         </div>
         <span class="name">Center for AI Safety</span>
-        <span class="role">Paying brand · SaaS since Mar 2026 · 0 churn</span>
+        <span class="role">SaaS since Mar 2026 · 0 churn · via MCP</span>
       </div>
       <div class="brand-tile">
         <div class="logo-plate dark">
           <img src="/beginly-health.png" alt="Beginly Health logo" />
         </div>
         <span class="name">Beginly Health</span>
-        <span class="role">Paying brand</span>
+        <span class="role">Campaign live · via MCP</span>
+      </div>
+      <div class="brand-tile">
+        <div class="logo-plate dark">
+          <img src="/fichat.png" alt="Fichat logo" />
+        </div>
+        <span class="name">Fichat</span>
+        <span class="role">Campaign live · via MCP</span>
       </div>
     </div>
 
     <div class="metric-grid">
+      <div class="card">
+        <div class="num">4 / 4</div>
+        <h3>Customers on MCP</h3>
+        <p>Every paying brand runs its live campaigns through Verza in Claude, ChatGPT, or Cursor.</p>
+      </div>
       <div class="card">
         <div class="num">36.3M</div>
         <h3>Followers across platforms</h3>
@@ -973,6 +1240,10 @@
       <div class="timeline-item">
         <div class="when">Mid 2026</div>
         <div class="what"><strong>Campaigns + Illuminate</strong> — performance campaigns live; $40K GMV YTD; $5K paid to creators; 36.3M follower reach Optic can activate.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="when">Sep 2026</div>
+        <div class="what"><strong>Verza MCP live</strong> — connector for Claude, ChatGPT, and Cursor. <strong>Fichat</strong> live as the fourth customer; all four now run their campaigns through the assistant.</div>
       </div>
     </div>
   </section>
@@ -1014,7 +1285,7 @@
           <tr>
             <td>Operational spend (to date)</td>
             <td class="num-cell">Lean</td>
-            <td class="basis">Founder-built product (Serge); COO added early 2026. No large burn engine yet — monthly burn schedule available on request.</td>
+            <td class="basis">Founder-built product (Serge). No large burn engine yet — monthly burn schedule available on request.</td>
           </tr>
           <tr>
             <td>Projected spend (raise)</td>
@@ -1024,7 +1295,7 @@
           <tr>
             <td>Timeline to milestones</td>
             <td class="num-cell">18 months</td>
-            <td class="basis"><strong>0–6 mo:</strong> deepen Optic + Store, design-partner logos. <strong>6–12 mo:</strong> GTM hire, repeatable creator→campaign playbooks. <strong>12–18 mo:</strong> Series A metrics — net revenue, retention, GMV run-rate.</td>
+            <td class="basis"><strong>0–6 mo:</strong> ChatGPT + Claude directory listings, MCP reliability, more design-partner logos. <strong>6–12 mo:</strong> GTM hire, repeatable agent-led campaign playbooks. <strong>12–18 mo:</strong> Series A metrics — net revenue, retention, GMV run-rate.</td>
           </tr>
         </tbody>
       </table>
@@ -1034,16 +1305,16 @@
   <!-- 10 BUSINESS MODEL -->
   <section class="slide" data-n="10 / 14" id="model">
     <p class="eyebrow">Business model</p>
-    <h2>We monetize when brands find creators, when money moves, and when creators sell to fans.</h2>
+    <h2>We earn when brands run the agent and when campaign money moves.</h2>
     <p class="lede">
-      Three motions — subscription for the operating system, take rate when Verza settles creator pay, marketplace fee on fan checkouts.
+      SaaS for the agent and discovery, a take rate when Verza pays creators from the campaign wallet, and a fee on creator Store checkouts. Media budgets stay in the wallet — separate from SaaS.
     </p>
     <div class="grid-3" aria-label="Revenue motions">
       <div class="card">
-        <p class="label">Infrastructure SaaS</p>
-        <div class="num">Recurring</div>
-        <h3>Brand + Optic</h3>
-        <p>Brand subscriptions and Optic discovery plans. Credits sit under Optic — full rate card in diligence.</p>
+        <p class="label">Agent SaaS</p>
+        <div class="num">$69/mo</div>
+        <h3>Launch plan</h3>
+        <p>Verza MCP + app access with 100 Optic leads per month. First campaign free; Enterprise plans for larger programs.</p>
       </div>
       <div class="card">
         <p class="label">Money in motion</p>
@@ -1073,7 +1344,7 @@
       <div class="card">
         <p class="label">Amount</p>
         <h3>$100,000</h3>
-        <p>Bottoms-up 18-month operating plan to ship Store + Optic scale and lean GTM — not a round number for optics.</p>
+        <p>Bottoms-up 18-month operating plan to scale agent distribution, attribution integrations, and lean GTM — not a round number for optics.</p>
       </div>
       <div class="card">
         <p class="label">How we got $100K</p>
@@ -1091,7 +1362,7 @@
   <!-- 10 -->
   <section class="slide" data-n="12 / 14" id="funds">
     <p class="eyebrow">Use of funds · $100K</p>
-    <h2>18 months to make fast pay and fast match the default.</h2>
+    <h2>18 months to make Verza the default creator campaign agent in every LLM.</h2>
     <div class="funds">
       <div class="fund-row">
         <span class="pct">45%</span>
@@ -1139,23 +1410,23 @@
   <!-- 11 -->
   <section class="slide" data-n="13 / 14" id="wedge">
     <p class="eyebrow">Wedge</p>
-    <h2>Why Verza compounds for creators.</h2>
+    <h2>Why Verza isn’t just a wrapper — and why it compounds.</h2>
     <div class="grid-2">
       <div class="card">
-        <h3>Full loop</h3>
-        <p>Match → deliver → track → pay → fan Store. Most tools own one slice.</p>
+        <h3>Rails an LLM can’t fake</h3>
+        <p>Unique links, store-order attribution, campaign wallets, contracts, and global payouts. The assistant is the interface; Verza is what it acts on.</p>
       </div>
       <div class="card">
-        <h3>Payout DNA</h3>
-        <p>Wallets and global payout rails already shipping — including outside US-only banking.</p>
+        <h3>Distribution inside the assistant</h3>
+        <p>Live in Claude, ChatGPT, and Cursor today. Brands meet Verza where they already work — no new dashboard to adopt.</p>
       </div>
       <div class="card">
-        <h3>Performance-native</h3>
-        <p>CPC/CPA and store webhooks so creators get paid for outcomes, not vibes.</p>
+        <h3>Full loop, one system of record</h3>
+        <p>Match → first hello → unique link → who sold → payout. Most tools own one slice; every campaign makes Optic’s matching sharper.</p>
       </div>
       <div class="card">
-        <h3>Optic</h3>
-        <p>AI discovery shortens the months brands waste finding the right niche creator.</p>
+        <h3>Creator-side pull</h3>
+        <p>Creators get paid for outcomes — fast, and outside US-only banking. That’s why the best ones keep saying yes.</p>
       </div>
     </div>
   </section>
@@ -1163,9 +1434,9 @@
   <!-- 12 -->
   <section class="slide" data-n="14 / 14" id="ask">
     <p class="eyebrow">The ask</p>
-    <h2>$100K on a post-money SAFE to free creators from slow pay and slow match.</h2>
+    <h2>$100K on a post-money SAFE to put the creator campaign agent in every LLM.</h2>
     <p class="lede">
-      If you back infrastructure that puts creators first — settlement, matching, and audience monetization — let’s talk.
+      If you believe work software is moving into the assistant — and that the winners own the rails the agent acts on — let’s talk.
     </p>
     <div class="ask-pill">
       <span class="amt">$100,000</span>
