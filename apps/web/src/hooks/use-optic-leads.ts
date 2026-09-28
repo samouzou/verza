@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   collection,
+  getCountFromServer,
   limit,
   onSnapshot,
   orderBy,
@@ -22,6 +23,8 @@ export const OPTIC_VAULT_PAGE_SIZE = 50;
 export type OpticLeadsPagination = {
   pageIndex: number;
   pageSize: number;
+  /** Total leads in the current campaign scope; null until the count loads. */
+  totalCount: number | null;
   hasNextPage: boolean;
   hasPrevPage: boolean;
   goNextPage: () => void;
@@ -32,6 +35,19 @@ export type OpticLeadsCampaignScope =
   | "__all__"
   | "__pooled__"
   | (string & {});
+
+function scopeConstraints(
+  agencyId: string,
+  campaignScope: OpticLeadsCampaignScope
+): QueryConstraint[] {
+  const constraints: QueryConstraint[] = [where("agencyId", "==", agencyId)];
+  if (campaignScope === "__pooled__") {
+    constraints.push(where("campaignId", "==", null));
+  } else if (campaignScope !== "__all__") {
+    constraints.push(where("campaignId", "==", campaignScope));
+  }
+  return constraints;
+}
 
 /**
  * Vault leads for a brand. When `campaignScope` is a campaign id (or pooled),
@@ -53,6 +69,9 @@ export function useOpticLeads(
   const [pageEndCursor, setPageEndCursor] =
     useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  /** Bumped on every page snapshot so the total re-counts after adds/deletes. */
+  const [snapshotVersion, setSnapshotVersion] = useState(0);
 
   // Reset paging when brand or campaign scope changes.
   useEffect(() => {
@@ -61,7 +80,30 @@ export function useOpticLeads(
     setPageEndCursor(null);
     setHasNextPage(false);
     setLeads([]);
+    setTotalCount(null);
   }, [agencyId, campaignScope]);
+
+  useEffect(() => {
+    if (!agencyId) {
+      setTotalCount(null);
+      return;
+    }
+    let cancelled = false;
+    const q = query(
+      collection(db, "optic_outreach_leads"),
+      ...scopeConstraints(agencyId, campaignScope)
+    );
+    getCountFromServer(q)
+      .then((snap) => {
+        if (!cancelled) setTotalCount(snap.data().count);
+      })
+      .catch(() => {
+        if (!cancelled) setTotalCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agencyId, campaignScope, snapshotVersion]);
 
   const startCursor = pageStartCursors[pageIndex] ?? null;
 
@@ -74,16 +116,7 @@ export function useOpticLeads(
     }
 
     setLoading(true);
-    const constraints: QueryConstraint[] = [
-      where("agencyId", "==", agencyId),
-    ];
-
-    if (campaignScope === "__pooled__") {
-      constraints.push(where("campaignId", "==", null));
-    } else if (campaignScope !== "__all__") {
-      constraints.push(where("campaignId", "==", campaignScope));
-    }
-
+    const constraints = scopeConstraints(agencyId, campaignScope);
     constraints.push(orderBy("createdAt", "desc"));
 
     const q = startCursor
@@ -112,6 +145,7 @@ export function useOpticLeads(
         const last = snap.docs[snap.docs.length - 1] ?? null;
         setPageEndCursor(last);
         setHasNextPage(snap.docs.length === OPTIC_VAULT_PAGE_SIZE);
+        setSnapshotVersion((v) => v + 1);
         setLoading(false);
       },
       (err) => {
@@ -144,6 +178,7 @@ export function useOpticLeads(
     pagination: {
       pageIndex,
       pageSize: OPTIC_VAULT_PAGE_SIZE,
+      totalCount,
       hasNextPage,
       hasPrevPage: pageIndex > 0,
       goNextPage,

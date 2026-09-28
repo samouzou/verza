@@ -332,13 +332,20 @@ export function LeadVault({
           <p className="text-sm text-muted-foreground">
             {loading
               ? "Loading…"
-              : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
-            {pagination && !loading
-              ? ` · page ${pagination.pageIndex + 1} · ${pagination.pageSize} per page · newest first`
+              : pagination && pagination.totalCount !== null
+                ? `${pagination.totalCount.toLocaleString()} lead${pagination.totalCount === 1 ? "" : "s"} ${campaignFilter === "__all__" ? "in the vault" : "in this view"}`
+                : `${filtered.length} lead${filtered.length === 1 ? "" : "s"}`}
+            {pagination && !loading && leads.length > 0
+              ? ` · showing ${(pagination.pageIndex * pagination.pageSize + 1).toLocaleString()}–${(pagination.pageIndex * pagination.pageSize + leads.length).toLocaleString()}${
+                  pagination.totalCount !== null
+                    ? ` · page ${pagination.pageIndex + 1} of ${Math.max(1, Math.ceil(pagination.totalCount / pagination.pageSize))}`
+                    : ` · page ${pagination.pageIndex + 1}`
+                } · newest first`
               : ""}
-            {(filter.trim() || stageFilter !== "__all__") &&
+            {!loading &&
+            (filter.trim() || stageFilter !== "__all__") &&
             staged.length !== filtered.length
-              ? ` (search narrowed from ${staged.length})`
+              ? ` · ${filtered.length} match your search on this page`
               : ""}
             {!loading &&
             stageFilter !== "__all__" &&
@@ -581,7 +588,11 @@ export function LeadVault({
           <div className="flex items-center justify-between gap-2 border-t pt-4">
             <p className="text-xs text-muted-foreground">
               Page {pagination.pageIndex + 1}
-              {pagination.hasNextPage ? " · more older leads available" : ""}
+              {pagination.totalCount !== null
+                ? ` of ${Math.max(1, Math.ceil(pagination.totalCount / pagination.pageSize))} · ${pagination.totalCount.toLocaleString()} leads total`
+                : pagination.hasNextPage
+                  ? " · more older leads available"
+                  : ""}
             </p>
             <div className="flex items-center gap-2">
               <Button
