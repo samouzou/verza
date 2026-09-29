@@ -43,6 +43,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GmailThread } from "@/components/optic/gmail-thread";
 import { OutreachDraftCard } from "@/components/optic/outreach-draft-card";
 import { OutreachEmailEditor } from "@/components/optic/outreach-email-editor";
@@ -428,8 +429,93 @@ export function LeadReportSheet({
           </div>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6">
-          {onCrmChange && (
+        <Tabs key={lead.id} defaultValue="fit" className="mt-6">
+          <TabsList className="grid h-9 w-full grid-cols-4 p-0.5">
+            <TabsTrigger value="fit" className="h-7 px-1 text-xs">
+              Fit
+            </TabsTrigger>
+            <TabsTrigger value="pipeline" className="h-7 px-1 text-xs">
+              Pipeline
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="h-7 px-1 text-xs">
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="outreach" className="h-7 px-1 text-xs">
+              Outreach
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent
+            value="fit"
+            className="mt-4 space-y-4 focus-visible:ring-0 focus-visible:ring-offset-0"
+          >
+          <div className="rounded-xl border bg-gradient-to-br from-orange-500/10 via-background to-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Flame className="h-5 w-5 text-orange-500 fill-orange-500" />
+                <span className="text-sm font-medium text-muted-foreground">Match score</span>
+              </div>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold",
+                  matchBandClasses(band)
+                )}
+              >
+                {matchBandLabel(band)}
+              </span>
+            </div>
+            <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-orange-600 dark:text-orange-400">
+              {typeof lead.matchScore === "number" ? lead.matchScore : "—"}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              {lead.matchReason?.trim() ||
+                "Match score will appear on new leads from discovery missions."}
+            </p>
+            {lead.matchBreakdown && (
+              <div className="mt-4 grid gap-3">
+                <BreakdownBar label="Brief fit" value={lead.matchBreakdown.brief} />
+                <BreakdownBar label="Audience" value={lead.matchBreakdown.audience} />
+                <BreakdownBar label="Contactability" value={lead.matchBreakdown.contact} />
+                <BreakdownBar label="Activity" value={lead.matchBreakdown.activity} />
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted/30 border p-3">
+              <p className="text-xs text-muted-foreground">Followers</p>
+              <p className="mt-1 font-semibold tabular-nums">
+                {lead.followerCount ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/30 border p-3">
+              <p className="text-xs text-muted-foreground">Posts</p>
+              <p className="mt-1 font-semibold tabular-nums">
+                {lead.postCountNumeric ??
+                  lead.extensionScrape?.postCount ??
+                  "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/30 border p-3 col-span-2">
+              <p className="text-xs text-muted-foreground">Campaign</p>
+              <p className="mt-1 text-sm font-medium line-clamp-2">{campaignLabel}</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Found{" "}
+            {created
+              ? formatDistanceToNow(created, { addSuffix: true })
+              : "—"}
+            {lead.source ? ` · ${lead.source}` : ""}
+          </p>
+          </TabsContent>
+
+          <TabsContent
+            value="pipeline"
+            className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0"
+          >
+          {onCrmChange ? (
             <div className="space-y-3 rounded-xl border p-4">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Pipeline</h3>
@@ -553,61 +639,28 @@ export function LeadReportSheet({
                 )}
               </p>
             </div>
+          ) : (
+            <div className="space-y-2 rounded-xl border p-4">
+              <p className="text-sm font-medium">{OPTIC_LEAD_STAGE_LABELS[stage]}</p>
+              <p className="text-xs text-muted-foreground">
+                Last contacted{" "}
+                {lastContact
+                  ? formatDistanceToNow(lastContact, { addSuffix: true })
+                  : "—"}
+              </p>
+              {lead.crmNote?.trim() ? (
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {lead.crmNote}
+                </p>
+              ) : null}
+            </div>
           )}
+          </TabsContent>
 
-          <div className="rounded-xl border bg-gradient-to-br from-orange-500/10 via-background to-background p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Flame className="h-5 w-5 text-orange-500 fill-orange-500" />
-                <span className="text-sm font-medium text-muted-foreground">Match score</span>
-              </div>
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold",
-                  matchBandClasses(band)
-                )}
-              >
-                {matchBandLabel(band)}
-              </span>
-            </div>
-            <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight text-orange-600 dark:text-orange-400">
-              {typeof lead.matchScore === "number" ? lead.matchScore : "—"}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              {lead.matchReason?.trim() ||
-                "Match score will appear on new leads from discovery missions."}
-            </p>
-            {lead.matchBreakdown && (
-              <div className="mt-4 grid gap-3">
-                <BreakdownBar label="Brief fit" value={lead.matchBreakdown.brief} />
-                <BreakdownBar label="Audience" value={lead.matchBreakdown.audience} />
-                <BreakdownBar label="Contactability" value={lead.matchBreakdown.contact} />
-                <BreakdownBar label="Activity" value={lead.matchBreakdown.activity} />
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-muted/30 border p-3">
-              <p className="text-xs text-muted-foreground">Followers</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {lead.followerCount ?? "—"}
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/30 border p-3">
-              <p className="text-xs text-muted-foreground">Posts</p>
-              <p className="mt-1 font-semibold tabular-nums">
-                {lead.postCountNumeric ??
-                  lead.extensionScrape?.postCount ??
-                  "—"}
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/30 border p-3 col-span-2">
-              <p className="text-xs text-muted-foreground">Campaign</p>
-              <p className="mt-1 text-sm font-medium line-clamp-2">{campaignLabel}</p>
-            </div>
-          </div>
-
+          <TabsContent
+            value="profile"
+            className="mt-4 space-y-6 focus-visible:ring-0 focus-visible:ring-offset-0"
+          >
           {(onProfileChange || bio || externalUrl || lead.profileUrl) && (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -792,13 +845,18 @@ export function LeadReportSheet({
                 !lead.draftEmail?.trim() &&
                 canRegenerateEmailDraft && (
                   <p className="text-xs text-muted-foreground">
-                    Email saved — generate an email draft below (contactability
-                    score updates automatically).
+                    Email saved — generate an email draft on Outreach
+                    (contactability score updates automatically).
                   </p>
                 )}
             </div>
           </div>
+          </TabsContent>
 
+          <TabsContent
+            value="outreach"
+            className="mt-4 focus-visible:ring-0 focus-visible:ring-offset-0"
+          >
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">Outreach</h3>
@@ -1027,15 +1085,8 @@ export function LeadReportSheet({
               </div>
             )}
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Found{" "}
-            {created
-              ? formatDistanceToNow(created, { addSuffix: true })
-              : "—"}
-            {lead.source ? ` · ${lead.source}` : ""}
-          </p>
-        </div>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
     <AlertDialog
