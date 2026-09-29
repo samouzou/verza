@@ -621,7 +621,7 @@ export function SidebarNav() {
               {user?.role === 'agency_owner' && (
                 <DropdownMenuItem onClick={() => setShowBrandJourney(true)}>
                   <Zap className="mr-2 h-4 w-4" />
-                  <span>Command Center Tour</span>
+                  <span>Where to start</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
