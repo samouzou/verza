@@ -1,0 +1,179 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CAROUSEL_SLIDE_SIZE = void 0;
+exports.renderSlideSvg = renderSlideSvg;
+const brandColors_1 = require("../brandColors");
+const W = 1080;
+const H = 1080;
+const PAD = 88;
+const CONTENT_W = W - PAD * 2;
+/**
+ * Escapes text for safe inclusion in SVG.
+ * @param {string} s Raw text.
+ * @return {string} Escaped text.
+ */
+function escapeXml(s) {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+/**
+ * Wraps text to approximate max width by character count.
+ * @param {string} text Input text.
+ * @param {number} maxChars Max chars per line.
+ * @return {!Array<string>} Wrapped lines.
+ */
+function wrapText(text, maxChars) {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 0)
+        return [];
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (candidate.length > maxChars && line) {
+            lines.push(line);
+            line = word;
+        }
+        else {
+            line = candidate;
+        }
+    }
+    if (line)
+        lines.push(line);
+    return lines;
+}
+/**
+ * Builds SVG tspans for multiline text.
+ * @param {number} x X position.
+ * @param {number} startY Starting Y.
+ * @param {number} lineHeight Line height in px.
+ * @param {!Array<string>} lines Text lines.
+ * @return {string} SVG tspan markup.
+ */
+function tspans(x, startY, lineHeight, lines) {
+    return lines
+        .map((line, i) => {
+        const y = startY + i * lineHeight;
+        return `<tspan x="${x}" y="${y}">${escapeXml(line)}</tspan>`;
+    })
+        .join("");
+}
+/** Shared gradient defs — matches apps/web/public/verza-icon.svg. */
+function brandGradientDefs() {
+    return `
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${brandColors_1.VERZA_EVERGREEN}"/>
+      <stop offset="100%" stop-color="${brandColors_1.VERZA_EMERALD}"/>
+    </linearGradient>
+  </defs>`;
+}
+/**
+ * Renders a pill CTA button with vertically centered, wrapped label text.
+ * @param {string} label Button label.
+ * @param {number} topY Top edge of the button.
+ * @return {string} SVG markup for the button group.
+ */
+function renderCtaButton(label, topY) {
+    const fontSize = 30;
+    const lineHeight = 36;
+    const padY = 28;
+    const maxChars = 32;
+    const lines = wrapText(label, maxChars).slice(0, 3);
+    const lineCount = Math.max(lines.length, 1);
+    const btnHeight = Math.max(96, (lineCount - 1) * lineHeight + fontSize + padY * 2);
+    const btnRadius = btnHeight / 2;
+    const textBlockHeight = (lineCount - 1) * lineHeight + fontSize;
+    const firstBaseline = topY + (btnHeight - textBlockHeight) / 2 + fontSize * 0.82;
+    return `
+      <rect x="${PAD}" y="${topY}" width="${CONTENT_W}" height="${btnHeight}" rx="${btnRadius}" fill="url(#brandGrad)" opacity="0.95"/>
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${brandColors_1.VERZA_WHITE}" text-anchor="middle">
+        ${tspans(W / 2, firstBaseline, lineHeight, lines)}
+      </text>`;
+}
+/**
+ * Verza chevron mark — same path and gradient as verza-icon.svg.
+ * @return {string} SVG path group.
+ */
+function verzaMark() {
+    return `
+    <g transform="translate(${PAD}, ${PAD - 8}) scale(0.14)">
+      <path d="${brandColors_1.VERZA_CHEVRON_PATH}" stroke="url(#brandGrad)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>`;
+}
+/**
+ * Renders one carousel slide as an SVG string (1080×1080).
+ * @param {ParsedCarouselSlide} slide Slide content.
+ * @param {number} slideNum 1-based slide number for footer.
+ * @param {number} totalSlides Total slide count.
+ * @return {string} SVG document.
+ */
+function renderSlideSvg(slide, slideNum, totalSlides) {
+    const isCover = slideNum === 1 && !slide.isCta;
+    const isCta = slide.isCta;
+    const titleLines = wrapText(slide.title, isCover ? 18 : 22);
+    const titleSize = isCover ? 64 : isCta ? 52 : 48;
+    const titleLineHeight = isCover ? 76 : 58;
+    const titleStartY = isCover ? 340 : isCta ? 380 : 280;
+    const visibleTitleLines = titleLines.slice(0, isCover ? 4 : 3);
+    const titleBlockBottom = titleStartY + (visibleTitleLines.length - 1) * titleLineHeight + titleSize * 0.28;
+    const accentBarHeight = 8;
+    const gapAfterTitle = 28;
+    const gapAfterAccent = 36;
+    let accentBar = "";
+    let bodySvg = "";
+    if (slide.bullets.length > 0 && !isCta) {
+        const bulletLines = [];
+        for (const bullet of slide.bullets.slice(0, 4)) {
+            const wrapped = wrapText(bullet, 38);
+            bulletLines.push(...wrapped.map((l, j) => (j === 0 ? `• ${l}` : `  ${l}`)));
+        }
+        let bodyStartY;
+        if (isCover) {
+            const accentY = titleBlockBottom + gapAfterTitle;
+            accentBar = `<rect x="${PAD}" y="${accentY}" width="120" height="${accentBarHeight}" rx="4" fill="url(#brandGrad)"/>`;
+            bodyStartY = accentY + accentBarHeight + gapAfterAccent;
+        }
+        else {
+            bodyStartY = titleBlockBottom + 48;
+        }
+        bodySvg = `
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="${brandColors_1.VERZA_MUTED_ON_INK}">
+        ${tspans(PAD, bodyStartY, 46, bulletLines.slice(0, 8))}
+      </text>`;
+    }
+    else if (isCover) {
+        const accentY = titleBlockBottom + gapAfterTitle;
+        accentBar = `<rect x="${PAD}" y="${accentY}" width="120" height="${accentBarHeight}" rx="4" fill="url(#brandGrad)"/>`;
+    }
+    let ctaSvg = "";
+    if (isCta) {
+        const ctaText = slide.bullets[0] ?? slide.title;
+        const btnY = Math.max(titleBlockBottom + 72, 560);
+        ctaSvg = renderCtaButton(ctaText, btnY);
+    }
+    const footer = `
+    <text x="${W - PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${brandColors_1.VERZA_MUTED_ON_INK}" text-anchor="end">
+      ${slideNum} / ${totalSlides}
+    </text>
+    <text x="${PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" fill="${brandColors_1.VERZA_EMERALD}">
+      tryverza.com
+    </text>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  ${brandGradientDefs()}
+  <rect width="${W}" height="${H}" fill="${brandColors_1.VERZA_INK}"/>
+  ${verzaMark()}
+  ${accentBar}
+  <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleSize}" font-weight="700" fill="${brandColors_1.VERZA_WHITE}">
+    ${tspans(PAD, titleStartY, titleLineHeight, visibleTitleLines)}
+  </text>
+  ${bodySvg}
+  ${ctaSvg}
+  ${footer}
+</svg>`;
+}
+exports.CAROUSEL_SLIDE_SIZE = { width: W, height: H };

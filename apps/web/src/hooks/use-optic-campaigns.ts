@@ -54,11 +54,14 @@ export function useOpticCampaigns(agencyId: string | null | undefined, userDispl
     setLoading(true);
     (async () => {
       try {
-        const agSnap = await getDoc(doc(db, "agencies", agencyId));
+        const [agSnap, kitSnap] = await Promise.all([
+          getDoc(doc(db, "agencies", agencyId)),
+          getDoc(doc(db, "agencies", agencyId, "private", "brandKit")).catch(() => null),
+        ]);
         const ag = agSnap.exists() ? agSnap.data() : null;
         const brandName =
           typeof ag?.name === "string" && ag.name.trim() ? ag.name.trim() : "Your brand";
-        const brandGuide = ag?.brandGuide as { missionStatement?: string } | undefined;
+        const brandGuide = (kitSnap?.data()?.brandGuide ?? ag?.brandGuide) as { missionStatement?: string } | undefined;
         const mission =
           typeof brandGuide?.missionStatement === "string"
             ? brandGuide.missionStatement.trim()

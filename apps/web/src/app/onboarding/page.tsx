@@ -11,6 +11,7 @@ import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { peekPostAuthRedirect } from '@/lib/post-auth-redirect';
 
 type Role = 'creator' | 'agency' | 'brand';
 
@@ -47,7 +48,7 @@ export default function OnboardingPage() {
     setIsUpdating(true);
 
     const role = selectedRole === 'creator' ? 'individual_creator' : 'agency_owner';
-    const redirectPath = selectedRole === 'creator' ? '/dashboard' : '/agency';
+    const redirectPath = selectedRole === 'creator' ? (peekPostAuthRedirect() ?? '/dashboard') : '/agency';
     const isBrandAccount = selectedRole === 'brand';
 
     try {

@@ -47,34 +47,33 @@ export async function analyzeProfileWithGemini(
 
   const brandBlock = brand
     ? `
-    Outreach sender context (use this for draftEmail tone and sign-off; do not invent a different company name):
-    - Agency / team name: "${brand.agencyName}"
-    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
-    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    Outreach sender context (draft as the brand itself — not an agency representing them):
+    - Brand / team name: "${brand.agencyName}"
+    - Sender display name (intro + sign-off): "${brand.userDisplayName?.trim() || "(use brand name in sign-off; do not invent a person)"}"
+    ${brand.brandSummary ? `- Brand positioning: "${brand.brandSummary}"` : ""}
+    ${brand.paySourceCampaignTitle ? `- Campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
     ${
       brand.campaignPaySummary
         ? isCauseOrBarterCampaignType(brand.paySourceCampaignType)
           ? `
-    Campaign partnership context (this outreach is for a cause or in-kind style campaign — do not imply a cash sponsorship unless the facts below include an explicit USD per-creator amount):
+    Campaign partnership context (cause or in-kind — do not imply cash unless an explicit USD figure appears below):
     ${brand.campaignPaySummary}
 
-    In draftEmail: Do not use the words "compensation", "fee", "rate", "paid", or "dollars" in a way that suggests cash payment unless a concrete USD per-creator figure appears in the facts above. Frame the opportunity around mission alignment${
-            brand.paySourceCampaignType === "barter_campaign" ? " or a mutually agreed product/exchange" : ""
-          }. You may invite them to review details on Verza; do not suggest they will receive a cash payout unless the facts state it clearly.
+    In draftEmail: do not imply cash payment unless a concrete USD figure appears above. Do not invent payouts.
     `
           : `
-    Pay transparency (from their live Verza campaigns — creators often ignore outreach when budget is unclear):
+    Pay transparency (from live campaign facts):
     ${brand.campaignPaySummary}
 
-    In draftEmail: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers (survey data shows creators respond more when budget is stated early). If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list. If any line describes a cause or in-kind barter with no USD figure, do not imply cash compensation for that campaign.
+    In draftEmail: use ONLY numeric rates that appear above; otherwise omit pay. Never invent dollar amounts.
     `
         : ""
     }
 
-    The draftEmail must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where it feels natural, align with Campaign Objectives, and invite the creator to learn more (do not use generic "the Verza network" as the only sender identity).
+    Email drafts must sound like "${brand.agencyName}" writing directly to the creator. Never invent titles, street addresses, or legal footers.
     `
     : `
-    If an email is found, draftEmail is a short HTML pitch (2–4 <p> blocks) inviting them to explore the Verza network, aligned with Campaign Objectives. Use <strong> for the brand/network name once.
+    If an email is found, draft as a brand team reaching out aligned with Campaign Objectives.
     `;
 
   const prompt = `
@@ -89,10 +88,10 @@ export async function analyzeProfileWithGemini(
     3. email (if visible in the bio or description)
     4. followerCount (estimate based on visible numbers)
 
-    If an email is found, also generate a draftEmail string as REQUIRED HTML (not plain text):
-    2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href="https://...">.
-    Example: "<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>"
-    No markdown. Sign off in the last <p>.
+    If an email is found, also generate a draftEmail string as REQUIRED HTML (not plain text).
+    Use only <p>, <br>, <ul>, <li>, <strong>, <em>, and <a href="https://...">.
+    Structure: greeting; intro as someone WITH the brand; what the brand does; why this creator; <ul> campaign basics; soft CTA for a brief chat; Best, + first name; optional brand-name-only footer (no street address or invented titles).
+    Never write as if representing the brand via Verza unless the brand name is Verza. Bold the brand once with <strong>. No markdown.
 
     Do not include any markdown formatting outside of the JSON.
     If you cannot find a piece of information, return null for that field.

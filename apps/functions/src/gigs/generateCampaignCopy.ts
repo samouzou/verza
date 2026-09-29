@@ -3,6 +3,7 @@ import * as logger from "firebase-functions/logger";
 import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
 import {db} from "../config/firebase";
+import {loadBrandMission} from "../agency/brandKit";
 
 const MODEL = "gemini-3.6-flash";
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
@@ -38,9 +39,7 @@ async function loadAgencySnippet(agencyId: string): Promise<{name: string; brand
   }
   const ag = snap.data()!;
   const name = typeof ag.name === "string" && ag.name.trim() ? ag.name.trim() : "Your brand";
-  const brandGuide = ag.brandGuide as {missionStatement?: string} | undefined;
-  const mission =
-    typeof brandGuide?.missionStatement === "string" ? brandGuide.missionStatement.trim() : "";
+  const mission = await loadBrandMission(agencyId, ag);
   const brandHint = mission ? mission.slice(0, 400) : null;
   return {name, brandHint};
 }

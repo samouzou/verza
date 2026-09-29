@@ -23,8 +23,10 @@ convert_one() {
   fi
 
   if [[ -e "$parent/node_modules.nosync" ]]; then
-    echo "replacing $dir (nosync already exists)"
-    rm -rf "$dir"
+    # npm replaces the symlink with a fresh real folder; that folder is the current install.
+    echo "replacing stale $parent/node_modules.nosync with fresh $dir"
+    rm -rf "$parent/node_modules.nosync"
+    mv "$dir" "$parent/node_modules.nosync"
     (cd "$parent" && ln -sfn node_modules.nosync node_modules)
     echo "ok: $dir -> node_modules.nosync"
     return 0
@@ -36,12 +38,31 @@ convert_one() {
   echo "ok: $dir -> node_modules.nosync"
 }
 
-convert_one "$ROOT"
+restore_one() {
+  local parent="$1"
+  local dir="$parent/node_modules"
+  if [[ -L "$dir" && -d "$parent/node_modules.nosync" ]]; then
+    rm "$dir"
+    mv "$parent/node_modules.nosync" "$dir"
+    echo "restored: $dir"
+  fi
+}
+
+# npm treats a symlinked root node_modules as a file, deletes it, and can leave a partial tree.
+# Usage: $0 --restore && npm install && $0
+action=convert_one
+[[ "${1:-}" == "--restore" ]] && action=restore_one
+
+"$action" "$ROOT"
 if [[ -d "$ROOT/apps" ]]; then
   for app in "$ROOT/apps"/*; do
     [[ -d "$app" ]] || continue
-    convert_one "$app"
+    "$action" "$app"
   done
 fi
 
-echo "Done. Wipe: rm -rf node_modules node_modules.nosync apps/*/node_modules apps/*/node_modules.nosync && npm install && $0"
+if [[ "$action" == "restore_one" ]]; then
+  echo "Done. Run npm install, then $0 to move node_modules back off iCloud."
+else
+  echo "Done. Before the next npm install: $0 --restore && npm install && $0"
+fi

@@ -277,8 +277,9 @@ async function loadBrandContextForJob(
 
   let brandSummary: string | null = null;
   try {
-    const agSnap = await db.collection("agencies").doc(actor.agencyId).get();
-    const brandGuide = agSnap.data()?.brandGuide as {missionStatement?: string} | undefined;
+    const agencyRef = db.collection("agencies").doc(actor.agencyId);
+    const [agSnap, kitSnap] = await Promise.all([agencyRef.get(), agencyRef.collection("private").doc("brandKit").get()]);
+    const brandGuide = (kitSnap.data()?.brandGuide ?? agSnap.data()?.brandGuide) as {missionStatement?: string} | undefined;
     if (typeof brandGuide?.missionStatement === "string" && brandGuide.missionStatement.trim()) {
       brandSummary = brandGuide.missionStatement.trim().slice(0, 800);
     }
@@ -569,7 +570,7 @@ export async function prepareAgentMission(
       "Skip anyone already in excludeHandles — they’re already in the vault.",
       "Search with your own tools. Prefer real public profiles with follower counts.",
       "For each strong fit, save them with optic_submit_agent_lead (profile link, name, followers, niche, bio, email if visible, and a short why-they-fit note).",
-      "Include a short outreach draft when you can. For emails, draftEmail MUST be HTML with <p> tags (and optional <strong>, <em>, <a>) — never plain text paragraphs. Example: <p>Hi …</p><p>I'm with <strong>Brand</strong>…</p>. Platform DMs stay plain text.",
+      "Include a short outreach draft when you can. For emails, draftEmail MUST be HTML following this brand-first structure: greeting; intro as someone WITH the brand (not \"representing\" them via Verza); what the brand does; why this creator; <ul> campaign basics; soft CTA for a brief chat; Best, + first name; optional brand-name-only footer (no street address or invented titles). Use <p>/<ul>/<li>/<strong>/<em>/<a>. Example: <p>Hi …</p><p>I'm with <strong>Brand</strong>…</p><ul><li>…</li></ul><p>Best,<br>Alex</p>. Platform DMs stay plain text.",
       "After saving creators with emails, check optic_gmail_status and use optic_create_gmail_draft to put HTML drafts in Gmail.",
       "When finished, mark the mission complete with optic_complete_agent_mission.",
       "Talk to the brand in plain language — don’t mention tools, APIs, or extension internals.",

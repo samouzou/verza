@@ -10,9 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Plus, Trash2, Edit, ShoppingBag, ExternalLink, Tag } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency, BrandProduct } from '@/types';
+import type { Agency, BrandKit, BrandProduct } from '@/types';
 import { MediaUpload } from '@/components/ui/media-upload';
 import { 
   Dialog, 
@@ -55,9 +55,14 @@ export default function ProductCatalogPage() {
     const fetchAgency = async () => {
       try {
         const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
-        const snap = await getDoc(agencyRef);
+        const [snap, kitSnap] = await Promise.all([
+          getDoc(agencyRef),
+          getDoc(doc(db, 'agencies', user.primaryAgencyId!, 'private', 'brandKit')).catch(() => null),
+        ]);
         if (snap.exists()) {
-          setAgency(snap.data() as Agency);
+          const data = snap.data() as Agency;
+          const kit = (kitSnap?.exists() ? kitSnap.data() : {}) as BrandKit;
+          setAgency({ ...data, products: kit.products ?? data.products });
         }
       } catch (error) {
         console.error("Error fetching agency:", error);
@@ -73,7 +78,7 @@ export default function ProductCatalogPage() {
     if (!user?.primaryAgencyId || !agency) return;
     setSaving(true);
     try {
-      const agencyRef = doc(db, 'agencies', user.primaryAgencyId);
+      const kitRef = doc(db, 'agencies', user.primaryAgencyId, 'private', 'brandKit');
       let updatedProducts = [...(agency.products || [])];
 
       if (editingProduct) {
@@ -88,10 +93,7 @@ export default function ProductCatalogPage() {
         updatedProducts.push(newProduct);
       }
 
-      await updateDoc(agencyRef, {
-        products: updatedProducts,
-        updatedAt: new Date(),
-      });
+      await setDoc(kitRef, { products: updatedProducts, updatedAt: new Date() }, { merge: true });
 
       setAgency({ ...agency, products: updatedProducts });
       toast({ 
@@ -113,13 +115,10 @@ export default function ProductCatalogPage() {
     if (!confirm("Are you sure you want to delete this product?")) return;
 
     try {
-      const agencyRef = doc(db, 'agencies', user.primaryAgencyId);
+      const kitRef = doc(db, 'agencies', user.primaryAgencyId, 'private', 'brandKit');
       const updatedProducts = (agency.products || []).filter(p => p.id !== id);
 
-      await updateDoc(agencyRef, {
-        products: updatedProducts,
-        updatedAt: new Date(),
-      });
+      await setDoc(kitRef, { products: updatedProducts, updatedAt: new Date() }, { merge: true });
 
       setAgency({ ...agency, products: updatedProducts });
       toast({ title: "Product Deleted", description: "The product has been removed from your catalog." });

@@ -63,6 +63,7 @@ export const launchFreeCampaign = onCall(async (request) => {
     requireVerzaScore,
     verzaScoreThreshold,
     deliverablesDueDate,
+    isPublic,
   } = request.data ?? {};
 
   if (!title || !description || !platforms || !videosPerCreator || !campaignType) {
@@ -122,6 +123,7 @@ export const launchFreeCampaign = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || {isEnabled: false},
+    isPublic: isPublic !== false,
     ...(deliverablesDueDate ? {deliverablesDueDate} : {}),
   });
 

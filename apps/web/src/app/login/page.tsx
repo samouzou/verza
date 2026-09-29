@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from 'next/image';
+import { isSafeAppPath, peekPostAuthRedirect, setPostAuthRedirect } from "@/lib/post-auth-redirect";
 
 export default function LoginPage() {
   const { 
@@ -37,10 +38,15 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (isSafeAppPath(next)) setPostAuthRedirect(next);
+  }, []);
+
+  useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.push("/dashboard");
+      router.push(user?.hasCompletedOnboarding === false ? "/onboarding" : (peekPostAuthRedirect() ?? "/dashboard"));
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, user?.hasCompletedOnboarding]);
 
   const handleGoogleLogin = async () => {
     setLoginError(null);

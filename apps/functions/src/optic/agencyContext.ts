@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
+import {loadBrandMission} from "../agency/brandKit";
 
 export type AgencyCampaignOption = {
   id: string;
@@ -262,11 +263,7 @@ export async function loadAgencyBrandContextForUid(
   const ag = agSnap.data()!;
   const agencyName = typeof ag.name === "string" && ag.name.trim() ? ag.name.trim() : "Your agency";
 
-  const brandGuide = ag.brandGuide as { missionStatement?: string } | undefined;
-  const mission =
-    typeof brandGuide?.missionStatement === "string" ?
-      brandGuide.missionStatement.trim() :
-      "";
+  const mission = await loadBrandMission(agencyId, ag);
   const brandSummary = mission ? mission.slice(0, 220) : null;
 
   const {

@@ -255,7 +255,8 @@ export async function loadAgencyContextFromIdToken(
   const ag = agSnap.data()!;
   const agencyName = typeof ag.name === "string" && ag.name.trim() ? ag.name.trim() : "Your agency";
 
-  const brandGuide = ag.brandGuide as { missionStatement?: string } | undefined;
+  const kitSnap = await db.collection("agencies").doc(agencyId).collection("private").doc("brandKit").get();
+  const brandGuide = (kitSnap.data()?.brandGuide ?? ag.brandGuide) as { missionStatement?: string } | undefined;
   const mission =
     typeof brandGuide?.missionStatement === "string"
       ? brandGuide.missionStatement.trim()

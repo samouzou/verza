@@ -167,6 +167,12 @@ service cloud.firestore {
                        (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
     }
 
+    // Public campaign pages (written only by Cloud Functions; safe fields only)
+    match /public_campaigns/{gigId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Rules for gig submissions
     match /submissions/{submissionId} {
       allow read: if request.auth != null && (
@@ -275,9 +281,27 @@ service cloud.firestore {
           'opticLowCreditWarningPeriodKey',
           'opticBillingSource',
           'appsumoOpticCodeCount',
-          'opticAppsumoPeriodKey'
+          'opticAppsumoPeriodKey',
+          'hasBrandKit',
+          'brandGuide',
+          'products'
         ]);
       allow delete: if get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerId == request.auth.uid;
+
+      // Brand identity kit: team, plus creators/agents unlocked by an accepted campaign.
+      match /private/brandKit {
+        allow read: if isTeamMemberOf(agencyId) ||
+          (signedIn() && exists(/databases/$(database)/documents/agencies/$(agencyId)/brandKitAccess/$(request.auth.uid)));
+        allow create, update: if isTeamMemberOf(agencyId) &&
+          request.resource.data.keys().hasOnly(['brandGuide', 'products', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // Written only by Cloud Functions from gig acceptances and agent assignments.
+      match /brandKitAccess/{uid} {
+        allow read: if isOwner(uid) || isTeamMemberOf(agencyId);
+        allow write: if false;
+      }
     }
 
     match /appsumo_optic_codes/{codeId} {

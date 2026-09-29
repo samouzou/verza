@@ -83,6 +83,7 @@ export default function EditGigPage() {
   // Legal Fields
   const [usageRights, setUsageRights] = useState<'none' | '30_days' | '1_year' | 'perpetuity'>('1_year');
   const [allowWhitelisting, setAllowWhitelisting] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
 
   // Performance Rewards
   const [isAffiliateEnabled, setIsAffiliateEnabled] = useState(false);
@@ -125,6 +126,7 @@ export default function EditGigPage() {
               setVideosPerCreator(String(gigData.videosPerCreator || '1'));
               setUsageRights(gigData.usageRights || '1_year');
               setAllowWhitelisting(!!gigData.allowWhitelisting);
+              setIsPublic(gigData.isPublic !== false);
 
               // Affiliate / Performance
               setIsAffiliateEnabled(!!gigData.affiliateSettings?.isEnabled);
@@ -216,6 +218,7 @@ export default function EditGigPage() {
             videosPerCreator: videosNum,
             usageRights,
             allowWhitelisting: allowWhitelisting ?? false,
+            isPublic,
             requireVerzaScore,
             verzaScoreThreshold: requireVerzaScore ? parseInt(verzaScoreThreshold, 10) || 65 : 65,
             ...(deliverablesDueDate ? {deliverablesDueDate} : {deliverablesDueDate: null}),
@@ -660,6 +663,19 @@ export default function EditGigPage() {
                   checked={allowWhitelisting} 
                   onCheckedChange={(val) => setAllowWhitelisting(val as boolean)}
                   disabled={isLocked || isSubmitting || campaignType === 'production_grant' || campaignType === 'cause_campaign'}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isPublic">List campaign publicly</Label>
+                  <p className="text-xs text-muted-foreground">Creators can find this campaign on our public page.</p>
+                </div>
+                <Checkbox
+                  id="isPublic"
+                  checked={isPublic}
+                  onCheckedChange={(val) => setIsPublic(val as boolean)}
+                  disabled={isSubmitting}
                 />
               </div>
             </CardContent>

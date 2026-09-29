@@ -630,8 +630,28 @@ export interface Agency {
   talent: Talent[];
   team: TeamMember[]; // Array for team members
   webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
+  /** Set by Cloud Functions when `agencies/{id}/private/brandKit` has a brand guide. */
+  hasBrandKit?: boolean;
+  /** @deprecated Lives in `agencies/{id}/private/brandKit`; migrated off the agency doc by Cloud Functions. */
+  brandGuide?: BrandGuide;
+  /** @deprecated Lives in `agencies/{id}/private/brandKit`; migrated off the agency doc by Cloud Functions. */
+  products?: BrandProduct[];
+}
+
+/**
+ * `agencies/{agencyId}/private/brandKit`. Readable by the brand team and by creators/agents on
+ * the brand's campaigns (via `agencies/{agencyId}/brandKitAccess/{uid}`, written by Cloud Functions).
+ */
+export interface BrandKit {
   brandGuide?: BrandGuide;
   products?: BrandProduct[];
+  updatedAt?: Timestamp;
+}
+
+/** `agencies/{agencyId}/brandKitAccess/{uid}`: campaigns that unlock this brand's kit for the user. */
+export interface BrandKitAccess {
+  gigIds: string[];
+  updatedAt?: Timestamp;
 }
 
 export interface AgencyMembership {
@@ -792,6 +812,44 @@ export interface Gig {
   deliverablesDueDate?: string; // ISO date brand sets when campaign deliverables are due
   acceptedAt?: { [creatorId: string]: Timestamp }; // when each creator accepted
   deliveryExtensions?: { [creatorId: string]: Timestamp }; // brand-granted per-creator deadline overrides
+  /** Listed on the public campaign page and sitemap. Undefined means public; brands opt out with false. */
+  isPublic?: boolean;
+}
+
+/**
+ * Public, unauthenticated projection of a Gig (`public_campaigns/{gigId}`), written only by
+ * Cloud Functions. Contains no applicant, payment, or assignment data.
+ */
+export interface PublicCampaign {
+  id: string;
+  slug: string;
+  /** True while the campaign is open and the brand hasn't opted out; false keeps old links working as "closed". */
+  listed: boolean;
+  status: Gig['status'];
+  title: string;
+  description: string;
+  brandName: string;
+  brandLogoUrl: string | null;
+  platforms: Gig['platforms'];
+  campaignType: Gig['campaignType'];
+  ratePerCreator: number;
+  creatorsNeeded: number;
+  spotsLeft: number;
+  videosPerCreator: number;
+  usageRights: Gig['usageRights'] | null;
+  allowWhitelisting: boolean;
+  deliverablesDueDate: string | null;
+  requireVerzaScore: boolean;
+  verzaScoreThreshold: number | null;
+  performanceReward: {
+    rewardType: 'cpc' | 'cpa';
+    rewardAmount: number;
+    trackingMethod: 'link_only' | 'promo_code_only' | 'both' | null;
+  } | null;
+  /** The brand has an identity kit; public pages show a locked teaser, never the kit itself. */
+  hasBrandKit: boolean;
+  createdAtIso: string | null;
+  updatedAtIso: string;
 }
 
 export interface CreatorMarketplaceProfile {

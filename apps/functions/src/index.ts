@@ -98,6 +98,13 @@ import {
   extendCreatorDeadline,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
+import {syncPublicCampaign, reconcilePublicCampaigns} from "./gigs/publicCampaigns";
+import {
+  syncBrandKitAccess,
+  migrateAgencyBrandKit,
+  onBrandKitWritten,
+  reconcileBrandKits,
+} from "./agency/brandKit";
 import {launchFreeCampaign} from "./gigs/campaignLaunch";
 import {generateScene, editScene} from "./scenes";
 import {generateImage} from "./images";
@@ -236,6 +243,12 @@ export {
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,
+  syncPublicCampaign,
+  reconcilePublicCampaigns,
+  syncBrandKitAccess,
+  migrateAgencyBrandKit,
+  onBrandKitWritten,
+  reconcileBrandKits,
   generateCampaignCopy,
   generateScene,
   editScene,

@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification, Agency, AffiliateLink } from '@/types';
+import type { Gig, GigSubmission, Notification, Agency, AffiliateLink, BrandKit } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,8 @@ import {
 } from "@/components/ui/dialog";
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
+import { clearPostAuthRedirect } from '@/lib/post-auth-redirect';
+import { campaignSlug } from '@/lib/public-campaigns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -105,6 +107,9 @@ function GigDetailContent() {
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtending, setIsExtending] = useState(false);
   const [isDeckOpen, setIsDeckOpen] = useState(false);
+  const [highlightApply, setHighlightApply] = useState(false);
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+  const applyFocusHandled = useRef(false);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
@@ -129,6 +134,50 @@ function GigDetailContent() {
       router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
+
+  const kitUnlocked = !!(gig && user && (
+    gig.acceptedCreatorIds?.includes(user.uid) ||
+    Object.values(gig.assignments || {}).some(a => a.agentId === user.uid) ||
+    gig.brandId === user.primaryAgencyId ||
+    user.agencyMemberships?.some(m => m.agencyId === gig.brandId)
+  ));
+  const gigBrandId = gig?.brandId;
+  const viewerUid = user?.uid;
+  useEffect(() => {
+    if (!kitUnlocked || !gigBrandId || !viewerUid) {
+      setBrandKit(null);
+      return;
+    }
+    const kitRef = doc(db, 'agencies', gigBrandId, 'private', 'brandKit');
+    let unsubKit: (() => void) | null = null;
+    const listenToKit = () => {
+      unsubKit?.();
+      unsubKit = onSnapshot(kitRef, (s) => setBrandKit(s.exists() ? (s.data() as BrandKit) : null), () => {});
+    };
+    // Accepted creators can read the kit once Cloud Functions writes their access record.
+    const unsubAccess = onSnapshot(
+      doc(db, 'agencies', gigBrandId, 'brandKitAccess', viewerUid),
+      (s) => { if (s.exists()) listenToKit(); },
+      () => {},
+    );
+    listenToKit();
+    return () => {
+      unsubAccess();
+      unsubKit?.();
+    };
+  }, [kitUnlocked, gigBrandId, viewerUid]);
+
+  const hasGig = !!gig;
+  useEffect(() => {
+    if (searchParams.get('apply') !== '1' || !hasGig || applyFocusHandled.current) return;
+    applyFocusHandled.current = true;
+    clearPostAuthRedirect();
+    window.setTimeout(() => {
+      document.getElementById('apply-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightApply(true);
+      window.setTimeout(() => setHighlightApply(false), 4000);
+    }, 300);
+  }, [searchParams, hasGig]);
 
   useEffect(() => {
     if (!gigId) {
@@ -1207,8 +1256,10 @@ function GigDetailContent() {
               </Card>
             )}
 
-            {agency?.brandGuide && (() => {
+            {agency && (agency.hasBrandKit || agency.brandGuide || brandKit?.brandGuide) && (() => {
               const isSecured = hasAccepted || canManageGig;
+              const kitGuide = brandKit?.brandGuide ?? agency.brandGuide;
+              const kitProducts = brandKit?.products ?? agency.products;
               return (
                 <Card className={cn(
                   "overflow-hidden border-primary/20 shadow-lg mb-6 transition-all duration-500",
@@ -1228,7 +1279,7 @@ function GigDetailContent() {
                         Brand Identity Kit
                       </CardTitle>
                       <div className="flex items-center gap-2">
-                        {isSecured && (
+                        {isSecured && kitGuide && (
                           <Dialog open={isDeckOpen} onOpenChange={setIsDeckOpen}>
                             <DialogTrigger asChild>
                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10">
@@ -1240,9 +1291,9 @@ function GigDetailContent() {
                                <DialogDescription className="sr-only">Full screen interactive brand deck and product lookbook.</DialogDescription>
                                <div className="flex-1 w-full min-h-0 flex flex-col">
                                   <BrandDeckPreview 
-                                    guide={agency.brandGuide} 
+                                    guide={kitGuide} 
                                     agencyName={agency.name}
-                                    products={agency.products}
+                                    products={kitProducts}
                                     onClose={() => setIsDeckOpen(false)}
                                   />
                                </div>
@@ -1263,12 +1314,17 @@ function GigDetailContent() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-0 relative h-[500px]">
-                    {isSecured ? (
+                    {isSecured && kitGuide ? (
                       <BrandDeckPreview 
-                        guide={agency.brandGuide} 
+                        guide={kitGuide} 
                         agencyName={agency.name}
-                        products={agency.products}
+                        products={kitProducts}
                       />
+                    ) : isSecured ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        Unlocking the brand kit…
+                      </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-6 bg-gradient-to-b from-transparent to-background/50">
                          <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10 animate-pulse">
@@ -1910,7 +1966,10 @@ function GigDetailContent() {
                       </Button>
                     </div>
                   ) : (isCauseCampaign || spotsLeft > 0) && gig.status === 'open' ? (
-                    <div className="space-y-4 border-t pt-4">
+                    <div
+                      id="apply-card"
+                      className={`space-y-4 border-t pt-4 rounded-lg transition-shadow duration-700 ${highlightApply ? 'ring-2 ring-primary ring-offset-4 ring-offset-background' : ''}`}
+                    >
                       <div className="flex items-start space-x-2">
                         <Checkbox
                           id="legal-agreement"
@@ -2076,6 +2135,13 @@ function GigDetailContent() {
 
                 {isBrandTeam && (
                   <div className="space-y-2">
+                    {gig.status === 'open' && gig.isPublic !== false && (
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={`/c/${campaignSlug(gig.title || 'campaign', gig.id)}`} target="_blank" rel="noopener noreferrer">
+                          <Link2 className="mr-2 h-4 w-4" /> View public page
+                        </a>
+                      </Button>
+                    )}
                     {gig.status === 'pending_payment' && totalCost > 0 && (
                       <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Campaign Funding: ${totalCost.toLocaleString()}</p>

@@ -1,0 +1,117 @@
+"use strict";
+/** Gmail-safe HTML for Optic email drafts. Platform DMs stay plain text. */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DRAFT_EMAIL_HTML_HINT = void 0;
+exports.ensureStoredEmailHtml = ensureStoredEmailHtml;
+const HTML_TAG_RE = /<\/?(p|br|div|span|strong|b|em|i|u|s|ul|ol|li|a|blockquote|h[1-6]|html|body)\b/i;
+const ALLOWED_TAGS = new Set([
+    "a",
+    "b",
+    "blockquote",
+    "br",
+    "div",
+    "em",
+    "i",
+    "li",
+    "ol",
+    "p",
+    "s",
+    "span",
+    "strike",
+    "strong",
+    "u",
+    "ul",
+]);
+function looksLikeEmailHtml(value) {
+    return HTML_TAG_RE.test(value);
+}
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+function escapeAttr(value) {
+    return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+function decodeAttr(value) {
+    return value
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+}
+function safeHref(raw) {
+    const href = decodeAttr(raw).trim();
+    if (!/^(https?:\/\/|mailto:)/i.test(href))
+        return null;
+    if (/[\s<>]/.test(href))
+        return null;
+    return href;
+}
+function stripEmailCodeFences(raw) {
+    const trimmed = raw.trim();
+    const fence = trimmed.match(/^```(?:html)?\s*([\s\S]*?)\s*```$/i);
+    return fence ? fence[1].trim() : trimmed;
+}
+function sanitizeEmailFragment(html) {
+    let s = html
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "");
+    s = s.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)\/?>/g, (full, name, attrs) => {
+        const tag = name.toLowerCase();
+        const closing = full.startsWith("</");
+        if (!ALLOWED_TAGS.has(tag))
+            return "";
+        if (closing)
+            return tag === "br" ? "" : `</${tag}>`;
+        if (tag === "br")
+            return "<br>";
+        if (tag === "a") {
+            const match = String(attrs).match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+            const href = match ? safeHref(match[1] ?? match[2] ?? match[3] ?? "") : null;
+            if (!href)
+                return "";
+            return `<a href="${escapeAttr(href)}">`;
+        }
+        return `<${tag}>`;
+    });
+    return s.trim();
+}
+exports.DRAFT_EMAIL_HTML_HINT = "REQUIRED HTML email (not plain text): 2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href=\"https://...\">. " +
+    "Put real tags in the JSON string (e.g. \"<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>\"). " +
+    "Bold the brand name once with <strong>. No markdown (**bold** or [links](url)), no <html>/<body>, no CSS. Sign off in the last <p>.";
+function lightMarkdownToHtmlHints(text) {
+    // Best-effort if the model ignores HTML and returns markdown instead.
+    return text
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/__([^_]+)__/g, "<strong>$1</strong>");
+}
+function plaintextToEmailHtml(text) {
+    const withHints = lightMarkdownToHtmlHints(text.replace(/\r\n/g, "\n").trim());
+    if (looksLikeEmailHtml(withHints)) {
+        return sanitizeEmailFragment(withHints);
+    }
+    const escaped = escapeHtml(withHints);
+    if (!escaped)
+        return "";
+    return escaped
+        .split(/\n{2,}/)
+        .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+        .join("");
+}
+/** Always store email drafts as a sanitized HTML fragment. */
+function ensureStoredEmailHtml(raw) {
+    if (typeof raw !== "string")
+        return null;
+    const trimmed = stripEmailCodeFences(raw);
+    if (!trimmed)
+        return null;
+    const html = looksLikeEmailHtml(trimmed)
+        ? sanitizeEmailFragment(trimmed)
+        : plaintextToEmailHtml(trimmed);
+    return html || null;
+}

@@ -10,10 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Palette, MessageSquare, Plus, Trash2, Save, Type, Maximize2, Video, PlayCircle, Target, Globe, Wand2 } from 'lucide-react';
 import { db, functions } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/use-toast';
-import type { Agency, BrandGuide } from '@/types';
+import type { Agency, BrandGuide, BrandKit } from '@/types';
 import { MediaUpload } from '@/components/ui/media-upload';
 import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import { 
@@ -75,20 +75,25 @@ export default function BrandGuidePage() {
     const fetchAgency = async () => {
       try {
         const agencyRef = doc(db, 'agencies', user.primaryAgencyId!);
-        const snap = await getDoc(agencyRef);
+        const [snap, kitSnap] = await Promise.all([
+          getDoc(agencyRef),
+          getDoc(doc(db, 'agencies', user.primaryAgencyId!, 'private', 'brandKit')).catch(() => null),
+        ]);
         if (snap.exists()) {
           const data = snap.data() as Agency;
-          setAgency(data);
-          if (data.brandGuide) {
+          const kit = (kitSnap?.exists() ? kitSnap.data() : {}) as BrandKit;
+          const savedGuide = kit.brandGuide ?? data.brandGuide;
+          setAgency({ ...data, products: kit.products ?? data.products });
+          if (savedGuide) {
             setGuide({
               ...guide,
-              ...data.brandGuide,
-              dos: data.brandGuide.dos || [],
-              donts: data.brandGuide.donts || [],
-              bRollLibrary: data.brandGuide.bRollLibrary || [],
-              accentColor: data.brandGuide.accentColor || '#6366f1',
-              neutralColor: data.brandGuide.neutralColor || '#f4f4f5',
-              missionStatement: data.brandGuide.missionStatement || '',
+              ...savedGuide,
+              dos: savedGuide.dos || [],
+              donts: savedGuide.donts || [],
+              bRollLibrary: savedGuide.bRollLibrary || [],
+              accentColor: savedGuide.accentColor || '#6366f1',
+              neutralColor: savedGuide.neutralColor || '#f4f4f5',
+              missionStatement: savedGuide.missionStatement || '',
             });
           }
         }
@@ -106,11 +111,11 @@ export default function BrandGuidePage() {
     if (!user?.primaryAgencyId) return;
     setSaving(true);
     try {
-      const agencyRef = doc(db, 'agencies', user.primaryAgencyId);
-      await updateDoc(agencyRef, {
-        brandGuide: guide,
-        updatedAt: new Date(),
-      });
+      await setDoc(
+        doc(db, 'agencies', user.primaryAgencyId, 'private', 'brandKit'),
+        { brandGuide: guide, updatedAt: new Date() },
+        { merge: true },
+      );
       toast({ title: "Brand Guide Saved", description: "Your brand guidelines have been updated successfully." });
     } catch (error: any) {
       console.error("Error saving brand guide:", error);

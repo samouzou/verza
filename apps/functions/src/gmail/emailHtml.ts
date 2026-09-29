@@ -151,9 +151,18 @@ export function plaintextToEmailHtml(text: string): string {
 
 /** Prompt fragment: models must emit HTML tags for draftEmail, not bare plain text. */
 export const DRAFT_EMAIL_HTML_HINT =
-  "REQUIRED HTML email (not plain text): 2–4 <p> blocks using only <p>, <br>, <strong>, <em>, and <a href=\"https://...\">. " +
-  "Put real tags in the JSON string (e.g. \"<p>Hi Maya — …</p><p>I'm with <strong>Brand</strong> on Verza…</p><p>Open to a quick chat?<br>— Name</p>\"). " +
-  "Bold the brand name once with <strong>. No markdown (**bold** or [links](url)), no <html>/<body>, no CSS. Sign off in the last <p>.";
+  "REQUIRED HTML email (not plain text). Use only <p>, <br>, <ul>, <li>, <strong>, <em>, and <a href=\"https://...\">. " +
+  "Follow this structure in order: " +
+  "(1) <p>Hi FirstName,</p> " +
+  "(2) warm opener + who is writing FROM the brand — e.g. \"I'm Alex with <strong>Brand</strong>.\" Use the provided sender display name when given; never invent a job title, street address, phone, or \"Founder & CEO\" line. " +
+  "(3) 1–2 sentences on what the brand does (from brand positioning only). " +
+  "(4) why creators like them are a fit for this campaign. " +
+  "(5) short lead-in then <ul><li>…</li></ul> with 2–4 campaign basics grounded in the facts provided (product access, deliverable, unique link, pay only if a concrete figure appears — never invent). " +
+  "(6) soft CTA inviting a brief chat (not a hard close). " +
+  "(7) <p>Best,<br>FirstName or Brand</p> " +
+  "(8) optional final <p> with the brand name only as a light footer — no street address, suite, city, or legal entity line. " +
+  "Write as the brand itself reaching out — never \"we're representing Brand\" or \"partnering via Verza\" unless the brand name is Verza. " +
+  "Bold the brand name once with <strong>. No markdown, no <html>/<body>, no CSS.";
 
 /**
  * Stores sanitized HTML (never bare plain text).

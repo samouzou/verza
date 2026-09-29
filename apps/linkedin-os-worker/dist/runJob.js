@@ -1,0 +1,280 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.runLinkedInOsJob = runLinkedInOsJob;
+const generative_ai_1 = require("@google/generative-ai");
+const firestore_1 = require("firebase-admin/firestore");
+const renderCarousel_1 = require("./carousel/renderCarousel");
+require("./firebaseAdmin");
+const uploadCarousel_1 = require("./carousel/uploadCarousel");
+const db = (0, firestore_1.getFirestore)();
+const MAX_CTX = 14000;
+const MAX_RUN_BRIEF = 6000;
+const MAX_RUN_CONSTRAINT = 500;
+/**
+ * Truncates context for token safety.
+ * @param {string} s Input string.
+ * @param {number} max Max length.
+ * @return {string} Truncated string.
+ */
+function truncate(s, max) {
+    if (s.length <= max)
+        return s;
+    return s.slice(0, max) + "\n\n[truncated…]";
+}
+/**
+ * Builds the system prompt for Gemini.
+ * @param {string} brief Brand brief markdown.
+ * @param {string} strategy Social strategy markdown.
+ * @param {string} banned Banned-claims markdown.
+ * @param {string} voice Learned voice profile markdown.
+ * @param {object} run Optional per-job author context.
+ * @param {string} run.weeklyBrief Markdown for this run only.
+ * @param {string} run.mustMention Phrase to reflect.
+ * @param {string} run.neverMention Phrase to avoid.
+ * @return {string} System prompt.
+ */
+function buildSystemPrompt(brief, strategy, banned, voice, run) {
+    const runBrief = run.weeklyBrief ||
+        "(none — rely on global brief and each queue item's productTruth / hook / notes only)";
+    const runMust = run.mustMention || "(none)";
+    const runNever = run.neverMention || "(none)";
+    return `You are a LinkedIn ghostwriter for Verza (tryverza). Verza is the operating system for the creator economy.
+
+VOICE: Match the LEARNED VOICE PROFILE when present. Otherwise: operator-insider, concrete, respectful, no hype. Short lines. No hashtag spam (max 3 if any).
+
+RULES:
+- Use ONLY the product facts implied by the CONTEXT below plus the user's "productTruth" line for each task. Do not invent fees, thresholds, features, or legal outcomes.
+- Obey the BANNED / sensitive list literally.
+- Honor CONTEXT — THIS RUN when it conflicts with generic Verza copy (e.g. another brand voice, a launch week); never contradict explicit "never mention" lines.
+- LinkedIn: strong first line (hook). Use whitespace. Optional short numbered list (max 3 bullets).
+- Never guarantee income, ROI, or virality. No legal/tax advice.
+
+CONTEXT — LEARNED VOICE PROFILE:
+---
+${voice || "(none — use default operator-insider voice)"}
+---
+
+CONTEXT — BRAND / PRODUCT BRIEF:
+---
+${brief || "(not configured — keep Verza-specific claims minimal)"}
+---
+
+CONTEXT — SOCIAL STRATEGY:
+---
+${strategy || "(not configured)"}
+---
+
+CONTEXT — THIS RUN (submitted with the job; combine with each item's productTruth, hook, and notes):
+---
+${runBrief}
+---
+
+RUN CONSTRAINTS (treat as hard filters when non-empty):
+- Must reflect or mention: ${runMust}
+- Must not mention or imply: ${runNever}
+
+BANNED / SENSITIVE:
+---
+${banned || "(not configured)"}
+---
+`;
+}
+/**
+ * Builds the user message for one queue item.
+ * @param {JobItem} item Queue item.
+ * @param {string} weekLabel Week label.
+ * @param {string} reviewer Reviewer display name.
+ * @return {string} User message.
+ */
+function userMessageForItem(item, weekLabel, reviewer) {
+    const pillar = item.pillar || "playbooks";
+    const format = item.format || "short_post";
+    const hook = (item.hook || "").trim() ||
+        "(author may supply hook—propose 2 hook options in line 1)";
+    const truth = (item.productTruth || "").trim() ||
+        "(no productTruth supplied—keep post generic about category, no Verza-specific claims)";
+    const cta = item.cta || "comment";
+    const notes = (item.notes || "").trim();
+    if (format === "carousel_outline") {
+        return `Week: ${weekLabel}
+Reviewer (human in the loop): ${reviewer}
+
+Write a LinkedIn **document carousel outline** (7–10 slides).
+
+Pillar: ${pillar}
+Suggested hook direction: ${hook}
+Product truth to reflect (do not exceed it): ${truth}
+CTA type: ${cta}
+Extra notes: ${notes || "none"}
+
+Output format (markdown):
+## Slide 1 — Hook
+- title (5 words max)
+- 1–2 bullets
+
+Repeat ## Slide N for each slide. Last slide must be CTA only (soft unless cta is hard_product).
+
+Do not claim specific Verza metrics not in the product truth.`;
+    }
+    return `Week: ${weekLabel}
+Reviewer (human in the loop): ${reviewer}
+
+Write ONE LinkedIn post (plain text; avoid markdown headings).
+
+Pillar: ${pillar}
+Format: short post
+Hook / direction: ${hook}
+Product truth you may assume (do not exceed): ${truth}
+CTA type: ${cta}
+Extra notes: ${notes || "none"}
+
+Structure:
+- Line 1 must work as LinkedIn preview (punchy, under ~140 chars if possible).
+- Then body: 4–10 short lines.
+- End with one CTA line.`;
+}
+/**
+ * Calls Gemini (Google AI) with system instruction + user content.
+ * @param {string} system System prompt.
+ * @param {string} user User prompt.
+ * @param {string} apiKey Gemini API key.
+ * @param {string} model Model id.
+ * @return {!Promise<string>} Model text.
+ */
+async function geminiComplete(system, user, apiKey, model) {
+    const genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
+    const genModel = genAI.getGenerativeModel({
+        model,
+        systemInstruction: system,
+        generationConfig: { temperature: 0.7 },
+    });
+    const result = await genModel.generateContent(user);
+    const text = result.response.text();
+    if (!text?.trim()) {
+        throw new Error("Gemini returned no content.");
+    }
+    return text.trim();
+}
+/**
+ * Runs a LinkedIn OS job: loads prompts from Firestore, generates drafts, writes outputs.
+ * @param {string} jobId Firestore job id.
+ * @return {!Promise<void>}
+ */
+async function runLinkedInOsJob(jobId) {
+    const ref = db.collection("linkedin_os_jobs").doc(jobId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+        throw new Error("Job not found");
+    }
+    const data = snap.data();
+    if (data.status !== "queued") {
+        return;
+    }
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not set on the worker.");
+    }
+    const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
+    await ref.update({
+        status: "running",
+        startedAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    try {
+        const promptsSnap = await db.collection("linkedin_os_prompts").doc("default").get();
+        const prompts = promptsSnap.exists ? promptsSnap.data() : {};
+        const brief = truncate(String(prompts.brandBrief ?? ""), MAX_CTX);
+        const strategy = truncate(String(prompts.socialStrategy ?? ""), MAX_CTX);
+        const banned = truncate(String(prompts.bannedClaims ?? ""), MAX_CTX);
+        const weeklyBrief = truncate(String(data.weeklyBrief ?? ""), MAX_RUN_BRIEF);
+        const mustMention = truncate(String(data.mustMention ?? ""), MAX_RUN_CONSTRAINT);
+        const neverMention = truncate(String(data.neverMention ?? ""), MAX_RUN_CONSTRAINT);
+        const agencyIdEarly = String(data.agencyId ?? "").trim();
+        let voiceBlock = "";
+        if (agencyIdEarly) {
+            const voiceSnap = await db.collection("linkedin_os_voice_profiles").doc(agencyIdEarly).get();
+            if (voiceSnap.exists) {
+                const v = voiceSnap.data();
+                voiceBlock = truncate([
+                    String(v.voiceSummary ?? ""),
+                    `Tone: ${Array.isArray(v.toneTraits) ? v.toneTraits.join(", ") : ""}`,
+                    `Hook patterns: ${Array.isArray(v.hookPatterns) ? v.hookPatterns.join("; ") : ""}`,
+                    `Topics that work: ${Array.isArray(v.topicsThatWork) ? v.topicsThatWork.join("; ") : ""}`,
+                    `Avoid: ${Array.isArray(v.topicsToAvoid) ? v.topicsToAvoid.join("; ") : ""}`,
+                    `CTA style: ${String(v.ctaStyle ?? "")}`,
+                    `Do: ${Array.isArray(v.doList) ? v.doList.join("; ") : ""}`,
+                    `Don't: ${Array.isArray(v.dontList) ? v.dontList.join("; ") : ""}`,
+                    `Sample lines:\n${Array.isArray(v.sampleLines) ? v.sampleLines.map((l) => `- ${l}`).join("\n") : ""}`,
+                ]
+                    .filter(Boolean)
+                    .join("\n"), MAX_CTX);
+            }
+        }
+        const system = buildSystemPrompt(brief, strategy, banned, voiceBlock, {
+            weeklyBrief,
+            mustMention,
+            neverMention,
+        });
+        const items = (data.items || []);
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new Error("Job has no items.");
+        }
+        const weekLabel = String(data.weekLabel ?? "");
+        const reviewer = String(data.reviewer ?? "Serge");
+        const agencyId = String(data.agencyId ?? "").trim();
+        if (!agencyId) {
+            throw new Error("Job is missing agencyId.");
+        }
+        const outputs = [];
+        for (const item of items) {
+            const userMsg = userMessageForItem(item, weekLabel, reviewer);
+            const markdown = await geminiComplete(system, userMsg, apiKey, model);
+            const output = {
+                id: item.id,
+                format: item.format,
+                pillar: item.pillar,
+                markdown,
+                generatedAt: new Date().toISOString(),
+                model,
+                publishStatus: "draft",
+            };
+            if (item.format === "carousel_outline") {
+                try {
+                    const pngSlides = await (0, renderCarousel_1.renderCarouselPngs)(markdown);
+                    const [pdf, zip] = await Promise.all([
+                        (0, renderCarousel_1.buildCarouselPdf)(pngSlides),
+                        (0, renderCarousel_1.buildCarouselZip)(pngSlides),
+                    ]);
+                    output.carouselAssets = await (0, uploadCarousel_1.uploadCarouselAssets)({
+                        agencyId,
+                        jobId,
+                        outputId: item.id,
+                        slides: pngSlides,
+                        pdf,
+                        zip,
+                    });
+                }
+                catch (renderErr) {
+                    const msg = renderErr instanceof Error ? renderErr.message : String(renderErr);
+                    throw new Error(`Carousel render failed for ${item.id}: ${msg}`);
+                }
+            }
+            outputs.push(output);
+        }
+        await ref.update({
+            status: "completed",
+            outputs,
+            completedAt: firestore_1.FieldValue.serverTimestamp(),
+        });
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await ref
+            .update({
+            status: "failed",
+            error: msg.slice(0, 2000),
+            completedAt: firestore_1.FieldValue.serverTimestamp(),
+        })
+            .catch(() => undefined);
+        throw e;
+    }
+}

@@ -19,9 +19,8 @@ import { agencyTour } from '@/lib/tours';
 import { AgencyDashboard } from '@/components/agency/agency-dashboard';
 import { TalentAgencyView } from '@/components/agency/talent-agency-view';
 import { Badge } from '@/components/ui/badge';
-import { useRouter } from 'next/navigation';
 
-function CreateAgencyForm({ onAgencyCreated, isBrandAccount }: { onAgencyCreated: () => void, isBrandAccount?: boolean }) {
+function CreateAgencyForm({ onAgencyCreated, isBrandAccount }: { onAgencyCreated: (agencyId?: string) => void, isBrandAccount?: boolean }) {
   const [agencyName, setAgencyName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
@@ -34,9 +33,10 @@ function CreateAgencyForm({ onAgencyCreated, isBrandAccount }: { onAgencyCreated
     }
     setIsCreating(true);
     try {
-      await createAgencyCallable({ name: agencyName.trim() });
+      const result = await createAgencyCallable({ name: agencyName.trim() });
+      const agencyId = (result.data as { agencyId?: string } | null)?.agencyId;
       toast({ title: "Agency Created!", description: `${agencyName} is now ready.` });
-      onAgencyCreated();
+      onAgencyCreated(agencyId);
     } catch (error: any) {
       console.error("Error creating agency:", error);
       toast({ title: "Creation Failed", description: error.message || "Could not create the agency.", variant: "destructive" });
@@ -84,10 +84,10 @@ export default function AgencyPage() {
   const [selectedAgencyId, setSelectedAgencyId] = useState<string | null>(null);
   const [selectedAgencyOwner, setSelectedAgencyOwner] = useState<UserProfile | null>(null);
   const [switchingToId, setSwitchingToId] = useState<string | null>(null);
+  const [isCreatingOwn, setIsCreatingOwn] = useState(false);
   const didAutoSelect = useRef(false);
   const { startTour } = useTour();
   const { toast } = useToast();
-  const router = useRouter();
   const switchPrimaryAgency = httpsCallable(functions, 'switchPrimaryAgency');
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function AgencyPage() {
   }, [user, authLoading, toast]);
 
   useEffect(() => {
-    if (didAutoSelect.current || !user || agencies.length === 0 || selectedAgencyId) return;
+    if (didAutoSelect.current || isCreatingOwn || !user || agencies.length === 0 || selectedAgencyId) return;
     const preferred = user.primaryAgencyId
       ? agencies.find((agency) => agency.id === user.primaryAgencyId)
       : undefined;
@@ -134,7 +134,7 @@ export default function AgencyPage() {
       setSelectedAgencyId(agencies[0].id);
       didAutoSelect.current = true;
     }
-  }, [agencies, user, selectedAgencyId]);
+  }, [agencies, user, selectedAgencyId, isCreatingOwn]);
 
   useEffect(() => {
     if (!selectedAgencyId || !agencies.length) return;
@@ -155,7 +155,9 @@ export default function AgencyPage() {
     fetchOwner();
   }, [selectedAgencyId, agencies]);
 
-  const handleAgencyCreated = () => {
+  const handleAgencyCreated = (agencyId?: string) => {
+    setIsCreatingOwn(false);
+    if (agencyId) setSelectedAgencyId(agencyId);
     refreshAuthUser();
   };
 
@@ -200,6 +202,27 @@ export default function AgencyPage() {
         <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
         <p className="text-muted-foreground">Please log in to manage your agencies.</p>
       </div>
+    );
+  }
+
+  const workspaceLabel = user.isBrandAccount ? 'Brand' : 'Agency';
+
+  if (isCreatingOwn) {
+    return (
+      <>
+        <PageHeader
+          title={`Start your own ${workspaceLabel.toLowerCase()}`}
+          description={user.isBrandAccount ? 'Name the brand you want to run. Your other memberships stay as they are.' : 'Name the agency you want to run. Your other memberships stay as they are.'}
+          actions={
+            <Button variant="outline" onClick={() => setIsCreatingOwn(false)}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+          }
+        />
+        <div className="max-w-lg">
+          <CreateAgencyForm onAgencyCreated={handleAgencyCreated} isBrandAccount={user.isBrandAccount} />
+        </div>
+      </>
     );
   }
 
@@ -294,7 +317,7 @@ export default function AgencyPage() {
         )}
         
         {agencies.length > 0 && !user.isAgencyOwner && (
-          <Card className="border-dashed border-2 flex flex-col items-center justify-center p-6 text-center hover:bg-muted/5 transition-colors cursor-pointer" onClick={() => router.push('/onboarding')}>
+          <Card className="border-dashed border-2 flex flex-col items-center justify-center p-6 text-center hover:bg-muted/5 transition-colors cursor-pointer" onClick={() => setIsCreatingOwn(true)}>
             <PlusCircle className="h-10 w-10 text-muted-foreground mb-4" />
             <CardTitle className="text-base">Start Your Own {user.isBrandAccount ? 'Brand' : 'Agency'}</CardTitle>
             <CardDescription className="mt-1">{user.isBrandAccount ? 'Launch campaigns and collaborate with creators.' : 'Manage your own roster and brand deals.'}</CardDescription>

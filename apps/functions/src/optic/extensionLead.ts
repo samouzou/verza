@@ -633,34 +633,35 @@ export async function enrichExtensionInstagramLead(
   // drafts match web-worker quality (text profile instead of screenshot).
   const brandBlock = brand
     ? `
-    Outreach sender context (use for draft tone and sign-off; do not invent a different company name):
-    - Agency / team name: "${brand.agencyName}"
-    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
-    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    Outreach sender context (draft as the brand itself — not an agency representing them):
+    - Brand / team name: "${brand.agencyName}"
+    - Sender display name (intro + sign-off): "${brand.userDisplayName?.trim() || "(use brand name in sign-off; do not invent a person)"}"
+    ${brand.brandSummary ? `- Brand positioning: "${brand.brandSummary}"` : ""}
+    ${brand.paySourceCampaignTitle ? `- Campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
     ${
       brand.campaignPaySummary
         ? isCauseOrBarter(brand.paySourceCampaignType)
           ? `
-    Campaign partnership context (this outreach is for a cause or in-kind style campaign — do not imply a cash sponsorship unless the facts below include an explicit USD per-creator amount):
+    Campaign partnership context (cause or in-kind — do not imply cash sponsorship unless the facts below include an explicit USD per-creator amount):
     ${brand.campaignPaySummary}
 
     In drafts: Do not use the words "compensation", "fee", "rate", "paid", or "dollars" in a way that suggests cash payment unless a concrete USD per-creator figure appears in the facts above. Frame the opportunity around mission alignment${
             brand.paySourceCampaignType === "barter_campaign" ? " or a mutually agreed product/exchange" : ""
-          }. You may invite them to review details on Verza; do not suggest they will receive a cash payout unless the facts state it clearly.
+          }. Do not invent payouts.
     `
           : `
-    Pay transparency (from their live Verza campaigns — creators often ignore outreach when budget is unclear):
+    Pay transparency (from live campaign facts — creators often ignore outreach when budget is unclear):
     ${brand.campaignPaySummary}
 
-    In drafts: if the bullet list above includes concrete USD per-creator figures, include one clear upfront sentence stating a representative rate or small range using ONLY those numbers. If no numeric rate appears above, say honestly that pay is defined per campaign on Verza without inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list. If any line describes a cause or in-kind barter with no USD figure, do not imply cash compensation for that campaign.
+    In drafts: if the bullet list above includes concrete USD per-creator figures, include one clear bullet or sentence using ONLY those numbers. If no numeric rate appears above, omit pay rather than inventing dollar amounts. Never promise a slot, acceptance, or terms not in the list.
     `
         : ""
     }
 
-    Drafts must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza — mention the agency name once where natural, align with Campaign Objectives, and invite the creator to learn more.
+    Email drafts must sound like "${brand.agencyName}" writing directly to the creator. Align with Campaign Objectives. Never invent titles, street addresses, or legal footers.
     `
     : `
-    Drafts invite the creator to explore the Verza network, aligned with Campaign Objectives.
+    Email drafts invite the creator to explore a partnership aligned with Campaign Objectives. Write as the brand team when a brand name is known.
     `;
 
   const prompt = `
@@ -767,10 +768,11 @@ export async function regenerateVaultEmailDraft(
 
   const brandBlock = brand
     ? `
-    Outreach sender context (use for draft tone and sign-off; do not invent a different company name):
-    - Agency / team name: "${brand.agencyName}"
-    ${brand.brandSummary ? `- Brand positioning (from their Verza brand guide): "${brand.brandSummary}"` : ""}
-    ${brand.paySourceCampaignTitle ? `- Outreach is scoped to this Verza campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
+    Outreach sender context (draft as the brand itself — not an agency representing them):
+    - Brand / team name: "${brand.agencyName}"
+    - Sender display name (intro + sign-off): "${brand.userDisplayName?.trim() || "(use brand name in sign-off; do not invent a person)"}"
+    ${brand.brandSummary ? `- Brand positioning: "${brand.brandSummary}"` : ""}
+    ${brand.paySourceCampaignTitle ? `- Campaign name (mention once if natural): "${brand.paySourceCampaignTitle}"` : ""}
     ${
       brand.campaignPaySummary
         ? isCauseOrBarter(brand.paySourceCampaignType)
@@ -779,16 +781,16 @@ export async function regenerateVaultEmailDraft(
     ${brand.campaignPaySummary}
     `
           : `
-    Pay transparency (from live Verza campaigns):
+    Pay transparency (from live campaign facts):
     ${brand.campaignPaySummary}
     `
         : ""
     }
 
-    Drafts must read as a short personal note from someone at "${brand.agencyName}" partnering via Verza.
+    Email drafts must sound like "${brand.agencyName}" writing directly to the creator. Never invent titles, street addresses, or legal footers.
     `
     : `
-    Drafts invite the creator to explore the Verza network.
+    Email drafts invite the creator to explore a partnership. Write as the brand team when a brand name is known.
     `;
 
   const prompt = `
@@ -831,13 +833,13 @@ export async function regenerateVaultEmailDraft(
   const draftEmail =
     sanitizeStoredEmailDraft(parsed.draftEmail?.trim() || "") ||
     sanitizeStoredEmailDraft(
-      `<p>Hi ${creatorName.split(" ")[0] || "there"},</p><p>We'd love to explore a partnership via Verza — happy to share details if you're open to it.</p>`
+      `<p>Hi ${creatorName.split(" ")[0] || "there"},</p><p>I hope you're well. I'd love to explore a creator partnership with you.</p><p>Are you open to a brief chat to see if it's a fit?</p><p>Best,<br>${brand?.userDisplayName?.trim()?.split(" ")[0] || brand?.agencyName || "Team"}</p>`
     ) ||
-    "<p>Hi — we'd love to connect about a Verza partnership.</p>";
+    "<p>Hi — we'd love to explore a creator partnership with you.</p>";
   const draftEmailSubject =
     (typeof parsed.draftEmailSubject === "string" &&
       parsed.draftEmailSubject.trim().slice(0, 200)) ||
-    `Partnership idea for ${creatorName.slice(0, 60)}`;
+    `Creator partnership idea for ${creatorName.slice(0, 60)}`;
 
   return {draftEmail, draftEmailSubject};
 }
