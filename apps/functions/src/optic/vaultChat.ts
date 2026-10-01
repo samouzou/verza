@@ -113,6 +113,9 @@ export const askOpticVaultChat = onCall(
 Answer ONLY from the JSON snapshot. Do not invent counts, names, rates, or open/reply rates.
 If the question needs data listed under notInThisData, say that clearly and answer with what IS in the snapshot.
 Use creator-economy language (reached out, in conversation, booked, passed, no upfront pay).
+Measure outreach progress against qualifiedCreators (use reachedOutOfQualified), not creatorsDiscovered.
+Only readyToContact counts as a backlog. Never describe noPublicContact or belowMatchBar creators
+as ignored or untouched work; mention them briefly as filtered out, if at all.
 Keep the answer to 2–5 short sentences. Lead with the numbers. No markdown tables. No bullet walls.
 
 SNAPSHOT:

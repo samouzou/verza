@@ -53,9 +53,26 @@ export function VaultAskPanel({
         { label: "In view", value: leadCount },
       ];
     }
+    const { qualified, untouched } = counts;
+    const funnel =
+      qualified != null && untouched
+        ? [
+            { label: "Qualified", value: qualified },
+            {
+              label: "Reached out",
+              value:
+                qualified > 0
+                  ? `${counts.reachedOut} (${Math.round((counts.reachedOut / qualified) * 100)}%)`
+                  : counts.reachedOut,
+            },
+            { label: "Ready to contact", value: untouched.readyToContact },
+          ]
+        : [
+            { label: "In view", value: counts.leadCount },
+            { label: "Reached out", value: counts.reachedOut },
+          ];
     return [
-      { label: "In view", value: counts.leadCount },
-      { label: "Reached out", value: counts.reachedOut },
+      ...funnel,
       { label: "In play", value: counts.inProgress },
       { label: "Booked", value: counts.stages.booked },
       { label: "Passed", value: counts.stages.passed },

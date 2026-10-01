@@ -16,6 +16,8 @@ export type VaultChatSnapshot = {
   passReasons: Record<OpticPassReason, number>;
   last7dContacts: number;
   neverTouched: number;
+  untouched?: { noPublicContact: number; belowMatchBar: number; readyToContact: number };
+  qualified?: number;
   hasEmail: number;
   reachedOut: number;
   inProgress: number;

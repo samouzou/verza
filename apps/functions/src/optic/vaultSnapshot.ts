@@ -15,6 +15,8 @@ import {
 
 export const VAULT_SNAPSHOT_LIMIT = 500;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** Same bar as the "good" match band; untouched leads under it were filtered out, not skipped. */
+export const QUALIFIED_MATCH_SCORE = 70;
 
 export type VaultCampaignScope = "__all__" | "__pooled__" | string;
 
@@ -27,6 +29,10 @@ export type VaultAnalyticsSnapshot = {
   passReasons: Record<OpticPassReason, number>;
   last7dContacts: number;
   neverTouched: number;
+  /** neverTouched split by why; each untouched lead lands in exactly one bucket. */
+  untouched: {noPublicContact: number; belowMatchBar: number; readyToContact: number};
+  /** Leads worth working: everyone except untouched leads with no contact or below the match bar. */
+  qualified: number;
   hasEmail: number;
   reachedOut: number;
   inProgress: number;
@@ -97,9 +103,11 @@ export function buildVaultSnapshot(
   let last7dContacts = 0;
   let neverTouched = 0;
   let hasEmail = 0;
+  const untouched = {noPublicContact: 0, belowMatchBar: 0, readyToContact: 0};
 
   for (const lead of leads) {
     const stage = resolveStage(lead);
+    const leadHasEmail = typeof lead.email === "string" && lead.email.trim().length > 0;
     stages[stage] += 1;
     if (isOpticLeadResponse(lead.outreachResponse)) {
       responses[lead.outreachResponse] += 1;
@@ -109,8 +117,14 @@ export function buildVaultSnapshot(
     }
     const last = tsMillis(lead.lastContactedAt) ?? tsMillis(lead.outreachEmailedAt);
     if (last != null && last >= weekAgo) last7dContacts += 1;
-    if (last == null && stage === "new") neverTouched += 1;
-    if (typeof lead.email === "string" && lead.email.trim()) hasEmail += 1;
+    if (last == null && stage === "new") {
+      neverTouched += 1;
+      if (!leadHasEmail) untouched.noPublicContact += 1;
+      else if (typeof lead.matchScore === "number" && lead.matchScore < QUALIFIED_MATCH_SCORE) {
+        untouched.belowMatchBar += 1;
+      } else untouched.readyToContact += 1;
+    }
+    if (leadHasEmail) hasEmail += 1;
     const platform =
       typeof lead.discoveryPlatform === "string" && lead.discoveryPlatform.trim()
         ? lead.discoveryPlatform.trim().toLowerCase()
@@ -131,6 +145,8 @@ export function buildVaultSnapshot(
     passReasons,
     last7dContacts,
     neverTouched,
+    untouched,
+    qualified: leads.length - untouched.noPublicContact - untouched.belowMatchBar,
     hasEmail,
     reachedOut,
     inProgress,
@@ -155,9 +171,12 @@ export function snapshotForPrompt(snap: VaultAnalyticsSnapshot): Record<string, 
     }
     return out;
   };
+  const pct = snap.qualified > 0 ? Math.round((snap.reachedOut / snap.qualified) * 100) : 0;
   return {
     view: snap.scopeLabel,
-    creatorsInView: snap.leadCount,
+    creatorsDiscovered: snap.leadCount,
+    qualifiedCreators: snap.qualified,
+    reachedOutOfQualified: `${snap.reachedOut} of ${snap.qualified} (${pct}%)`,
     mayBeIncomplete: snap.truncated
       ? `Only the latest ${VAULT_SNAPSHOT_LIMIT} vault leads were counted.`
       : false,
@@ -166,7 +185,11 @@ export function snapshotForPrompt(snap: VaultAnalyticsSnapshot): Record<string, 
     inConversationOrReplied: snap.inProgress,
     booked: snap.stages.booked,
     passed: snap.stages.passed,
-    neverTouched: snap.neverTouched,
+    notYetContacted: {
+      readyToContact: snap.untouched.readyToContact,
+      noPublicContact: snap.untouched.noPublicContact,
+      belowMatchBar: snap.untouched.belowMatchBar,
+    },
     contactedInLast7Days: snap.last7dContacts,
     haveEmail: snap.hasEmail,
     replies: labeled(snap.responses, OPTIC_LEAD_RESPONSE_LABELS),
@@ -180,6 +203,13 @@ export function snapshotForPrompt(snap: VaultAnalyticsSnapshot): Record<string, 
       "In conversation": "Rate, usage, or deliverables in play.",
       Booked: "Deal closed.",
       Passed: "Not moving forward (see pass reasons).",
+    },
+    fieldGlossary: {
+      qualifiedCreators: "Creators worth working: discovered minus untouched ones with no public contact " +
+        `or match score under ${QUALIFIED_MATCH_SCORE}.`,
+      readyToContact: "Untouched, has an email, and meets the match bar. The real backlog.",
+      noPublicContact: "Untouched because no public email was found. Sourcing gap, not skipped work.",
+      belowMatchBar: `Untouched because match score is under ${QUALIFIED_MATCH_SCORE}. Filtered out on purpose.`,
     },
     notInThisData: [
       "Gmail open or reply rates",
