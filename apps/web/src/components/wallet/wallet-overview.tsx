@@ -1,17 +1,30 @@
 
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DollarSign, ArrowDownCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 interface WalletOverviewProps {
   walletBalance: number;
   isLoading: boolean;
   payoutReady: boolean;
   isPayingOut: boolean;
-  onInitiatePayout: () => void;
+  onInitiatePayout: (amount: number) => Promise<void>;
 }
 
 export function WalletOverview({
@@ -21,10 +34,32 @@ export function WalletOverview({
   isPayingOut,
   onInitiatePayout,
 }: WalletOverviewProps) {
+  const { toast } = useToast();
+  const [isPayoutOpen, setIsPayoutOpen] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState("");
   const formatted = walletBalance.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+  const handleConfirm = async () => {
+    const amountNum = parseFloat(payoutAmount);
+    if (isNaN(amountNum) || amountNum < 1) {
+      toast({ title: "Invalid Amount", description: "Minimum payout is $1.", variant: "destructive" });
+      return;
+    }
+    if (amountNum > walletBalance) {
+      toast({ title: "Insufficient Balance", description: "Amount exceeds your wallet balance.", variant: "destructive" });
+      return;
+    }
+    try {
+      await onInitiatePayout(amountNum);
+      setIsPayoutOpen(false);
+      setPayoutAmount("");
+    } catch {
+      // The wallet page shows the error.
+    }
+  };
 
   return (
     <Card className="shadow-lg">
@@ -51,18 +86,56 @@ export function WalletOverview({
         )}
 
         {payoutReady ? (
-          <Button
-            className="w-full sm:w-auto"
-            disabled={isPayingOut || walletBalance < 1 || isLoading}
-            onClick={onInitiatePayout}
-          >
-            {isPayingOut ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <ArrowDownCircle className="mr-2 h-4 w-4" />
-            )}
-            {isPayingOut ? "Processing..." : "Payout to Bank"}
-          </Button>
+          <Dialog open={isPayoutOpen} onOpenChange={setIsPayoutOpen}>
+            <DialogTrigger asChild>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={isPayingOut || walletBalance < 1 || isLoading}
+              >
+                {isPayingOut ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowDownCircle className="mr-2 h-4 w-4" />
+                )}
+                {isPayingOut ? "Processing..." : "Payout to Bank"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Payout to Bank</DialogTitle>
+                <DialogDescription>Choose how much to transfer to your connected bank account. Allow 1-7 business days.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="creator-payout-amount">Amount ($)</Label>
+                  <Input
+                    id="creator-payout-amount"
+                    type="number"
+                    value={payoutAmount}
+                    onChange={(e) => setPayoutAmount(e.target.value)}
+                    placeholder="0.00"
+                    min="1"
+                    max={walletBalance}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Wallet balance: <span className="font-bold text-foreground">${formatted}</span>
+                    {" · "}
+                    <button type="button" className="underline text-primary" onClick={() => setPayoutAmount(walletBalance.toFixed(2))}>Payout all</button>
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-md text-xs text-muted-foreground">
+                  Funds are transferred via Stripe to your connected bank account. This action cannot be undone.
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsPayoutOpen(false)} disabled={isPayingOut}>Cancel</Button>
+                <Button onClick={handleConfirm} disabled={isPayingOut}>
+                  {isPayingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowDownCircle className="mr-2 h-4 w-4" />}
+                  Confirm Payout
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">

@@ -88,15 +88,15 @@ export default function WalletPage() {
     };
   }, [user, authLoading, isAgencyManager]);
 
-  const handleInitiatePayout = async () => {
+  const handleInitiatePayout = async (amount: number) => {
     if (!user) return;
     setIsPayingOut(true);
     try {
       const initiateCreatorPayout = httpsCallable(functions, 'initiateCreatorPayout');
-      await initiateCreatorPayout();
+      await initiateCreatorPayout({ amount });
       toast({
         title: "Payout Initiated!",
-        description: `$${walletBalance.toFixed(2)} is on its way to your bank account. Allow 1-7 business days.`,
+        description: `$${amount.toFixed(2)} is on its way to your bank account. Allow 1-7 business days.`,
       });
     } catch (error: any) {
       toast({
@@ -104,6 +104,7 @@ export default function WalletPage() {
         description: error?.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
+      throw error;
     } finally {
       setIsPayingOut(false);
     }

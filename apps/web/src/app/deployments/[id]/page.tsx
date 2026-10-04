@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import type { Gig, GigSubmission, Notification, Agency, AffiliateLink } from '@/types';
+import { gigHasCreatorCap, isPoolBudgetGig, type Gig, type GigSubmission, type Notification, type Agency, type AffiliateLink } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,7 @@ function GigDetailContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResumingFunding, setIsResumingFunding] = useState(false);
   const [isWalletFunding, setIsWalletFunding] = useState(false);
+  const [poolPayAmount, setPoolPayAmount] = useState("");
 
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
@@ -331,7 +332,7 @@ function GigDetailContent() {
       const currentGigData = currentGigSnap.data() as Gig;
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
 
-      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
+      if (gigHasCreatorCap(currentGigData) && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Deployment is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
 
       const newAcceptedIds = [...acceptedIds, targetUserId];
@@ -339,7 +340,7 @@ function GigDetailContent() {
         acceptedCreatorIds: newAcceptedIds,
         updatedAt: serverTimestamp()
       };
-      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
+      if (gigHasCreatorCap(currentGigData) && newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
 
       // Handle agency assignment metadata
       if (isAgencyAcceptance && selectedTalentId) {
@@ -685,11 +686,15 @@ function GigDetailContent() {
     }
   };
 
-  const handlePayout = async (creator: UserProfile) => {
+  const handlePayout = async (creator: UserProfile, amount?: number) => {
     if (!user || !gig) return;
     setIsPaying(creator.uid);
     try {
-      await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
+      await payoutCreatorForGigCallable({
+        gigId: gig.id,
+        creatorId: creator.uid,
+        ...(isPoolBudgetGig(gig) ? { amount } : {}),
+      });
 
       const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'rejected'));
       for (const sub of batch) {
@@ -746,6 +751,7 @@ function GigDetailContent() {
         description: gig.description,
         platforms: gig.platforms,
         ratePerCreator: gig.ratePerCreator,
+        ...(isPoolBudgetGig(gig) ? { budgetMode: "pool", campaignBudget: gig.campaignBudget || 0 } : {}),
         creatorsNeeded: gig.creatorsNeeded,
         videosPerCreator: gig.videosPerCreator,
         campaignType: gig.campaignType || 'standard_sponsorship',
@@ -805,7 +811,7 @@ function GigDetailContent() {
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Deployment Not Found</h3></div>;
 
   const acceptedIds = gig.acceptedCreatorIds || [];
-  const spotsLeft = (gig.creatorsNeeded || 0) - acceptedIds.length;
+  const spotsLeft = gigHasCreatorCap(gig) ? (gig.creatorsNeeded || 0) - acceptedIds.length : Infinity;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
   const isBrandTeam = user && gig && isAgencyTeam && (gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
@@ -823,7 +829,7 @@ function GigDetailContent() {
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
   const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
 
-  const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
+  const totalCost = isPoolBudgetGig(gig) ? (gig.campaignBudget || gig.fundedAmount || 0) : gig.ratePerCreator * gig.creatorsNeeded;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   const myLink = user ? affiliateLinks[user.uid] : null;
@@ -1232,12 +1238,20 @@ function GigDetailContent() {
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>'s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.
+                                            {isPoolBudgetGig(gig)
+                                              ? <>Enter what <span className="font-bold text-foreground">{creator.displayName}</span> should receive. They get that amount in full. Verza&apos;s 15% is also taken from this campaign&apos;s budget.</>
+                                              : <>You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>&apos;s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.</>}
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
+                                        {isPoolBudgetGig(gig) && (
+                                          <div className="space-y-2">
+                                            <Label htmlFor={`pay-${creator.uid}`}>Creator pay ($)</Label>
+                                            <Input id={`pay-${creator.uid}`} type="number" min="1" value={poolPayAmount} onChange={(e) => setPoolPayAmount(e.target.value)} />
+                                          </div>
+                                        )}
                                         <AlertDialogFooter>
                                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => handlePayout(creator)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                          <AlertDialogAction onClick={() => handlePayout(creator, isPoolBudgetGig(gig) ? Number(poolPayAmount) : undefined)} className="bg-primary text-primary-foreground hover:bg-primary/90">
                                             Confirm & Pay
                                           </AlertDialogAction>
                                         </AlertDialogFooter>
@@ -1366,7 +1380,7 @@ function GigDetailContent() {
 
                 <div className="flex justify-between items-center"><span className="text-muted-foreground flex items-center gap-1"><Video className="h-4 w-4" /> Videos Requested</span><span className="font-bold">{gig.videosPerCreator || 1}</span></div>
                 {!isCompleted && (
-                  <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-muted-foreground">Spots Remaining</span><span className="font-bold">{gigHasCreatorCap(gig) ? `${spotsLeft} / ${gig.creatorsNeeded || 0}` : "Unlimited"}</span></div>
                 )}
                 <div className="flex justify-between items-center"><span className="text-muted-foreground">Status</span><Badge variant={gig.status === 'open' ? 'default' : (isCompleted ? 'default' : 'secondary')} className={gig.status === 'open' ? 'bg-green-500' : (isCompleted ? 'bg-blue-500' : '')}>{getStatusLabel(gig.status)}</Badge></div>
 

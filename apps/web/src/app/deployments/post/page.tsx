@@ -78,9 +78,7 @@ export default function PostGigPage() {
 
   // Base Rate Logic
   const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
-  const [ratePerCreator, setRatePerCreator] = useState('2500');
-
-  const [creatorsNeeded, setCreatorsNeeded] = useState('10');
+  const [campaignBudget, setCampaignBudget] = useState('3000');
   const [videosPerCreator, setVideosPerCreator] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -116,13 +114,10 @@ export default function PostGigPage() {
 
   const totalAmount = useMemo(() => {
     if (!isBaseRateEnabled) return 0;
-    const rate = parseFloat(ratePerCreator);
-    const needed = parseInt(creatorsNeeded, 10);
-    if (!isNaN(rate) && !isNaN(needed) && rate > 0 && needed > 0) {
-      return rate * needed;
-    }
+    const budget = parseFloat(campaignBudget);
+    if (!isNaN(budget) && budget > 0) return budget;
     return 0;
-  }, [ratePerCreator, creatorsNeeded, isBaseRateEnabled]);
+  }, [campaignBudget, isBaseRateEnabled]);
 
   const handlePlatformChange = (platform: string) => {
     setSelectedPlatforms(prev =>
@@ -143,12 +138,11 @@ export default function PostGigPage() {
       return;
     }
 
-    const rateNum = isBaseRateEnabled ? parseFloat(ratePerCreator) : 0;
-    const creatorsNum = parseInt(creatorsNeeded, 10);
+    const budgetNum = isBaseRateEnabled ? parseFloat(campaignBudget) : 0;
     const videosNum = parseInt(videosPerCreator, 10);
 
     // Core Validation
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(creatorsNum) || creatorsNum <= 0 || isNaN(videosNum) || videosNum <= 0) {
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0) {
       toast({ title: 'Missing Details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
       return;
     }
@@ -167,8 +161,8 @@ export default function PostGigPage() {
       }
     }
 
-    if (isBaseRateEnabled && (isNaN(rateNum) || rateNum <= 0)) {
-      toast({ title: 'Invalid Base Rate', description: 'Please enter a valid amount for the Fixed Base Rate.', variant: 'destructive' });
+    if (isBaseRateEnabled && (isNaN(budgetNum) || budgetNum < 1)) {
+      toast({ title: 'Invalid Campaign Budget', description: 'Enter a campaign budget of at least $1.', variant: 'destructive' });
       return;
     }
 
@@ -197,7 +191,7 @@ export default function PostGigPage() {
           title: title.trim(),
           description: description.trim(),
           platforms: selectedPlatforms,
-          creatorsNeeded: creatorsNum,
+          creatorsNeeded: 0,
           videosPerCreator: videosNum,
           campaignType,
           usageRights,
@@ -229,8 +223,10 @@ export default function PostGigPage() {
         title: title.trim(),
         description: description.trim(),
         platforms: selectedPlatforms,
-        ratePerCreator: rateNum,
-        creatorsNeeded: creatorsNum,
+        budgetMode: 'pool',
+        campaignBudget: budgetNum,
+        ratePerCreator: 0,
+        creatorsNeeded: 0,
         videosPerCreator: videosNum,
         campaignType,
         usageRights,
@@ -421,10 +417,6 @@ export default function PostGigPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="creators">Creators Needed</Label>
-                    <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} placeholder="25" required min="1" disabled={isSubmitting} />
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="videos">Videos per Creator</Label>
                     <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} placeholder="1" required min="1" disabled={isSubmitting} />
                   </div>
@@ -511,8 +503,8 @@ export default function PostGigPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Fixed Base Rate (Optional)</CardTitle>
-                    <CardDescription>Optional guaranteed payment for every creator who completes the brief.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Campaign Budget</CardTitle>
+                    <CardDescription>One budget for the whole campaign. You choose what each creator is paid when you approve their work.</CardDescription>
                   </div>
                   <Switch checked={isBaseRateEnabled} onCheckedChange={setIsBaseRateEnabled} />
                 </div>
@@ -520,12 +512,12 @@ export default function PostGigPage() {
               {isBaseRateEnabled && (
                 <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
                   <div className="space-y-2">
-                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting} />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">This amount is pre-funded and held in escrow.</p>
+                      <Label htmlFor="budget">Campaign budget ($)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="budget" type="number" value={campaignBudget} onChange={e => setCampaignBudget(e.target.value)} placeholder="3000" className="pl-9" required min="1" disabled={isSubmitting} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Held in escrow for this campaign. Creators receive the amount you enter. Verza&apos;s 15% is taken from this budget as well.</p>
                   </div>
                 </CardContent>
               )}
@@ -733,7 +725,7 @@ export default function PostGigPage() {
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
                   <p className="text-sm text-muted-foreground font-medium">Fixed Capital Required for Vault</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">({creatorsNeeded} creators x ${ratePerCreator} base rate)</p>
+                  <p className="text-xs text-muted-foreground mt-2">Creator pay is set per person when you approve their work. Verza&apos;s 15% comes out of this budget.</p>
                 </div>
               ) : isAffiliateEnabled ? (
                 <div className="p-6 border rounded-lg bg-blue-500/5 text-center border-blue-500/20">

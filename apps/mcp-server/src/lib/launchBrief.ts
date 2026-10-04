@@ -215,7 +215,7 @@ export async function buildCampaignLaunchBrief(
       {
         label: "Total creator budget",
         value: money(budget.creatorCompensationUsd),
-        hint: `${budget.remainingSlots} open slots`,
+        hint: budget.remainingSlots < 0 ? "Pay is set per creator from this budget" : `${budget.remainingSlots} open slots`,
       },
       {
         label: "Assumptions",

@@ -32,6 +32,8 @@ export type CampaignAiCopyGeneratorProps = {
   isSubmitting?: boolean;
   /** When set, passed to the model as optional pay context (USD per creator). */
   ratePerCreator?: string;
+  /** All-in campaign budget. Rates are set per creator at approval. */
+  campaignBudget?: string;
   creatorsNeeded?: string;
   videosPerCreator?: string;
   affiliateEnabled?: boolean;
@@ -47,6 +49,7 @@ export function CampaignAiCopyGenerator({
   disabled,
   isSubmitting,
   ratePerCreator,
+  campaignBudget,
   creatorsNeeded,
   videosPerCreator,
   affiliateEnabled,
@@ -77,6 +80,7 @@ export function CampaignAiCopyGenerator({
         userPrompt,
         platforms,
         ratePerCreator: parseOptionalMoney(ratePerCreator),
+        campaignBudget: parseOptionalMoney(campaignBudget),
         creatorsNeeded: parseOptionalPositiveInt(creatorsNeeded),
         videosPerCreator: parseOptionalPositiveInt(videosPerCreator),
         affiliateEnabled: Boolean(affiliateEnabled),

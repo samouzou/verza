@@ -7,6 +7,7 @@ import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
+import {centsToDollars, dollarsToCents} from "../poolBudget";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
 import {assertCanLaunchCampaign} from "../gigs/campaignLaunch";
@@ -581,17 +582,28 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           const gigRef = db.collection("gigs").doc(gigId);
           const agencyRef = db.collection("agencies").doc(agencyId);
 
-          await db.runTransaction(async (transaction) => {
-            const agencyDoc = await transaction.get(agencyRef);
-            if (!agencyDoc.exists) throw new Error("Agency not found for deployment funding.");
-            const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
-            const fundingAmount = amount / 100;
-            transaction.update(gigRef, {
-              status: "open",
-              fundingPaymentIntentId: paymentIntent.id,
+          const alreadyFunded = (await gigRef.get()).data()?.fundingPaymentIntentId === paymentIntent.id;
+          if (!alreadyFunded) {
+            await db.runTransaction(async (transaction) => {
+              const agencyDoc = await transaction.get(agencyRef);
+              const gigDoc = await transaction.get(gigRef);
+              if (!agencyDoc.exists) throw new Error("Agency not found for deployment funding.");
+              if (gigDoc.data()?.fundingPaymentIntentId === paymentIntent.id) return;
+              const currentEscrow = agencyDoc.data()?.escrowBalance || 0;
+              const fundingAmount = amount / 100;
+              const gigUpdates: {[key: string]: any} = {
+                status: "open",
+                fundingPaymentIntentId: paymentIntent.id,
+                fundedAmount: fundingAmount,
+              };
+              if (gigDoc.data()?.budgetMode === "pool") {
+                gigUpdates.campaignBudget = fundingAmount;
+                gigUpdates.budgetSpent = gigDoc.data()?.budgetSpent || 0;
+              }
+              transaction.update(gigRef, gigUpdates);
+              transaction.update(agencyRef, {escrowBalance: currentEscrow + fundingAmount});
             });
-            transaction.update(agencyRef, {escrowBalance: currentEscrow + fundingAmount});
-          });
+          }
 
           logger.info(`Successfully activated deployment "${gigId}" and updated agency escrow.`);
 
@@ -625,6 +637,17 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                     <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; tracking: 0.05em; 
                     color: #a0aec0; margin: 0 0 16px 0;">Deployment Breakdown</h2>
                     <table style="width: 100%; border-collapse: collapse;">
+                      ${gigData.budgetMode === "pool" ? `
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Campaign budget</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
+                        text-align: right;">$${(amount / 100).toLocaleString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Verza fee</td>
+                        <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
+                        text-align: right;">15% from this budget when a creator is paid</td>
+                      </tr>` : `
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>
                         <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
@@ -634,7 +657,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Creator Capacity</td>
                         <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
                         text-align: right;">${gigData.creatorsNeeded} Creators</td>
-                      </tr>
+                      </tr>`}
                       <tr style="border-top: 2px solid #edf2f7;">
                         <td style="padding: 20px 0 0 0; color: #1a202c; font-weight: 800; font-size: 18px;">Total Deployed</td>
                         <td style="padding: 20px 0 0 0; color: ${EMAIL_BRAND_PRIMARY}; font-weight: 800; text-align: right; 
@@ -687,6 +710,34 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
           }
         } catch (error) {
           logger.error(`Error updating deployment in handlePaymentSuccess for id ${gigId}:`, error);
+        }
+      } else if (purchaseType === "campaignBudgetTopUp" && gigId && agencyId) {
+        try {
+          const gigRef = db.collection("gigs").doc(gigId);
+          const agencyRef = db.collection("agencies").doc(agencyId);
+          const addCents = amount;
+          await db.runTransaction(async (transaction) => {
+            const gigDoc = await transaction.get(gigRef);
+            const agencyDoc = await transaction.get(agencyRef);
+            if (!gigDoc.exists || !agencyDoc.exists) throw new Error("Campaign top-up target missing.");
+            const gig = gigDoc.data() as Gig;
+            if (gig.budgetMode !== "pool") throw new Error("Top-up is only for campaign-budget payouts.");
+            if (gig.lastBudgetTopUpPaymentIntentId === paymentIntent.id) return;
+            const gigUpdates: {[key: string]: any} = {
+              fundedAmount: centsToDollars(dollarsToCents(gig.fundedAmount || 0) + addCents),
+              campaignBudget: centsToDollars(dollarsToCents(gig.campaignBudget || 0) + addCents),
+              lastBudgetTopUpPaymentIntentId: paymentIntent.id,
+            };
+            if (gig.status === "budget_exhausted") gigUpdates.status = "open";
+            transaction.update(gigRef, gigUpdates);
+            const agency = agencyDoc.data() as Agency;
+            transaction.update(agencyRef, {
+              escrowBalance: centsToDollars(dollarsToCents(agency.escrowBalance || 0) + addCents),
+            });
+          });
+          logger.info(`Added $${addCents / 100} to campaign ${gigId} budget.`);
+        } catch (error) {
+          logger.error(`Error applying campaign budget top-up for ${gigId}:`, error);
         }
       } else if (contractId) {
         const contractDocRef = db.collection("contracts").doc(contractId);
@@ -920,24 +971,44 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Missing required campaign details.");
   }
 
-  const rateNum = Number(ratePerCreator);
-  const creatorsNum = Number(creatorsNeeded);
-  if (!Number.isFinite(rateNum) || rateNum < 0) {
-    throw new HttpsError("invalid-argument", "Invalid base rate per creator.");
-  }
-  if (campaignType === "cause_campaign") {
-    if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
-      throw new HttpsError("invalid-argument", "Invalid creators count.");
-    }
-  } else if (!Number.isFinite(creatorsNum) || creatorsNum <= 0) {
-    throw new HttpsError("invalid-argument", "A positive number of creators is required to fund this campaign.");
+  const gigRef = existingGigId ? db.collection("gigs").doc(existingGigId) : db.collection("gigs").doc();
+  let existingGig: Gig | undefined;
+  if (existingGigId) {
+    const existingGigSnap = await gigRef.get();
+    if (existingGigSnap.exists) existingGig = existingGigSnap.data() as Gig;
   }
 
-  const totalBudget = rateNum * creatorsNum;
+  const requestedPool = request.data.budgetMode === "pool" || existingGig?.budgetMode === "pool";
+  let rateNum = Number(ratePerCreator);
+  let creatorsNum = Number(creatorsNeeded);
+  let campaignBudget = Number(request.data.campaignBudget);
+  if (requestedPool) {
+    if (!Number.isFinite(campaignBudget) || campaignBudget <= 0) {
+      campaignBudget = Number(existingGig?.campaignBudget) || 0;
+    }
+    if (!Number.isFinite(campaignBudget) || campaignBudget < 1) {
+      throw new HttpsError("invalid-argument", "Enter a campaign budget of at least $1.");
+    }
+    rateNum = 0;
+    creatorsNum = 0;
+  } else {
+    if (!Number.isFinite(rateNum) || rateNum < 0) {
+      throw new HttpsError("invalid-argument", "Invalid base rate per creator.");
+    }
+    if (campaignType === "cause_campaign") {
+      if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
+        throw new HttpsError("invalid-argument", "Invalid creators count.");
+      }
+    } else if (!Number.isFinite(creatorsNum) || creatorsNum <= 0) {
+      throw new HttpsError("invalid-argument", "A positive number of creators is required to fund this campaign.");
+    }
+  }
+
+  const totalBudget = requestedPool ? campaignBudget : rateNum * creatorsNum;
   if (!Number.isFinite(totalBudget) || totalBudget <= 0) {
     throw new HttpsError(
       "invalid-argument",
-      "Checkout requires a positive campaign budget (base rate × creators).",
+      "Checkout requires a positive campaign budget.",
     );
   }
 
@@ -968,7 +1039,6 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     await agencyOwnerDoc.ref.update({stripeCustomerId});
   }
 
-  const gigRef = existingGigId ? db.collection("gigs").doc(existingGigId) : db.collection("gigs").doc();
   const gigDataToSet: Omit<Gig, "id"> = {
     brandId: userData.primaryAgencyId,
     brandName: agencyData.name,
@@ -982,31 +1052,26 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
     campaignType,
     usageRights: usageRights || null,
     allowWhitelisting: !!allowWhitelisting,
-    acceptedCreatorIds: [],
-    paidCreatorIds: [],
+    acceptedCreatorIds: existingGig?.acceptedCreatorIds || [],
+    paidCreatorIds: existingGig?.paidCreatorIds || [],
     status: "pending_payment",
-    createdAt: FieldValue.serverTimestamp() as any,
+    createdAt: existingGig?.createdAt || FieldValue.serverTimestamp() as any,
     fundedAmount: 0,
     affiliateSettings: affiliateSettings || null,
     requireVerzaScore: requireVerzaScore ?? true,
     verzaScoreThreshold: verzaScoreThreshold ?? 65,
     isPublic: isPublic !== false,
     ...(deliverablesDueDate ? {deliverablesDueDate} : {}),
+    ...(requestedPool ? {
+      budgetMode: "pool" as const,
+      campaignBudget,
+      budgetSpent: 0,
+    } : {}),
   };
-
-  if (existingGigId) {
-    const existingGigSnap = await gigRef.get();
-    if (existingGigSnap.exists) {
-      const existingData = existingGigSnap.data() as Gig;
-      gigDataToSet.acceptedCreatorIds = existingData.acceptedCreatorIds || [];
-      gigDataToSet.paidCreatorIds = existingData.paidCreatorIds || [];
-    }
-  }
 
   await gigRef.set(gigDataToSet, {merge: true});
 
-  const totalAmount = rateNum * creatorsNum;
-  const totalAmountInCents = Math.round(totalAmount * 100);
+  const totalAmountInCents = Math.round(totalBudget * 100);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -1025,7 +1090,9 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
           currency: "usd",
           product_data: {
             name: `Campaign Budget: ${title}`,
-            description: `Funding for ${creatorsNum} creators at $${rateNum} each.`,
+            description: requestedPool ?
+              "Campaign budget. Creator pay is set when you approve each creator. Verza's 15% is taken from this budget." :
+              `Funding for ${creatorsNum} creators at $${rateNum} each.`,
           },
           unit_amount: totalAmountInCents,
         },
@@ -1058,6 +1125,105 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
   }
 });
 
+
+export const createCampaignBudgetTopUpCheckout = onCall({invoker: "public"}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+  }
+  let stripe: Stripe;
+  try {
+    const stripeKey = params.STRIPE_SECRET_KEY.value();
+    stripe = new Stripe(stripeKey, {apiVersion: "2026-04-22.dahlia" as any});
+  } catch (e) {
+    logger.error("Stripe not configured", e);
+    throw new HttpsError("failed-precondition", "Stripe is not configured.");
+  }
+
+  const gigId = request.data?.gigId as string | undefined;
+  const amountNum = Number(request.data?.amount);
+  if (!gigId || !Number.isFinite(amountNum) || amountNum < 1) {
+    throw new HttpsError("invalid-argument", "Enter at least $1 to add to this campaign.");
+  }
+
+  const userId = request.auth.uid;
+  const gigSnap = await db.collection("gigs").doc(gigId).get();
+  if (!gigSnap.exists) throw new HttpsError("not-found", "Campaign not found.");
+  const gig = gigSnap.data() as Gig;
+  if (gig.budgetMode !== "pool") {
+    throw new HttpsError("failed-precondition", "This campaign does not use a campaign budget.");
+  }
+  if (!["open", "in-progress", "budget_exhausted"].includes(gig.status)) {
+    throw new HttpsError("failed-precondition", "Add funds while the campaign is open.");
+  }
+
+  const userSnap = await db.collection("users").doc(userId).get();
+  const userData = userSnap.data() as UserProfileFirestoreData;
+  const agencySnap = await db.collection("agencies").doc(gig.brandId).get();
+  if (!agencySnap.exists) throw new HttpsError("not-found", "Brand not found.");
+  const agency = agencySnap.data() as Agency;
+  const isTeam = agency.ownerId === userId ||
+    agency.team?.some((m) => m.userId === userId && (m.role === "admin" || m.role === "member")) ||
+    userData?.primaryAgencyId === gig.brandId;
+  if (!isTeam) {
+    throw new HttpsError("permission-denied", "Only the brand team can add funds.");
+  }
+
+  const ownerSnap = await db.collection("users").doc(agency.ownerId).get();
+  const owner = ownerSnap.data() as UserProfileFirestoreData;
+  let stripeCustomerId = owner?.stripeCustomerId;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: owner?.email || undefined,
+      name: owner?.displayName || undefined,
+      metadata: {firebaseUID: agency.ownerId},
+    });
+    stripeCustomerId = customer.id;
+    await ownerSnap.ref.update({stripeCustomerId});
+  }
+
+  const amountCents = dollarsToCents(amountNum);
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: stripeCustomerId,
+    invoice_creation: {enabled: true},
+    payment_method_types: ["us_bank_account", "customer_balance"] as any[],
+    payment_method_options: {
+      customer_balance: {
+        funding_type: "bank_transfer",
+        bank_transfer: {type: "us_bank_transfer"},
+      },
+    },
+    line_items: [{
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: `Add campaign budget: ${gig.title}`,
+          description: "Added to this campaign's remaining budget.",
+        },
+        unit_amount: amountCents,
+      },
+      quantity: 1,
+    }],
+    success_url: `${params.APP_URL.value()}/campaigns/${gigId}?funding_success=true`,
+    cancel_url: `${params.APP_URL.value()}/campaigns/${gigId}`,
+    payment_intent_data: {
+      metadata: {
+        purchaseType: "campaignBudgetTopUp",
+        firebaseUID: userId,
+        agencyId: gig.brandId,
+        gigId,
+      },
+    },
+    metadata: {
+      purchaseType: "campaignBudgetTopUp",
+      firebaseUID: userId,
+      agencyId: gig.brandId,
+      gigId,
+    },
+  } as any);
+
+  return {url: session.url};
+});
 
 export const createCreditCheckoutSession = onCall(async (request) => {
   let stripe: Stripe;
@@ -1355,7 +1521,19 @@ export const initiateCreatorPayout = onCall(
       );
     }
 
-    const amountInCents = Math.floor(walletBalance * 100);
+    const requestedRaw = request.data?.amount;
+    let payoutAmount = walletBalance;
+    if (requestedRaw !== undefined && requestedRaw !== null && requestedRaw !== "") {
+      payoutAmount = typeof requestedRaw === "number" ? requestedRaw : parseFloat(String(requestedRaw));
+    }
+    if (!Number.isFinite(payoutAmount) || payoutAmount < 1) {
+      throw new HttpsError("invalid-argument", "Minimum payout is $1.00.");
+    }
+    const amountInCents = Math.round(payoutAmount * 100);
+    payoutAmount = amountInCents / 100;
+    if (amountInCents > Math.round(walletBalance * 100)) {
+      throw new HttpsError("failed-precondition", "Requested amount exceeds your wallet balance.");
+    }
 
     // Route to the correct payout path based on the user's payoutMethod.
     // Existing users without the field default to stripe_connect (backward compatible).
@@ -1452,15 +1630,20 @@ export const initiateCreatorPayout = onCall(
     }
 
     await db.runTransaction(async (transaction) => {
-      transaction.update(userDocRef, {walletBalance: 0});
-
-      const pendingPayoutsSnap = await db.collection("internalPayouts")
-        .where("talentId", "==", userId)
-        .where("status", "==", "pending")
-        .get();
+      const freshUser = await transaction.get(userDocRef);
+      const currentCents = Math.round(((freshUser.data()?.walletBalance as number) || 0) * 100);
+      const remainingCents = Math.max(0, currentCents - amountInCents);
+      const pendingPayoutsSnap = remainingCents === 0 ?
+        await transaction.get(
+          db.collection("internalPayouts")
+            .where("talentId", "==", userId)
+            .where("status", "==", "pending")
+        ) :
+        null;
 
       const now = FieldValue.serverTimestamp();
-      pendingPayoutsSnap.forEach((doc) => {
+      transaction.update(userDocRef, {walletBalance: remainingCents / 100});
+      pendingPayoutsSnap?.forEach((doc) => {
         transaction.update(doc.ref, {status: "paid", paidAt: now});
       });
 
@@ -1470,7 +1653,7 @@ export const initiateCreatorPayout = onCall(
         type: "creator_withdrawal",
         talentId: userId,
         talentName: userData.displayName || "Unknown",
-        amount: walletBalance,
+        amount: payoutAmount,
         description: "Payout to bank account",
         payoutMethod,
         status: "paid",
@@ -1482,15 +1665,15 @@ export const initiateCreatorPayout = onCall(
     await db.collection("notifications").add({
       userId,
       title: "Payout Initiated!",
-      message: `$${walletBalance.toFixed(2)} has been sent to your payout account. Local delivery times vary by country (often same-day for mobile money).`,
+      message: `$${payoutAmount.toFixed(2)} has been sent to your payout account. Local delivery times vary by country (often same-day for mobile money).`,
       type: "payout_received",
       read: false,
       link: "/wallet",
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    logger.info(`Successfully initiated ${payoutMethod} payout of $${walletBalance} for user ${userId}.`);
-    return {success: true, amount: walletBalance};
+    logger.info(`Successfully initiated ${payoutMethod} payout of $${payoutAmount} for user ${userId}.`);
+    return {success: true, amount: payoutAmount};
   } catch (error: any) {
     logger.error(`Error initiating payout for user ${userId}:`, error);
     if (error instanceof HttpsError) throw error;

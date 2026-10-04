@@ -99,8 +99,8 @@ Return STRICT JSON only (no markdown fences) with keys:
 - title: max 120 chars, specific, no ALL CAPS
 - descriptionHtml: HTML fragment using only p, br, strong, em, ul, ol, li (3–6 short blocks, under 2500 chars)
 - platforms: array from TikTok, Instagram, YouTube, Facebook, Twitch, LinkedIn (1–3 best fits)
-- ratePerCreator: number USD (0 for cause/barter unless cash is clear)
-- creatorsNeeded: integer (0 for cause_campaign meaning unlimited; else 3–25 sensible default)
+- ratePerCreator: number USD. Together with creatorsNeeded this is the TOTAL campaign budget (rate × creators), not a guaranteed flat fee. 0 for cause/barter unless cash is clear.
+- creatorsNeeded: integer used only to size the budget (0 for cause_campaign; else 3–25). Creators are not capped at this number.
 - videosPerCreator: integer 1–3
 - usageRights: none | 30_days | 1_year | perpetuity
 - allowWhitelisting: boolean
@@ -116,7 +116,8 @@ Rules:
 - Prefer cause_campaign only for nonprofit / impact pages.
 - Do not invent legal exclusivity or guaranteed reach.
 - If user forced a campaignType, honor it.
-- If user provided rate/creators/platforms, prefer those numbers/platforms.`;
+- If user provided rate/creators/platforms, prefer those numbers/platforms.
+- Do not promise each creator the ratePerCreator amount. That product is the campaign budget. Pay is set per creator when work is approved, and the creator receives the full amount.`;
 
   const userBlock = [
     `Product URL: ${scraped.url}`,

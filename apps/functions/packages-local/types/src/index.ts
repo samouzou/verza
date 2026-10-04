@@ -822,6 +822,32 @@ export interface Gig {
   deliveryExtensions?: { [creatorId: string]: Timestamp }; // brand-granted per-creator deadline overrides
   /** Listed on the public campaign page and sitemap. Undefined means public; brands opt out with false. */
   isPublic?: boolean;
+  /**
+   * `pool`: one campaign budget. Creators are paid custom amounts and Verza's fee comes out of that budget.
+   * Missing or `flat_fee`: legacy rate × creator count, fee taken from the creator.
+   */
+  budgetMode?: 'flat_fee' | 'pool';
+  /** All-in dollars the brand is funding for a pool campaign (creator pay + Verza fee). */
+  campaignBudget?: number;
+  /** Dollars already drawn from this campaign (creator pay + Verza fee). Server-written. */
+  budgetSpent?: number;
+  /** Expected creator pay, set when the brand accepts them. The payout amount can still change. */
+  offeredPayouts?: { [creatorId: string]: number };
+  /** What was actually paid. Server-written. */
+  creatorPayouts?: { [creatorId: string]: CreatorPayoutRecord };
+  /** Set when a budget top-up payment is applied, so the webhook can ignore retries. */
+  lastBudgetTopUpPaymentIntentId?: string;
+  /** Dollars returned to the brand wallet when the campaign was closed. */
+  unspentReleased?: number;
+}
+
+export interface CreatorPayoutRecord {
+  creatorAmount: number;
+  platformFee: number;
+  agencyCommission: number;
+  creatorNet: number;
+  totalDraw: number;
+  paidAt: Timestamp;
 }
 
 /**
@@ -843,6 +869,8 @@ export interface PublicCampaign {
   ratePerCreator: number;
   creatorsNeeded: number;
   spotsLeft: number;
+  /** `pool` campaigns pay a fee set when the creator is accepted. The dollar budget is not published. */
+  budgetMode?: 'flat_fee' | 'pool';
   videosPerCreator: number;
   usageRights: Gig['usageRights'] | null;
   allowWhitelisting: boolean;
@@ -1056,4 +1084,70 @@ export function isOpticLeadResponse(value: unknown): value is OpticLeadResponse 
 
 export function isOpticPassReason(value: unknown): value is OpticPassReason {
   return typeof value === 'string' && (OPTIC_PASS_REASONS as readonly string[]).includes(value);
+}
+
+/** Verza fee on campaign payouts. Taken from the campaign budget, on top of what the creator receives. */
+export const GIG_PLATFORM_FEE_FRACTION = 0.15;
+
+export type GigBudgetMode = "flat_fee" | "pool";
+
+export function isPoolBudgetGig(gig: {budgetMode?: GigBudgetMode | string | null}): boolean {
+  return gig.budgetMode === "pool";
+}
+
+/** Flat-fee campaigns cap acceptance at creatorsNeeded. Pool and cause campaigns do not. */
+export function gigHasCreatorCap(gig: {
+  budgetMode?: GigBudgetMode | string | null;
+  campaignType?: string | null;
+  creatorsNeeded?: number | null;
+}): boolean {
+  if (gig.campaignType === "cause_campaign") return false;
+  if (isPoolBudgetGig(gig)) return false;
+  return Math.floor(Number(gig.creatorsNeeded) || 0) > 0;
+}
+
+export function dollarsToCents(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100);
+}
+
+export function centsToDollars(cents: number): number {
+  return cents / 100;
+}
+
+export type PoolDraw = {
+  creatorAmountCents: number;
+  platformFeeCents: number;
+  totalDrawCents: number;
+};
+
+/** Creator receives `creatorAmount` in full. The fee is an additional draw on the campaign budget. */
+export function poolDrawForCreatorAmount(creatorAmountUsd: number): PoolDraw {
+  const creatorAmountCents = dollarsToCents(creatorAmountUsd);
+  const platformFeeCents = Math.round(creatorAmountCents * GIG_PLATFORM_FEE_FRACTION);
+  return {
+    creatorAmountCents,
+    platformFeeCents,
+    totalDrawCents: creatorAmountCents + platformFeeCents,
+  };
+}
+
+/** Cash locked for this campaign minus what payouts have already drawn. Uses fundedAmount, not the editable budget field. */
+export function poolRemainingCents(gig: {fundedAmount?: number | null; budgetSpent?: number | null}): number {
+  const locked = dollarsToCents(Number(gig.fundedAmount) || 0);
+  const spent = dollarsToCents(Number(gig.budgetSpent) || 0);
+  return Math.max(0, locked - spent);
+}
+
+/** Largest creator payment whose fee still fits in the remaining cents. */
+export function maxCreatorPayoutCents(remainingCents: number): number {
+  if (remainingCents <= 0) return 0;
+  let guess = Math.floor(remainingCents / (1 + GIG_PLATFORM_FEE_FRACTION));
+  while (guess > 0 && guess + Math.round(guess * GIG_PLATFORM_FEE_FRACTION) > remainingCents) {
+    guess -= 1;
+  }
+  while (guess + 1 + Math.round((guess + 1) * GIG_PLATFORM_FEE_FRACTION) <= remainingCents) {
+    guess += 1;
+  }
+  return guess;
 }

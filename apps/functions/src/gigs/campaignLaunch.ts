@@ -91,13 +91,9 @@ export const launchFreeCampaign = onCall(async (request) => {
 
   await assertCanLaunchCampaign(agencyId);
 
-  const creatorsNum = Number(creatorsNeeded);
-  if (campaignType === "cause_campaign") {
-    if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
-      throw new HttpsError("invalid-argument", "Invalid creators count.");
-    }
-  } else if (!Number.isFinite(creatorsNum) || creatorsNum <= 0) {
-    throw new HttpsError("invalid-argument", "A positive number of creators is required.");
+  const creatorsNum = Number(creatorsNeeded ?? 0);
+  if (!Number.isFinite(creatorsNum) || creatorsNum < 0) {
+    throw new HttpsError("invalid-argument", "Invalid creators count.");
   }
 
   const ownerSnap = await db.collection("users").doc(agency.ownerId).get();

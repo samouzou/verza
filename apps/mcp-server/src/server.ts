@@ -613,7 +613,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_create",
-    "Launch an approved campaign draft. Paid campaigns return a checkout link to fund creator pay; free / cause / barter campaigns go live right away. Returns a brand-friendly launch report with budget and predicted return.",
+    "Launch an approved campaign draft. ratePerCreator × creatorsNeeded is the total campaign budget, not a flat fee per creator. Paid campaigns return a checkout link; free / cause / barter campaigns go live right away.",
     {
       confirm: z
         .boolean()

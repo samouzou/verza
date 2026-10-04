@@ -905,7 +905,8 @@ export const evictOverdueCreators = onSchedule("every 24 hours", async () => {
 
       // Reopen slot if gig was in-progress and is now under capacity
       const isCause = gig.campaignType === "cause_campaign";
-      if (!isCause && gig.status === "in-progress" && newAcceptedIds.length < (gig.creatorsNeeded || 0)) {
+      const hasCreatorCap = !isCause && gig.budgetMode !== "pool" && (gig.creatorsNeeded || 0) > 0;
+      if (hasCreatorCap && gig.status === "in-progress" && newAcceptedIds.length < (gig.creatorsNeeded || 0)) {
         updates.status = "open";
       }
 

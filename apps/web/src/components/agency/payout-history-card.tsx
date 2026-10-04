@@ -47,7 +47,7 @@ export function PayoutHistoryCard({ agencyId }: PayoutHistoryCardProps) {
     <Card id="payout-history-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
-        <CardDescription>History of one-off payments made to your talent.</CardDescription>
+        <CardDescription>Amount is what the creator was credited. Platform fee is Verza&apos;s 15%, taken from the campaign budget on top of that pay.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
@@ -70,7 +70,7 @@ export function PayoutHistoryCard({ agencyId }: PayoutHistoryCardProps) {
                   <TableCell>{p.paymentDate ? new Date((p.paymentDate as Timestamp).seconds * 1000).toLocaleDateString() : (p.initiatedAt as Timestamp).toDate().toLocaleDateString()}</TableCell>
                   <TableCell>{p.description}</TableCell>
                   <TableCell><Badge variant={p.status === 'paid' ? 'default' : 'secondary'} className={`capitalize ${p.status === 'paid' ? 'bg-green-500' : ''}`}>{p.status}</Badge></TableCell>
-                  <TableCell className="font-mono text-muted-foreground">${p.platformFee?.toFixed(2) || '0.00'}</TableCell>
+                  <TableCell className="font-mono text-muted-foreground">{typeof p.platformFee === "number" ? `$${p.platformFee.toFixed(2)}` : "—"}</TableCell>
                   <TableCell className="text-right font-mono">${p.amount.toLocaleString()}</TableCell>
                 </TableRow>
               ))}

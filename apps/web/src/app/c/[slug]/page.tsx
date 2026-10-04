@@ -213,7 +213,12 @@ export default async function PublicCampaignPage({ params }: PageProps) {
               {campaign.requireVerzaScore && campaign.verzaScoreThreshold != null && (
                 <Fact icon={CheckCircle2} label="Quality bar" value={`Verza Score ${campaign.verzaScoreThreshold}+`} />
               )}
-              {campaign.ratePerCreator > 0 && (
+              {campaign.budgetMode === 'pool' && (
+                <p className="text-xs text-muted-foreground">
+                  A flat fee is set when the brand accepts you. You receive that amount in full. Verza&apos;s fee is paid by the brand.
+                </p>
+              )}
+              {campaign.budgetMode !== 'pool' && campaign.ratePerCreator > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Base pay is pre-funded by the brand. You receive about {formatUsd(campaign.ratePerCreator * 0.85)} after Verza&apos;s 15% fee.
                 </p>

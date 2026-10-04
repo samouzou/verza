@@ -68,6 +68,7 @@ export default function CampaignFundPage() {
           platforms: gig.platforms,
           ratePerCreator: gig.ratePerCreator,
           creatorsNeeded: gig.creatorsNeeded,
+          ...(gig.budgetMode === "pool" ? {budgetMode: "pool", campaignBudget: gig.campaignBudget || 0} : {}),
           videosPerCreator: gig.videosPerCreator,
           campaignType: gig.campaignType || "standard_sponsorship",
           usageRights: gig.usageRights || "1_year",

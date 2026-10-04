@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Gig } from '@/types';
+import { isPoolBudgetGig, type Gig } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -100,7 +100,9 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
         <div className="flex flex-col items-start gap-1">
           <div className="text-xl font-bold text-primary">
-            {(gig.ratePerCreator || 0) > 0 ? (
+            {isPoolBudgetGig(gig) ? (
+              `$${(gig.campaignBudget || gig.fundedAmount || 0).toLocaleString()} budget`
+            ) : (gig.ratePerCreator || 0) > 0 ? (
               `$${(gig.ratePerCreator || 0).toLocaleString()}`
             ) : isCauseCampaignType(gig.campaignType) ? (
               <div className="flex items-center gap-1.5 text-rose-500 text-sm">

@@ -6,6 +6,10 @@ import {db} from "../config/firebase";
 import type {Gig, UserProfileFirestoreData, Notification, Agency, InternalPayout} from "./../types";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {sendDeploymentEmailSequence} from "../notifications";
+import {isPoolBudgetGig} from "../poolBudget";
+import {payoutPoolCreator} from "./poolPayout";
+
+export {addCampaignBudgetFromWallet, releaseUnspentCampaignBudget} from "./poolPayout";
 
 export const payoutCreatorForGig = onCall(async (request) => {
   if (!request.auth) {
@@ -42,6 +46,15 @@ export const payoutCreatorForGig = onCall(async (request) => {
       }
     }
 
+    if (isPoolBudgetGig(gigData)) {
+      return payoutPoolCreator({
+        gigId,
+        creatorId,
+        amount: request.data.amount,
+        gigData,
+      });
+    }
+
     if (!gigData.acceptedCreatorIds.includes(creatorId)) {
       throw new HttpsError("failed-precondition", "This creator has not secured the deployment.");
     }
@@ -62,9 +75,10 @@ export const payoutCreatorForGig = onCall(async (request) => {
     // Calculate payout amounts
     const rawPayoutAmountInCents = Math.round(gigData.ratePerCreator * 100);
     let creatorPayoutInCents = 0;
+    let platformFeeInCents = 0;
 
     if (rawPayoutAmountInCents > 0) {
-      const platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
+      platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
       const netPayoutInCents = rawPayoutAmountInCents - platformFeeInCents;
 
       if (assignment) {
@@ -116,6 +130,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
           talentId: creatorId,
           talentName: creatorData.displayName || "Unknown Creator",
           amount: creatorPayoutInCents / 100,
+          platformFee: platformFeeInCents / 100,
           description: `Payment for campaign: ${gigData.title}`,
           status: "pending",
           initiatedAt: FieldValue.serverTimestamp(),

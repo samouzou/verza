@@ -149,7 +149,8 @@ export function formatUsd(amount: number): string {
 /** One-line compensation summary, e.g. "$250 per creator + $5 per sale". */
 export function compensationSummary(c: PublicCampaign): string {
   const parts: string[] = [];
-  if (c.ratePerCreator > 0) parts.push(`${formatUsd(c.ratePerCreator)} per creator`);
+  if (c.budgetMode === 'pool') parts.push('Flat fee');
+  else if (c.ratePerCreator > 0) parts.push(`${formatUsd(c.ratePerCreator)} per creator`);
   if (c.performanceReward && c.performanceReward.rewardAmount > 0) {
     const unit = c.performanceReward.rewardType === 'cpc' ? 'click' : 'sale';
     parts.push(`${formatUsd(c.performanceReward.rewardAmount)} per ${unit}`);

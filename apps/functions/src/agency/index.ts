@@ -815,7 +815,13 @@ export const fundGigFromWallet = onCall(async (request) => {
         throw new HttpsError("permission-denied", "Only agency owners or admins can fund gigs.");
       }
 
-      const totalCost = gigData.ratePerCreator * gigData.creatorsNeeded;
+      const isPool = gigData.budgetMode === "pool";
+      const totalCost = isPool ?
+        Number(gigData.campaignBudget) || 0 :
+        gigData.ratePerCreator * gigData.creatorsNeeded;
+      if (isPool && totalCost < 1) {
+        throw new HttpsError("failed-precondition", "This campaign does not have a budget to fund.");
+      }
       const available = agencyData.availableBalance || 0;
 
       if (available < totalCost) {
@@ -832,6 +838,7 @@ export const fundGigFromWallet = onCall(async (request) => {
       transaction.update(gigRef, {
         status: "open",
         fundedAmount: totalCost,
+        ...(isPool ? {campaignBudget: totalCost, budgetSpent: gigData.budgetSpent || 0} : {}),
       });
 
       return {success: true};

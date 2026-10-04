@@ -12,6 +12,8 @@ export type GigBudgetInput = {
   creatorsNeeded: number;
   videosPerCreator: number;
   fundedAmount?: number;
+  budgetMode?: string;
+  campaignBudget?: number;
   acceptedCreatorIds?: string[];
   paidCreatorIds?: string[];
   platforms?: string[];
@@ -52,14 +54,19 @@ export function estimateCampaignBudget(gig: GigBudgetInput): BudgetEstimate {
   const rate = numOrZero(gig.ratePerCreator);
   const needed = Math.max(0, Math.floor(numOrZero(gig.creatorsNeeded)));
   const videos = Math.max(0, Math.floor(numOrZero(gig.videosPerCreator)));
-  const creatorCompensationUsd = rate * needed;
-  const estimatedPlatformFeeUsd = Math.round(creatorCompensationUsd * GIG_PLATFORM_FEE_FRACTION * 100) / 100;
-  const estimatedCreatorNetUsd =
-    Math.round((creatorCompensationUsd - estimatedPlatformFeeUsd) * 100) / 100;
+  const pool = gig.budgetMode === "pool";
+  const poolBudget = pool ? numOrZero(gig.campaignBudget) : 0;
+  const creatorCompensationUsd = pool ? poolBudget : rate * needed;
+  const estimatedCreatorNetUsd = pool ?
+    Math.round((poolBudget / (1 + GIG_PLATFORM_FEE_FRACTION)) * 100) / 100 :
+    Math.round(creatorCompensationUsd * (1 - GIG_PLATFORM_FEE_FRACTION) * 100) / 100;
+  const estimatedPlatformFeeUsd = pool ?
+    Math.round((poolBudget - estimatedCreatorNetUsd) * 100) / 100 :
+    Math.round(creatorCompensationUsd * GIG_PLATFORM_FEE_FRACTION * 100) / 100;
   const fundedAmountUsd = numOrZero(gig.fundedAmount);
   const accepted = Array.isArray(gig.acceptedCreatorIds) ? gig.acceptedCreatorIds.length : 0;
-  const remainingSlots = Math.max(0, needed - accepted);
-  const remainingBudgetUsd = Math.round(rate * remainingSlots * 100) / 100;
+  const remainingSlots = pool ? -1 : Math.max(0, needed - accepted);
+  const remainingBudgetUsd = pool ? poolBudget : Math.round(rate * remainingSlots * 100) / 100;
 
   const aff = gig.affiliateSettings;
   const affiliateEnabled = Boolean(aff?.isEnabled);
@@ -90,8 +97,12 @@ export function estimateCampaignBudget(gig: GigBudgetInput): BudgetEstimate {
         : "No affiliate or performance bonus layer is enabled on this campaign.",
     },
     assumptions: [
-      "Creator budget = pay per creator × number of creators (same as campaign funding).",
-      `Verza’s platform fee is modeled at ${GIG_PLATFORM_FEE_FRACTION * 100}% of creator payouts (taken at payout).`,
+      pool ?
+        "Campaign budget is all-in. Creators are paid custom amounts and receive that amount in full." :
+        "Creator budget = pay per creator × number of creators (same as campaign funding).",
+      pool ?
+        `Verza’s ${GIG_PLATFORM_FEE_FRACTION * 100}% fee is taken from the campaign budget on top of each creator payment.` :
+        `Verza’s platform fee is modeled at ${GIG_PLATFORM_FEE_FRACTION * 100}% of creator payouts (taken at payout).`,
       "Cause or barter campaigns may show $0 cash pay — treat return estimates separately.",
     ],
   };

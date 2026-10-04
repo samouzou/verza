@@ -74,6 +74,7 @@ export default function EditGigPage() {
   // Base Rate
   const [isBaseRateEnabled, setIsBaseRateEnabled] = useState(true);
   const [ratePerCreator, setRatePerCreator] = useState('');
+  const [campaignBudget, setCampaignBudget] = useState('');
   
   const [creatorsNeeded, setCreatorsNeeded] = useState('');
   const [videosPerCreator, setVideosPerCreator] = useState('');
@@ -119,8 +120,10 @@ export default function EditGigPage() {
               setSelectedPlatforms(gigData.platforms);
               
               const baseRate = gigData.ratePerCreator || 0;
-              setIsBaseRateEnabled(baseRate > 0);
+              const poolBudget = gigData.campaignBudget || gigData.fundedAmount || 0;
+              setIsBaseRateEnabled(gigData.budgetMode === 'pool' ? poolBudget > 0 : baseRate > 0);
               setRatePerCreator(String(baseRate));
+              setCampaignBudget(String(poolBudget || ''));
               
               setCreatorsNeeded(String(gigData.creatorsNeeded));
               setVideosPerCreator(String(gigData.videosPerCreator || '1'));
@@ -175,11 +178,12 @@ export default function EditGigPage() {
     if (!user || !gig) return;
 
     const isCause = isCauseCampaignType(campaignType);
-    const rateNum = (isBaseRateEnabled && !isCause) ? parseFloat(ratePerCreator) : 0;
+    const isPool = gig.budgetMode === 'pool';
+    const rateNum = (isBaseRateEnabled && !isCause) ? parseFloat(isPool ? campaignBudget : ratePerCreator) : 0;
     const creatorsNum = parseInt(creatorsNeeded, 10);
     const videosNum = parseInt(videosPerCreator, 10);
 
-    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0 || (!isCause && (isNaN(creatorsNum) || creatorsNum <= 0))) {
+    if (!title.trim() || !description.trim() || selectedPlatforms.length === 0 || isNaN(videosNum) || videosNum <= 0 || (!isCause && !isPool && (isNaN(creatorsNum) || creatorsNum <= 0))) {
       toast({ title: 'Missing details', description: 'Please fill out the basic campaign details.', variant: 'destructive' });
       return;
     }
@@ -189,8 +193,8 @@ export default function EditGigPage() {
       return;
     }
 
-    if (isBaseRateEnabled && (isNaN(rateNum) || rateNum <= 0)) {
-      toast({ title: 'Invalid Base Rate', description: 'Please enter a valid amount for the Fixed Base Rate.', variant: 'destructive' });
+    if (isBaseRateEnabled && !isCause && (isNaN(rateNum) || rateNum <= 0)) {
+      toast({ title: isPool ? 'Invalid Campaign Budget' : 'Invalid Base Rate', description: isPool ? 'Enter a campaign budget of at least $1.' : 'Please enter a valid amount for the Fixed Base Rate.', variant: 'destructive' });
       return;
     }
 
@@ -213,8 +217,9 @@ export default function EditGigPage() {
             title: title.trim(),
             description: description.trim(),
             platforms: selectedPlatforms as ("TikTok" | "Instagram" | "YouTube" | "Facebook" | "Twitch" | "LinkedIn" | "X")[],
-            ratePerCreator: rateNum,
-            creatorsNeeded: isCause ? 0 : creatorsNum,
+            ratePerCreator: isPool ? 0 : rateNum,
+            creatorsNeeded: isCause || isPool ? 0 : creatorsNum,
+            ...(isPool ? {budgetMode: 'pool' as const, campaignBudget: isBaseRateEnabled && !isCause ? rateNum : 0} : {}),
             videosPerCreator: videosNum,
             usageRights,
             allowWhitelisting: allowWhitelisting ?? false,
@@ -384,9 +389,12 @@ export default function EditGigPage() {
                 disabled={isSubmitting}
                 isSubmitting={isSubmitting}
                 ratePerCreator={
-                  isCauseCampaignType(campaignType) || !isBaseRateEnabled ? undefined : ratePerCreator
+                  gig?.budgetMode === 'pool' || isCauseCampaignType(campaignType) || !isBaseRateEnabled ? undefined : ratePerCreator
                 }
-                creatorsNeeded={isCauseCampaignType(campaignType) ? undefined : creatorsNeeded}
+                campaignBudget={
+                  gig?.budgetMode === 'pool' && isBaseRateEnabled && !isCauseCampaignType(campaignType) ? campaignBudget : undefined
+                }
+                creatorsNeeded={gig?.budgetMode === 'pool' || isCauseCampaignType(campaignType) ? undefined : creatorsNeeded}
                 videosPerCreator={videosPerCreator}
                 affiliateEnabled={isAffiliateEnabled}
                 onApply={(t, html) => {
@@ -440,6 +448,7 @@ export default function EditGigPage() {
                 <p className="text-xs text-muted-foreground">The date all deliverables must be submitted. Creators get 14 days from acceptance; you can extend individuals anytime. Clear to remove the deadline.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {gig?.budgetMode !== 'pool' && (
                   <div className="space-y-2">
                     <Label htmlFor="creators">Creators Needed</Label>
                     {campaignType === 'cause_campaign' ? (
@@ -451,6 +460,7 @@ export default function EditGigPage() {
                       <Input id="creators" type="number" value={creatorsNeeded} onChange={e => setCreatorsNeeded(e.target.value)} required min="1" disabled={isSubmitting || isLocked} />
                     )}
                   </div>
+                  )}
                   <div className="space-y-2">
                       <Label htmlFor="videos">Videos per Creator</Label>
                       <Input id="videos" type="number" value={videosPerCreator} onChange={e => setVideosPerCreator(e.target.value)} required min="1" disabled={isSubmitting || isLocked}/>
@@ -552,8 +562,8 @@ export default function EditGigPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Fixed Base Rate (Optional)</CardTitle>
-                    <CardDescription>Optional guaranteed payment for every creator who completes the brief.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> {gig?.budgetMode === 'pool' ? '4. Campaign Budget' : '4. Fixed Base Rate (Optional)'}</CardTitle>
+                    <CardDescription>{gig?.budgetMode === 'pool' ? 'One budget for the whole campaign. You choose what each creator is paid when you approve their work.' : 'Optional guaranteed payment for every creator who completes the brief.'}</CardDescription>
                   </div>
                   <Switch checked={isBaseRateEnabled ?? false} onCheckedChange={setIsBaseRateEnabled} disabled={isLocked || isSubmitting} />
                 </div>
@@ -561,11 +571,14 @@ export default function EditGigPage() {
               {isBaseRateEnabled && (
                 <CardContent className="animate-in fade-in slide-in-from-top-4 duration-300">
                   <div className="space-y-2">
-                    <Label htmlFor="rate">Base Rate per Creator ($)</Label>
+                    <Label htmlFor="rate">{gig?.budgetMode === 'pool' ? 'Campaign budget ($)' : 'Base Rate per Creator ($)'}</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="rate" type="number" value={ratePerCreator} onChange={e => setRatePerCreator(e.target.value)} placeholder="2500" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
+                      <Input id="rate" type="number" value={gig?.budgetMode === 'pool' ? campaignBudget : ratePerCreator} onChange={e => gig?.budgetMode === 'pool' ? setCampaignBudget(e.target.value) : setRatePerCreator(e.target.value)} placeholder="3000" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
                     </div>
+                    {gig?.budgetMode === 'pool' && (
+                      <p className="text-[10px] text-muted-foreground">When you pay a creator, they receive the full amount. Verza&apos;s 15% is taken from this budget as well.</p>
+                    )}
                   </div>
                 </CardContent>
               )}

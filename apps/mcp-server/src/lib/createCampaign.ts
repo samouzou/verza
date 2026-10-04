@@ -114,7 +114,10 @@ export async function createCampaignViaCallables(
     "createGigFundingCheckoutSession",
     {
       ...basePayload,
-      ratePerCreator,
+      budgetMode: "pool",
+      campaignBudget: totalAmount,
+      ratePerCreator: 0,
+      creatorsNeeded: 0,
     }
   );
   const checkoutUrl = result?.url ?? null;
@@ -135,10 +138,12 @@ export async function createCampaignViaCallables(
     title,
     status: "pending_payment",
     campaignType: input.campaignType,
-    ratePerCreator,
-    creatorsNeeded,
+    ratePerCreator: 0,
+    creatorsNeeded: 0,
     videosPerCreator,
     fundedAmount: 0,
+    budgetMode: "pool",
+    campaignBudget: totalAmount,
     platforms: input.platforms,
     affiliateSettings,
   });
@@ -152,6 +157,6 @@ export async function createCampaignViaCallables(
     campaignUrl: `${app}/campaigns/${gigId}`,
     budgetPreview,
     message:
-      "Open fundingUrl (Verza) to pay — you’ll be signed in and sent to Stripe. Don’t share or shorten the raw Stripe checkout link.",
+      `Open fundingUrl (Verza) to pay $${totalAmount.toLocaleString("en-US")} into this campaign's budget. Creators are paid individual amounts from it and receive that amount in full. Verza's 15% is taken from the budget when you pay someone. Don’t share or shorten the raw Stripe checkout link.`,
   };
 }

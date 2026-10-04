@@ -77,6 +77,7 @@ export const generateCampaignCopy = onCall(
       userPrompt?: unknown;
       platforms?: unknown;
       ratePerCreator?: unknown;
+      campaignBudget?: unknown;
       creatorsNeeded?: unknown;
       videosPerCreator?: unknown;
       affiliateEnabled?: unknown;
@@ -103,6 +104,10 @@ export const generateCampaignCopy = onCall(
     const rate =
       typeof data.ratePerCreator === "number" && Number.isFinite(data.ratePerCreator) ?
         data.ratePerCreator :
+        null;
+    const campaignBudget =
+      typeof data.campaignBudget === "number" && Number.isFinite(data.campaignBudget) ?
+        data.campaignBudget :
         null;
     const creators =
       typeof data.creatorsNeeded === "number" && Number.isFinite(data.creatorsNeeded) ?
@@ -142,6 +147,7 @@ export const generateCampaignCopy = onCall(
       brandHint ? `Brand positioning (from Verza): ${brandHint}` : null,
       platforms.length ? `Target platforms: ${platforms.join(", ")}` : null,
       rate !== null && rate > 0 ? `Listed base rate (USD per creator, from form): $${rate.toLocaleString("en-US")}` : null,
+      campaignBudget !== null && campaignBudget > 0 ? `Campaign budget (USD, all-in, from form): $${campaignBudget.toLocaleString("en-US")}. Do not promise a flat per-creator rate. Say pay is set when the brand accepts the creator, and the creator receives that amount in full.` : null,
       creators !== null && creators > 0 ? `Creators needed (from form): ${creators}` : null,
       campaignType === "cause_campaign" ? "Cause campaigns: creators needed is unlimited on Verza — do not invent a cap." : null,
       videos !== null && videos > 0 ? `Videos per creator (from form): ${videos}` : null,

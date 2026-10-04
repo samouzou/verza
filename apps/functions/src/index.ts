@@ -21,6 +21,7 @@ import {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
+  createCampaignBudgetTopUpCheckout,
   createAgencyTopUpSession,
   initiateCreatorPayout,
 } from "./payments";
@@ -96,6 +97,8 @@ import {
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,
+  addCampaignBudgetFromWallet,
+  releaseUnspentCampaignBudget,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {syncPublicCampaign, reconcilePublicCampaigns} from "./gigs/publicCampaigns";
@@ -197,6 +200,7 @@ export {
   getStripeAccountBalance,
   createCreditCheckoutSession,
   createGigFundingCheckoutSession,
+  createCampaignBudgetTopUpCheckout,
   createAgencyTopUpSession,
   initiateCreatorPayout,
   createInflowSubMerchant,
@@ -242,6 +246,8 @@ export {
   initiateAgencyPayout,
   initiateInternalTalentPayment,
   payoutCreatorForGig,
+  addCampaignBudgetFromWallet,
+  releaseUnspentCampaignBudget,
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,

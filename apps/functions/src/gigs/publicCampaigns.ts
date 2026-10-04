@@ -53,6 +53,7 @@ export function toPublicCampaign(gigId: string, gig: Gig, hasBrandKit = false): 
     ratePerCreator: Number(gig.ratePerCreator) || 0,
     creatorsNeeded,
     spotsLeft: Math.max(0, creatorsNeeded - accepted),
+    budgetMode: gig.budgetMode === "pool" ? "pool" : undefined,
     videosPerCreator: Number(gig.videosPerCreator) || 0,
     usageRights: gig.usageRights ?? null,
     allowWhitelisting: Boolean(gig.allowWhitelisting),

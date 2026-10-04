@@ -64,6 +64,14 @@ import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
+import {
+  centsToDollars,
+  gigHasCreatorCap,
+  isPoolBudgetGig,
+  maxCreatorPayoutCents,
+  poolDrawForCreatorAmount,
+  poolRemainingCents,
+} from '@/types';
 
 function GigDetailContent() {
   const params = useParams();
@@ -84,6 +92,14 @@ function GigDetailContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResumingFunding, setIsResumingFunding] = useState(false);
   const [isWalletFunding, setIsWalletFunding] = useState(false);
+  const [approvingApplicant, setApprovingApplicant] = useState<UserProfile | null>(null);
+  const [offerAmount, setOfferAmount] = useState('');
+  const [payingCreator, setPayingCreator] = useState<UserProfile | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [isClosingBudget, setIsClosingBudget] = useState(false);
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [isToppingUp, setIsToppingUp] = useState(false);
 
   const [isUploading, setIsUploading] = useState<number | null>(null);
   const [isRunningVerzaScore, setIsRunningVerzaScore] = useState<string | null>(null);
@@ -114,6 +130,9 @@ function GigDetailContent() {
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
   const fundGigFromWalletCallable = httpsCallable(functions, 'fundGigFromWallet');
+  const addCampaignBudgetFromWalletCallable = httpsCallable(functions, 'addCampaignBudgetFromWallet');
+  const createCampaignBudgetTopUpCheckoutCallable = httpsCallable(functions, 'createCampaignBudgetTopUpCheckout');
+  const releaseUnspentCampaignBudgetCallable = httpsCallable(functions, 'releaseUnspentCampaignBudget');
   const extendCreatorDeadlineCallable = httpsCallable(functions, 'extendCreatorDeadline');
   const notifyBrandVideoSubmittedCallable = httpsCallable(functions, 'notifyBrandVideoSubmitted');
   const notifyBrandCampaignApplicantCallable = httpsCallable(functions, 'notifyBrandCampaignApplicant');
@@ -122,7 +141,7 @@ function GigDetailContent() {
     if (searchParams.get('funding_success') === 'true' && gig) {
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
-      const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
+      const totalValue = isPoolBudgetGig(gig) ? (gig.campaignBudget || gig.fundedAmount || 0) : (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
 
       trackEvent({
         action: 'deployment_funding_success',
@@ -411,7 +430,7 @@ function GigDetailContent() {
       const appliedIds = currentGigData.appliedCreatorIds || [];
       const isCauseGig = currentGigData.campaignType === 'cause_campaign';
 
-      if (!isCauseGig && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
+      if (gigHasCreatorCap(currentGigData) && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
       if (!isCauseGig && appliedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already applied.`);
 
@@ -576,7 +595,7 @@ function GigDetailContent() {
     }
   };
 
-  const handleApproveApplication = async (applicantId: string) => {
+  const handleApproveApplication = async (applicantId: string, offeredAmount?: number) => {
     if (!gig || !user) return;
     setIsAccepting(true); // Using the same loading state for simplicity
     try {
@@ -588,8 +607,11 @@ function GigDetailContent() {
       const acceptedIds = currentGigData.acceptedCreatorIds || [];
       const appliedIds = currentGigData.appliedCreatorIds || [];
       
-      if (acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
+      if (gigHasCreatorCap(currentGigData) && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(applicantId)) throw new Error("Already secured this campaign.");
+      if (isPoolBudgetGig(currentGigData) && (!offeredAmount || offeredAmount < 1)) {
+        throw new Error("Enter the amount you expect to pay this creator.");
+      }
 
       const newAcceptedIds = [...acceptedIds, applicantId];
       const newAppliedIds = appliedIds.filter(id => id !== applicantId);
@@ -600,8 +622,11 @@ function GigDetailContent() {
         [`acceptedAt.${applicantId}`]: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
+      if (isPoolBudgetGig(currentGigData) && offeredAmount) {
+        gigUpdates[`offeredPayouts.${applicantId}`] = offeredAmount;
+      }
       
-      if (newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
+      if (gigHasCreatorCap(currentGigData) && newAcceptedIds.length === (currentGigData.creatorsNeeded || 0)) gigUpdates.status = 'in-progress';
       
       await updateDoc(gigDocRef, gigUpdates);
 
@@ -658,6 +683,8 @@ function GigDetailContent() {
         console.error('Failed to send brand notification email:', err);
       });
 
+      setApprovingApplicant(null);
+      setOfferAmount('');
       toast({ title: "Application Approved!", description: "The creator has been moved to your active roster." });
     } catch (error: any) {
       toast({ title: "Approval Failed", description: error.message, variant: "destructive" });
@@ -901,11 +928,15 @@ function GigDetailContent() {
     }
   };
 
-  const handlePayout = async (creator: UserProfile) => {
+  const handlePayout = async (creator: UserProfile, amount?: number) => {
     if (!user || !gig) return;
     setIsPaying(creator.uid);
     try {
-      await payoutCreatorForGigCallable({ gigId: gig.id, creatorId: creator.uid });
+      await payoutCreatorForGigCallable({
+        gigId: gig.id,
+        creatorId: creator.uid,
+        ...(isPoolBudgetGig(gig) ? { amount } : {}),
+      });
 
       const batch = submissions.filter(s => s.creatorId === creator.uid && (s.status === 'submitted' || s.status === 'rejected'));
       for (const sub of batch) {
@@ -922,7 +953,9 @@ function GigDetailContent() {
         createdAt: serverTimestamp(),
       } as Omit<Notification, 'id'>);
 
-      trackEvent({ action: 'deployment_payout', category: 'marketplace', label: gig.title, value: gig.ratePerCreator });
+      trackEvent({ action: 'deployment_payout', category: 'marketplace', label: gig.title, value: amount || gig.ratePerCreator });
+      setPayingCreator(null);
+      setPayAmount('');
       toast({ title: "Payout Processing!", description: "The creator has been paid successfully." });
     } catch (error: any) {
       toast({ title: "Payout Failed", description: error.message, variant: "destructive" });
@@ -1006,6 +1039,7 @@ function GigDetailContent() {
         platforms: gig.platforms,
         ratePerCreator: gig.ratePerCreator,
         creatorsNeeded: gig.creatorsNeeded,
+        ...(isPoolBudgetGig(gig) ? { budgetMode: 'pool', campaignBudget: gig.campaignBudget || gig.fundedAmount || 0 } : {}),
         videosPerCreator: gig.videosPerCreator,
         campaignType: gig.campaignType || 'standard_sponsorship',
         usageRights: gig.usageRights || '1_year',
@@ -1032,7 +1066,7 @@ function GigDetailContent() {
     try {
       await fundGigFromWalletCallable({ gigId: gig.id });
 
-      const totalValue = (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
+      const totalValue = isPoolBudgetGig(gig) ? (gig.campaignBudget || 0) : (gig.ratePerCreator || 0) * (gig.creatorsNeeded || 0);
       trackEvent({
         action: 'deployment_funding_success',
         category: 'revenue',
@@ -1048,9 +1082,66 @@ function GigDetailContent() {
     }
   };
 
+  const handleAddBudgetFromWallet = async () => {
+    if (!gig) return;
+    const amountNum = parseFloat(topUpAmount);
+    if (!Number.isFinite(amountNum) || amountNum < 1) {
+      toast({ title: "Invalid amount", description: "Enter at least $1.", variant: "destructive" });
+      return;
+    }
+    setIsToppingUp(true);
+    try {
+      await addCampaignBudgetFromWalletCallable({ gigId: gig.id, amount: amountNum });
+      toast({ title: "Budget updated", description: `$${amountNum.toLocaleString()} was moved from your wallet into this campaign.` });
+      setIsTopUpOpen(false);
+      setTopUpAmount('');
+    } catch (error: any) {
+      toast({ title: "Could not add funds", description: error.message, variant: "destructive" });
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
+
+  const handleAddBudgetByCard = async () => {
+    if (!gig) return;
+    const amountNum = parseFloat(topUpAmount);
+    if (!Number.isFinite(amountNum) || amountNum < 1) {
+      toast({ title: "Invalid amount", description: "Enter at least $1.", variant: "destructive" });
+      return;
+    }
+    setIsToppingUp(true);
+    try {
+      const result = await createCampaignBudgetTopUpCheckoutCallable({ gigId: gig.id, amount: amountNum });
+      const url = (result.data as { url?: string }).url;
+      if (!url) throw new Error("Could not open checkout.");
+      window.location.href = url;
+    } catch (error: any) {
+      toast({ title: "Could not add funds", description: error.message, variant: "destructive" });
+      setIsToppingUp(false);
+    }
+  };
+
+  const handleCloseCampaign = async () => {
+    if (!gig) return;
+    setIsClosingBudget(true);
+    try {
+      const result = await releaseUnspentCampaignBudgetCallable({ gigId: gig.id });
+      const released = (result.data as { released?: number }).released || 0;
+      toast({
+        title: "Campaign closed",
+        description: released > 0 ? `$${released.toLocaleString()} was returned to your wallet.` : "Nothing was left to return.",
+      });
+    } catch (error: any) {
+      toast({ title: "Could not close campaign", description: error.message, variant: "destructive" });
+    } finally {
+      setIsClosingBudget(false);
+    }
+  };
+
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
   const getStatusLabel = (status: string) => {
+    if (status === 'budget_exhausted') return 'Budget used';
     if (status === 'open') {
       if (isCauseCampaignType(gig?.campaignType)) return 'Open for Creators';
       const hasPerf =
@@ -1058,11 +1149,12 @@ function GigDetailContent() {
       if (
         isBarterCampaignType(gig?.campaignType) &&
         (gig?.ratePerCreator || 0) <= 0 &&
-        !hasPerf
+        !hasPerf &&
+        !isPoolBudgetGig(gig || {})
       ) {
         return 'Barter · In-Kind';
       }
-      return (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
+      return isPoolBudgetGig(gig || {}) || (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
     }
     if (status === 'pending_payment') return 'Funding Pending';
     if (status === 'in-progress') return 'In Progress';
@@ -1076,9 +1168,11 @@ function GigDetailContent() {
   const acceptedIds = gig.acceptedCreatorIds || [];
   const isCauseCampaign = isCauseCampaignType(gig.campaignType);
   const isBarterCampaign = isBarterCampaignType(gig.campaignType);
+  const isPool = isPoolBudgetGig(gig);
   const usesContributionApprovalOnly =
-    isCauseCampaign || (isBarterCampaign && (gig.ratePerCreator || 0) <= 0);
-  const spotsLeft = isCauseCampaign ? Infinity : (gig.creatorsNeeded || 0) - acceptedIds.length;
+    isCauseCampaign || (isBarterCampaign && (gig.ratePerCreator || 0) <= 0 && !isPool);
+  const hasCreatorCap = gigHasCreatorCap(gig);
+  const spotsLeft = hasCreatorCap ? (gig.creatorsNeeded || 0) - acceptedIds.length : Infinity;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const hasApplied = user ? (gig.appliedCreatorIds || []).includes(user.uid) : false;
   const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
@@ -1097,7 +1191,10 @@ function GigDetailContent() {
   const usageRightsLabel = gig.usageRights === 'none' ? 'Editorial Support Only' : (gig.usageRights === 'perpetuity' ? 'In Perpetuity' : (gig.usageRights === '30_days' ? '30 Days' : '1 Year'));
   const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : isCauseCampaign ? 'Cause Campaign' : isBarterCampaign ? 'Barter' : 'Standard Sponsorship';
 
-  const totalCost = gig.ratePerCreator * gig.creatorsNeeded;
+  const totalCost = isPool ? (gig.campaignBudget || gig.fundedAmount || 0) : gig.ratePerCreator * gig.creatorsNeeded;
+  const fundedPool = isPool ? (gig.fundedAmount || 0) : 0;
+  const poolRemaining = isPool ? Math.max(0, fundedPool - (gig.budgetSpent || 0)) : 0;
+  const maxCreatorPay = isPool ? centsToDollars(maxCreatorPayoutCents(poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent }))) : 0;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   const myLink = user ? affiliateLinks[user.uid] : null;
@@ -1639,7 +1736,14 @@ function GigDetailContent() {
                             </div>
                             <Button 
                               size="sm" 
-                              onClick={() => handleApproveApplication(applicant.uid)}
+                              onClick={() => {
+                                if (isPool) {
+                                  setApprovingApplicant(applicant);
+                                  setOfferAmount('');
+                                } else {
+                                  handleApproveApplication(applicant.uid);
+                                }
+                              }}
                               disabled={isAccepting}
                             >
                               Approve Application
@@ -1690,6 +1794,12 @@ function GigDetailContent() {
                                         )}
                                       </div>
                                       <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                      {isPool && gig.offeredPayouts?.[creator.uid] ? (
+                                        <p className="text-xs font-medium">Offered ${gig.offeredPayouts[creator.uid].toLocaleString()}</p>
+                                      ) : null}
+                                      {isPool && gig.creatorPayouts?.[creator.uid] ? (
+                                        <p className="text-xs font-medium text-green-700">Paid ${gig.creatorPayouts[creator.uid].creatorAmount.toLocaleString()}</p>
+                                      ) : null}
                                     </div>
                                   </Link>
                                 </div>
@@ -1729,6 +1839,19 @@ function GigDetailContent() {
                                     })()
                                   ) : isPaid ? (
                                     <Badge variant="default" className="bg-green-500">Paid</Badge>
+                                  ) : isPool ? (
+                                    isBrandTeam ? (
+                                      <Button
+                                        size="sm"
+                                        disabled={isPaying === creator.uid || !allVideosSubmitted}
+                                        onClick={() => {
+                                          setPayingCreator(creator);
+                                          setPayAmount(gig.offeredPayouts?.[creator.uid] ? String(gig.offeredPayouts[creator.uid]) : '');
+                                        }}
+                                      >
+                                        {isPaying === creator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />} Approve & Pay
+                                      </Button>
+                                    ) : null
                                   ) : (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
@@ -1891,8 +2014,10 @@ function GigDetailContent() {
               <CardContent className="space-y-4">
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Base Rate per Creator</span>
-                    {(gig.ratePerCreator || 0) > 0 ? (
+                    <span className="text-muted-foreground">{isPool ? 'Campaign budget' : 'Base Rate per Creator'}</span>
+                    {isPool ? (
+                      <span className="font-bold text-2xl text-primary">${totalCost.toLocaleString()}</span>
+                    ) : (gig.ratePerCreator || 0) > 0 ? (
                       <span className="font-bold text-2xl text-primary">
                         ${(gig.ratePerCreator || 0).toLocaleString()}
                       </span>
@@ -1916,7 +2041,25 @@ function GigDetailContent() {
                       </Badge>
                     )}
                   </div>
-                  {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
+                  {isPool && (
+                    <div className="space-y-1 pt-2 text-sm">
+                      {fundedPool > 0 ? (
+                        <>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Spent</span><span>${(gig.budgetSpent || 0).toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold">${poolRemaining.toLocaleString()}</span></div>
+                          <p className="text-xs text-muted-foreground">Up to ${maxCreatorPay.toLocaleString()} can still be paid to creators. Verza&apos;s 15% is taken from the budget on top of each payment.</p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">This amount is locked to this campaign once you fund it. Other campaigns cannot spend it.</p>
+                      )}
+                      {!canManageGig && user && gig.offeredPayouts?.[user.uid] ? (
+                        <p className="text-xs font-medium">Your rate is ${gig.offeredPayouts[user.uid].toLocaleString()}, paid in full when your work is approved.</p>
+                      ) : !canManageGig ? (
+                        <p className="text-xs text-muted-foreground">Your rate is set when the brand accepts you. You receive that amount in full.</p>
+                      ) : null}
+                    </div>
+                  )}
+                  {!isPool && !canManageGig && (gig.ratePerCreator || 0) > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
                       <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
                       <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
@@ -1943,7 +2086,7 @@ function GigDetailContent() {
                 {!isCompleted && (
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Spots Remaining</span>
-                    {isCauseCampaign ? (
+                    {isCauseCampaign || isPool ? (
                       <span className="font-bold flex items-center gap-1 text-rose-500"><InfinityIcon className="h-4 w-4" /> Unlimited</span>
                     ) : (
                       <span className="font-bold">{spotsLeft} / {gig.creatorsNeeded || 0}</span>
@@ -2006,7 +2149,9 @@ function GigDetailContent() {
                                   <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the campaign brief. {gig.requireVerzaScore ? `Deliverables must pass the Verza Quality Score threshold of ${gig.verzaScoreThreshold}% to be eligible for payout.` : "Deliverables must meet the brand's quality standards to be eligible for payout."}</p>
 
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
-                                  {(gig.ratePerCreator || 0) > 0 ? (
+                                  {isPool ? (
+                                    <p>The Client has funded a campaign budget of ${totalCost.toLocaleString()}, held in the Verza Campaign Vault. When your work is approved, the Client sets your payment from that budget. You receive that amount in full. Verza&apos;s 15% fee is paid by the Client from the same budget, on top of what you receive.</p>
+                                  ) : (gig.ratePerCreator || 0) > 0 ? (
                                     <p>The Client has pre-funded the base rate for this campaign ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
                                   ) : isBarterCampaign ? (
                                     <p>
@@ -2180,6 +2325,35 @@ function GigDetailContent() {
                     )}
                     {isBrandTeam && (
                       <div className="space-y-2">
+                        {isPool && !isCompleted && gig.status !== 'pending_payment' && (
+                          <>
+                            <Button className="w-full" variant="secondary" onClick={() => setIsTopUpOpen(true)}>
+                              <DollarSign className="mr-2 h-4 w-4" /> Add funds
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button className="w-full" variant="outline" disabled={isClosingBudget}>
+                                  {isClosingBudget ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  Close campaign
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Close this campaign?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {poolRemaining > 0
+                                      ? `$${poolRemaining.toLocaleString()} still in this budget will return to your wallet. Creators who have not been paid will not be paid.`
+                                      : 'This marks the campaign complete. There is no budget left to return.'}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Keep open</AlertDialogCancel>
+                                  <AlertDialogAction onClick={handleCloseCampaign}>Close and return unused budget</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
                         {!isCompleted && (
                           <Button asChild className="w-full" variant="outline">
                             <Link href={`/campaigns/${gig.id}/edit`}>
@@ -2234,6 +2408,92 @@ function GigDetailContent() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!approvingApplicant} onOpenChange={(open) => { if (!open) { setApprovingApplicant(null); setOfferAmount(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept {approvingApplicant?.displayName}</DialogTitle>
+            <DialogDescription>
+              This is the amount you expect to pay them. They receive it in full. You can change it when you approve their work.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="offer-amount">Creator pay ($)</Label>
+            <Input id="offer-amount" type="number" min="1" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} />
+            {Number(offerAmount) >= 1 && (
+              <p className="text-xs text-muted-foreground">
+                Paying ${Number(offerAmount).toLocaleString()} later draws ${centsToDollars(poolDrawForCreatorAmount(Number(offerAmount)).totalDrawCents).toLocaleString()} from the campaign budget, including Verza&apos;s 15%.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovingApplicant(null)}>Cancel</Button>
+            <Button
+              disabled={isAccepting || Number(offerAmount) < 1}
+              onClick={() => approvingApplicant && handleApproveApplication(approvingApplicant.uid, Number(offerAmount))}
+            >
+              {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Accept creator
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!payingCreator} onOpenChange={(open) => { if (!open) { setPayingCreator(null); setPayAmount(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pay {payingCreator?.displayName}</DialogTitle>
+            <DialogDescription>
+              They receive this amount in full. Verza&apos;s 15% is taken from the campaign budget on top. ${poolRemaining.toLocaleString()} is left in this campaign.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="pay-amount">Creator pay ($)</Label>
+            <Input id="pay-amount" type="number" min="1" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+            {Number(payAmount) >= 1 && (
+              <p className="text-xs text-muted-foreground">
+                Creator receives ${Number(payAmount).toLocaleString()}. Verza fee ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount)).platformFeeCents).toLocaleString()}. Total from this campaign ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents).toLocaleString()}.
+                {poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })
+                  ? ` That is more than the $${poolRemaining.toLocaleString()} remaining. Add funds or pay less.`
+                  : ''}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayingCreator(null)}>Cancel</Button>
+            <Button
+              disabled={!payingCreator || isPaying === payingCreator.uid || Number(payAmount) < 1 || poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })}
+              onClick={() => payingCreator && handlePayout(payingCreator, Number(payAmount))}
+            >
+              {payingCreator && isPaying === payingCreator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirm & pay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add funds to this campaign</DialogTitle>
+            <DialogDescription>
+              This increases only this campaign&apos;s budget. Wallet funds move immediately. A bank transfer is added when the payment clears.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="top-up-budget">Amount ($)</Label>
+            <Input id="top-up-budget" type="number" min="1" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsTopUpOpen(false)} disabled={isToppingUp}>Cancel</Button>
+            <Button variant="secondary" onClick={handleAddBudgetFromWallet} disabled={isToppingUp}>
+              {isToppingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              From wallet
+            </Button>
+            <Button onClick={handleAddBudgetByCard} disabled={isToppingUp}>Pay by transfer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

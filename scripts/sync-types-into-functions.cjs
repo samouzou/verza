@@ -35,4 +35,15 @@ if (!fs.existsSync(src)) {
 
 rmrf(dest);
 copyDir(src, dest);
+
+// Cloud Functions load this package from CommonJS. The source entry is ESM
+// TypeScript, so point the runtime entry at an empty CJS stub and leave the
+// .ts file for the typechecker.
+fs.writeFileSync(path.join(dest, "runtime.cjs"), "module.exports = {};\n");
+const pkgPath = path.join(dest, "package.json");
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+pkg.main = "./runtime.cjs";
+pkg.types = "./src/index.ts";
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+
 console.log("Synced packages/types -> apps/functions/packages-local/types");
