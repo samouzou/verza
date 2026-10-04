@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, MessageCircle, Send } from "lucide-react";
+import { httpsCallable } from "firebase/functions";
+import { Loader2, Mail, MessageCircle, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { VaultChatMessage, VaultChatSnapshot } from "@/hooks/use-optic-vault-chat";
+import { useToast } from "@/hooks/use-toast";
+import { functions } from "@/lib/firebase";
+import { stageBadgeClasses } from "@/lib/optic/crm";
 import { cn } from "@/lib/utils";
 
 const CHIPS = [
@@ -44,10 +48,28 @@ export function VaultAskPanel({
   disabled,
 }: VaultAskPanelProps) {
   const [draft, setDraft] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const { toast } = useToast();
   const view = scopeCopy(campaignFilter, campaignTitle);
+
+  const sendWeeklyPreview = async () => {
+    setPreviewing(true);
+    try {
+      const res = await httpsCallable<unknown, { to: string }>(functions, "previewOpticWeekly")({});
+      toast({ title: "Optic Weekly preview sent", description: `Check ${res.data.to}.` });
+    } catch (e) {
+      toast({
+        title: "Couldn't send the preview",
+        description: e instanceof Error ? e.message : "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewing(false);
+    }
+  };
   const counts = snapshot ?? null;
 
-  const stats = useMemo(() => {
+  const stats = useMemo((): Array<{ label: string; value: string | number; tone?: string }> => {
     if (!counts) {
       return [
         { label: "In view", value: leadCount },
@@ -64,18 +86,23 @@ export function VaultAskPanel({
                 qualified > 0
                   ? `${counts.reachedOut} (${Math.round((counts.reachedOut / qualified) * 100)}%)`
                   : counts.reachedOut,
+              tone: stageBadgeClasses("contacted"),
             },
-            { label: "Ready to contact", value: untouched.readyToContact },
+            {
+              label: "Ready to contact",
+              value: untouched.readyToContact,
+              tone: "border-primary/30 bg-primary/10 text-primary",
+            },
           ]
         : [
             { label: "In view", value: counts.leadCount },
-            { label: "Reached out", value: counts.reachedOut },
+            { label: "Reached out", value: counts.reachedOut, tone: stageBadgeClasses("contacted") },
           ];
     return [
       ...funnel,
-      { label: "In play", value: counts.inProgress },
-      { label: "Booked", value: counts.stages.booked },
-      { label: "Passed", value: counts.stages.passed },
+      { label: "In play", value: counts.inProgress, tone: stageBadgeClasses("replied") },
+      { label: "Booked", value: counts.stages.booked, tone: stageBadgeClasses("booked") },
+      { label: "Passed", value: counts.stages.passed, tone: stageBadgeClasses("passed") },
     ];
   }, [counts, leadCount]);
 
@@ -101,16 +128,31 @@ export function VaultAskPanel({
               {counts?.truncated ? " · latest 500 only" : ""}
             </p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 text-xs text-muted-foreground"
+            onClick={sendWeeklyPreview}
+            disabled={previewing}
+            title="Optic Weekly goes to owners and admins every Monday morning"
+          >
+            {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Email me Optic Weekly
+          </Button>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {stats.map((s) => (
             <span
               key={s.label}
-              className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
+                s.tone ?? "bg-muted/40"
+              )}
             >
               <span className="tabular-nums font-semibold">{s.value}</span>
-              <span className="text-muted-foreground">{s.label}</span>
+              <span className={s.tone ? "opacity-80" : "text-muted-foreground"}>{s.label}</span>
             </span>
           ))}
         </div>

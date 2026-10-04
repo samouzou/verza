@@ -132,7 +132,9 @@ import {
 import {addOpticManualLead} from "./optic/manualLead";
 import {createMcpApiKey, listMcpApiKeys, revokeMcpApiKey} from "./mcp/apiKeys";
 import {askOpticVaultChat} from "./optic/vaultChat";
+import {opticWeeklyUnsubscribe, previewOpticWeekly, sendOpticWeekly} from "./optic/weeklyDigest";
 import {refreshOpticCampaignRoasInsight} from "./optic/roasInsight";
+import {extractOpticLeadQuotedRate} from "./optic/quotedRate";
 import {
   claimOpticExtensionJob,
   submitOpticExtensionLead,
@@ -271,7 +273,11 @@ export {
   updateOpticLeadProfile,
   addOpticManualLead,
   askOpticVaultChat,
+  sendOpticWeekly,
+  previewOpticWeekly,
+  opticWeeklyUnsubscribe,
   refreshOpticCampaignRoasInsight,
+  extractOpticLeadQuotedRate,
   setOpticSmsSettings,
   continueOpticDiscoveryJob,
   createMcpApiKey,

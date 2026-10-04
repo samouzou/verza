@@ -48,6 +48,8 @@ import {
   OPTIC_LEAD_STAGES,
   resolveLastContactedAt,
   resolveLeadStage,
+  avatarToneClasses,
+  responseBadgeClasses,
   responseLabel,
   stageBadgeClasses,
 } from "@/lib/optic/crm";
@@ -510,7 +512,12 @@ export function LeadVault({
                                 alt={lead.creatorName ?? "Creator"}
                               />
                             ) : null}
-                            <AvatarFallback className="text-[11px] font-medium bg-muted">
+                            <AvatarFallback
+                              className={cn(
+                                "text-[11px] font-medium",
+                                avatarToneClasses(lead.creatorName ?? lead.id)
+                              )}
+                            >
                               {leadInitials(lead)}
                             </AvatarFallback>
                           </Avatar>
@@ -555,12 +562,19 @@ export function LeadVault({
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="align-middle text-muted-foreground text-sm hidden lg:table-cell">
-                        <span className="line-clamp-1">
-                          {lead.outreachResponse
-                            ? responseLabel(lead.outreachResponse)
-                            : "—"}
-                        </span>
+                      <TableCell className="align-middle text-sm hidden lg:table-cell">
+                        {lead.outreachResponse ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+                              responseBadgeClasses(lead.outreachResponse)
+                            )}
+                          >
+                            {responseLabel(lead.outreachResponse)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="align-middle text-muted-foreground text-sm hidden xl:table-cell">
                         <span className="line-clamp-1">{lead.niche ?? "—"}</span>

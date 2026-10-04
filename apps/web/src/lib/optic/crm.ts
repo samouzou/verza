@@ -66,3 +66,41 @@ export function stageBadgeClasses(stage: OpticLeadStage): string {
       return "border-border bg-muted/60 text-muted-foreground";
   }
 }
+
+/** Reply chips share the stage palette so a reply and the stage it implies read as the same color. */
+export function responseBadgeClasses(response: OpticLeadResponse): string {
+  switch (response) {
+    case "awaiting":
+      return stageBadgeClasses("contacted");
+    case "interested":
+    case "needs_brief":
+    case "needs_usage":
+      return stageBadgeClasses("replied");
+    case "rate_card":
+    case "countered":
+      return stageBadgeClasses("negotiating");
+    case "declined":
+      return stageBadgeClasses("passed");
+    default:
+      return "border-slate-400/40 bg-slate-500/10 text-slate-700 dark:text-slate-300";
+  }
+}
+
+const AVATAR_TONES = [
+  "bg-sky-500/15 text-sky-800 dark:text-sky-300",
+  "bg-violet-500/15 text-violet-800 dark:text-violet-300",
+  "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
+  "bg-rose-500/15 text-rose-800 dark:text-rose-300",
+  "bg-teal-500/15 text-teal-800 dark:text-teal-300",
+  "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300",
+  "bg-orange-500/15 text-orange-800 dark:text-orange-300",
+] as const;
+
+/** Stable per-creator tint for initials avatars. */
+export function avatarToneClasses(seed: string | null | undefined): string {
+  const s = seed ?? "";
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
+}

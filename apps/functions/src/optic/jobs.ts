@@ -27,6 +27,7 @@ import {isEmailDraftEmpty, sanitizeStoredEmailDraft} from "../gmail/emailHtml";
 import {parseCompactCount} from "./counts";
 import {regenerateVaultEmailDraft} from "./extensionLead";
 import {recomposeMatchScoreFromLead} from "./matchScore";
+import {QUOTED_RATE_MAX_USD} from "./quotedRate";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 
@@ -319,6 +320,7 @@ export const setOpticLeadCrm = onCall(async (request) => {
     outreachResponse,
     passReason,
     crmNote,
+    quotedRateUsd,
     touchLastContacted,
   } = request.data as {
     leadId?: unknown;
@@ -326,6 +328,7 @@ export const setOpticLeadCrm = onCall(async (request) => {
     outreachResponse?: unknown;
     passReason?: unknown;
     crmNote?: unknown;
+    quotedRateUsd?: unknown;
     touchLastContacted?: unknown;
   };
   if (typeof leadId !== "string" || !leadId.trim()) {
@@ -336,9 +339,17 @@ export const setOpticLeadCrm = onCall(async (request) => {
   const hasResponse = outreachResponse !== undefined;
   const hasPassReason = passReason !== undefined;
   const hasNote = crmNote !== undefined;
+  const hasRate = quotedRateUsd !== undefined;
   const touch = touchLastContacted === true;
-  if (!hasStage && !hasResponse && !hasPassReason && !hasNote && !touch) {
+  if (!hasStage && !hasResponse && !hasPassReason && !hasNote && !hasRate && !touch) {
     throw new HttpsError("invalid-argument", "Provide a CRM field to update.");
+  }
+  if (
+    hasRate && quotedRateUsd !== null &&
+    (typeof quotedRateUsd !== "number" || !Number.isFinite(quotedRateUsd) ||
+      quotedRateUsd < 0 || quotedRateUsd > QUOTED_RATE_MAX_USD)
+  ) {
+    throw new HttpsError("invalid-argument", "quotedRateUsd must be a dollar amount or null.");
   }
   if (hasStage && !isOpticLeadStage(pipelineStage)) {
     throw new HttpsError("invalid-argument", "Invalid pipeline stage.");
@@ -389,6 +400,13 @@ export const setOpticLeadCrm = onCall(async (request) => {
       throw new HttpsError("invalid-argument", `Note must be ${CRM_NOTE_MAX} characters or fewer.`);
     }
     patch.crmNote = trimmed || null;
+  }
+  if (hasRate) {
+    // Clearing hands the field back to the note reader: reset the hash so the next note change re-reads it.
+    const rate = typeof quotedRateUsd === "number" ? Math.round(quotedRateUsd * 100) / 100 : null;
+    patch.quotedRateUsd = rate;
+    patch.quotedRateSource = rate == null ? null : "manual";
+    patch.quotedRateNoteHash = null;
   }
   if (touch) {
     patch.lastContactedAt = FieldValue.serverTimestamp();

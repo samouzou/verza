@@ -8,12 +8,11 @@ import {estimateCampaignBudget} from "./lib/budget.js";
 import {VerzaCallableClient} from "./lib/callable.js";
 import {createCampaignViaCallables} from "./lib/createCampaign.js";
 import {CAMPAIGN_PLATFORMS, CAMPAIGN_TYPES, draftCampaignFromUrl} from "./lib/draft.js";
-import {buildRoasInsightSnapshot, saveRoasInsightOnGig} from "./lib/insights.js";
 import {
   LAUNCH_BRIEF_DEFAULTS,
   buildCampaignLaunchBrief,
 } from "./lib/launchBrief.js";
-import {predictCampaignRoas} from "./lib/roas.js";
+import {predictCampaignRoas, summarizeRoasPrediction} from "./lib/roas.js";
 import {
   beginGmailConnectFromMcp,
   createGmailDraftsForLeads,
@@ -484,8 +483,12 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           `Share of followers who see the post (default ${LAUNCH_BRIEF_DEFAULTS.viewRate})`
         ),
       hireCount: z.number().int().min(1).max(100).optional(),
-      engagementRate: z.number().min(0).max(1).optional(),
-      minMatchScore: z.number().min(0).max(100).optional(),
+      minMatchScore: z
+        .number()
+        .min(0)
+        .max(100)
+        .optional()
+        .describe("Only consider not-yet-contacted creators at or above this match score"),
       persist: z
         .boolean()
         .optional()
@@ -493,13 +496,12 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
     },
     async (args) =>
       withActor(async (actor) =>
-        buildCampaignLaunchBrief(deps.db, actor, {
+        buildCampaignLaunchBrief(deps.db, getCallable(), actor, {
           campaignId: args.campaignId,
           averageOrderValueUsd: args.averageOrderValueUsd,
           conversionRate: args.conversionRate,
           viewRate: args.viewRate,
           hireCount: args.hireCount,
-          engagementRate: args.engagementRate,
           minMatchScore: args.minMatchScore,
           persist: args.persist,
           appBaseUrl: deps.config.appBaseUrl,
@@ -509,7 +511,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_predict_roas",
-    "Estimate predicted return for a campaign from creator pay and vault reach. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
+    "Estimate predicted return for a campaign from the creator pipeline: committed (booked), likely (weighted by odds of booking), and full-target scenarios. Passed or declined creators are left out; spend uses quoted rates, then the flat fee, then market estimates. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
     {
       campaignId: z.string().min(1),
       averageOrderValueUsd: z
@@ -534,18 +536,12 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .max(100)
         .optional()
         .describe("How many creators to model (default = campaign creator count)"),
-      engagementRate: z
-        .number()
-        .min(0)
-        .max(1)
-        .optional()
-        .describe("Optional engagement rate for context only"),
       minMatchScore: z
         .number()
         .min(0)
         .max(100)
         .optional()
-        .describe("Only use vault creators at or above this match score"),
+        .describe("Only consider not-yet-contacted creators at or above this match score"),
     },
     async ({
       campaignId,
@@ -553,33 +549,25 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
       conversionRate,
       viewRate,
       hireCount,
-      engagementRate,
       minMatchScore,
     }) =>
       withActor(async (actor) => {
         const campaign = await getCampaign(deps.db, actor, campaignId);
         if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
         const budget = estimateCampaignBudget(campaign);
-        const leads = await listLeads(deps.db, actor, {
+        const prediction = await predictCampaignRoas(getCallable(), actor, {
           campaignId,
-          limit: 50,
-          minMatchScore: minMatchScore ?? null,
-        });
-        const prediction = predictCampaignRoas({
-          budget,
-          leads,
-          hireCount,
           averageOrderValueUsd,
           conversionRate,
           viewRate: viewRate ?? 0.08,
-          engagementRate,
+          hireCount,
+          minMatchScore: minMatchScore ?? null,
         });
-        const snapshot = buildRoasInsightSnapshot(prediction, budget, "mcp");
-        await saveRoasInsightOnGig(deps.db, campaignId, snapshot);
         return {
+          summary: summarizeRoasPrediction(prediction),
           budget,
           prediction,
-          savedToVault: true,
+          savedToVault: prediction.savedToVault,
           note: "This estimate is also on the campaign’s Optic vault report.",
         };
       })
@@ -693,7 +681,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           return created;
         }
 
-        const launchBrief = await buildCampaignLaunchBrief(deps.db, actor, {
+        const launchBrief = await buildCampaignLaunchBrief(deps.db, getCallable(), actor, {
           campaignId: created.gigId,
           averageOrderValueUsd: args.averageOrderValueUsd,
           conversionRate: args.conversionRate,
@@ -709,7 +697,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           checkoutUrl: undefined,
           launchBrief,
           howToPresent: [
-            "Show launchBrief as a simple report card: predicted return, hire spend, expected revenue, and creator budget.",
+            "Show launchBrief as a simple report card: full-target, likely, and committed return, creator spend, expected revenue, break-even conversion, and creator budget.",
             "If funding is needed, give the brand fundingUrl only (a Verza link). Never paste raw checkout.stripe.com links — chat truncates them and Stripe rejects the payment.",
             "Walk through nextActions in order, in plain language.",
           ].join(" "),

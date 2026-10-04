@@ -185,6 +185,7 @@ export function LeadReportSheet({
 }: LeadReportSheetProps) {
   const [emailValue, setEmailValue] = useState("");
   const [noteValue, setNoteValue] = useState("");
+  const [rateValue, setRateValue] = useState("");
   const [subjectValue, setSubjectValue] = useState("");
   const [bodyValue, setBodyValue] = useState("");
   const [nameValue, setNameValue] = useState("");
@@ -200,6 +201,7 @@ export function LeadReportSheet({
   useEffect(() => {
     setEmailValue(lead?.email ?? "");
     setNoteValue(lead?.crmNote ?? "");
+    setRateValue(lead?.quotedRateUsd != null ? String(lead.quotedRateUsd) : "");
     setSubjectValue(lead?.draftEmailSubject ?? "");
     const emailBody = lead?.draftEmail?.trim() ?? "";
     const dmBody = lead?.draftDm ?? "";
@@ -222,6 +224,7 @@ export function LeadReportSheet({
     lead?.id,
     lead?.email,
     lead?.crmNote,
+    lead?.quotedRateUsd,
     lead?.draftEmail,
     lead?.draftEmailSubject,
     lead?.draftDm,
@@ -629,6 +632,36 @@ export function LeadReportSheet({
                   className="min-h-[72px]"
                 />
               </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="crm-quoted-rate">Quoted rate (USD)</Label>
+                  {lead.quotedRateSource === "ai" && (
+                    <span className="text-[11px] text-muted-foreground">Read from note</span>
+                  )}
+                </div>
+                <Input
+                  id="crm-quoted-rate"
+                  inputMode="decimal"
+                  value={rateValue}
+                  onChange={(e) => setRateValue(e.target.value)}
+                  onBlur={() => {
+                    const raw = rateValue.replace(/[$,\s]/g, "");
+                    const next = raw ? Number.parseFloat(raw) : null;
+                    if (next != null && (!Number.isFinite(next) || next < 0)) {
+                      setRateValue(lead.quotedRateUsd != null ? String(lead.quotedRateUsd) : "");
+                      return;
+                    }
+                    if (next !== (lead.quotedRateUsd ?? null)) {
+                      onCrmChange(lead.id, { quotedRateUsd: next });
+                    }
+                  }}
+                  placeholder="Filled from the note when it mentions a rate"
+                  disabled={busyCrm}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Feeds spend in Predicted ROAS. Clear it to let the note decide again.
+                </p>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Last contacted{" "}
                 {lastContact
@@ -653,6 +686,11 @@ export function LeadReportSheet({
                   {lead.crmNote}
                 </p>
               ) : null}
+              {lead.quotedRateUsd != null && (
+                <p className="text-sm">
+                  Quoted rate: ${lead.quotedRateUsd.toLocaleString("en-US")}
+                </p>
+              )}
             </div>
           )}
           </TabsContent>

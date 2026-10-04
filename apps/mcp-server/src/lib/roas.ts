@@ -1,183 +1,125 @@
-import {numOrZero} from "../context.js";
-import type {BudgetEstimate} from "./budget.js";
+import type {VerzaActor} from "../context.js";
+import type {VerzaCallableClient} from "./callable.js";
 
-export type LeadReachInput = {
-  id: string;
-  creatorName?: string | null;
-  followerCount?: string | number | null;
-  followerCountNumeric?: number | null;
-  matchScore?: number | null;
-  profileUrl?: string | null;
-  discoveryPlatform?: string | null;
+export type RoasPipelineBucket = "booked" | "negotiating" | "replied" | "contacted" | "new" | "excluded";
+export type RoasSpendBasis = "quoted" | "flat_fee" | "estimated" | "unknown";
+
+export type RoasScenario = {
+  roas: number | null;
+  spendUsd: number;
+  revenueUsd: number;
+  views: number;
+  conversions: number;
+  creators: number;
+  breakEvenConversionRate: number | null;
 };
 
-export type RoasPredictInput = {
-  budget: BudgetEstimate;
-  /** Leads to use for reach modeling (typically top matchScore). */
-  leads: LeadReachInput[];
-  hireCount?: number;
-  averageOrderValueUsd: number;
-  /** Fraction of estimated views that convert (e.g. 0.005 = 0.5%). */
-  conversionRate: number;
-  /** Fraction of followers who see the content (views / followers). */
-  viewRate: number;
-  /** Optional engagement rate used only in narrative (not revenue math). */
-  engagementRate?: number;
-};
-
+/** Result of the `refreshOpticCampaignRoasInsight` callable (same model as the vault card). */
 export type RoasPrediction = {
   campaignId: string;
-  title: string;
+  savedToVault: boolean;
+  /** Full-target scenario, kept at the top level for older readers. */
   predictedRoas: number | null;
   spendUsd: number;
   expectedRevenueUsd: number;
   expectedViews: number;
   expectedConversions: number;
   hireCount: number;
-  creatorsModeled: Array<{
-    id: string;
-    name: string | null;
-    followers: number;
-    matchScore: number | null;
-    expectedViews: number;
-  }>;
+  confidence: "low" | "medium";
+  vaultLeadsUsed: number;
+  usedProxies: boolean;
   inputs: {
     averageOrderValueUsd: number;
     conversionRate: number;
     viewRate: number;
     engagementRate: number | null;
   };
-  confidence: "low" | "medium";
+  scenarios: {committed: RoasScenario; likely: RoasScenario; target: RoasScenario};
+  pipeline: Record<RoasPipelineBucket, number>;
+  spendBasis: Record<RoasSpendBasis, number>;
+  quotesUsed: number;
+  medianQuoteUsd: number | null;
+  creatorsPreview: Array<{
+    name: string | null;
+    followers: number;
+    matchScore: number | null;
+    stage: RoasPipelineBucket | null;
+    spendUsd: number;
+    spendBasis: RoasSpendBasis;
+  }>;
   caveats: string[];
 };
 
-function parseFollowers(lead: LeadReachInput): number {
-  if (typeof lead.followerCountNumeric === "number" && Number.isFinite(lead.followerCountNumeric)) {
-    return Math.max(0, lead.followerCountNumeric);
-  }
-  if (typeof lead.followerCount === "number" && Number.isFinite(lead.followerCount)) {
-    return Math.max(0, lead.followerCount);
-  }
-  if (typeof lead.followerCount === "string") {
-    const raw = lead.followerCount.trim().toUpperCase().replace(/,/g, "");
-    const m = raw.match(/^([\d.]+)\s*([KMB])?$/);
-    if (!m) {
-      const n = Number.parseFloat(raw);
-      return Number.isFinite(n) ? Math.max(0, n) : 0;
+export type RoasPredictInput = {
+  campaignId: string;
+  averageOrderValueUsd: number;
+  conversionRate: number;
+  viewRate: number;
+  hireCount?: number;
+  minMatchScore?: number | null;
+  /** Save on the campaign for the vault card (default true). */
+  persist?: boolean;
+};
+
+/**
+ * Runs the stage-aware ROAS model in Cloud Functions as the signed-in brand user.
+ * @param {VerzaCallableClient} client Callable client.
+ * @param {VerzaActor} actor Brand user.
+ * @param {RoasPredictInput} input Assumptions.
+ * @return {Promise<RoasPrediction>} Scenarios and breakdowns.
+ */
+export async function predictCampaignRoas(
+  client: VerzaCallableClient,
+  actor: VerzaActor,
+  input: RoasPredictInput
+): Promise<RoasPrediction> {
+  const res = await client.call<{campaignId: string; savedToVault?: boolean; insight: Omit<RoasPrediction, "campaignId" | "savedToVault">}>(
+    actor.uid,
+    "refreshOpticCampaignRoasInsight",
+    {
+      campaignId: input.campaignId,
+      averageOrderValueUsd: input.averageOrderValueUsd,
+      conversionRate: input.conversionRate,
+      viewRate: input.viewRate,
+      hireCount: input.hireCount,
+      minMatchScore: input.minMatchScore ?? undefined,
+      persist: input.persist !== false,
+      source: "mcp",
     }
-    const base = Number.parseFloat(m[1]);
-    if (!Number.isFinite(base)) return 0;
-    const mult = m[2] === "K" ? 1_000 : m[2] === "M" ? 1_000_000 : m[2] === "B" ? 1_000_000_000 : 1;
-    return Math.max(0, base * mult);
-  }
-  return 0;
+  );
+  const {updatedAt: _updatedAt, budget: _budget, source: _source, ...insight} =
+    res.insight as RoasPrediction & {updatedAt?: unknown; budget?: unknown; source?: unknown};
+  return {...insight, campaignId: res.campaignId, savedToVault: res.savedToVault !== false};
+}
+
+function roasText(roas: number | null): string {
+  return roas == null ? "—" : `${roas.toFixed(2)}x`;
+}
+
+function money(n: number): string {
+  return `$${n.toLocaleString("en-US", {maximumFractionDigits: 0})}`;
 }
 
 /**
- * Heuristic predicted ROAS from campaign spend + vault lead reach.
- * Explicitly modeled — not measured historical ROAS.
+ * One-paragraph explanation an agent can relay as-is.
+ * @param {RoasPrediction} p Prediction.
+ * @return {string} Summary.
  */
-export function predictCampaignRoas(input: RoasPredictInput): RoasPrediction {
-  const hireDefault = Math.max(1, input.budget.creatorsNeeded || 1);
-  const hireCount = Math.max(
-    1,
-    Math.floor(input.hireCount && input.hireCount > 0 ? input.hireCount : hireDefault)
-  );
-  const spendUsd = Math.round(input.budget.ratePerCreator * hireCount * 100) / 100;
-
-  const sorted = [...input.leads].sort((a, b) => {
-    const sa = typeof a.matchScore === "number" ? a.matchScore : -1;
-    const sb = typeof b.matchScore === "number" ? b.matchScore : -1;
-    return sb - sa;
-  });
-
-  const selected = sorted.slice(0, hireCount);
-  const viewRate = Math.min(1, Math.max(0, input.viewRate));
-  const conversionRate = Math.min(1, Math.max(0, input.conversionRate));
-  const aov = Math.max(0, numOrZero(input.averageOrderValueUsd));
-
-  const creatorsModeled = selected.map((lead) => {
-    const followers = parseFollowers(lead);
-    const expectedViews = Math.round(followers * viewRate);
-    return {
-      id: lead.id,
-      name: lead.creatorName ?? null,
-      followers,
-      matchScore: typeof lead.matchScore === "number" ? lead.matchScore : null,
-      expectedViews,
-    };
-  });
-
-  // If vault is empty, fall back to a mid-micro creator proxy per hire slot.
-  if (creatorsModeled.length === 0) {
-    for (let i = 0; i < hireCount; i++) {
-      const followers = 50_000;
-      creatorsModeled.push({
-        id: `proxy-${i + 1}`,
-        name: `Proxy mid-micro creator #${i + 1}`,
-        followers,
-        matchScore: null,
-        expectedViews: Math.round(followers * viewRate),
-      });
-    }
-  } else if (creatorsModeled.length < hireCount) {
-    const avgFollowers =
-      creatorsModeled.reduce((s, c) => s + c.followers, 0) / creatorsModeled.length;
-    while (creatorsModeled.length < hireCount) {
-      const i = creatorsModeled.length;
-      creatorsModeled.push({
-        id: `proxy-${i + 1}`,
-        name: `Proxy (avg vault reach)`,
-        followers: Math.round(avgFollowers),
-        matchScore: null,
-        expectedViews: Math.round(avgFollowers * viewRate),
-      });
-    }
-  }
-
-  const expectedViews = creatorsModeled.reduce((s, c) => s + c.expectedViews, 0);
-  const expectedConversions = expectedViews * conversionRate;
-  const expectedRevenueUsd = Math.round(expectedConversions * aov * 100) / 100;
-  const predictedRoas =
-    spendUsd > 0 ? Math.round((expectedRevenueUsd / spendUsd) * 100) / 100 : null;
-
-  const usedProxies = creatorsModeled.some((c) => c.id.startsWith("proxy-"));
-  const caveats = [
-    "This is a forecast, not historical results from a finished campaign.",
-    "Follower numbers are often estimated from public profiles.",
-    "Update average order value, conversion rate, and view rate to match your real funnel.",
+export function summarizeRoasPrediction(p: RoasPrediction): string {
+  const {committed, likely, target} = p.scenarios;
+  const parts = [
+    `Committed (booked creators only): ${roasText(committed.roas)} on ${money(committed.spendUsd)}.`,
+    `Likely (pipeline weighted by odds of booking, ~${likely.creators} creators): ${roasText(likely.roas)} on ${money(likely.spendUsd)}.`,
+    `Full target (${target.creators} creators): ${roasText(target.roas)} on ${money(target.spendUsd)}.`,
   ];
-  if (usedProxies) {
-    caveats.push(
-      "We filled some creator slots with placeholder reach because there aren’t enough vault matches yet — discover more creators to sharpen this estimate."
+  const breakEven = (likely.spendUsd > 0 ? likely : target).breakEvenConversionRate;
+  if (breakEven != null) {
+    parts.push(
+      `Break-even at ${(breakEven * 100).toFixed(2)}% conversion (modeling ${(p.inputs.conversionRate * 100).toFixed(2)}%).`
     );
   }
-  if (input.budget.campaignType === "cause_campaign" || input.budget.campaignType === "barter_campaign") {
-    caveats.push(
-      "This campaign type may have little or no cash spend, so return on cash outlay can look unusual."
-    );
+  if (p.pipeline.excluded > 0) {
+    parts.push(`${p.pipeline.excluded} creators who passed, declined, or went quiet are left out.`);
   }
-
-  return {
-    campaignId: input.budget.campaignId,
-    title: input.budget.title,
-    predictedRoas,
-    spendUsd,
-    expectedRevenueUsd,
-    expectedViews,
-    expectedConversions: Math.round(expectedConversions * 1000) / 1000,
-    hireCount,
-    creatorsModeled,
-    inputs: {
-      averageOrderValueUsd: aov,
-      conversionRate,
-      viewRate,
-      engagementRate:
-        input.engagementRate != null && Number.isFinite(input.engagementRate)
-          ? input.engagementRate
-          : null,
-    },
-    confidence: usedProxies || selected.length === 0 ? "low" : "medium",
-    caveats,
-  };
+  return parts.join(" ");
 }

@@ -22,6 +22,7 @@ export type OpticLeadCrmPatch = {
   outreachResponse?: OpticLeadResponse | null;
   passReason?: OpticPassReason | null;
   crmNote?: string | null;
+  quotedRateUsd?: number | null;
   touchLastContacted?: boolean;
 };
 

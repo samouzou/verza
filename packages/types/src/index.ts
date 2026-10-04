@@ -223,6 +223,10 @@ export interface UserProfileFirestoreData {
   isAgencyOwner?: boolean;
   isBrandAccount?: boolean;
   primaryAgencyId?: string | null;
+  /** Opt-outs for recurring emails; missing means subscribed. */
+  emailPreferences?: { opticWeekly?: boolean };
+  /** Server-generated secret for one-click unsubscribe links. */
+  emailPrefsToken?: string;
   agencyMemberships?: AgencyMembership[];
   giggingForAgencies?: string[];
 
@@ -619,6 +623,10 @@ export interface Agency {
   opticTopUpBlocksThisPeriod?: number;
   /** Server-only: dedupe key for 80% low-credit warning email per billing period. */
   opticLowCreditWarningPeriodKey?: string | null;
+  /** Server-only: UTC Monday (YYYY-MM-DD) of the last Optic Weekly run for this brand. */
+  opticWeeklyLastSentKey?: string | null;
+  /** Server-only: consecutive quiet weeks; Optic Weekly pauses after two until activity returns. */
+  opticWeeklyQuietStreak?: number;
   /** When set to appsumo, Optic is billed via stacked AppSumo codes (no Stripe top-up). */
   opticBillingSource?: 'stripe' | 'appsumo' | null;
   /** Number of AppSumo Optic codes redeemed on this workspace (50 leads/mo each). */

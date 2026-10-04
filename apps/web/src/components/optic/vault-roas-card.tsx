@@ -4,12 +4,19 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, RefreshCw, TrendingUp } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
+import { Bar, BarChart, Cell, LabelList, ReferenceLine, XAxis, YAxis } from "recharts";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { OpticRoasInsight } from "@/lib/optic/types";
+import type {
+  OpticRoasInsight,
+  OpticRoasPipelineBucket,
+  OpticRoasScenario,
+  OpticRoasSpendBasis,
+} from "@/lib/optic/types";
 import { cn } from "@/lib/utils";
 
 function tsToDate(ts: Timestamp | null | undefined): Date | null {
@@ -28,6 +35,77 @@ function money(n: number): string {
 function pct(n: number): string {
   const p = n * 100;
   return `${p.toFixed(p >= 1 ? 1 : 2)}%`;
+}
+
+function roasText(roas: number | null): string {
+  return roas == null ? "—" : `${roas.toFixed(2)}x`;
+}
+
+function roasTone(roas: number | null): string {
+  if (roas == null) return "text-muted-foreground";
+  return roas >= 1 ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400";
+}
+
+const STAGE_LABELS: Record<OpticRoasPipelineBucket, string> = {
+  booked: "Booked",
+  negotiating: "In conversation",
+  replied: "Replied",
+  contacted: "Contacted",
+  new: "Not contacted",
+  excluded: "Out",
+};
+
+const BASIS_LABELS: Record<OpticRoasSpendBasis, string> = {
+  quoted: "quoted",
+  flat_fee: "flat fee",
+  estimated: "estimated",
+  unknown: "no rate",
+};
+
+const SCENARIOS: Array<{ key: "committed" | "likely" | "target"; label: string; hint: string }> = [
+  { key: "committed", label: "Committed", hint: "Booked creators only" },
+  { key: "likely", label: "Likely", hint: "Pipeline weighted by odds of booking" },
+  { key: "target", label: "Full target", hint: "Every slot filled" },
+];
+
+const chartConfig = { roas: { label: "ROAS" } } satisfies ChartConfig;
+
+function creatorsLabel(s: OpticRoasScenario, key: string): string {
+  if (key === "likely") return `~${s.creators} creators expected`;
+  return `${s.creators} creator${s.creators === 1 ? "" : "s"}`;
+}
+
+function ScenarioChart({ scenarios }: { scenarios: NonNullable<OpticRoasInsight["scenarios"]> }) {
+  const data = SCENARIOS.map(({ key, label }) => ({ name: label, roas: scenarios[key].roas ?? 0, raw: scenarios[key].roas }));
+  const max = Math.max(2, ...data.map((d) => d.roas)) * 1.15;
+  return (
+    <ChartContainer config={chartConfig} className="aspect-auto h-[132px] w-full">
+      <BarChart data={data} layout="vertical" margin={{ top: 14, right: 44, left: 4, bottom: 0 }}>
+        <XAxis type="number" domain={[0, max]} hide />
+        <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={78} fontSize={12} />
+        <ReferenceLine
+          x={1}
+          stroke="hsl(var(--muted-foreground))"
+          strokeDasharray="4 4"
+          label={{ value: "Break-even", position: "top", fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+        />
+        <Bar dataKey="roas" radius={4} barSize={18} isAnimationActive={false}>
+          {data.map((d) => (
+            <Cell
+              key={d.name}
+              fill={d.raw == null ? "hsl(var(--muted))" : d.raw >= 1 ? "hsl(var(--primary))" : "hsl(38 92% 50%)"}
+            />
+          ))}
+          <LabelList
+            dataKey="raw"
+            position="right"
+            fontSize={12}
+            formatter={(v: number | null) => roasText(v)}
+          />
+        </Bar>
+      </BarChart>
+    </ChartContainer>
+  );
 }
 
 export type VaultRoasCardProps = {
@@ -62,8 +140,17 @@ export function VaultRoasCard({
   );
 
   const updated = tsToDate(insight?.updatedAt);
-  const roasLabel =
-    insight?.predictedRoas == null ? "—" : `${insight.predictedRoas.toFixed(2)}x`;
+  const scenarios = insight?.scenarios;
+  const breakEvenFrom =
+    scenarios && scenarios.likely.spendUsd > 0 ? scenarios.likely : scenarios?.target;
+  const basis = insight?.spendBasis;
+  const basisLine = basis
+    ? (Object.keys(BASIS_LABELS) as OpticRoasSpendBasis[])
+        .filter((k) => basis[k] > 0)
+        .map((k) => `${basis[k]} ${BASIS_LABELS[k]}`)
+        .join(" · ")
+    : "";
+  const excluded = insight?.pipeline?.excluded ?? 0;
 
   const runRefresh = () => {
     const aovN = Number.parseFloat(aov);
@@ -112,13 +199,92 @@ export function VaultRoasCard({
 
         {loading && !insight ? (
           <p className="text-sm text-muted-foreground">Loading estimate…</p>
+        ) : insight && scenarios ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {SCENARIOS.map(({ key, label, hint }) => {
+                const s = scenarios[key];
+                return (
+                  <div
+                    key={key}
+                    className={cn("rounded-lg border p-4", key === "likely" && "bg-muted/30")}
+                    title={hint}
+                  >
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className={cn("mt-1 text-2xl font-semibold tabular-nums tracking-tight", roasTone(s.roas))}>
+                      {roasText(s.roas)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {money(s.spendUsd)} spend · {money(s.revenueUsd)} revenue
+                    </p>
+                    <p className="text-xs text-muted-foreground">{creatorsLabel(s, key)}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <ScenarioChart scenarios={scenarios} />
+
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {breakEvenFrom?.breakEvenConversionRate != null && (
+                <p>
+                  <span className="font-medium text-foreground">
+                    Break-even at {pct(breakEvenFrom.breakEvenConversionRate)} conversion
+                  </span>{" "}
+                  (you&apos;re modeling {pct(insight.inputs.conversionRate)}).
+                </p>
+              )}
+              {basisLine && <p>Spend basis: {basisLine}.</p>}
+              {excluded > 0 && (
+                <p>
+                  {excluded} creator{excluded === 1 ? "" : "s"} who passed, declined, or went quiet{" "}
+                  {excluded === 1 ? "is" : "are"} left out.
+                </p>
+              )}
+              <p className={roasTone(insight.confidence === "medium" ? 1 : 0)}>
+                <span className="capitalize">{insight.confidence}</span> confidence
+                {insight.usedProxies ? " · some placeholder creators" : ""}
+              </p>
+            </div>
+
+            {insight.creatorsPreview.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Full target lineup</p>
+                <ul className="space-y-1.5 text-sm">
+                  {insight.creatorsPreview.map((c, i) => (
+                    <li
+                      key={`${c.name ?? "c"}-${i}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-1.5 last:border-0"
+                    >
+                      <span className="min-w-0 truncate">
+                        {c.name ?? "Creator"}
+                        {c.stage && (
+                          <span className="ml-2 text-xs text-muted-foreground">{STAGE_LABELS[c.stage]}</span>
+                        )}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {c.followers.toLocaleString()} followers
+                        {c.spendUsd != null && c.spendBasis !== "unknown"
+                          ? ` · ${money(c.spendUsd)}${c.spendBasis === "estimated" ? " est." : ""}`
+                          : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {insight.caveats[0] && (
+              <p className="text-xs text-muted-foreground">{insight.caveats[0]}</p>
+            )}
+          </>
         ) : insight ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-muted/30 p-4 sm:col-span-2 lg:col-span-1">
                 <p className="text-xs text-muted-foreground">Predicted ROAS</p>
                 <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
-                  {roasLabel}
+                  {roasText(insight.predictedRoas)}
                 </p>
                 <p
                   className={cn(
@@ -160,30 +326,9 @@ export function VaultRoasCard({
                 </p>
               </div>
             </div>
-
-            {insight.creatorsPreview.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Reach model</p>
-                <ul className="space-y-1.5 text-sm">
-                  {insight.creatorsPreview.map((c, i) => (
-                    <li
-                      key={`${c.name ?? "c"}-${i}`}
-                      className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-1.5 last:border-0"
-                    >
-                      <span className="truncate">{c.name ?? "Creator"}</span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {c.followers.toLocaleString()} followers
-                        {c.matchScore != null ? ` · ${c.matchScore}%` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {insight.caveats[0] && (
-              <p className="text-xs text-muted-foreground">{insight.caveats[0]}</p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Recalculate to see committed, likely, and full-target scenarios based on your pipeline.
+            </p>
           </>
         ) : (
           <p className="text-sm text-muted-foreground">

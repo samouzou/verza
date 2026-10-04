@@ -1,9 +1,9 @@
 import type {Firestore} from "firebase-admin/firestore";
 import type {VerzaActor} from "../context.js";
-import {AGENT_PREFERRED_PLATFORMS, getCampaign, listLeads} from "../services/verza.js";
+import {AGENT_PREFERRED_PLATFORMS, getCampaign} from "../services/verza.js";
 import {estimateCampaignBudget, type BudgetEstimate} from "./budget.js";
-import {buildRoasInsightSnapshot, saveRoasInsightOnGig} from "./insights.js";
-import {predictCampaignRoas, type RoasPrediction} from "./roas.js";
+import type {VerzaCallableClient} from "./callable.js";
+import {predictCampaignRoas, summarizeRoasPrediction, type RoasPrediction} from "./roas.js";
 
 export const LAUNCH_BRIEF_DEFAULTS = {
   averageOrderValueUsd: 50,
@@ -17,7 +17,6 @@ export type LaunchBriefInput = {
   conversionRate?: number;
   viewRate?: number;
   hireCount?: number;
-  engagementRate?: number;
   minMatchScore?: number | null;
   campaignUrl?: string | null;
   checkoutUrl?: string | null;
@@ -44,7 +43,9 @@ export type CampaignLaunchBrief = {
   };
   metrics: Array<{label: string; value: string; hint?: string}>;
   budget: BudgetEstimate;
-  roas: RoasPrediction;
+  /** Null when the forecast couldn’t be computed; the rest of the brief still applies. */
+  roas: RoasPrediction | null;
+  roasSummary: string | null;
   scoutPlan: {
     preferredTool: "optic_prepare_agent_mission" | "optic_start_discovery";
     platforms: string[];
@@ -64,11 +65,64 @@ function pct(n: number): string {
   return `${(n * 100).toFixed(n * 100 >= 1 ? 1 : 2)}%`;
 }
 
+function roasText(roas: number | null): string {
+  return roas == null ? "—" : `${roas.toFixed(2)}x`;
+}
+
+function roasMetrics(roas: RoasPrediction): CampaignLaunchBrief["metrics"] {
+  const {committed, likely, target} = roas.scenarios;
+  const basis = roas.spendBasis;
+  const basisParts = [
+    basis.quoted ? `${basis.quoted} quoted` : null,
+    basis.flat_fee ? `${basis.flat_fee} at the flat fee` : null,
+    basis.estimated ? `${basis.estimated} estimated from market rates` : null,
+    basis.unknown ? `${basis.unknown} with no rate yet` : null,
+  ].filter(Boolean);
+  const breakEven = target.breakEvenConversionRate;
+  return [
+    {
+      label: "Predicted return (full target)",
+      value: roasText(target.roas),
+      hint: roas.confidence === "medium" ? "Solid estimate" : "Early estimate — improves as creators reply and quote rates",
+    },
+    {
+      label: "Likely return",
+      value: roasText(likely.roas),
+      hint: likely.creators > 0 ?
+        `~${likely.creators} creators from your pipeline, weighted by odds of booking` :
+        "No creators in conversation yet",
+    },
+    {
+      label: "Committed return",
+      value: roasText(committed.roas),
+      hint: committed.creators > 0 ? `${committed.creators} booked creators` : "No creators booked yet",
+    },
+    {
+      label: "Creator spend (full target)",
+      value: money(target.spendUsd),
+      hint: basisParts.length ? `${target.creators} creators: ${basisParts.join(", ")}` : `${target.creators} creators`,
+    },
+    {
+      label: "Expected revenue (full target)",
+      value: money(target.revenueUsd),
+      hint: `About ${Math.round(target.views).toLocaleString()} views → ~${Math.round(target.conversions)} orders`,
+    },
+    ...(breakEven != null ?
+      [{
+        label: "Break-even conversion",
+        value: pct(breakEven),
+        hint: `You break even if ${pct(breakEven)} of viewers buy`,
+      }] :
+      []),
+  ];
+}
+
 /**
  * Brand-facing launch pack: budget + predicted ROAS + what to do next.
  */
 export async function buildCampaignLaunchBrief(
   db: Firestore,
+  callable: VerzaCallableClient,
   actor: VerzaActor,
   input: LaunchBriefInput
 ): Promise<CampaignLaunchBrief> {
@@ -80,27 +134,21 @@ export async function buildCampaignLaunchBrief(
   const viewRate = input.viewRate ?? LAUNCH_BRIEF_DEFAULTS.viewRate;
 
   const budget = estimateCampaignBudget(campaign);
-  const leads = await listLeads(db, actor, {
-    campaignId: input.campaignId,
-    limit: 50,
-    minMatchScore: input.minMatchScore ?? null,
-  });
-  const roas = predictCampaignRoas({
-    budget,
-    leads,
-    hireCount: input.hireCount,
-    averageOrderValueUsd: aov,
-    conversionRate,
-    viewRate,
-    engagementRate: input.engagementRate,
-  });
-
-  let savedToVault = false;
-  if (input.persist !== false) {
-    const snapshot = buildRoasInsightSnapshot(roas, budget, "mcp");
-    await saveRoasInsightOnGig(db, input.campaignId, snapshot);
-    savedToVault = true;
+  let roas: RoasPrediction | null = null;
+  try {
+    roas = await predictCampaignRoas(callable, actor, {
+      campaignId: input.campaignId,
+      averageOrderValueUsd: aov,
+      conversionRate,
+      viewRate,
+      hireCount: input.hireCount,
+      minMatchScore: input.minMatchScore ?? null,
+      persist: input.persist !== false,
+    });
+  } catch (e) {
+    console.error("[launchBrief] ROAS prediction failed", input.campaignId, e);
   }
+  const savedToVault = roas?.savedToVault ?? false;
 
   const platforms = Array.isArray(campaign.platforms)
     ? campaign.platforms.map((p) => String(p).toLowerCase())
@@ -115,12 +163,6 @@ export async function buildCampaignLaunchBrief(
     (input.createMode === "funded_checkout"
       ? `${app}/campaigns/${input.campaignId}/fund`
       : null);
-
-  const roasLabel =
-    roas.predictedRoas == null ? "—" : `${roas.predictedRoas.toFixed(2)}x`;
-
-  const confidenceLabel =
-    roas.confidence === "medium" ? "Solid estimate" : "Early estimate — improves with more creators";
 
   const nextActions: string[] = [];
   if (input.createMode === "funded_checkout" || input.fundingUrl || input.checkoutUrl) {
@@ -141,7 +183,9 @@ export async function buildCampaignLaunchBrief(
   nextActions.push(`Review the campaign report anytime in Optic vault: ${vaultUrl}`);
 
   const footnotes = [
-    ...roas.caveats,
+    ...(roas?.caveats ?? [
+      "Predicted return isn’t available right now — run campaign_predict_roas in a minute to add it.",
+    ]),
     `Starter assumptions when not provided: average order ${money(LAUNCH_BRIEF_DEFAULTS.averageOrderValueUsd)}, conversion ${pct(LAUNCH_BRIEF_DEFAULTS.conversionRate)}, view rate ${pct(LAUNCH_BRIEF_DEFAULTS.viewRate)}.`,
   ];
   if (input.averageOrderValueUsd == null || input.conversionRate == null) {
@@ -167,21 +211,7 @@ export async function buildCampaignLaunchBrief(
       mode: input.createMode ?? null,
     },
     metrics: [
-      {
-        label: "Predicted return",
-        value: roasLabel,
-        hint: confidenceLabel,
-      },
-      {
-        label: "Creator hire spend",
-        value: money(roas.spendUsd),
-        hint: `${roas.hireCount} creators at ${money(budget.ratePerCreator)} each`,
-      },
-      {
-        label: "Expected revenue",
-        value: money(roas.expectedRevenueUsd),
-        hint: `About ${Math.round(roas.expectedViews).toLocaleString()} views → ~${roas.expectedConversions} orders`,
-      },
+      ...(roas ? roasMetrics(roas) : []),
       {
         label: "Total creator budget",
         value: money(budget.creatorCompensationUsd),
@@ -194,6 +224,7 @@ export async function buildCampaignLaunchBrief(
     ],
     budget,
     roas,
+    roasSummary: roas ? summarizeRoasPrediction(roas) : null,
     scoutPlan: {
       preferredTool: prefersAgent
         ? "optic_prepare_agent_mission"

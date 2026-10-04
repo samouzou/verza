@@ -75,6 +75,20 @@ function parseInsight(raw: unknown): OpticRoasInsight | null {
             ratePerCreator: 0,
             creatorsNeeded: 0,
           },
+    scenarios:
+      d.scenarios && typeof d.scenarios === "object"
+        ? (d.scenarios as OpticRoasInsight["scenarios"])
+        : undefined,
+    pipeline:
+      d.pipeline && typeof d.pipeline === "object"
+        ? (d.pipeline as OpticRoasInsight["pipeline"])
+        : undefined,
+    spendBasis:
+      d.spendBasis && typeof d.spendBasis === "object"
+        ? (d.spendBasis as OpticRoasInsight["spendBasis"])
+        : undefined,
+    quotesUsed: typeof d.quotesUsed === "number" ? d.quotesUsed : undefined,
+    medianQuoteUsd: typeof d.medianQuoteUsd === "number" ? d.medianQuoteUsd : null,
     creatorsPreview: Array.isArray(d.creatorsPreview)
       ? (d.creatorsPreview as OpticRoasInsight["creatorsPreview"])
       : [],

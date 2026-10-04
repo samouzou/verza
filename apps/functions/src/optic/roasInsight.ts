@@ -1,9 +1,19 @@
 import {FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
+import {syncQuotedRateFromNote} from "./quotedRate";
+import {CLOSE_PROBABILITY, modelCampaignRoas, pipelineBucket, type RoasLeadInput} from "./roasModel";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
+const CAMPAIGN_LEAD_LIMIT = 500;
+/** Notes read per refresh for leads saved before quoted rates existed; the trigger covers new edits. */
+const BACKFILL_PER_REFRESH = 25;
 
+/**
+ * Coerces a stored number or numeric string, defaulting to 0.
+ * @param {unknown} v Raw value.
+ * @return {number} Finite number.
+ */
 function numOrZero(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string") {
@@ -13,6 +23,11 @@ function numOrZero(v: unknown): number {
   return 0;
 }
 
+/**
+ * Follower count from the numeric field, falling back to the display string.
+ * @param {object} lead Lead fields.
+ * @return {number} Followers.
+ */
 function parseFollowers(lead: {
   followerCount?: unknown;
   followerCountNumeric?: unknown;
@@ -39,9 +54,9 @@ function parseFollowers(lead: {
 }
 
 /**
- * Recompute heuristic ROAS and persist on the gig for the Optic vault report card.
+ * Recompute stage-aware ROAS and persist on the gig for the Optic vault report card.
  */
-export const refreshOpticCampaignRoasInsight = onCall(async (request) => {
+export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign in to refresh ROAS.");
 
@@ -51,23 +66,32 @@ export const refreshOpticCampaignRoasInsight = onCall(async (request) => {
     conversionRate?: unknown;
     viewRate?: unknown;
     hireCount?: unknown;
+    minMatchScore?: unknown;
+    persist?: unknown;
+    source?: unknown;
   };
+  const persist = data.persist !== false;
+  const source = data.source === "mcp" ? ("mcp" as const) : ("web" as const);
+  const minMatchScore =
+    typeof data.minMatchScore === "number" && Number.isFinite(data.minMatchScore) ?
+      Math.min(100, Math.max(0, data.minMatchScore)) :
+      null;
   const campaignId =
     typeof data.campaignId === "string" ? data.campaignId.trim() : "";
   if (!campaignId) throw new HttpsError("invalid-argument", "campaignId is required.");
 
   const aov =
-    typeof data.averageOrderValueUsd === "number" && data.averageOrderValueUsd > 0
-      ? data.averageOrderValueUsd
-      : 50;
+    typeof data.averageOrderValueUsd === "number" && data.averageOrderValueUsd > 0 ?
+      data.averageOrderValueUsd :
+      50;
   const conversionRate =
-    typeof data.conversionRate === "number" && Number.isFinite(data.conversionRate)
-      ? Math.min(1, Math.max(0, data.conversionRate))
-      : 0.005;
+    typeof data.conversionRate === "number" && Number.isFinite(data.conversionRate) ?
+      Math.min(1, Math.max(0, data.conversionRate)) :
+      0.005;
   const viewRate =
-    typeof data.viewRate === "number" && Number.isFinite(data.viewRate)
-      ? Math.min(1, Math.max(0, data.viewRate))
-      : 0.08;
+    typeof data.viewRate === "number" && Number.isFinite(data.viewRate) ?
+      Math.min(1, Math.max(0, data.viewRate)) :
+      0.08;
 
   const userSnap = await db.collection("users").doc(uid).get();
   if (!userSnap.exists) throw new HttpsError("failed-precondition", "User profile not found.");
@@ -88,102 +112,95 @@ export const refreshOpticCampaignRoasInsight = onCall(async (request) => {
 
   const rate = numOrZero(gig.ratePerCreator);
   const creatorsNeeded = Math.max(0, Math.floor(numOrZero(gig.creatorsNeeded)));
-  const hireCount =
-    typeof data.hireCount === "number" && data.hireCount > 0
-      ? Math.floor(data.hireCount)
-      : Math.max(1, creatorsNeeded || 1);
-  const spendUsd = Math.round(rate * hireCount * 100) / 100;
-  const creatorCompensationUsd = rate * creatorsNeeded;
+  const targetCount =
+    typeof data.hireCount === "number" && data.hireCount > 0 ?
+      Math.floor(data.hireCount) :
+      Math.max(1, creatorsNeeded || 1);
 
   const leadSnap = await db
     .collection("optic_outreach_leads")
     .where("agencyId", "==", agencyId)
-    .limit(200)
+    .where("campaignId", "==", campaignId)
+    .limit(CAMPAIGN_LEAD_LIMIT)
     .get();
 
-  const leads = leadSnap.docs
-    .map((d) => {
-      const L = d.data();
-      return {
-        id: d.id,
-        campaignId: typeof L.campaignId === "string" ? L.campaignId : null,
-        name: typeof L.creatorName === "string" ? L.creatorName : null,
-        followers: parseFollowers(L),
-        matchScore: typeof L.matchScore === "number" ? L.matchScore : null,
-      };
-    })
-    .filter((l) => l.campaignId === campaignId)
-    .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1));
-
-  const selected = leads.slice(0, hireCount);
-  const creatorsModeled: Array<{
-    id: string;
-    name: string | null;
-    followers: number;
-    matchScore: number | null;
-    expectedViews: number;
-  }> = selected.map((l) => ({
-    id: l.id,
-    name: l.name,
-    followers: l.followers,
-    matchScore: l.matchScore,
-    expectedViews: Math.round(l.followers * viewRate),
-  }));
-
-  if (creatorsModeled.length === 0) {
-    for (let i = 0; i < hireCount; i++) {
-      const followers = 50_000;
-      creatorsModeled.push({
-        id: `proxy-${i + 1}`,
-        name: `Proxy mid-micro #${i + 1}`,
-        followers,
-        matchScore: null,
-        expectedViews: Math.round(followers * viewRate),
-      });
-    }
-  } else if (creatorsModeled.length < hireCount) {
-    const avg =
-      creatorsModeled.reduce((s, c) => s + c.followers, 0) / creatorsModeled.length;
-    while (creatorsModeled.length < hireCount) {
-      const i = creatorsModeled.length;
-      creatorsModeled.push({
-        id: `proxy-${i + 1}`,
-        name: "Proxy (avg vault reach)",
-        followers: Math.round(avg),
-        matchScore: null,
-        expectedViews: Math.round(avg * viewRate),
-      });
-    }
+  const docs = leadSnap.docs.map((d) => ({ref: d.ref, data: d.data()}));
+  let backfilled = 0;
+  for (const d of docs) {
+    if (backfilled >= BACKFILL_PER_REFRESH) break;
+    const note = typeof d.data.crmNote === "string" ? d.data.crmNote.trim() : "";
+    if (!note || d.data.quotedRateSource === "manual" || d.data.quotedRateNoteHash) continue;
+    backfilled += 1;
+    const next = await syncQuotedRateFromNote(d.ref, d.data);
+    if (next !== undefined) d.data.quotedRateUsd = next;
   }
 
-  const expectedViews = creatorsModeled.reduce((s, c) => s + c.expectedViews, 0);
-  const expectedConversions = expectedViews * conversionRate;
-  const expectedRevenueUsd = Math.round(expectedConversions * aov * 100) / 100;
-  const predictedRoas =
-    spendUsd > 0 ? Math.round((expectedRevenueUsd / spendUsd) * 100) / 100 : null;
-  const usedProxies = creatorsModeled.some((c) => c.id.startsWith("proxy-"));
-  const vaultLeadsUsed = creatorsModeled.filter((c) => !c.id.startsWith("proxy-")).length;
+  const allLeads: RoasLeadInput[] = docs.map(({ref, data: L}) => ({
+    id: ref.id,
+    name: typeof L.creatorName === "string" ? L.creatorName : null,
+    followers: parseFollowers(L),
+    matchScore: typeof L.matchScore === "number" ? L.matchScore : null,
+    pipelineStage: L.pipelineStage,
+    outreachEmailed: L.outreachEmailed,
+    outreachResponse: L.outreachResponse,
+    quotedRateUsd: L.quotedRateUsd,
+  }));
+  // The match-score floor only screens creators nobody has contacted; anyone already in talks stays in.
+  const leads = minMatchScore == null ?
+    allLeads :
+    allLeads.filter((l) => pipelineBucket(l) !== "new" || (l.matchScore ?? -1) >= minMatchScore);
+
+  const model = modelCampaignRoas(leads, {
+    averageOrderValueUsd: aov,
+    conversionRate,
+    viewRate,
+    ratePerCreator: rate,
+    targetCount,
+  });
+  const {target} = model;
+  const vaultLeadsUsed = model.targetCreators.filter((c) => !c.proxy).length;
+  const solidSpend = model.spendBasis.quoted + model.spendBasis.flat_fee;
+  const confidence =
+    !model.usedProxies && model.spendBasis.unknown === 0 && solidSpend >= model.spendBasis.estimated ?
+      ("medium" as const) :
+      ("low" as const);
 
   const caveats = [
     "This is a forecast, not results from a finished campaign.",
     "Follower numbers are often estimated from public profiles.",
   ];
-  if (usedProxies) {
+  if (model.pipeline.excluded > 0) {
+    caveats.push(
+      `${model.pipeline.excluded} creator${model.pipeline.excluded === 1 ? "" : "s"} who passed, declined, ` +
+      "or went quiet are left out."
+    );
+  }
+  if (model.spendBasis.estimated > 0) {
+    caveats.push("Some spend is estimated from other creators' quoted rates at similar follower counts.");
+  }
+  if (model.spendBasis.unknown > 0) {
+    caveats.push("Add quoted rates or a flat fee to estimate spend for every creator.");
+  }
+  if (model.usedProxies) {
     caveats.push(
       "Some creator slots used placeholder reach — discover more creators for a sharper estimate."
     );
   }
+  caveats.push(
+    `Likely weights creators by typical odds of booking: in conversation ${CLOSE_PROBABILITY.negotiating * 100}%, ` +
+    `replied ${CLOSE_PROBABILITY.replied * 100}%, contacted ${CLOSE_PROBABILITY.contacted * 100}%.`
+  );
 
   const insight = {
-    predictedRoas,
-    spendUsd,
-    expectedRevenueUsd,
-    expectedViews,
-    expectedConversions: Math.round(expectedConversions * 1000) / 1000,
-    hireCount,
-    confidence: usedProxies || selected.length === 0 ? ("low" as const) : ("medium" as const),
+    predictedRoas: target.roas,
+    spendUsd: target.spendUsd,
+    expectedRevenueUsd: target.revenueUsd,
+    expectedViews: target.views,
+    expectedConversions: target.conversions,
+    hireCount: model.targetCreators.length,
+    confidence,
     vaultLeadsUsed,
-    usedProxies,
+    usedProxies: model.usedProxies,
     inputs: {
       averageOrderValueUsd: aov,
       conversionRate,
@@ -191,28 +208,43 @@ export const refreshOpticCampaignRoasInsight = onCall(async (request) => {
       engagementRate: null as number | null,
     },
     budget: {
-      creatorCompensationUsd,
+      creatorCompensationUsd: rate * creatorsNeeded,
       ratePerCreator: rate,
       creatorsNeeded,
     },
-    creatorsPreview: creatorsModeled.slice(0, 5).map((c) => ({
+    scenarios: {
+      committed: model.committed,
+      likely: model.likely,
+      target: model.target,
+    },
+    pipeline: model.pipeline,
+    spendBasis: model.spendBasis,
+    quotesUsed: model.quotesUsed,
+    medianQuoteUsd: model.medianQuoteUsd,
+    creatorsPreview: model.targetCreators.slice(0, 5).map((c) => ({
       name: c.name,
       followers: c.followers,
       matchScore: c.matchScore,
+      stage: c.proxy ? null : c.bucket,
+      spendUsd: c.spendUsd,
+      spendBasis: c.spendBasis,
     })),
     caveats,
-    source: "web" as const,
+    source,
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  await gigRef.update({
-    opticRoasInsight: insight,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  if (persist) {
+    await gigRef.update({
+      opticRoasInsight: insight,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
 
   return {
     ok: true as const,
     campaignId,
+    savedToVault: persist,
     insight: {
       ...insight,
       updatedAt: new Date().toISOString(),

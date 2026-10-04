@@ -46,14 +46,46 @@ export type OpticRoasInsight = {
     ratePerCreator: number;
     creatorsNeeded: number;
   };
+  /** Stage-aware scenarios; absent on estimates saved before pipeline modeling. */
+  scenarios?: {
+    committed: OpticRoasScenario;
+    likely: OpticRoasScenario;
+    target: OpticRoasScenario;
+  };
+  pipeline?: Record<OpticRoasPipelineBucket, number>;
+  spendBasis?: Record<OpticRoasSpendBasis, number>;
+  quotesUsed?: number;
+  medianQuoteUsd?: number | null;
   creatorsPreview: Array<{
     name: string | null;
     followers: number;
     matchScore: number | null;
+    stage?: OpticRoasPipelineBucket | null;
+    spendUsd?: number;
+    spendBasis?: OpticRoasSpendBasis;
   }>;
   caveats: string[];
   source: "mcp" | "web";
   updatedAt?: Timestamp | null;
+};
+
+export type OpticRoasPipelineBucket =
+  | "booked"
+  | "negotiating"
+  | "replied"
+  | "contacted"
+  | "new"
+  | "excluded";
+export type OpticRoasSpendBasis = "quoted" | "flat_fee" | "estimated" | "unknown";
+
+export type OpticRoasScenario = {
+  roas: number | null;
+  spendUsd: number;
+  revenueUsd: number;
+  views: number;
+  conversions: number;
+  creators: number;
+  breakEvenConversionRate: number | null;
 };
 
 export type OpticExtensionProgress = {
@@ -131,6 +163,9 @@ export type OpticLeadRow = {
   outreachResponse?: OpticLeadResponse | null;
   passReason?: OpticPassReason | null;
   crmNote?: string | null;
+  /** Creator's quoted fee in USD; read from the note by AI unless typed by the team. */
+  quotedRateUsd?: number | null;
+  quotedRateSource?: "ai" | "manual" | null;
   gmailDraftId?: string | null;
   gmailThreadId?: string | null;
   gmailMessageId?: string | null;

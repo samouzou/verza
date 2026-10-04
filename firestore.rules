@@ -279,6 +279,8 @@ service cloud.firestore {
           'opticOverageLeadsThisPeriod',
           'opticTopUpBlocksThisPeriod',
           'opticLowCreditWarningPeriodKey',
+          'opticWeeklyLastSentKey',
+          'opticWeeklyQuietStreak',
           'opticBillingSource',
           'appsumoOpticCodeCount',
           'opticAppsumoPeriodKey',
