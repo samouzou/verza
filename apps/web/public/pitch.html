@@ -9,19 +9,24 @@
   <link rel="icon" href="/verza-icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,450;1,6..72,500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --ink: #0B100E;
-      --ink-2: #121A17;
-      --ink-3: #1A2420;
-      --evergreen: #0E7C5A;
-      --emerald: #16C088;
-      --mist: #96A29C;
-      --paper: #E8EEEA;
-      --paper-dim: #B8C4BE;
-      --warn: #C4A574;
-      --radius: 1.25rem;
+      --sheet: #f6f4ef;
+      --ink: #1a1814;
+      --soft: #3f3b36;
+      --mist: #6f6a62;
+      --line: #e4dfd6;
+      --card: #ffffff;
+      --hover: #fffcf8;
+      --rule: #cfc8bc;
+      --paper: #1a1814;
+      --paper-dim: #3f3b36;
+      --emerald: #1a1814;
+      --evergreen: #1a1814;
+      --ink-3: #f6f4ef;
+      --warn: #6f6a62;
+      --radius: 0;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
@@ -30,19 +35,16 @@
     html {
       scroll-snap-type: y mandatory;
       scroll-behavior: smooth;
-      background: var(--ink);
-      color: var(--paper);
+      background: var(--sheet);
+      color: var(--ink);
     }
 
     body {
-      font-family: "DM Sans", system-ui, sans-serif;
-      font-optical-sizing: auto;
-      line-height: 1.45;
+      font-family: Inter, system-ui, sans-serif;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
-      background:
-        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(14, 124, 90, 0.28), transparent 55%),
-        radial-gradient(ellipse 60% 40% at 90% 10%, rgba(22, 192, 136, 0.12), transparent 50%),
-        var(--ink);
+      background: var(--sheet);
+      color: var(--ink);
       min-height: 100vh;
     }
 
@@ -56,7 +58,9 @@
       align-items: center;
       justify-content: space-between;
       padding: 1rem 1.5rem;
-      background: linear-gradient(to bottom, rgba(11, 16, 14, 0.92), transparent);
+      background: rgba(246, 244, 239, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
       pointer-events: none;
     }
 
@@ -70,12 +74,15 @@
       align-items: center;
       gap: 0.65rem;
       text-decoration: none;
-      color: var(--paper);
-      font-weight: 600;
+      color: var(--ink);
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 500;
+      font-size: 1.35rem;
       letter-spacing: -0.02em;
+      line-height: 1;
     }
 
-    .brand img { width: 28px; height: auto; }
+    .brand img { display: none; }
 
     .nav-meta {
       font-size: 0.75rem;
@@ -85,8 +92,8 @@
     }
 
     .nav-meta strong {
-      color: var(--emerald);
-      font-weight: 600;
+      color: var(--ink);
+      font-weight: 500;
     }
 
     .progress {
@@ -95,7 +102,7 @@
       left: 0;
       height: 2px;
       width: 0%;
-      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      background: var(--ink);
       z-index: 50;
       transition: width 120ms linear;
     }
@@ -130,25 +137,23 @@
       align-items: center;
       gap: 0.5rem;
       font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.14em;
+      font-weight: 500;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--emerald);
+      color: var(--mist);
       margin-bottom: 1.25rem;
     }
 
     .eyebrow::before {
-      content: "";
-      width: 1.5rem;
-      height: 1px;
-      background: var(--emerald);
+      content: none;
     }
 
-    h1, h2 {
-      font-family: "Instrument Serif", Georgia, serif;
-      font-weight: 400;
+    h1, h2, h3 {
+      font-family: "Newsreader", Georgia, serif;
+      font-weight: 500;
       letter-spacing: -0.03em;
       line-height: 1.05;
+      color: var(--ink);
     }
 
     h1 {
@@ -165,26 +170,26 @@
 
     .lede {
       font-size: clamp(1.05rem, 2vw, 1.3rem);
-      color: var(--paper-dim);
+      color: var(--soft);
       max-width: 38rem;
       margin-bottom: 2rem;
     }
 
-    .lede strong { color: var(--paper); font-weight: 600; }
+    .lede strong { color: var(--ink); font-weight: 500; }
 
     .ask-pill {
       display: inline-flex;
       align-items: baseline;
       gap: 0.75rem;
       padding: 0.85rem 1.25rem;
-      border: 1px solid rgba(22, 192, 136, 0.35);
-      background: rgba(14, 124, 90, 0.15);
+      border: 1px solid var(--line);
+      background: var(--card);
       border-radius: 999px;
       margin-top: 0.5rem;
     }
 
     .ask-pill .amt {
-      font-family: "Instrument Serif", Georgia, serif;
+      font-family: "Newsreader", Georgia, serif;
       font-size: 1.75rem;
       color: var(--emerald);
     }
@@ -219,17 +224,15 @@
     }
 
     .card {
-      background: rgba(26, 36, 32, 0.72);
-      border: 1px solid rgba(152, 162, 156, 0.16);
+      background: var(--card);
+      border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 1.35rem 1.4rem;
-      backdrop-filter: blur(8px);
-      transition: border-color 280ms var(--ease), transform 280ms var(--ease);
+      transition: background 280ms var(--ease);
     }
 
     .card:hover {
-      border-color: rgba(22, 192, 136, 0.35);
-      transform: translateY(-2px);
+      background: var(--hover);
     }
 
     .card h3 {
@@ -237,7 +240,8 @@
       font-weight: 600;
       letter-spacing: -0.02em;
       margin-bottom: 0.45rem;
-      color: var(--paper);
+      color: var(--ink);
+      font-weight: 500;
     }
 
     .card p {
@@ -246,7 +250,7 @@
     }
 
     .card .num {
-      font-family: "Instrument Serif", Georgia, serif;
+      font-family: "Newsreader", Georgia, serif;
       font-size: 2rem;
       color: var(--emerald);
       line-height: 1;
@@ -274,11 +278,10 @@
       position: absolute;
       left: 0;
       top: 0.55rem;
-      width: 0.45rem;
-      height: 0.45rem;
-      border-radius: 999px;
-      background: var(--emerald);
-      box-shadow: 0 0 12px rgba(22, 192, 136, 0.45);
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: 1px;
+      background: var(--ink);
     }
 
     .stack {
@@ -295,17 +298,17 @@
       gap: 1rem;
       align-items: baseline;
       padding: 0.9rem 0;
-      border-bottom: 1px solid rgba(152, 162, 156, 0.14);
+      border-bottom: 1px solid var(--line);
     }
 
-    .stack-row:first-child { border-top: 1px solid rgba(152, 162, 156, 0.14); }
+    .stack-row:first-child { border-top: 1px solid var(--line); }
 
     .stack-row dt {
       font-size: 0.72rem;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--emerald);
-      font-weight: 600;
+      color: var(--mist);
+      font-weight: 500;
     }
 
     .stack-row dd {
@@ -324,23 +327,23 @@
     .flow span {
       padding: 0.55rem 0.9rem;
       border-radius: 999px;
-      background: var(--ink-3);
-      border: 1px solid rgba(152, 162, 156, 0.2);
+      background: var(--card);
+      border: 1px solid var(--line);
       font-size: 0.85rem;
-      color: var(--paper);
+      color: var(--ink);
     }
 
     .flow i {
       font-style: normal;
-      color: var(--emerald);
+      color: var(--mist);
       font-size: 0.9rem;
     }
 
     .note {
       margin-top: 1.75rem;
       padding: 1rem 1.15rem;
-      border-left: 2px solid var(--warn);
-      background: rgba(196, 165, 116, 0.08);
+      border-left: 2px solid var(--ink);
+      background: var(--card);
       color: var(--paper-dim);
       font-size: 0.88rem;
       max-width: 40rem;
@@ -367,16 +370,15 @@
       gap: 0.85rem;
       padding: 1.25rem 1.35rem;
       border-radius: var(--radius);
-      border: 1px solid rgba(152, 162, 156, 0.16);
-      background: rgba(26, 36, 32, 0.72);
+      border: 1px solid var(--line);
+      background: var(--card);
       text-decoration: none;
       color: inherit;
       transition: border-color 280ms var(--ease), transform 280ms var(--ease);
     }
 
     .brand-tile:hover {
-      border-color: rgba(22, 192, 136, 0.35);
-      transform: translateY(-2px);
+      background: var(--hover);
     }
 
     .brand-tile .logo-plate {
@@ -409,7 +411,7 @@
       font-weight: 600;
       font-size: 1.05rem;
       letter-spacing: -0.02em;
-      color: var(--paper);
+      color: var(--ink);
     }
 
     .brand-tile .role {
@@ -448,7 +450,7 @@
     }
 
     .fund-row .pct {
-      font-family: "Instrument Serif", Georgia, serif;
+      font-family: "Newsreader", Georgia, serif;
       font-size: 1.35rem;
       color: var(--emerald);
     }
@@ -456,14 +458,14 @@
     .bar {
       height: 6px;
       border-radius: 999px;
-      background: rgba(152, 162, 156, 0.15);
+      background: var(--line);
       overflow: hidden;
     }
 
     .bar > i {
       display: block;
       height: 100%;
-      background: linear-gradient(90deg, var(--evergreen), var(--emerald));
+      background: var(--ink);
       border-radius: inherit;
       font-style: normal;
     }
@@ -490,13 +492,13 @@
     .btn:hover { transform: translateY(-1px); }
 
     .btn-primary {
-      background: linear-gradient(135deg, var(--evergreen), var(--emerald));
-      color: var(--ink);
+      background: var(--ink);
+      color: var(--sheet);
     }
 
     .btn-ghost {
-      border: 1px solid rgba(152, 162, 156, 0.3);
-      color: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--ink);
       background: transparent;
     }
 
@@ -532,8 +534,8 @@
       margin-top: 1.25rem;
       overflow-x: auto;
       border-radius: var(--radius);
-      border: 1px solid rgba(152, 162, 156, 0.18);
-      background: rgba(18, 26, 23, 0.85);
+      border: 1px solid var(--line);
+      background: var(--card);
     }
 
     .market-table {
@@ -548,26 +550,26 @@
       padding: 0.75rem 0.9rem;
       text-align: left;
       vertical-align: top;
-      border-bottom: 1px solid rgba(152, 162, 156, 0.12);
+      border-bottom: 1px solid var(--line);
     }
 
     .market-table th {
       font-size: 0.68rem;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--emerald);
-      font-weight: 600;
-      background: rgba(14, 124, 90, 0.12);
+      color: var(--mist);
+      font-weight: 500;
+      background: var(--hover);
     }
 
     .market-table td:first-child {
       font-weight: 600;
-      color: var(--paper);
+      color: var(--ink);
       white-space: nowrap;
     }
 
     .market-table td.num-cell {
-      font-family: "Instrument Serif", Georgia, serif;
+      font-family: "Newsreader", Georgia, serif;
       font-size: 1.15rem;
       color: var(--emerald);
       white-space: nowrap;
@@ -616,7 +618,7 @@
       flex-direction: column;
       margin-top: 1.25rem;
       max-width: 44rem;
-      border-left: 2px solid rgba(22, 192, 136, 0.35);
+      border-left: 2px solid var(--line);
       padding-left: 1.25rem;
     }
 
@@ -633,8 +635,8 @@
       width: 0.55rem;
       height: 0.55rem;
       border-radius: 999px;
-      background: var(--emerald);
-      box-shadow: 0 0 0 3px rgba(22, 192, 136, 0.2);
+      background: var(--ink);
+      box-shadow: none;
     }
 
     .timeline-item .when {
@@ -652,7 +654,7 @@
     }
 
     .timeline-item .what strong {
-      color: var(--paper);
+      color: var(--ink);
       font-weight: 600;
     }
 
@@ -678,9 +680,9 @@
       height: 5.5rem;
       border-radius: 50%;
       object-fit: cover;
-      border: 2px solid rgba(22, 192, 136, 0.35);
-      box-shadow: 0 0 0 4px rgba(22, 192, 136, 0.08);
-      background: rgba(11, 16, 14, 0.6);
+      border: 1px solid var(--line);
+      box-shadow: none;
+      background: var(--card);
     }
 
     .team-card .label {
@@ -700,7 +702,7 @@
 
     @media print {
       .market-table { font-size: 0.7rem; }
-      .market-table td.num-cell { color: #0E7C5A; }
+      .market-table td.num-cell { color: #1a1814; }
     }
 
     .slide.cover h1 { max-width: 16ch; }
@@ -717,11 +719,11 @@
     }
 
     .chat-mock {
-      border-radius: 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: #14120f;
+      border-radius: 0;
+      border: 1px solid var(--line);
+      background: var(--card);
       overflow: hidden;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      box-shadow: none;
       font-size: 0.82rem;
     }
 
@@ -731,8 +733,8 @@
       justify-content: space-between;
       gap: 1rem;
       padding: 0.85rem 1rem;
-      background: #1a1713;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--hover);
+      border-bottom: 1px solid var(--line);
     }
 
     .chat-mock .who {
@@ -761,8 +763,8 @@
       width: 1rem;
       height: 1rem;
       border-radius: 50%;
-      background: #0B100E;
-      border: 1px solid rgba(22, 192, 136, 0.45);
+      background: var(--card);
+      border: 1px solid var(--line);
       display: grid;
       place-items: center;
     }
@@ -771,7 +773,7 @@
 
     .chat-mock .who strong {
       display: block;
-      color: #f4efe6;
+      color: var(--ink);
       font-size: 0.85rem;
       font-weight: 600;
       line-height: 1.2;
@@ -782,7 +784,7 @@
       align-items: center;
       gap: 0.35rem;
       margin-top: 0.15rem;
-      color: rgba(244, 239, 230, 0.5);
+      color: var(--mist);
       font-size: 0.68rem;
       line-height: 1.2;
     }
@@ -790,7 +792,7 @@
     .chat-mock .who .sub code {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.64rem;
-      color: rgba(110, 231, 183, 0.8);
+      color: var(--ink);
     }
 
     .chat-mock .live {
@@ -799,9 +801,9 @@
       gap: 0.35rem;
       font-size: 0.68rem;
       font-weight: 600;
-      color: #6ee7b7;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--mist);
+      background: transparent;
+      border: 1px solid var(--line);
       padding: 0.2rem 0.6rem;
       border-radius: 999px;
       flex-shrink: 0;
@@ -812,8 +814,8 @@
       width: 0.4rem;
       height: 0.4rem;
       border-radius: 50%;
-      background: #34d399;
-      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+      background: var(--ink);
+      box-shadow: none;
     }
 
     .chat-mock .body { padding: 1rem; display: grid; gap: 0.8rem; }
@@ -821,28 +823,28 @@
     .chat-mock .user {
       margin-left: auto;
       max-width: 92%;
-      background: #2a261f;
-      color: #f4efe6;
+      background: var(--sheet);
+      color: var(--ink);
       padding: 0.65rem 0.85rem;
       border-radius: 0.9rem 0.9rem 0.25rem 0.9rem;
       line-height: 1.45;
     }
 
     .chat-mock .user .url {
-      color: #9fd8c3;
+      color: var(--ink);
       text-decoration: underline;
-      text-decoration-color: rgba(159, 216, 195, 0.4);
+      text-decoration-color: var(--rule);
       text-underline-offset: 2px;
       word-break: break-all;
     }
 
-    .chat-mock .agent-label { color: #d97757; font-weight: 600; font-size: 0.7rem; }
-    .chat-mock .agent { color: rgba(244, 239, 230, 0.85); line-height: 1.5; }
+    .chat-mock .agent-label { color: var(--mist); font-weight: 600; font-size: 0.7rem; }
+    .chat-mock .agent { color: var(--soft); line-height: 1.5; }
 
     .chat-mock .matches {
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 0.7rem;
-      background: #1c1915;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--card);
     }
 
     .chat-mock .match {
@@ -851,18 +853,18 @@
       align-items: center;
       gap: 0.75rem;
       padding: 0.55rem 0.8rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--line);
     }
 
     .chat-mock .match:first-child { border-top: 0; }
-    .chat-mock .match strong { color: #f4efe6; font-size: 0.78rem; }
-    .chat-mock .match span { display: block; color: rgba(244, 239, 230, 0.45); font-size: 0.66rem; }
+    .chat-mock .match strong { color: var(--ink); font-size: 0.78rem; }
+    .chat-mock .match span { display: block; color: var(--mist); font-size: 0.66rem; }
 
     .chat-mock .fit {
       font-size: 0.7rem;
       font-weight: 600;
-      color: #6ee7b7;
-      background: rgba(16, 185, 129, 0.12);
+      color: var(--ink);
+      background: transparent;
       padding: 0.1rem 0.5rem;
       border-radius: 999px;
     }
@@ -871,9 +873,9 @@
 
     .chat-mock .chips span {
       font-size: 0.68rem;
-      color: #f4efe6;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: #1c1915;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      background: var(--card);
       padding: 0.3rem 0.6rem;
       border-radius: 999px;
     }
@@ -891,9 +893,9 @@
       gap: 0.5rem;
       font-size: 0.78rem;
       font-weight: 600;
-      color: var(--paper);
-      border: 1px solid rgba(22, 192, 136, 0.3);
-      background: rgba(22, 192, 136, 0.08);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      background: var(--card);
       padding: 0.3rem 0.8rem 0.3rem 0.35rem;
       border-radius: 999px;
     }
@@ -935,18 +937,15 @@
       body { background: #fff; color: #111; }
       .lede, .card p, .list li, .stack-row dd { color: #333; }
       .card { background: #f5f5f5; border-color: #ddd; }
-      h1, h2, .card h3 { color: #0B100E; }
-      .ask-pill .amt, .card .num, .eyebrow, .stack-row dt { color: #0E7C5A; }
+      h1, h2, .card h3 { color: #1a1814; }
+      .ask-pill .amt, .card .num, .eyebrow, .stack-row dt { color: #1a1814; }
     }
   </style>
 </head>
 <body>
   <div class="progress" id="progress"></div>
   <header class="deck-nav">
-    <a class="brand" href="https://tryverza.com">
-      <img src="/verza-icon.svg" alt="" width="28" height="20" />
-      Verza
-    </a>
+    <a class="brand" href="https://www.tryverza.com">Verza</a>
     <div class="nav-meta">Seed · <strong>$100K SAFE</strong></div>
   </header>
   <p class="hint" id="hint">Scroll · or use ↓ ↑</p>
