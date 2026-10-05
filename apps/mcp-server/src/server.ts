@@ -517,7 +517,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_predict_roas",
-    "Estimate predicted return for a campaign from the creator pipeline: committed (booked), likely (weighted by odds of booking), and full-target scenarios. Passed or declined creators are left out. Spend uses each creator's quoted rate or the campaign flat fee, plus any per-conversion reward; creators with no known cost are left out rather than estimated. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
+    "Estimate predicted return for a campaign from the creator pipeline: committed (booked), likely (weighted by odds of booking), and full-target scenarios. Passed or declined creators are left out. Spend uses each creator's quoted rate or the campaign flat fee, plus any per-conversion reward. On campaigns with a cash budget, creators who haven't quoted get the typical quote for their size (once 3+ quotes exist); full target is every qualified creator that fits the budget. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
     {
       campaignId: z.string().min(1),
       averageOrderValueUsd: z

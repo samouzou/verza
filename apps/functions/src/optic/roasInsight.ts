@@ -3,7 +3,13 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
 import {GIG_PLATFORM_FEE_FRACTION, isPoolBudgetGig} from "../poolBudget";
 import {syncQuotedRateFromNote} from "./quotedRate";
-import {CLOSE_PROBABILITY, modelCampaignRoas, pipelineBucket, type RoasLeadInput} from "./roasModel";
+import {
+  CLOSE_PROBABILITY,
+  QUALIFIED_MATCH_SCORE,
+  modelCampaignRoas,
+  pipelineBucket,
+  type RoasLeadInput,
+} from "./roasModel";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 const CAMPAIGN_LEAD_LIMIT = 500;
@@ -149,6 +155,7 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     outreachEmailed: L.outreachEmailed,
     outreachResponse: L.outreachResponse,
     quotedRateUsd: L.quotedRateUsd,
+    hasEmail: typeof L.email === "string" && L.email.trim().length > 0,
   }));
   // The match-score floor only screens creators nobody has contacted; anyone already in talks stays in.
   const leads = minMatchScore == null ?
@@ -164,10 +171,12 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     fixedFeeFraction: pool ? GIG_PLATFORM_FEE_FRACTION : 0,
     targetCount,
     budgetUsd: campaignBudgetUsd > 0 ? campaignBudgetUsd : null,
+    estimateMissingQuotes: pool && campaignBudgetUsd > 0,
   });
   const {target} = model;
   const confidence =
-    model.unpriced === 0 && model.targetShortfall === 0 && model.targetCreators.length > 0 ?
+    model.unpriced === 0 && model.targetShortfall === 0 && model.targetCreators.length > 0 &&
+    model.spendBasis.estimated <= model.spendBasis.quoted + model.spendBasis.flat_fee ?
       ("medium" as const) :
       ("low" as const);
 
@@ -179,6 +188,22 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     caveats.push(
       `${model.pipeline.excluded} creator${model.pipeline.excluded === 1 ? "" : "s"} who passed, declined, ` +
       "or went quiet are left out."
+    );
+  }
+  if (model.spendBasis.estimated > 0) {
+    const bands = model.typicalQuotes
+      .filter((t) => t.medianUsd != null)
+      .map((t) => `$${t.medianUsd} for ${t.label}`);
+    caveats.push(
+      `${model.spendBasis.estimated} creator cost${model.spendBasis.estimated === 1 ? " is" : "s are"} estimated from ` +
+      `${model.quotesUsed} quotes` +
+      (bands.length ? ` (typical: ${bands.join(", ")})` : ` (typical: $${model.medianQuoteUsd})`) + "."
+    );
+  }
+  if (model.notQualified > 0) {
+    caveats.push(
+      `${model.notQualified} untouched creator${model.notQualified === 1 ? "" : "s"} without a public email or under a ` +
+      `${QUALIFIED_MATCH_SCORE} match score ${model.notQualified === 1 ? "is" : "are"} left out.`
     );
   }
   if (model.unpriced > 0) {
@@ -250,6 +275,8 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     pipeline: model.pipeline,
     spendBasis: model.spendBasis,
     unpriced: model.unpriced,
+    notQualified: model.notQualified,
+    typicalQuotes: model.typicalQuotes,
     targetShortfall: model.targetShortfall,
     overBudget: model.overBudget,
     campaignBudgetUsd: pool ? campaignBudgetUsd : null,

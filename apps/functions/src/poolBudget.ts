@@ -8,6 +8,25 @@ export function isPoolBudgetGig(gig: {budgetMode?: GigBudgetMode | string | null
   return gig.budgetMode === "pool";
 }
 
+/**
+ * Campaigns with no fixed creator pay and nothing funded (performance-only, barter) can add a campaign budget
+ * without relaunching. Cause campaigns never pay cash.
+ * @param {object} gig Campaign fields.
+ * @return {boolean} Whether a first budget can be added.
+ */
+export function canStartCampaignBudget(gig: {
+  budgetMode?: GigBudgetMode | string | null;
+  campaignType?: string | null;
+  ratePerCreator?: number | null;
+  fundedAmount?: number | null;
+}): boolean {
+  if (isPoolBudgetGig(gig) || gig.campaignType === "cause_campaign") return false;
+  return !(Number(gig.ratePerCreator) > 0) && !(Number(gig.fundedAmount) > 0);
+}
+
+/** Fields that turn a performance-only campaign into a campaign-budget campaign; there is no creator cap. */
+export const START_CAMPAIGN_BUDGET_FIELDS = {budgetMode: "pool", ratePerCreator: 0, creatorsNeeded: 0} as const;
+
 export function gigHasCreatorCap(gig: {
   budgetMode?: GigBudgetMode | string | null;
   campaignType?: string | null;

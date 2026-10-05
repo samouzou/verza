@@ -1095,6 +1095,20 @@ export function isPoolBudgetGig(gig: {budgetMode?: GigBudgetMode | string | null
   return gig.budgetMode === "pool";
 }
 
+/**
+ * Campaigns with no fixed creator pay and nothing funded (performance-only, barter) can add a campaign budget
+ * without relaunching. Cause campaigns never pay cash.
+ */
+export function canStartCampaignBudget(gig: {
+  budgetMode?: GigBudgetMode | string | null;
+  campaignType?: string | null;
+  ratePerCreator?: number | null;
+  fundedAmount?: number | null;
+}): boolean {
+  if (isPoolBudgetGig(gig) || gig.campaignType === "cause_campaign") return false;
+  return !(Number(gig.ratePerCreator) > 0) && !(Number(gig.fundedAmount) > 0);
+}
+
 /** Flat-fee campaigns cap acceptance at creatorsNeeded. Pool and cause campaigns do not. */
 export function gigHasCreatorCap(gig: {
   budgetMode?: GigBudgetMode | string | null;

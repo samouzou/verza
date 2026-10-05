@@ -65,6 +65,7 @@ import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
 import {
+  canStartCampaignBudget,
   centsToDollars,
   gigHasCreatorCap,
   isPoolBudgetGig,
@@ -152,6 +153,12 @@ function GigDetailContent() {
 
       router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
+  }, [searchParams, gig, gigId, router]);
+
+  useEffect(() => {
+    if (searchParams.get('addBudget') !== '1' || !gig) return;
+    if (canStartCampaignBudget(gig) || isPoolBudgetGig(gig)) setIsTopUpOpen(true);
+    router.replace(`/campaigns/${gigId}`, { scroll: false });
   }, [searchParams, gig, gigId, router]);
 
   const kitUnlocked = !!(gig && user && (
@@ -1169,6 +1176,7 @@ function GigDetailContent() {
   const isCauseCampaign = isCauseCampaignType(gig.campaignType);
   const isBarterCampaign = isBarterCampaignType(gig.campaignType);
   const isPool = isPoolBudgetGig(gig);
+  const canAddFirstBudget = canStartCampaignBudget(gig) && (gig.status === 'open' || gig.status === 'in-progress');
   const usesContributionApprovalOnly =
     isCauseCampaign || (isBarterCampaign && (gig.ratePerCreator || 0) <= 0 && !isPool);
   const hasCreatorCap = gigHasCreatorCap(gig);
@@ -2354,6 +2362,11 @@ function GigDetailContent() {
                             </AlertDialog>
                           </>
                         )}
+                        {canAddFirstBudget && (
+                          <Button className="w-full" variant="secondary" onClick={() => setIsTopUpOpen(true)}>
+                            <DollarSign className="mr-2 h-4 w-4" /> Add a budget
+                          </Button>
+                        )}
                         {!isCompleted && (
                           <Button asChild className="w-full" variant="outline">
                             <Link href={`/campaigns/${gig.id}/edit`}>
@@ -2475,9 +2488,11 @@ function GigDetailContent() {
       <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add funds to this campaign</DialogTitle>
+            <DialogTitle>{canAddFirstBudget ? 'Add a campaign budget' : 'Add funds to this campaign'}</DialogTitle>
             <DialogDescription>
-              This increases only this campaign&apos;s budget. Wallet funds move immediately. A bank transfer is added when the payment clears.
+              {canAddFirstBudget
+                ? "This adds a cash budget on top of your performance rewards. You choose what each creator is paid when you approve their work; they receive the full amount and Verza's 15% comes out of the budget. Wallet funds move immediately. A bank transfer is added when the payment clears."
+                : "This increases only this campaign's budget. Wallet funds move immediately. A bank transfer is added when the payment clears."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

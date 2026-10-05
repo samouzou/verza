@@ -75,6 +75,7 @@ function roasMetrics(roas: RoasPrediction): CampaignLaunchBrief["metrics"] {
   const basisParts = [
     basis.quoted ? `${basis.quoted} quoted` : null,
     basis.flat_fee ? `${basis.flat_fee} at the flat fee` : null,
+    basis.estimated ? `${basis.estimated} estimated from typical quotes` : null,
     basis.performance ? `${basis.performance} on performance pay only` : null,
     roas.costPerConversionUsd > 0 ? `plus ${money(roas.costPerConversionUsd)} per conversion` : null,
   ].filter(Boolean);

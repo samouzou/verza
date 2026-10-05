@@ -7,7 +7,7 @@ import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
-import {centsToDollars, dollarsToCents} from "../poolBudget";
+import {START_CAMPAIGN_BUDGET_FIELDS, canStartCampaignBudget, centsToDollars, dollarsToCents} from "../poolBudget";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
 import {assertCanLaunchCampaign} from "../gigs/campaignLaunch";
@@ -721,9 +721,11 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
             const agencyDoc = await transaction.get(agencyRef);
             if (!gigDoc.exists || !agencyDoc.exists) throw new Error("Campaign top-up target missing.");
             const gig = gigDoc.data() as Gig;
-            if (gig.budgetMode !== "pool") throw new Error("Top-up is only for campaign-budget payouts.");
+            const startingBudget = canStartCampaignBudget(gig);
+            if (gig.budgetMode !== "pool" && !startingBudget) throw new Error("Top-up is only for campaign-budget payouts.");
             if (gig.lastBudgetTopUpPaymentIntentId === paymentIntent.id) return;
             const gigUpdates: {[key: string]: any} = {
+              ...(startingBudget ? START_CAMPAIGN_BUDGET_FIELDS : {}),
               fundedAmount: centsToDollars(dollarsToCents(gig.fundedAmount || 0) + addCents),
               campaignBudget: centsToDollars(dollarsToCents(gig.campaignBudget || 0) + addCents),
               lastBudgetTopUpPaymentIntentId: paymentIntent.id,
@@ -1149,7 +1151,7 @@ export const createCampaignBudgetTopUpCheckout = onCall({invoker: "public"}, asy
   const gigSnap = await db.collection("gigs").doc(gigId).get();
   if (!gigSnap.exists) throw new HttpsError("not-found", "Campaign not found.");
   const gig = gigSnap.data() as Gig;
-  if (gig.budgetMode !== "pool") {
+  if (gig.budgetMode !== "pool" && !canStartCampaignBudget(gig)) {
     throw new HttpsError("failed-precondition", "This campaign does not use a campaign budget.");
   }
   if (!["open", "in-progress", "budget_exhausted"].includes(gig.status)) {

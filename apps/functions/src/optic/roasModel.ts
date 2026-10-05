@@ -1,8 +1,11 @@
 import {isOpticLeadStage} from "./leadCrm";
 
 export type PipelineBucket = "booked" | "negotiating" | "replied" | "contacted" | "new" | "excluded";
-/** How a creator's cost is known. Creators with no known cost are left out of every scenario. */
-export type SpendBasis = "quoted" | "flat_fee" | "performance";
+/**
+ * How a creator's cost is known. `estimated` is a typical quote for creators of similar size, used only on
+ * campaigns with a cash budget. Creators with no known or estimable cost are left out of every scenario.
+ */
+export type SpendBasis = "quoted" | "flat_fee" | "estimated" | "performance";
 
 /** Typical odds a creator at each stage ends up booked. */
 export const CLOSE_PROBABILITY: Record<PipelineBucket, number> = {
@@ -14,6 +17,17 @@ export const CLOSE_PROBABILITY: Record<PipelineBucket, number> = {
   excluded: 0,
 };
 const BUCKET_ORDER: PipelineBucket[] = ["booked", "negotiating", "replied", "contacted", "new"];
+/** Same bar as the vault's "qualified" count: untouched creators under it were filtered out on purpose. */
+export const QUALIFIED_MATCH_SCORE = 70;
+/** Quotes needed before a typical quote stands in for creators who haven't quoted. */
+export const MIN_QUOTES_FOR_ESTIMATE = 3;
+/** Follower bands for typical quotes; quotes grow with audience size. */
+const SIZE_BANDS = [
+  {key: "small", label: "under 10K followers", max: 10_000},
+  {key: "mid", label: "10K–100K followers", max: 100_000},
+  {key: "large", label: "100K+ followers", max: Number.POSITIVE_INFINITY},
+] as const;
+export type SizeBandKey = (typeof SIZE_BANDS)[number]["key"];
 
 export type RoasLeadInput = {
   id: string;
@@ -24,7 +38,11 @@ export type RoasLeadInput = {
   outreachEmailed?: unknown;
   outreachResponse?: unknown;
   quotedRateUsd?: unknown;
+  /** Has a public email; untouched creators without one aren't qualified. */
+  hasEmail?: boolean;
 };
+
+export type TypicalQuote = {band: SizeBandKey; label: string; medianUsd: number | null; quotes: number};
 
 export type RoasModelInputs = {
   averageOrderValueUsd: number;
@@ -40,6 +58,8 @@ export type RoasModelInputs = {
   targetCount: number | null;
   /** All-in budget the full target's fixed costs must fit in; null for no budget cap. */
   budgetUsd: number | null;
+  /** Fill missing quotes with typical quotes for similar-size creators (campaigns that pay cash from a budget). */
+  estimateMissingQuotes: boolean;
 };
 
 export type ModeledCreator = {
@@ -79,6 +99,10 @@ export type RoasModelResult = {
   spendBasis: Record<SpendBasis, number>;
   /** Active creators left out because nothing tells us what they cost. */
   unpriced: number;
+  /** Untouched creators left out for no public email or a match score under the bar. */
+  notQualified: number;
+  /** Typical quote per follower band; null median when the band has too few quotes. */
+  typicalQuotes: TypicalQuote[];
   /** Target slots no priced creator fills yet (creator-count campaigns only). */
   targetShortfall: number;
   /** Priced creators left out of the full target because their fixed cost no longer fits the budget. */
@@ -147,17 +171,44 @@ export function modelCampaignRoas(leads: RoasLeadInput[], inputs: RoasModelInput
   const cpa = inputs.costPerConversionUsd > 0 ? inputs.costPerConversionUsd : 0;
   const conversionsPerFollower = inputs.viewRate * inputs.conversionRate;
 
+  // Every quote is market evidence, even from creators who later passed.
+  const bandOf = (followers: number) => SIZE_BANDS.find((band) => followers < band.max) ?? SIZE_BANDS[SIZE_BANDS.length - 1];
+  const overallMedian = quotes.length >= MIN_QUOTES_FOR_ESTIMATE ? median(quotes) : null;
+  const typicalQuotes: TypicalQuote[] = SIZE_BANDS.map((band) => {
+    const inBand = leads
+      .filter((l) => quoteOf(l) != null && l.followers > 0 && bandOf(l.followers).key === band.key)
+      .map((l) => quoteOf(l) as number);
+    const m = inBand.length >= MIN_QUOTES_FOR_ESTIMATE ? median(inBand) : null;
+    return {band: band.key, label: band.label, medianUsd: m == null ? null : cents(m), quotes: inBand.length};
+  });
+  const estimateFor = (followers: number): number | null => {
+    if (!inputs.estimateMissingQuotes) return null;
+    const band = followers > 0 ? typicalQuotes.find((t) => t.band === bandOf(followers).key) : undefined;
+    return band?.medianUsd ?? overallMedian;
+  };
+
   const pipeline: Record<PipelineBucket, number> = {booked: 0, negotiating: 0, replied: 0, contacted: 0, new: 0, excluded: 0};
   const active: ModeledCreator[] = [];
   let unpriced = 0;
+  let notQualified = 0;
   for (const l of leads) {
     const bucket = pipelineBucket(l);
     pipeline[bucket] += 1;
     if (bucket === "excluded") continue;
+    if (bucket === "new" && (!l.hasEmail || (l.matchScore != null && l.matchScore < QUALIFIED_MATCH_SCORE))) {
+      notQualified += 1;
+      continue;
+    }
     const quote = quoteOf(l);
-    const fixedUsd = cents((quote ?? flat ?? 0) * (1 + Math.max(0, inputs.fixedFeeFraction)));
+    const estimate = quote == null && flat == null ? estimateFor(l.followers) : null;
+    const baseFixed = quote ?? flat ?? estimate ?? 0;
+    const fixedUsd = cents(baseFixed * (1 + Math.max(0, inputs.fixedFeeFraction)));
     const spendBasis: SpendBasis | null =
-      quote != null ? "quoted" : flat != null ? "flat_fee" : cpa > 0 ? "performance" : null;
+      quote != null ? "quoted" :
+        flat != null ? "flat_fee" :
+          estimate != null ? "estimated" :
+            cpa > 0 ? "performance" :
+              null;
     if (!spendBasis) {
       unpriced += 1;
       continue;
@@ -224,7 +275,7 @@ export function modelCampaignRoas(leads: RoasLeadInput[], inputs: RoasModelInput
     budgetFixedSpendUsd += c.fixedUsd;
   }
 
-  const spendBasis: Record<SpendBasis, number> = {quoted: 0, flat_fee: 0, performance: 0};
+  const spendBasis: Record<SpendBasis, number> = {quoted: 0, flat_fee: 0, estimated: 0, performance: 0};
   for (const c of targetCreators) spendBasis[c.spendBasis] += 1;
 
   return {
@@ -235,6 +286,8 @@ export function modelCampaignRoas(leads: RoasLeadInput[], inputs: RoasModelInput
     pipeline,
     spendBasis,
     unpriced,
+    notQualified,
+    typicalQuotes,
     targetShortfall: targetCount == null ? 0 : Math.max(0, targetCount - targetCreators.length),
     overBudget,
     budgetFixedSpendUsd: cents(budgetFixedSpendUsd),

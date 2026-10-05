@@ -66,7 +66,7 @@ const BASIS_LABELS: Record<OpticRoasSpendBasis, string> = {
 const SCENARIOS: Array<{ key: "committed" | "likely" | "target"; label: string; hint: string }> = [
   { key: "committed", label: "Committed", hint: "Booked creators only" },
   { key: "likely", label: "Likely", hint: "Pipeline weighted by odds of booking" },
-  { key: "target", label: "Full target", hint: "Top creators with a known cost that fit your budget or creator target" },
+  { key: "target", label: "Full target", hint: "Every qualified creator with a known or typical cost, up to your budget or creator target" },
 ];
 
 const chartConfig = { roas: { label: "ROAS" } } satisfies ChartConfig;
@@ -159,6 +159,12 @@ export function VaultRoasCard({
   const cpa = insight?.costPerConversionUsd ?? 0;
   const campaignBudget = insight?.campaignBudgetUsd ?? null;
   const overBudget = insight?.overBudget ?? 0;
+  const notQualified = insight?.notQualified ?? 0;
+  const estimatedCount = basis?.estimated ?? 0;
+  const typicalLine = (insight?.typicalQuotes ?? [])
+    .filter((t) => t.medianUsd != null)
+    .map((t) => `${money(t.medianUsd as number)} ${t.label}`)
+    .join(" · ");
   const breakEven = breakEvenFrom?.breakEvenConversionRate;
   const neverBreaksEven =
     cpa > 0 && insight != null && cpa >= insight.inputs.averageOrderValueUsd;
@@ -268,6 +274,18 @@ export function VaultRoasCard({
                     ? ` · ${overBudget} more priced creator${overBudget === 1 ? " doesn't" : "s don't"} fit`
                     : ""}
                   .
+                </p>
+              )}
+              {estimatedCount > 0 && (
+                <p>
+                  {estimatedCount} cost{estimatedCount === 1 ? " is" : "s are"} estimated from {insight.quotesUsed ?? 0}{" "}
+                  quotes{typicalLine ? ` (typical: ${typicalLine})` : insight.medianQuoteUsd != null ? ` (typical: ${money(insight.medianQuoteUsd)})` : ""}.
+                </p>
+              )}
+              {notQualified > 0 && (
+                <p>
+                  {notQualified} untouched creator{notQualified === 1 ? "" : "s"} without a public email or under a 70 match
+                  score {notQualified === 1 ? "is" : "are"} left out.
                 </p>
               )}
               {unpriced > 0 && (

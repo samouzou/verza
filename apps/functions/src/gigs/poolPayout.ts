@@ -4,6 +4,8 @@ import {DocumentReference, FieldValue, Timestamp} from "firebase-admin/firestore
 import {db} from "../config/firebase";
 import type {Agency, Gig, InternalPayout, Notification, UserProfileFirestoreData} from "../types";
 import {
+  START_CAMPAIGN_BUDGET_FIELDS,
+  canStartCampaignBudget,
   centsToDollars,
   dollarsToCents,
   isPoolBudgetGig,
@@ -341,7 +343,7 @@ export const addCampaignBudgetFromWallet = onCall({invoker: "public"}, async (re
   const preview = await gigRef.get();
   if (!preview.exists) throw new HttpsError("not-found", "Campaign not found.");
   const previewGig = preview.data() as Gig;
-  assertPoolGig(previewGig);
+  if (!canStartCampaignBudget(previewGig)) assertPoolGig(previewGig);
   if (!PAYABLE_STATUSES.has(previewGig.status)) {
     throw new HttpsError("failed-precondition", "Add funds while the campaign is open.");
   }
@@ -352,7 +354,8 @@ export const addCampaignBudgetFromWallet = onCall({invoker: "public"}, async (re
   return db.runTransaction(async (transaction) => {
     const gigSnap = await transaction.get(gigRef);
     const gig = gigSnap.data() as Gig;
-    assertPoolGig(gig);
+    const startingBudget = canStartCampaignBudget(gig);
+    if (!startingBudget) assertPoolGig(gig);
     if (!PAYABLE_STATUSES.has(gig.status)) {
       throw new HttpsError("failed-precondition", "Add funds while the campaign is open.");
     }
@@ -372,6 +375,7 @@ export const addCampaignBudgetFromWallet = onCall({invoker: "public"}, async (re
     const fundedCents = dollarsToCents(gig.fundedAmount || 0) + amountCents;
     const budgetCents = dollarsToCents(gig.campaignBudget || 0) + amountCents;
     const updates: {[key: string]: any} = {
+      ...(startingBudget ? START_CAMPAIGN_BUDGET_FIELDS : {}),
       fundedAmount: centsToDollars(fundedCents),
       campaignBudget: centsToDollars(budgetCents),
     };

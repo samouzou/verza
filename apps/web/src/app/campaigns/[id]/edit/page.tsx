@@ -32,7 +32,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Gig } from '@/types';
+import { canStartCampaignBudget, type Gig } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -555,6 +555,24 @@ export default function EditGigPage() {
                   <p className="font-medium text-foreground">Cause campaigns have no fixed base rate.</p>
                   <p>Creators join voluntarily to support your mission. Performance Rewards above incentivize link clicks or sign-ups when you need measurable impact.</p>
                 </div>
+              </CardContent>
+            </Card>
+          ) : gig && isFunded && canStartCampaignBudget(gig) ? (
+            <Card className="border-primary/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Campaign Budget</CardTitle>
+                <CardDescription>
+                  This campaign pays only through performance rewards. Add a cash budget to pay creators fixed amounts too —
+                  you choose each creator&apos;s pay when you approve their work, and Verza&apos;s 15% comes out of the budget.
+                  No need to relaunch.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button type="button" variant="secondary" asChild>
+                  <Link href={`/campaigns/${gigId}?addBudget=1`}>
+                    <DollarSign className="mr-2 h-4 w-4" /> Add a budget
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           ) : (

@@ -58,6 +58,10 @@ export type OpticRoasInsight = {
   unpriced?: number;
   /** Target slots without a priced creator. */
   targetShortfall?: number;
+  /** Untouched creators left out for no public email or a low match score. */
+  notQualified?: number;
+  /** Typical quote per follower band used for estimated costs. */
+  typicalQuotes?: Array<{ band: string; label: string; medianUsd: number | null; quotes: number }>;
   /** Campaign reward per conversion included in spend. */
   costPerConversionUsd?: number;
   /** Budget campaigns: priced creators who don't fit in the budget. */
@@ -88,7 +92,7 @@ export type OpticRoasPipelineBucket =
   | "contacted"
   | "new"
   | "excluded";
-/** `estimated` and `unknown` only appear on insights saved before unpriced creators were left out. */
+/** `estimated`: typical quote for similar-size creators. `unknown` only appears on older saved insights. */
 export type OpticRoasSpendBasis = "quoted" | "flat_fee" | "performance" | "estimated" | "unknown";
 
 export type OpticRoasScenario = {

@@ -2,7 +2,8 @@ import type {VerzaActor} from "../context.js";
 import type {VerzaCallableClient} from "./callable.js";
 
 export type RoasPipelineBucket = "booked" | "negotiating" | "replied" | "contacted" | "new" | "excluded";
-export type RoasSpendBasis = "quoted" | "flat_fee" | "performance";
+/** `estimated`: typical quote for similar-size creators (budget campaigns only). */
+export type RoasSpendBasis = "quoted" | "flat_fee" | "estimated" | "performance";
 
 export type RoasScenario = {
   roas: number | null;
@@ -40,6 +41,10 @@ export type RoasPrediction = {
   unpriced: number;
   /** Target slots without a priced creator. */
   targetShortfall: number;
+  /** Untouched creators left out for no public email or a match score under 70. */
+  notQualified: number;
+  /** Typical quote per follower band; null median when a band has fewer than 3 quotes. */
+  typicalQuotes: Array<{band: string; label: string; medianUsd: number | null; quotes: number}>;
   /** Campaign reward per conversion included in spend (0 if none). */
   costPerConversionUsd: number;
   /** Budget campaigns: priced creators who don't fit in the budget. */
@@ -139,6 +144,16 @@ export function summarizeRoasPrediction(p: RoasPrediction): string {
   }
   if (p.costPerConversionUsd > 0) {
     parts.push(`Spend includes the $${p.costPerConversionUsd} per-conversion reward on top of any fixed fees.`);
+  }
+  if (p.spendBasis.estimated > 0) {
+    const bands = p.typicalQuotes.filter((t) => t.medianUsd != null).map((t) => `${money(t.medianUsd as number)} ${t.label}`);
+    parts.push(
+      `${p.spendBasis.estimated} creator costs are estimated from ${p.quotesUsed} quotes` +
+        (bands.length ? ` (typical: ${bands.join(", ")}).` : ".")
+    );
+  }
+  if (p.notQualified > 0) {
+    parts.push(`${p.notQualified} untouched creators without a public email or under a 70 match score are left out.`);
   }
   if (p.unpriced > 0) {
     parts.push(`${p.unpriced} creators with no known rate are left out.`);
