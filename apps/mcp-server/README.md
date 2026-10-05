@@ -23,7 +23,7 @@ Expose **Optic creator discovery**, **Gmail HTML outreach drafts**, **campaign d
 | `optic_create_gmail_draft` | Create HTML Gmail **draft(s)** from vault outreach copy (does not send) |
 | `optic_send_gmail` | Send from connected Gmail — **requires `confirm=true`** |
 | `optic_mark_lead_contacted` | Mark vault lead(s) contacted after they send from Gmail |
-| `campaign_estimate_budget` | rate × creators + fee illustration |
+| `campaign_estimate_budget` | Campaign budget with Verza's fee split out (older campaigns: rate × creators) |
 | `campaign_predict_roas` | Pipeline-aware ROAS (committed / likely / full target) via the same Cloud Function as the vault card; also saves it there |
 
 **Chrome extension:** unchanged. In-app browser missions still use the Optic extension. MCP clients never hand off to it — for login-walled platforms they run `optic_prepare_agent_mission` and search themselves.

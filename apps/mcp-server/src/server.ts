@@ -482,7 +482,13 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .describe(
           `Share of followers who see the post (default ${LAUNCH_BRIEF_DEFAULTS.viewRate})`
         ),
-      hireCount: z.number().int().min(1).max(100).optional(),
+      hireCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Cap the full-target scenario at this many creators (default: whatever fits the campaign budget)"),
       minMatchScore: z
         .number()
         .min(0)
@@ -511,7 +517,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_predict_roas",
-    "Estimate predicted return for a campaign from the creator pipeline: committed (booked), likely (weighted by odds of booking), and full-target scenarios. Passed or declined creators are left out; spend uses quoted rates, then the flat fee, then market estimates. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
+    "Estimate predicted return for a campaign from the creator pipeline: committed (booked), likely (weighted by odds of booking), and full-target scenarios. Passed or declined creators are left out. Spend uses each creator's quoted rate or the campaign flat fee, plus any per-conversion reward; creators with no known cost are left out rather than estimated. This is a forecast, not past results. Also saves the estimate to the vault. Prefer campaign_launch_brief after launch for the full report.",
     {
       campaignId: z.string().min(1),
       averageOrderValueUsd: z
@@ -535,7 +541,9 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .min(1)
         .max(100)
         .optional()
-        .describe("How many creators to model (default = campaign creator count)"),
+        .describe(
+          "Cap the full-target scenario at this many creators. Default: as many priced creators as fit the campaign budget (older campaigns: their creator count)"
+        ),
       minMatchScore: z
         .number()
         .min(0)
@@ -575,7 +583,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_draft_from_url",
-    "Draft a creator campaign from a product or brand page. Builds a title, brief, platforms, and pay suggestion — does not launch or charge. Review with the brand, then launch when they approve.",
+    "Draft a creator campaign from a product or brand page. Builds a title, brief, platforms, and a suggested total campaign budget — does not launch or charge. Review with the brand, then launch when they approve.",
     {
       productUrl: z.string().min(1).describe("Product or brand page URL"),
       userNotes: z
@@ -587,8 +595,11 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .array(z.enum(CAMPAIGN_PLATFORMS))
         .optional()
         .describe("Prefer these platforms; otherwise we’ll choose"),
-      ratePerCreator: z.number().min(0).optional(),
-      creatorsNeeded: z.number().int().min(0).max(100).optional(),
+      campaignBudget: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Total USD the brand wants to spend on creators, all-in. Each creator's pay is agreed individually"),
       videosPerCreator: z.number().int().min(1).max(5).optional(),
     },
     async (args) =>
@@ -600,8 +611,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
           userNotes: args.userNotes,
           campaignType: args.campaignType,
           platforms: args.platforms,
-          ratePerCreator: args.ratePerCreator,
-          creatorsNeeded: args.creatorsNeeded,
+          campaignBudget: args.campaignBudget,
           videosPerCreator: args.videosPerCreator,
         });
         return {
@@ -613,7 +623,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_create",
-    "Launch an approved campaign draft. ratePerCreator × creatorsNeeded is the total campaign budget, not a flat fee per creator. Paid campaigns return a checkout link; free / cause / barter campaigns go live right away.",
+    "Launch an approved campaign draft. campaignBudget is the one all-in total the brand funds; each creator's pay is agreed individually and Verza's 15% fee comes out of the budget. Paid campaigns return a funding link; a $0 budget (performance-only, barter, cause) goes live right away.",
     {
       confirm: z
         .boolean()
@@ -625,8 +635,10 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
         .describe("Campaign brief (plain text or HTML from the draft)"),
       platforms: z.array(z.enum(CAMPAIGN_PLATFORMS)).min(1),
       campaignType: z.enum(CAMPAIGN_TYPES),
-      ratePerCreator: z.number().min(0),
-      creatorsNeeded: z.number().int().min(0).max(100),
+      campaignBudget: z
+        .number()
+        .min(0)
+        .describe("Total USD to fund, all-in (creator pay + Verza's fee). 0 for performance-only, barter, or cause"),
       videosPerCreator: z.number().int().min(1).max(5).default(1),
       usageRights: z.enum(["none", "30_days", "1_year", "perpetuity"]).optional(),
       allowWhitelisting: z.boolean().optional(),
@@ -664,8 +676,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
             description: args.description,
             platforms: args.platforms,
             campaignType: args.campaignType,
-            ratePerCreator: args.ratePerCreator,
-            creatorsNeeded: args.creatorsNeeded,
+            campaignBudget: args.campaignBudget,
             videosPerCreator: args.videosPerCreator,
             usageRights: args.usageRights,
             allowWhitelisting: args.allowWhitelisting,

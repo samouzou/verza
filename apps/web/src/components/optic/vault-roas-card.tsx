@@ -58,6 +58,7 @@ const STAGE_LABELS: Record<OpticRoasPipelineBucket, string> = {
 const BASIS_LABELS: Record<OpticRoasSpendBasis, string> = {
   quoted: "quoted",
   flat_fee: "flat fee",
+  performance: "performance pay only",
   estimated: "estimated",
   unknown: "no rate",
 };
@@ -65,13 +66,15 @@ const BASIS_LABELS: Record<OpticRoasSpendBasis, string> = {
 const SCENARIOS: Array<{ key: "committed" | "likely" | "target"; label: string; hint: string }> = [
   { key: "committed", label: "Committed", hint: "Booked creators only" },
   { key: "likely", label: "Likely", hint: "Pipeline weighted by odds of booking" },
-  { key: "target", label: "Full target", hint: "Every slot filled" },
+  { key: "target", label: "Full target", hint: "Top creators with a known cost that fit your budget or creator target" },
 ];
 
 const chartConfig = { roas: { label: "ROAS" } } satisfies ChartConfig;
 
-function creatorsLabel(s: OpticRoasScenario, key: string): string {
+function creatorsLabel(s: OpticRoasScenario, key: string, shortfall: number, budget: number | null): string {
   if (key === "likely") return `~${s.creators} creators expected`;
+  if (key === "target" && budget) return `${s.creators} creator${s.creators === 1 ? "" : "s"} within ${money(budget)} budget`;
+  if (key === "target" && shortfall > 0) return `${s.creators} of ${s.creators + shortfall} creators priced`;
   return `${s.creators} creator${s.creators === 1 ? "" : "s"}`;
 }
 
@@ -146,11 +149,19 @@ export function VaultRoasCard({
   const basis = insight?.spendBasis;
   const basisLine = basis
     ? (Object.keys(BASIS_LABELS) as OpticRoasSpendBasis[])
-        .filter((k) => basis[k] > 0)
+        .filter((k) => (basis[k] ?? 0) > 0)
         .map((k) => `${basis[k]} ${BASIS_LABELS[k]}`)
         .join(" · ")
     : "";
   const excluded = insight?.pipeline?.excluded ?? 0;
+  const unpriced = insight?.unpriced ?? 0;
+  const shortfall = insight?.targetShortfall ?? 0;
+  const cpa = insight?.costPerConversionUsd ?? 0;
+  const campaignBudget = insight?.campaignBudgetUsd ?? null;
+  const overBudget = insight?.overBudget ?? 0;
+  const breakEven = breakEvenFrom?.breakEvenConversionRate;
+  const neverBreaksEven =
+    cpa > 0 && insight != null && cpa >= insight.inputs.averageOrderValueUsd;
 
   const runRefresh = () => {
     const aovN = Number.parseFloat(aov);
@@ -217,7 +228,7 @@ export function VaultRoasCard({
                     <p className="mt-1 text-xs text-muted-foreground">
                       {money(s.spendUsd)} spend · {money(s.revenueUsd)} revenue
                     </p>
-                    <p className="text-xs text-muted-foreground">{creatorsLabel(s, key)}</p>
+                    <p className="text-xs text-muted-foreground">{creatorsLabel(s, key, shortfall, campaignBudget)}</p>
                   </div>
                 );
               })}
@@ -226,15 +237,45 @@ export function VaultRoasCard({
             <ScenarioChart scenarios={scenarios} />
 
             <div className="space-y-1 text-xs text-muted-foreground">
-              {breakEvenFrom?.breakEvenConversionRate != null && (
+              {neverBreaksEven ? (
                 <p>
-                  <span className="font-medium text-foreground">
-                    Break-even at {pct(breakEvenFrom.breakEvenConversionRate)} conversion
-                  </span>{" "}
+                  <span className="font-medium text-foreground">Can&apos;t break even</span> — the{" "}
+                  {money(cpa)} per-conversion reward is at or above your {money(insight.inputs.averageOrderValueUsd)} order
+                  value.
+                </p>
+              ) : breakEven === 0 ? (
+                <p>
+                  <span className="font-medium text-foreground">Profitable at any conversion rate</span> — these
+                  creators are paid only per conversion.
+                </p>
+              ) : breakEven != null ? (
+                <p>
+                  <span className="font-medium text-foreground">Break-even at {pct(breakEven)} conversion</span>{" "}
                   (you&apos;re modeling {pct(insight.inputs.conversionRate)}).
                 </p>
+              ) : null}
+              {basisLine && (
+                <p>
+                  Spend basis: {basisLine}
+                  {cpa > 0 ? `, plus ${money(cpa)} per conversion` : ""}.
+                </p>
               )}
-              {basisLine && <p>Spend basis: {basisLine}.</p>}
+              {campaignBudget != null && (
+                <p>
+                  Full target uses {money(insight.budgetFixedSpendUsd ?? 0)} of the {money(campaignBudget)} budget,
+                  including Verza&apos;s fee
+                  {overBudget > 0
+                    ? ` · ${overBudget} more priced creator${overBudget === 1 ? " doesn't" : "s don't"} fit`
+                    : ""}
+                  .
+                </p>
+              )}
+              {unpriced > 0 && (
+                <p>
+                  {unpriced} creator{unpriced === 1 ? " has" : "s have"} no rate yet and{" "}
+                  {unpriced === 1 ? "is" : "are"} left out — add a quoted rate to include them.
+                </p>
+              )}
               {excluded > 0 && (
                 <p>
                   {excluded} creator{excluded === 1 ? "" : "s"} who passed, declined, or went quiet{" "}
@@ -265,7 +306,13 @@ export function VaultRoasCard({
                       <span className="tabular-nums text-muted-foreground">
                         {c.followers.toLocaleString()} followers
                         {c.spendUsd != null && c.spendBasis !== "unknown"
-                          ? ` · ${money(c.spendUsd)}${c.spendBasis === "estimated" ? " est." : ""}`
+                          ? ` · ${money(c.spendUsd)}${
+                              c.spendBasis === "estimated"
+                                ? " est."
+                                : c.spendBasis === "performance"
+                                  ? " in rewards"
+                                  : ""
+                            }`
                           : ""}
                       </span>
                     </li>

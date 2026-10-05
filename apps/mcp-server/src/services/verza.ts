@@ -44,6 +44,9 @@ export type CampaignSummary = {
   ratePerCreator: number;
   creatorsNeeded: number;
   videosPerCreator: number;
+  /** `pool`: one all-in campaign budget, creators paid custom amounts. Older campaigns: rate × creators. */
+  budgetMode: "pool" | "flat_fee";
+  campaignBudget: number;
   platforms: string[];
   fundedAmount: number;
   acceptedCount: number;
@@ -65,6 +68,8 @@ function mapGig(id: string, data: DocumentData): CampaignSummary & GigBudgetInpu
     ratePerCreator: numOrZero(data.ratePerCreator),
     creatorsNeeded: numOrZero(data.creatorsNeeded),
     videosPerCreator: numOrZero(data.videosPerCreator),
+    budgetMode: data.budgetMode === "pool" ? "pool" : "flat_fee",
+    campaignBudget: numOrZero(data.campaignBudget),
     platforms,
     fundedAmount: numOrZero(data.fundedAmount),
     acceptedCount: accepted.length,
@@ -262,8 +267,10 @@ async function loadBrandContextForJob(
     if (gig && isActiveRecruitingStatus(gig.status)) {
       paySourceCampaignTitle = gig.title;
       paySourceCampaignType = gig.campaignType || null;
-      const rate =
-        gig.ratePerCreator > 0
+      const pool = gig.budgetMode === "pool";
+      const rate = pool
+        ? "pay agreed individually with each creator (don't quote the brand's total budget)"
+        : gig.ratePerCreator > 0
           ? `$${gig.ratePerCreator.toLocaleString("en-US")} USD per creator (listed on Verza)`
           : "compensation set in campaign (see Verza)";
       campaignPaySummary =
@@ -271,7 +278,9 @@ async function loadBrandContextForJob(
         `Use ONLY this campaign's pay and scope:\n` +
         `- "${gig.title}" (${gig.status}): ${rate} · ${gig.campaignType || "sponsorship"}` +
         (gig.platforms.length ? ` · platforms: ${gig.platforms.join(", ")}` : "") +
-        ` · ${gig.creatorsNeeded} creator slot(s), ${gig.videosPerCreator} deliverable(s) each`;
+        (pool || gig.creatorsNeeded <= 0
+          ? ` · ${gig.videosPerCreator} deliverable(s) per creator`
+          : ` · ${gig.creatorsNeeded} creator slot(s), ${gig.videosPerCreator} deliverable(s) each`);
     }
   }
 

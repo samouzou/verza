@@ -75,10 +75,15 @@ function roasMetrics(roas: RoasPrediction): CampaignLaunchBrief["metrics"] {
   const basisParts = [
     basis.quoted ? `${basis.quoted} quoted` : null,
     basis.flat_fee ? `${basis.flat_fee} at the flat fee` : null,
-    basis.estimated ? `${basis.estimated} estimated from market rates` : null,
-    basis.unknown ? `${basis.unknown} with no rate yet` : null,
+    basis.performance ? `${basis.performance} on performance pay only` : null,
+    roas.costPerConversionUsd > 0 ? `plus ${money(roas.costPerConversionUsd)} per conversion` : null,
   ].filter(Boolean);
   const breakEven = target.breakEvenConversionRate;
+  const targetCreators = roas.campaignBudgetUsd ?
+    `${target.creators} creators within the ${money(roas.campaignBudgetUsd)} budget` :
+    roas.targetShortfall > 0 ?
+      `${target.creators} of ${target.creators + roas.targetShortfall} creators priced` :
+      `${target.creators} creators`;
   return [
     {
       label: "Predicted return (full target)",
@@ -100,20 +105,22 @@ function roasMetrics(roas: RoasPrediction): CampaignLaunchBrief["metrics"] {
     {
       label: "Creator spend (full target)",
       value: money(target.spendUsd),
-      hint: basisParts.length ? `${target.creators} creators: ${basisParts.join(", ")}` : `${target.creators} creators`,
+      hint: basisParts.length ? `${targetCreators}: ${basisParts.join(", ")}` : targetCreators,
     },
     {
       label: "Expected revenue (full target)",
       value: money(target.revenueUsd),
       hint: `About ${Math.round(target.views).toLocaleString()} views → ~${Math.round(target.conversions)} orders`,
     },
-    ...(breakEven != null ?
+    ...(breakEven != null && breakEven > 0 ?
       [{
         label: "Break-even conversion",
         value: pct(breakEven),
         hint: `You break even if ${pct(breakEven)} of viewers buy`,
       }] :
-      []),
+      breakEven === 0 ?
+        [{label: "Break-even conversion", value: "Any", hint: "Creators are paid only per conversion"}] :
+        []),
   ];
 }
 

@@ -1,6 +1,7 @@
 import {FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
+import {GIG_PLATFORM_FEE_FRACTION, isPoolBudgetGig} from "../poolBudget";
 import {syncQuotedRateFromNote} from "./quotedRate";
 import {CLOSE_PROBABILITY, modelCampaignRoas, pipelineBucket, type RoasLeadInput} from "./roasModel";
 
@@ -111,11 +112,15 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
   }
 
   const rate = numOrZero(gig.ratePerCreator);
+  const affiliate = gig.affiliateSettings as {isEnabled?: unknown; rewardType?: unknown; rewardAmount?: unknown} | undefined;
+  const rewardOn = affiliate?.isEnabled === true && numOrZero(affiliate.rewardAmount) > 0;
+  const costPerConversionUsd = rewardOn && affiliate?.rewardType === "cpa" ? numOrZero(affiliate.rewardAmount) : 0;
+  const perClickRewardUsd = rewardOn && affiliate?.rewardType === "cpc" ? numOrZero(affiliate.rewardAmount) : 0;
   const creatorsNeeded = Math.max(0, Math.floor(numOrZero(gig.creatorsNeeded)));
-  const targetCount =
-    typeof data.hireCount === "number" && data.hireCount > 0 ?
-      Math.floor(data.hireCount) :
-      Math.max(1, creatorsNeeded || 1);
+  const pool = isPoolBudgetGig(gig);
+  const campaignBudgetUsd = pool ? numOrZero(gig.campaignBudget) : 0;
+  const hireCount = typeof data.hireCount === "number" && data.hireCount > 0 ? Math.floor(data.hireCount) : null;
+  const targetCount = hireCount ?? (pool ? null : Math.max(1, creatorsNeeded || 1));
 
   const leadSnap = await db
     .collection("optic_outreach_leads")
@@ -155,13 +160,14 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     conversionRate,
     viewRate,
     ratePerCreator: rate,
+    costPerConversionUsd,
+    fixedFeeFraction: pool ? GIG_PLATFORM_FEE_FRACTION : 0,
     targetCount,
+    budgetUsd: campaignBudgetUsd > 0 ? campaignBudgetUsd : null,
   });
   const {target} = model;
-  const vaultLeadsUsed = model.targetCreators.filter((c) => !c.proxy).length;
-  const solidSpend = model.spendBasis.quoted + model.spendBasis.flat_fee;
   const confidence =
-    !model.usedProxies && model.spendBasis.unknown === 0 && solidSpend >= model.spendBasis.estimated ?
+    model.unpriced === 0 && model.targetShortfall === 0 && model.targetCreators.length > 0 ?
       ("medium" as const) :
       ("low" as const);
 
@@ -175,16 +181,39 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
       "or went quiet are left out."
     );
   }
-  if (model.spendBasis.estimated > 0) {
-    caveats.push("Some spend is estimated from other creators' quoted rates at similar follower counts.");
-  }
-  if (model.spendBasis.unknown > 0) {
-    caveats.push("Add quoted rates or a flat fee to estimate spend for every creator.");
-  }
-  if (model.usedProxies) {
+  if (model.unpriced > 0) {
     caveats.push(
-      "Some creator slots used placeholder reach — discover more creators for a sharper estimate."
+      `${model.unpriced} creator${model.unpriced === 1 ? " has" : "s have"} no rate yet and ` +
+      `${model.unpriced === 1 ? "is" : "are"} left out — add a quoted rate in the creator's note to include them.`
     );
+  }
+  if (model.targetShortfall > 0) {
+    caveats.push(
+      `Only ${model.targetCreators.length} of ${model.targetCreators.length + model.targetShortfall} ` +
+      "target creators have a known cost."
+    );
+  }
+  if (pool && model.overBudget > 0) {
+    caveats.push(
+      `${model.overBudget} priced creator${model.overBudget === 1 ? " doesn't" : "s don't"} fit in the ` +
+      `$${campaignBudgetUsd.toLocaleString("en-US")} campaign budget and ${model.overBudget === 1 ? "is" : "are"} ` +
+      "left out of Full target."
+    );
+  }
+  if (pool) {
+    caveats.push(`Quoted rates include Verza's ${GIG_PLATFORM_FEE_FRACTION * 100}% fee, which comes out of the campaign budget.`);
+  }
+  if (costPerConversionUsd > 0) {
+    caveats.push(
+      `Includes the $${costPerConversionUsd} per-conversion reward on every creator's expected conversions, ` +
+      "on top of any quoted or flat fee."
+    );
+    if (costPerConversionUsd >= aov) {
+      caveats.push("The per-conversion reward is at or above your order value, so this campaign can't break even.");
+    }
+  }
+  if (perClickRewardUsd > 0) {
+    caveats.push("Per-click rewards aren't included in spend yet.");
   }
   caveats.push(
     `Likely weights creators by typical odds of booking: in conversation ${CLOSE_PROBABILITY.negotiating * 100}%, ` +
@@ -199,8 +228,8 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     expectedConversions: target.conversions,
     hireCount: model.targetCreators.length,
     confidence,
-    vaultLeadsUsed,
-    usedProxies: model.usedProxies,
+    vaultLeadsUsed: model.targetCreators.length,
+    usedProxies: false,
     inputs: {
       averageOrderValueUsd: aov,
       conversionRate,
@@ -208,9 +237,10 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
       engagementRate: null as number | null,
     },
     budget: {
-      creatorCompensationUsd: rate * creatorsNeeded,
+      creatorCompensationUsd: pool ? campaignBudgetUsd : rate * creatorsNeeded,
       ratePerCreator: rate,
       creatorsNeeded,
+      budgetMode: pool ? ("pool" as const) : ("flat_fee" as const),
     },
     scenarios: {
       committed: model.committed,
@@ -219,13 +249,19 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     },
     pipeline: model.pipeline,
     spendBasis: model.spendBasis,
+    unpriced: model.unpriced,
+    targetShortfall: model.targetShortfall,
+    overBudget: model.overBudget,
+    campaignBudgetUsd: pool ? campaignBudgetUsd : null,
+    budgetFixedSpendUsd: model.budgetFixedSpendUsd,
+    costPerConversionUsd,
     quotesUsed: model.quotesUsed,
     medianQuoteUsd: model.medianQuoteUsd,
     creatorsPreview: model.targetCreators.slice(0, 5).map((c) => ({
       name: c.name,
       followers: c.followers,
       matchScore: c.matchScore,
-      stage: c.proxy ? null : c.bucket,
+      stage: c.bucket,
       spendUsd: c.spendUsd,
       spendBasis: c.spendBasis,
     })),

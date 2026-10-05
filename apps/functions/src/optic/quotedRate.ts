@@ -43,6 +43,8 @@ Return the creator's quoted fee in USD for ONE sponsorship package.
 - If the note gives a per-unit price and a quantity for one package, return the package total.
 - If the price is not in USD (or unmarked dollars), or there is no price, return null.
 - Ignore follower counts, view counts, dates, and the brand's own budget.
+- Performance pay (per sign-up, per sale, per click, commission, affiliate %) is NOT a fee. If the creator only
+  agreed to performance pay, return null; if they also quoted a fixed fee, return just the fixed fee.
 
 NOTE:
 ${text}`,

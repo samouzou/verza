@@ -30,8 +30,8 @@ export type CampaignDraft = {
   /** Plain-text brief for agents / Optic objectives. */
   descriptionText: string;
   platforms: string[];
-  ratePerCreator: number;
-  creatorsNeeded: number;
+  /** All-in USD the brand funds (creator pay + Verza's fee). Each creator's pay is agreed individually. */
+  campaignBudget: number;
   videosPerCreator: number;
   usageRights: "none" | "30_days" | "1_year" | "perpetuity";
   allowWhitelisting: boolean;
@@ -73,8 +73,7 @@ export type DraftFromUrlInput = {
   userNotes?: string | null;
   campaignType?: CampaignType | null;
   platforms?: string[] | null;
-  ratePerCreator?: number | null;
-  creatorsNeeded?: number | null;
+  campaignBudget?: number | null;
   videosPerCreator?: number | null;
 };
 
@@ -99,8 +98,7 @@ Return STRICT JSON only (no markdown fences) with keys:
 - title: max 120 chars, specific, no ALL CAPS
 - descriptionHtml: HTML fragment using only p, br, strong, em, ul, ol, li (3–6 short blocks, under 2500 chars)
 - platforms: array from TikTok, Instagram, YouTube, Facebook, Twitch, LinkedIn (1–3 best fits)
-- ratePerCreator: number USD. Together with creatorsNeeded this is the TOTAL campaign budget (rate × creators), not a guaranteed flat fee. 0 for cause/barter unless cash is clear.
-- creatorsNeeded: integer used only to size the budget (0 for cause_campaign; else 3–25). Creators are not capped at this number.
+- campaignBudget: number USD. The TOTAL all-in budget the brand funds for creator pay (Verza's 15% fee comes out of it). Each creator's pay is agreed individually, so there is no per-creator rate or creator count. Typical paid UGC: 1500–25000. 0 for cause/barter unless cash is clear.
 - videosPerCreator: integer 1–3
 - usageRights: none | 30_days | 1_year | perpetuity
 - allowWhitelisting: boolean
@@ -116,8 +114,8 @@ Rules:
 - Prefer cause_campaign only for nonprofit / impact pages.
 - Do not invent legal exclusivity or guaranteed reach.
 - If user forced a campaignType, honor it.
-- If user provided rate/creators/platforms, prefer those numbers/platforms.
-- Do not promise each creator the ratePerCreator amount. That product is the campaign budget. Pay is set per creator when work is approved, and the creator receives the full amount.`;
+- If user provided a budget or platforms, use those. If brand notes mention a budget, use it.
+- Never describe a fixed per-creator fee or a number of creator slots in the brief. Pay is agreed with each creator, and the creator receives the full amount.`;
 
   const userBlock = [
     `Product URL: ${scraped.url}`,
@@ -125,8 +123,7 @@ Rules:
     scraped.description ? `Meta description: ${scraped.description}` : null,
     preferredType ? `Forced campaignType: ${preferredType}` : null,
     preferredPlatforms.length ? `Forced platforms: ${preferredPlatforms.join(", ")}` : null,
-    input.ratePerCreator != null ? `Forced ratePerCreator USD: ${input.ratePerCreator}` : null,
-    input.creatorsNeeded != null ? `Forced creatorsNeeded: ${input.creatorsNeeded}` : null,
+    input.campaignBudget != null ? `Forced campaignBudget USD: ${input.campaignBudget}` : null,
     input.videosPerCreator != null ? `Forced videosPerCreator: ${input.videosPerCreator}` : null,
     input.userNotes?.trim() ? `Brand notes: ${input.userNotes.trim().slice(0, 2000)}` : null,
     `Page text (truncated):\n${scraped.websiteText.slice(0, 12000)}`,
@@ -174,22 +171,15 @@ Rules:
         : ["TikTok", "Instagram"];
   if (platforms.length === 0) platforms = ["TikTok", "Instagram"];
 
-  const ratePerCreator =
-    input.ratePerCreator != null && Number.isFinite(input.ratePerCreator)
-      ? Math.max(0, input.ratePerCreator)
-      : typeof parsed.ratePerCreator === "number" && Number.isFinite(parsed.ratePerCreator)
-        ? Math.max(0, parsed.ratePerCreator)
-        : campaignType === "cause_campaign" || campaignType === "barter_campaign"
+  const unpaidType = campaignType === "cause_campaign" || campaignType === "barter_campaign";
+  const campaignBudget =
+    input.campaignBudget != null && Number.isFinite(input.campaignBudget)
+      ? Math.max(0, Math.round(input.campaignBudget))
+      : typeof parsed.campaignBudget === "number" && Number.isFinite(parsed.campaignBudget)
+        ? Math.max(0, Math.round(parsed.campaignBudget))
+        : unpaidType
           ? 0
-          : 750;
-
-  let creatorsNeeded =
-    input.creatorsNeeded != null && Number.isFinite(input.creatorsNeeded)
-      ? Math.max(0, Math.floor(input.creatorsNeeded))
-      : typeof parsed.creatorsNeeded === "number" && Number.isFinite(parsed.creatorsNeeded)
-        ? Math.max(0, Math.floor(parsed.creatorsNeeded))
-        : 10;
-  if (campaignType === "cause_campaign") creatorsNeeded = 0;
+          : 5000;
 
   const videosPerCreator =
     input.videosPerCreator != null && Number.isFinite(input.videosPerCreator)
@@ -214,8 +204,7 @@ Rules:
     descriptionHtml,
     descriptionText: htmlToText(descriptionHtml),
     platforms,
-    ratePerCreator,
-    creatorsNeeded,
+    campaignBudget,
     videosPerCreator,
     usageRights,
     allowWhitelisting: parsed.allowWhitelisting === true,
@@ -238,7 +227,7 @@ Rules:
     nextStep:
       campaignType === "cause_campaign" ||
       campaignType === "barter_campaign" ||
-      ratePerCreator <= 0
+      campaignBudget <= 0
         ? "Review this draft with the brand. When they’re happy, launch the campaign — it can go live without funding."
         : "Review this draft with the brand. When they’re happy, launch the campaign and complete checkout to fund creator pay.",
   };

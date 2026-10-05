@@ -8,8 +8,8 @@ export type CreateCampaignInput = {
   description: string;
   platforms: string[];
   campaignType: CampaignType;
-  ratePerCreator: number;
-  creatorsNeeded: number;
+  /** All-in USD the brand funds (creator pay + Verza's fee). 0 launches without funding. */
+  campaignBudget: number;
   videosPerCreator: number;
   usageRights?: CampaignDraft["usageRights"];
   allowWhitelisting?: boolean;
@@ -56,13 +56,12 @@ export async function createCampaignViaCallables(
     throw new Error("At least one platform is required");
   }
 
-  const creatorsNeeded =
-    input.campaignType === "cause_campaign"
-      ? 0
-      : Math.max(1, Math.floor(input.creatorsNeeded));
   const videosPerCreator = Math.max(1, Math.floor(input.videosPerCreator || 1));
-  const ratePerCreator = Math.max(0, input.ratePerCreator);
-  const totalAmount = ratePerCreator * (input.campaignType === "cause_campaign" ? 0 : creatorsNeeded);
+  const budget = Number.isFinite(input.campaignBudget) ? Math.max(0, Math.round(input.campaignBudget * 100) / 100) : 0;
+  const totalAmount = input.campaignType === "cause_campaign" ? 0 : budget;
+  if (totalAmount > 0 && totalAmount < 1) {
+    throw new Error("Campaign budget must be at least $1, or 0 to launch without funding.");
+  }
 
   let affiliateSettings = input.affiliateSettings ?? {isEnabled: false as const};
   if (input.enableAffiliateFromUrl?.trim()) {
@@ -79,7 +78,7 @@ export async function createCampaignViaCallables(
     title,
     description,
     platforms: input.platforms,
-    creatorsNeeded,
+    creatorsNeeded: 0,
     videosPerCreator,
     campaignType: input.campaignType,
     usageRights: input.usageRights ?? "30_days",
@@ -117,7 +116,6 @@ export async function createCampaignViaCallables(
       budgetMode: "pool",
       campaignBudget: totalAmount,
       ratePerCreator: 0,
-      creatorsNeeded: 0,
     }
   );
   const checkoutUrl = result?.url ?? null;

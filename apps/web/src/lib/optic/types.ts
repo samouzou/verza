@@ -53,7 +53,19 @@ export type OpticRoasInsight = {
     target: OpticRoasScenario;
   };
   pipeline?: Record<OpticRoasPipelineBucket, number>;
-  spendBasis?: Record<OpticRoasSpendBasis, number>;
+  spendBasis?: Partial<Record<OpticRoasSpendBasis, number>>;
+  /** Active creators left out because their cost is unknown. */
+  unpriced?: number;
+  /** Target slots without a priced creator. */
+  targetShortfall?: number;
+  /** Campaign reward per conversion included in spend. */
+  costPerConversionUsd?: number;
+  /** Budget campaigns: priced creators who don't fit in the budget. */
+  overBudget?: number;
+  /** Budget campaigns: the all-in campaign budget; null for per-creator campaigns. */
+  campaignBudgetUsd?: number | null;
+  /** Fixed creator costs (incl. fee) the full target draws from the budget. */
+  budgetFixedSpendUsd?: number;
   quotesUsed?: number;
   medianQuoteUsd?: number | null;
   creatorsPreview: Array<{
@@ -76,7 +88,8 @@ export type OpticRoasPipelineBucket =
   | "contacted"
   | "new"
   | "excluded";
-export type OpticRoasSpendBasis = "quoted" | "flat_fee" | "estimated" | "unknown";
+/** `estimated` and `unknown` only appear on insights saved before unpriced creators were left out. */
+export type OpticRoasSpendBasis = "quoted" | "flat_fee" | "performance" | "estimated" | "unknown";
 
 export type OpticRoasScenario = {
   roas: number | null;

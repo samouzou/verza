@@ -87,6 +87,14 @@ function parseInsight(raw: unknown): OpticRoasInsight | null {
       d.spendBasis && typeof d.spendBasis === "object"
         ? (d.spendBasis as OpticRoasInsight["spendBasis"])
         : undefined,
+    unpriced: typeof d.unpriced === "number" ? d.unpriced : undefined,
+    targetShortfall: typeof d.targetShortfall === "number" ? d.targetShortfall : undefined,
+    costPerConversionUsd:
+      typeof d.costPerConversionUsd === "number" ? d.costPerConversionUsd : undefined,
+    overBudget: typeof d.overBudget === "number" ? d.overBudget : undefined,
+    campaignBudgetUsd: typeof d.campaignBudgetUsd === "number" ? d.campaignBudgetUsd : null,
+    budgetFixedSpendUsd:
+      typeof d.budgetFixedSpendUsd === "number" ? d.budgetFixedSpendUsd : undefined,
     quotesUsed: typeof d.quotesUsed === "number" ? d.quotesUsed : undefined,
     medianQuoteUsd: typeof d.medianQuoteUsd === "number" ? d.medianQuoteUsd : null,
     creatorsPreview: Array.isArray(d.creatorsPreview)
