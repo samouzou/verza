@@ -19,7 +19,8 @@ export async function loadCompletedLinkedInOsJob(uid: string, jobId: string) {
     throw new HttpsError("not-found", "Draft job not found.");
   }
   const job = jobSnap.data()!;
-  if (job.agencyId !== agencyId && job.createdBy !== uid) {
+  const allowed = job.agencyId ? job.agencyId === agencyId : job.createdBy === uid;
+  if (!allowed) {
     throw new HttpsError("permission-denied", "You cannot access this job.");
   }
   if (job.status !== "completed") {

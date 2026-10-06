@@ -155,7 +155,13 @@ Extra notes: ${notes || "none"}`;
   case "carousel_outline":
     return `${header}
 
-Write a LinkedIn **document carousel outline**.
+Write a LinkedIn **document carousel**. Put the caption FIRST, then the slides.
+
+## Caption
+The LinkedIn post text that goes above the PDF. Write it as a real LinkedIn post, not an Instagram caption:
+line 1 is a hook under ~140 characters that works before "see more"; then 3–6 short lines with one concrete
+insight, number or story that makes people open the document (don't just list the slides); one CTA line;
+0–3 hashtags at the end. No "swipe" or "link in bio".
 
 ${slideFormat(7, 10)}`;
   case "x_post":

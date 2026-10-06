@@ -76,6 +76,12 @@ const SLIDES = `Slides, each as:
 - 1–2 bullets
 Slide 1 is the hook. The last slide is CTA only.`;
 
+const LINKEDIN_CAPTION = `## Caption
+The LinkedIn post text that goes above the PDF. Write it as a real LinkedIn post, not an Instagram caption:
+line 1 is a hook under ~140 characters that works before "see more"; then 3–6 short lines with one concrete
+insight, number or story that makes people open the document (don't just list the slides); one CTA line;
+0–3 hashtags at the end. No "swipe" or "link in bio".`;
+
 /**
  * Writing instructions for one channel format. Keep in sync with the worker's userMessageForItem.
  * @param {PrismFormat} format Target format.
@@ -84,7 +90,9 @@ Slide 1 is the hook. The last slide is CTA only.`;
 export function formatInstructions(format: PrismFormat): string {
   switch (format) {
   case "carousel_outline":
-    return `A LinkedIn document carousel outline, 7–10 slides.\n${SLIDES}`;
+    return `A LinkedIn document carousel. Caption FIRST, then 7–10 slides.
+${LINKEDIN_CAPTION}
+${SLIDES}`;
   case "x_post":
     return "ONE post for X. Plain text, 280 characters max including spaces. One idea, punchy. Max 1 hashtag.";
   case "x_thread":

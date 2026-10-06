@@ -178,6 +178,15 @@ import {
   getPrismPricing,
 } from "./linkedinOs/billing";
 import {
+  getPrismConnectUrl,
+  syncPrismConnections,
+  disconnectPrismAccount,
+  publishDuePrismPosts,
+  publishPrismPostNow,
+  cancelPrismPublish,
+  prismZernioWebhook,
+} from "./linkedinOs/publishing";
+import {
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,
@@ -333,6 +342,13 @@ export {
   getPrismPricing,
   createPrismSubscriptionCheckoutSession,
   createPrismBillingPortalSession,
+  getPrismConnectUrl,
+  syncPrismConnections,
+  disconnectPrismAccount,
+  publishDuePrismPosts,
+  publishPrismPostNow,
+  cancelPrismPublish,
+  prismZernioWebhook,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

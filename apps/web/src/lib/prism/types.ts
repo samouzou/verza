@@ -144,9 +144,43 @@ export type PrismPost = {
   history: PrismPostEvent[];
   source: "manual" | "plan" | "studio";
   studio?: { jobId: string; itemId: string; itemIds?: string[] };
+  /** false = post by hand even when accounts are connected. */
+  autoPublish?: boolean;
+  publish?: PrismPublish;
   createdBy: string;
   createdByName: string;
 };
+
+export type PrismChannelPublishState = "pending" | "published" | "failed" | "manual";
+
+export type PrismPublish = {
+  state: "sending" | "scheduled" | "published" | "partial" | "failed" | "manual" | "cancelled";
+  zernioPostId?: string;
+  attempts: number;
+  nextAttemptAt?: string;
+  lastError?: string;
+  sentAt?: string;
+  updatedAt: string;
+  channels: Partial<Record<PrismChannel, { state: PrismChannelPublishState; url?: string; error?: string }>>;
+};
+
+export type PrismConnectedAccount = {
+  accountId: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  status: "connected" | "disconnected";
+  connectedAt: string;
+};
+
+export type PrismConnections = {
+  agencyId: string;
+  zernioProfileId: string;
+  accounts: Partial<Record<PrismChannel, PrismConnectedAccount>>;
+};
+
+/** Channels Prism can't post through the API yet (no video upload). */
+export const PRISM_MANUAL_FORMATS = new Set<PrismFormat>(["ig_feed", "ig_reel", "tiktok_video"]);
 
 export const PRISM_STATUS_META: Record<PrismPostStatus, { label: string; dot: string }> = {
   idea: { label: "Idea", dot: "bg-zinc-400" },

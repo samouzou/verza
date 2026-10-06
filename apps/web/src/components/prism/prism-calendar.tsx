@@ -26,7 +26,9 @@ export function PostChip({
   compact?: boolean;
 }) {
   const when = post.scheduledAt ? new Date(post.scheduledAt) : null;
-  const draggable = post.status !== "posted";
+  const queued = post.publish?.state === "sending" || post.publish?.state === "scheduled";
+  const failed = post.publish?.state === "failed" || post.publish?.state === "partial";
+  const draggable = post.status !== "posted" && !queued;
   return (
     <button
       type="button"
@@ -50,6 +52,8 @@ export function PostChip({
         <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", PRISM_STATUS_META[post.status].dot)} />
         {when && <span className="shrink-0 tabular-nums text-muted-foreground">{format(when, "h:mmaaaaa")}</span>}
         <span className="truncate font-medium">{post.title}</span>
+        {failed && <span className="ml-auto shrink-0 text-[10px] font-medium text-destructive">failed</span>}
+        {queued && <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">queued</span>}
       </div>
       {!compact && (
         <div className="mt-1 flex flex-wrap items-center gap-0.5">

@@ -397,9 +397,9 @@ service cloud.firestore {
     // LinkedIn OS — company LinkedIn draft jobs (worker writes; agency team reads)
     match /linkedin_os_jobs/{jobId} {
       allow read: if request.auth != null &&
-        (resource.data.createdBy == request.auth.uid ||
-          (resource.data.get('agencyId', null) != null &&
-            isTeamMemberOf(resource.data.agencyId)));
+        (resource.data.get('agencyId', null) != null ?
+          isTeamMemberOf(resource.data.agencyId) :
+          resource.data.createdBy == request.auth.uid);
       allow write: if false;
     }
 
@@ -417,6 +417,17 @@ service cloud.firestore {
     match /prism_posts/{postId} {
       allow read: if request.auth != null && isTeamMemberOf(resource.data.agencyId);
       allow write: if false;
+    }
+
+    // Prism — connected social accounts per brand (Admin writes via callables / webhook)
+    match /prism_connections/{agencyId} {
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
+      allow write: if false;
+    }
+
+    // Prism — Zernio webhook dedupe markers (server only)
+    match /prism_webhook_events/{eventId} {
+      allow read, write: if false;
     }
 
     // Prism — learned brand voice per agency (Admin writes via callable)

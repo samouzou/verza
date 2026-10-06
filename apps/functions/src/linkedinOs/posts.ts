@@ -94,6 +94,27 @@ export async function loadPrismPost(c: PrismCaller, rawId: unknown) {
 }
 
 /**
+ * Whether the post is with the publisher (Zernio has it or is about to).
+ * @param {PrismPost} post Post.
+ * @return {boolean} True while locked.
+ */
+function withPublisher(post: PrismPost): boolean {
+  return post.publish?.state === "sending" || post.publish?.state === "scheduled";
+}
+
+/**
+ * Whether a finished-but-unsuccessful publish run should be cleared so the scheduler re-evaluates the post.
+ * @param {PrismPost} post Post.
+ * @return {boolean} True for failed, manual or cancelled runs.
+ */
+function stalePublish(post: PrismPost): boolean {
+  const s = post.publish?.state;
+  return s === "failed" || s === "manual" || s === "cancelled";
+}
+
+const LOCKED_MESSAGE = "This post is scheduled to publish. Cancel auto-publish first.";
+
+/**
  * Whether every selected channel has copy.
  * @param {PrismPost} post Post.
  * @return {boolean} True when complete.
@@ -147,7 +168,7 @@ function parseVariants(
  * @param {string} postId Post id for the link.
  * @return {!Promise<void>}
  */
-async function notify(userIds: string[], title: string, message: string, postId: string): Promise<void> {
+export async function notify(userIds: string[], title: string, message: string, postId: string): Promise<void> {
   const unique = [...new Set(userIds.filter(Boolean))];
   await Promise.all(
     unique.map((userId) =>
@@ -169,7 +190,7 @@ async function notify(userIds: string[], title: string, message: string, postId:
  * @param {string} agencyId Agency id.
  * @return {!Promise<!Array<string>>} User ids.
  */
-async function agencyTeamUids(agencyId: string): Promise<string[]> {
+export async function agencyTeamUids(agencyId: string): Promise<string[]> {
   const a = (await db.collection("agencies").doc(agencyId).get()).data() as
     | {ownerId?: string; team?: Array<{userId?: string; status?: string}>}
     | undefined;
@@ -205,6 +226,7 @@ export const savePrismPost = onCall(async (request) => {
 
   const scheduledAt = parseSchedule(d.scheduledAt);
   const incoming = parseVariants(d.variants, channels);
+  const autoPublish = typeof d.autoPublish === "boolean" ? d.autoPublish : undefined;
   const now = new Date().toISOString();
 
   if (typeof d.postId === "string" && d.postId.trim()) {
@@ -239,9 +261,13 @@ export const savePrismPost = onCall(async (request) => {
     } else if (status === "idea" && Object.values(variants).some((v) => v?.text.trim())) {
       status = "draft";
     }
-    if (post.scheduledAt !== scheduledAt) {
+    const scheduleChanged = post.scheduledAt !== scheduledAt;
+    if (scheduleChanged) {
       events.push(prismEvent(c, scheduledAt ? `scheduled for ${scheduledAt}` : "unscheduled"));
     }
+    const autoPublishChanged = autoPublish !== undefined && autoPublish !== (post.autoPublish !== false);
+    const changed = copyChanged || scheduleChanged || autoPublishChanged || title !== post.title;
+    if (changed && withPublisher(post)) throw new HttpsError("failed-precondition", LOCKED_MESSAGE);
 
     await ref.update({
       title,
@@ -251,6 +277,8 @@ export const savePrismPost = onCall(async (request) => {
       scheduledAt,
       variants,
       status,
+      ...(autoPublish !== undefined ? {autoPublish} : {}),
+      ...(changed && stalePublish(post) ? {publish: FieldValue.delete()} : {}),
       history: appendHistory(post.history, ...events),
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: c.uid,
@@ -274,6 +302,7 @@ export const savePrismPost = onCall(async (request) => {
     variants,
     history: [prismEvent(c, "created")],
     source: "manual",
+    ...(autoPublish === false ? {autoPublish} : {}),
     createdBy: c.uid,
     createdByName: c.name,
   };
@@ -375,6 +404,7 @@ export const renderPrismSlides = onCall({timeoutSeconds: 180}, async (request) =
   }
   if (!variant.text.trim()) throw new HttpsError("failed-precondition", "Write the carousel outline first.");
   if (post.status === "posted") throw new HttpsError("failed-precondition", "This post is already marked posted.");
+  if (withPublisher(post)) throw new HttpsError("failed-precondition", LOCKED_MESSAGE);
 
   const workerUrl = LINKEDIN_OS_WORKER_URL.value().trim();
   const secret = LINKEDIN_OS_WORKER_SHARED_SECRET.value().trim();
@@ -412,7 +442,8 @@ export const renderPrismSlides = onCall({timeoutSeconds: 180}, async (request) =
  */
 export const deletePrismPost = onCall(async (request) => {
   const c = await prismCaller(request.auth?.uid);
-  const {ref, postId} = await loadPrismPost(c, request.data?.postId);
+  const {ref, post, postId} = await loadPrismPost(c, request.data?.postId);
+  if (withPublisher(post)) throw new HttpsError("failed-precondition", LOCKED_MESSAGE);
   await ref.delete();
   logger.info("[Prism] Post deleted", {postId, uid: c.uid});
   return {ok: true};
@@ -439,6 +470,8 @@ export const transitionPrismPost = onCall(async (request) => {
   const from = post.status;
   let to: PrismPostStatus;
   const update: Record<string, unknown> = {};
+  if (withPublisher(post) && action !== "mark_posted") throw new HttpsError("failed-precondition", LOCKED_MESSAGE);
+  if (stalePublish(post) && action !== "mark_posted") update.publish = FieldValue.delete();
 
   switch (action) {
   case "submit":

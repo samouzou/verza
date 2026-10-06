@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  ExternalLink,
   Images,
   Loader2,
   MessageSquareWarning,
@@ -18,7 +19,9 @@ import {
   Sparkles,
   Trash2,
   Wand2,
+  XCircle,
 } from "lucide-react";
+import Link from "next/link";
 
 import { CarouselAssets } from "@/components/prism/carousel-assets";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +31,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { usePrismConnections } from "@/hooks/use-prism-connections";
+import { usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { toastPrismLimit } from "@/components/prism/prism-plan";
 import { db, functions } from "@/lib/firebase";
@@ -36,14 +42,16 @@ import {
   PRISM_CHANNEL_META,
   PRISM_CHANNELS,
   PRISM_FORMATS,
+  PRISM_MANUAL_FORMATS,
   PRISM_STATUS_META,
   type PrismBrandStrategy,
+  type PrismConnectedAccount,
   type PrismChannel,
   type PrismFormat,
   type PrismPost,
   type PrismVariant,
 } from "@/lib/prism/types";
-import { checkVariant } from "@/lib/prism/validate";
+import { captionOf, checkVariant, hasCaption } from "@/lib/prism/validate";
 import { cn } from "@/lib/utils";
 
 type Form = {
@@ -54,6 +62,7 @@ type Form = {
   date: string;
   time: string;
   variants: Partial<Record<PrismChannel, PrismVariant>>;
+  autoPublish: boolean;
 };
 
 export type ComposerTarget = { postId: string } | { newOn: Date | null };
@@ -76,6 +85,7 @@ function formFromPost(p: PrismPost): Form {
     date: d ? localDate(d) : "",
     time: d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "09:00",
     variants: p.variants ?? {},
+    autoPublish: p.autoPublish !== false,
   };
 }
 
@@ -91,6 +101,7 @@ function emptyForm(strategy: PrismBrandStrategy, on: Date | null): Form {
     date: on ? localDate(on) : "",
     time: "09:00",
     variants,
+    autoPublish: true,
   };
 }
 
@@ -109,6 +120,17 @@ function assetsStale(local: PrismVariant, saved: PrismVariant | undefined): bool
   if (saved && local.text !== saved.text) return true;
   const changedAt = saved?.editedAt ?? saved?.generatedAt ?? "";
   return changedAt > local.assets.renderedAt;
+}
+
+/** What auto-publishing will do with one channel, before anything is sent. */
+function publishPlan(v: PrismVariant | undefined, account: PrismConnectedAccount | undefined): { ok: boolean; note: string } {
+  if (!account) return { ok: false, note: "Not connected" };
+  if (account.status !== "connected") return { ok: false, note: "Reconnect needed" };
+  if (!v?.text.trim()) return { ok: false, note: "No copy yet" };
+  if (PRISM_MANUAL_FORMATS.has(v.format)) return { ok: false, note: "Needs a video or image, post by hand" };
+  if (v.format === "carousel_outline" && !v.assets?.pdfStoragePath) return { ok: false, note: "Render the slides first" };
+  if (v.format === "ig_carousel" && (v.assets?.slides.length ?? 0) < 2) return { ok: false, note: "Render the slides first" };
+  return { ok: true, note: `Publishes as @${account.username || account.displayName || "connected account"}` };
 }
 
 function scheduledIso(f: Form): string | null {
@@ -204,7 +226,12 @@ export function PostComposer({
   };
 
   const status = post?.status ?? "idea";
-  const locked = status === "posted";
+  const agencyId = post?.agencyId ?? strategy.agencyId ?? null;
+  const plan = usePrismPlan(agencyId);
+  const { accounts } = usePrismConnections(agencyId);
+  const publish = post?.publish;
+  const withPublisher = publish?.state === "sending" || publish?.state === "scheduled";
+  const locked = status === "posted" || withPublisher;
   const checks = useMemo(
     () => Object.fromEntries(form.channels.map((ch) => [ch, checkVariant(ch, form.variants[ch])])),
     [form]
@@ -239,6 +266,7 @@ export function PostComposer({
       channels: form.channels,
       scheduledAt: scheduledIso(form),
       variants: Object.fromEntries(form.channels.map((ch) => [ch, form.variants[ch] ?? { format: PRISM_FORMATS[ch][0].value, text: "" }])),
+      autoPublish: form.autoPublish,
     });
     setDirty(false);
     if (!postId) setPostId(res.postId);
@@ -281,14 +309,41 @@ export function PostComposer({
       setComment("");
     });
 
+  const handlePublishNow = () =>
+    run("publish", async () => {
+      const id = await save();
+      const { state } = await call<{ state: string | null }>("publishPrismPostNow", { postId: id });
+      toast({
+        title: state === "manual" ? "Nothing to auto-publish" : state === "failed" ? "Publishing failed" : "Sent to the publisher",
+        description:
+          state === "manual"
+            ? "None of this post's channels can be published automatically. Post it by hand."
+            : state === "failed"
+              ? "See the error below."
+              : "Results appear here as each network confirms.",
+        ...(state === "failed" ? { variant: "destructive" as const } : {}),
+      });
+    });
+
+  const handleCancelPublish = () =>
+    run("cancel-publish", async () => {
+      if (!postId) return;
+      await call("cancelPrismPublish", { postId });
+      toast({ title: "Auto-publish cancelled", description: "You can edit the post again." });
+    });
+
   const handleDelete = () =>
     run("delete", async () => {
       if (postId) await call("deletePrismPost", { postId });
       onClose();
     });
 
+  /** Carousels post the slides as media, so only the caption is pasted as text. */
+  const copyText = (v: PrismVariant | undefined) =>
+    v && CAROUSEL_FORMATS.has(v.format) && hasCaption(v.text) ? captionOf(v.text) : v?.text ?? "";
+
   const copy = async (ch: PrismChannel) => {
-    await navigator.clipboard.writeText(form.variants[ch]?.text ?? "");
+    await navigator.clipboard.writeText(copyText(form.variants[ch]));
     setCopied(ch);
     setTimeout(() => setCopied(null), 1500);
   };
@@ -463,7 +518,7 @@ export function PostComposer({
                             {busy === `adapt-${ch}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                           </Button>
                         )}
-                        <Button type="button" size="sm" variant="ghost" onClick={() => void copy(ch)} title="Copy">
+                        <Button type="button" size="sm" variant="ghost" onClick={() => void copy(ch)} title={CAROUSEL_FORMATS.has(v.format) && hasCaption(v.text) ? "Copy caption" : "Copy"}>
                           {copied === ch ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
@@ -555,6 +610,106 @@ export function PostComposer({
             </div>
           )}
 
+          {post && plan.paid && (status === "approved" || publish) && (
+            <div className="rounded-lg border p-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Publishing</p>
+                  <p className="text-xs text-muted-foreground">
+                    {publish?.state === "scheduled" || publish?.state === "sending"
+                      ? `With the publisher for ${post.scheduledAt ? new Date(post.scheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now"}. Editing is locked.`
+                      : publish?.state === "published"
+                        ? "Published."
+                        : publish?.state === "partial"
+                          ? "Some channels published. Handle the rest by hand."
+                          : publish?.state === "failed"
+                            ? publish.nextAttemptAt
+                              ? `Failed, retrying ${formatDistanceToNow(new Date(publish.nextAttemptAt), { addSuffix: true })}.`
+                              : "Failed. Retry or post by hand."
+                            : publish?.state === "cancelled"
+                              ? "Auto-publish cancelled."
+                              : publish?.state === "manual"
+                                ? "Nothing here can be auto-published. Post by hand."
+                                : !form.autoPublish
+                                  ? "Off for this post. Post it by hand."
+                                  : post.scheduledAt
+                                    ? "Prism publishes connected channels at the scheduled time."
+                                    : "Pick a date and time to publish automatically."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!publish && status === "approved" && (
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Switch checked={form.autoPublish} onCheckedChange={(on) => edit({ autoPublish: on })} disabled={!!busy} />
+                      Auto-publish
+                    </label>
+                  )}
+                  {withPublisher && (
+                    <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void handleCancelPublish()}>
+                      {busy === "cancel-publish" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                      Cancel auto-publish
+                    </Button>
+                  )}
+                  {status === "approved" && (!publish || ["failed", "manual", "cancelled"].includes(publish.state)) && (
+                    <Button size="sm" disabled={!!busy} onClick={() => void handlePublishNow()}>
+                      {busy === "publish" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {publish?.state === "failed" ? "Retry now" : "Publish now"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <ul className="space-y-1.5">
+                {form.channels.map((ch) => {
+                  const result = publish?.channels?.[ch];
+                  const planned = publishPlan(form.variants[ch], accounts[ch]);
+                  return (
+                    <li key={ch} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="w-20 font-medium">{PRISM_CHANNEL_META[ch].label}</span>
+                      {result?.state === "published" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Published
+                          {result.url && (
+                            <a href={result.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 underline">
+                              view <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </span>
+                      ) : result?.state === "failed" ? (
+                        <span className="text-destructive">Failed: {result.error ?? "unknown error"}</span>
+                      ) : result?.state === "manual" ? (
+                        <span className="text-muted-foreground">Post by hand: {result.error}</span>
+                      ) : result?.state === "pending" ? (
+                        <span className="text-muted-foreground">Waiting for the network…</span>
+                      ) : (
+                        <span className={planned.ok ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400"}>
+                          {planned.note}
+                          {(planned.note === "Not connected" || planned.note === "Reconnect needed") && (
+                            <>
+                              {" · "}
+                              <Link href="/prism/accounts" className="underline">
+                                Connect
+                              </Link>
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {post && !plan.loading && !plan.paid && status === "approved" && (
+            <p className="text-xs text-muted-foreground">
+              Copy each channel and mark it posted, or{" "}
+              <Link href="/prism/pricing" className="text-primary underline">
+                upgrade to Launch
+              </Link>{" "}
+              to publish automatically.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
             {!locked && (
               <Button variant="outline" disabled={!!busy || (!dirty && !!postId)} onClick={() => void handleSave()}>
@@ -586,13 +741,13 @@ export function PostComposer({
                 Mark posted
               </Button>
             )}
-            {(status === "approved" || status === "posted" || status === "in_review") && (
+            {(status === "approved" || status === "posted" || status === "in_review") && !withPublisher && (
               <Button variant="ghost" disabled={!!busy} onClick={() => void transition("reopen")}>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Reopen
               </Button>
             )}
-            {postId && (
+            {postId && !withPublisher && (
               <Button variant="ghost" className="ml-auto text-destructive" disabled={!!busy} onClick={() => void handleDelete()}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete

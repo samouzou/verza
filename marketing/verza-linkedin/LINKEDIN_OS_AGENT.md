@@ -70,6 +70,31 @@ Each draft becomes a post on the **`/prism`** calendar (`prism_posts`, `source: 
 reviewed, approved and marked posted. **`/prism/studio`** lists a job's drafts with their live calendar status. The raw
 copy also stays on the job's **`outputs`** array (`postId` links each output to its post).
 
+## Auto-publishing (Prism Launch and Enterprise)
+
+Publishing goes through [Zernio](https://zernio.com) (formerly Late). Code: `apps/functions/src/linkedinOs/publishing.ts`.
+
+- **Connect:** `/prism/accounts` → `getPrismConnectUrl` creates one Zernio profile per brand and returns Zernio's hosted
+  login. After the redirect back, `syncPrismConnections` stores the accounts in `prism_connections/{agencyId}`.
+  Owners and admins only; Free brands get an upgrade prompt.
+- **Send:** `publishDuePrismPosts` runs every 5 minutes. It picks approved posts with `autoPublish !== false` due in the
+  next 10 minutes (up to 24h overdue), locks each one, and creates one Zernio post with each channel's copy and
+  `scheduledFor`. Zernio publishes at the exact time. An `Idempotency-Key` on every send prevents double posts.
+- **What goes out:** LinkedIn text and PDF carousels (rendered slides, caption = the draft's `## Caption` section, falling back to the post title), X posts and threads,
+  Instagram carousels (rendered slides, `## Caption`). Instagram single images, Reels and TikTok videos are
+  marked "post by hand".
+- **Results:** `prismZernioWebhook` (HMAC-verified, deduped in `prism_webhook_events`) records each channel's link or
+  error. Once every channel is live the post becomes `posted`. Failures notify the team in-app; network errors retry
+  up to 3 times.
+- **While queued** the post can't be edited, rescheduled, reopened or deleted until someone presses
+  **Cancel auto-publish** (`cancelPrismPublish`). **Publish now** / **Retry now** call `publishPrismPostNow`.
+
+Setup: set `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` in `apps/functions/.env.<projectId>`, deploy the index on
+`prism_posts (status, scheduledAt)`, then create the webhook in Zernio pointing at the `prismZernioWebhook` URL with the
+same secret and the events `post.platform.published`, `post.platform.failed`, `post.published`, `post.partial`,
+`post.failed`, `post.cancelled`, `account.connected`, `account.disconnected`. Connecting X needs a card on the Zernio
+account (X API calls are passed through).
+
 ## Local script (no cloud)
 
 The repo still has **`marketing/verza-linkedin/scripts/generate-drafts.mjs`** for laptop-only runs with `queue.json` and local file context.

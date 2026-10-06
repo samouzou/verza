@@ -17,6 +17,10 @@ export function captionOf(text: string): string {
   return (m ? m[1] : text).trim();
 }
 
+export function hasCaption(text: string): boolean {
+  return /^##\s*Caption\s*$/im.test(text);
+}
+
 function hashtags(text: string): number {
   return (text.match(HASHTAG) ?? []).length;
 }
@@ -63,6 +67,17 @@ export function checkVariant(channel: PrismChannel, v: PrismVariant | undefined)
       if (count < 2) issues.push({ level: "error", message: "Needs at least 2 slides (## Slide 1, ## Slide 2…)." });
       if (count > max) issues.push({ level: "error", message: `${count} slides; the limit is ${max}.` });
       if (channel === "instagram") checkInstagramCaption(captionOf(text), issues);
+      if (channel === "linkedin") {
+        const cap = hasCaption(text) ? captionOf(text) : "";
+        if (!cap) {
+          issues.push({ level: "warn", message: "Add a ## Caption section: it's the post text that goes above the PDF." });
+        } else {
+          if (cap.length > 3000) issues.push({ level: "error", message: `Caption is ${cap.length - 3000} characters over LinkedIn's 3,000 limit.` });
+          if (firstLine(cap).length > 140) issues.push({ level: "warn", message: "Caption's first line may be cut before \u201csee more\u201d." });
+          if (hashtags(cap) > 3) issues.push({ level: "warn", message: "More than 3 hashtags reads as spam on LinkedIn." });
+        }
+        return { counter: `${count} slides${cap ? ` · caption ${cap.length}` : ""}`, over: count > max || cap.length > 3000, issues };
+      }
       return { counter: `${count} slides`, over: count > max, issues };
     }
     case "ig_feed":

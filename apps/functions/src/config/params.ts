@@ -137,6 +137,18 @@ export const LINKEDIN_OS_WORKER_SHARED_SECRET = defineString("LINKEDIN_OS_WORKER
   description: "Same value configured on the LinkedIn OS worker service.",
 });
 
+/** Zernio API key (sk_…) for Prism publishing. */
+export const ZERNIO_API_KEY = defineString("ZERNIO_API_KEY", {
+  default: "",
+  description: "From zernio.com → API keys.",
+});
+
+/** Secret Zernio signs webhook deliveries with (set when creating the webhook). */
+export const ZERNIO_WEBHOOK_SECRET = defineString("ZERNIO_WEBHOOK_SECRET", {
+  default: "",
+  description: "Same value as the webhook's secret in Zernio.",
+});
+
 /** Google OAuth client ID (Web application) for Gmail compose drafts. */
 export const GMAIL_OAUTH_CLIENT_ID = defineString("GMAIL_OAUTH_CLIENT_ID", {
   default: "",

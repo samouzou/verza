@@ -73,6 +73,39 @@ export type PrismPostEvent = {
   comment?: string;
 };
 
+export type PrismChannelPublishState = "pending" | "published" | "failed" | "manual";
+
+/** Auto-publishing state for one post. */
+export type PrismPublish = {
+  /** sending: locked by the scheduler; scheduled: Zernio has it; manual: nothing could be sent. */
+  state: "sending" | "scheduled" | "published" | "partial" | "failed" | "manual" | "cancelled";
+  zernioPostId?: string;
+  /** Reused if a send is interrupted, so Zernio never creates the post twice. */
+  idempotencyKey?: string;
+  attempts: number;
+  nextAttemptAt?: string;
+  lastError?: string;
+  sentAt?: string;
+  updatedAt: string;
+  channels: Partial<Record<PrismChannel, {state: PrismChannelPublishState; url?: string; error?: string}>>;
+};
+
+export type PrismConnectedAccount = {
+  accountId: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  status: "connected" | "disconnected";
+  connectedAt: string;
+};
+
+/** Connected social accounts for a brand. Stored at prism_connections/{agencyId}. */
+export type PrismConnections = {
+  agencyId: string;
+  zernioProfileId: string;
+  accounts: Partial<Record<PrismChannel, PrismConnectedAccount>>;
+};
+
 /** One idea on the calendar with a native version per channel. Stored at prism_posts/{postId}. */
 export type PrismPost = {
   agencyId: string;
@@ -88,6 +121,9 @@ export type PrismPost = {
   source: "manual" | "plan" | "studio";
   /** Set when the post was written by a Studio job. */
   studio?: {jobId: string; itemId: string; itemIds?: string[]};
+  /** false = post by hand even when accounts are connected. Default true. */
+  autoPublish?: boolean;
+  publish?: PrismPublish;
   createdBy: string;
   createdByName: string;
 };

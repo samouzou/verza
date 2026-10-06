@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  Link2,
   Loader2,
   NotebookPen,
   Plus,
@@ -225,6 +226,12 @@ function PrismCalendarPage() {
         <Link href="/prism/studio">
           <NotebookPen className="mr-2 h-4 w-4" />
           Studio
+        </Link>
+      </Button>
+      <Button variant="outline" asChild>
+        <Link href="/prism/accounts">
+          <Link2 className="mr-2 h-4 w-4" />
+          Accounts
         </Link>
       </Button>
       <Button variant="outline" asChild>
