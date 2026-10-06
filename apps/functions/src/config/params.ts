@@ -89,6 +89,11 @@ export const STRIPE_OPTIC_FLAGSHIP_MONTHLY_PRICE_ID = defineString("STRIPE_OPTIC
 /** Optic Flagship annual (~17% off, $6,640/mo effective / $79,680/yr) */
 export const STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID = defineString("STRIPE_OPTIC_FLAGSHIP_YEARLY_PRICE_ID");
 
+/** Prism Launch — $199/mo self-serve */
+export const STRIPE_PRISM_LAUNCH_MONTHLY_PRICE_ID = defineString("STRIPE_PRISM_LAUNCH_MONTHLY_PRICE_ID", {default: ""});
+/** Prism Launch annual (~17% off) */
+export const STRIPE_PRISM_LAUNCH_YEARLY_PRICE_ID = defineString("STRIPE_PRISM_LAUNCH_YEARLY_PRICE_ID", {default: ""});
+
 // Global Payouts (dahlia API) — Treasury financial account ID for outbound transfers
 export const STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID = defineString("STRIPE_PLATFORM_FINANCIAL_ACCOUNT_ID", {
   description: "Stripe Treasury financial account ID used for Global Payouts outbound transfers.",

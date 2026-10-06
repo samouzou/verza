@@ -24,6 +24,7 @@ import type { Timestamp } from "firebase/firestore";
 
 import { PageHeader } from "@/components/page-header";
 import { CarouselAssets } from "@/components/prism/carousel-assets";
+import { PrismPlanBadge, toastPrismLimit } from "@/components/prism/prism-plan";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
+import { PRISM_PRICING_PATH, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useStudioJobPosts } from "@/hooks/use-prism-posts";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -285,6 +287,7 @@ function VideoRepurposePanel({
         description: `${platformMeta?.label ?? platform} script saved on this job.`,
       });
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       const msg = e instanceof Error ? e.message : "Could not generate video script.";
       toast({ title: "Generation failed", description: msg, variant: "destructive" });
     } finally {
@@ -421,6 +424,7 @@ function BeehiivNewsletterPanel({
         description: "Newsletter saved on this job—copy into Beehiiv and add slide images.",
       });
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       const msg = e instanceof Error ? e.message : "Could not generate newsletter.";
       toast({ title: "Generation failed", description: msg, variant: "destructive" });
     } finally {
@@ -504,6 +508,7 @@ export default function PrismStudioPage() {
   const agencyId = user?.primaryAgencyId ?? null;
   const { jobs, error: jobsError, loading: jobsLoading } = useLinkedInOsJobs(agencyId);
   const { strategy, loading: strategyLoading } = usePrismBrand(agencyId);
+  const plan = usePrismPlan(agencyId);
 
   const [weekStart, setWeekStart] = useState(defaultWeekStart);
   const weekLabel = weekLabelFor(weekStart);
@@ -606,6 +611,7 @@ export default function PrismStudioPage() {
         description: "Review hooks, truths and days, then write the drafts.",
       });
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       const msg = e instanceof Error ? e.message : "Could not generate plan.";
       toast({ title: "Plan failed", description: msg, variant: "destructive" });
     } finally {
@@ -639,6 +645,7 @@ export default function PrismStudioPage() {
         description: "They'll land on the calendar as drafts in a minute or two.",
       });
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       const msg = e instanceof Error ? e.message : "Failed to enqueue job.";
       toast({ title: "Could not start job", description: msg, variant: "destructive" });
     } finally {
@@ -724,6 +731,7 @@ export default function PrismStudioPage() {
         description="Batch a week of drafts across channels, render carousels, and spin off video scripts and newsletters. Send the keepers to the calendar."
         actions={
           <>
+            <PrismPlanBadge plan={plan} />
             <Button variant="outline" asChild>
               <Link href="/prism">
                 <CalendarDays className="mr-2 h-4 w-4" />
@@ -1066,6 +1074,17 @@ export default function PrismStudioPage() {
                 </>
               )}
             </Button>
+            {plan.studioRunsLeft !== null && !plan.loading && (
+              <p className="text-center text-xs text-muted-foreground">
+                {plan.studioRunsLeft > 0
+                  ? "Prism Free includes one Studio run to try it out."
+                  : "You've used your free Studio run."}{" "}
+                <Link href={PRISM_PRICING_PATH} className="font-medium text-primary hover:underline">
+                  Upgrade to Launch
+                </Link>{" "}
+                to batch drafts every week.
+              </p>
+            )}
           </CardContent>
         </Card>
 

@@ -20,6 +20,7 @@ import {
   zonedToUtcIso,
 } from "./channelFormats";
 import {appendHistory, loadPrismPost, PRISM_POSTS, prismCaller, prismEvent} from "./posts";
+import {PRISM_AI_COST, withPrismUsage} from "./billing";
 import type {
   LinkedInOsVoiceProfile,
   PrismBrandStrategy,
@@ -116,7 +117,7 @@ export const adaptPrismPost = onCall({timeoutSeconds: 120}, async (request) => {
   const pillar = strategy.pillars.find((p) => p.id === post.pillar);
   const now = new Date().toISOString();
 
-  const results = await Promise.all(
+  const results = await withPrismUsage(c.agencyId, {ai: channels.length}, () => Promise.all(
     channels.map(async (ch) => {
       const formats = PRISM_CHANNEL_FORMATS[ch];
       const current = post.variants?.[ch];
@@ -141,7 +142,7 @@ Output only the deliverable, no preamble.`,
       if (!body) throw new HttpsError("internal", `No copy came back for ${PRISM_CHANNEL_LABELS[ch]}.`);
       return {ch, variant: {...(current ?? {}), format, text: body, generatedAt: now} as PrismVariant};
     })
-  );
+  ));
 
   const variants = {...(post.variants ?? {})};
   for (const r of results) variants[r.ch] = r.variant;
@@ -217,7 +218,7 @@ export const generatePrismMonthPlan = onCall({timeoutSeconds: 180}, async (reque
     });
 
   const formatList = channels.map((ch) => `${ch}: ${PRISM_CHANNEL_FORMATS[ch].join(" | ")}`).join("\n");
-  const {text} = await ai.generate({
+  const {text} = await withPrismUsage(c.agencyId, {ai: PRISM_AI_COST.monthPlan}, async () => ai.generate({
     model: googleAI.model(MODEL),
     config: {temperature: 0.8},
     prompt: `${writerPreamble(strategy, await voiceBlock(c.agencyId))}
@@ -257,7 +258,7 @@ Return ONLY JSON:
     }
   ]
 }`,
-  });
+  }));
   if (!text?.trim()) throw new HttpsError("internal", "The plan came back empty.");
 
   const obj = parseJsonObject(text);

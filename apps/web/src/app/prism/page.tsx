@@ -30,6 +30,7 @@ import {
 
 import { PageHeader } from "@/components/page-header";
 import { PostComposer, type ComposerTarget } from "@/components/prism/post-composer";
+import { PrismPlanBadge, toastPrismLimit } from "@/components/prism/prism-plan";
 import { PostChip, PrismCalendar, PRISM_DRAG_TYPE, type CalendarMarker } from "@/components/prism/prism-calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
+import { usePrismPlan } from "@/hooks/use-prism-plan";
 import { usePrismPosts } from "@/hooks/use-prism-posts";
 import { useToast } from "@/hooks/use-toast";
 import { db, functions } from "@/lib/firebase";
@@ -69,6 +71,7 @@ function PrismCalendarPage() {
   const searchParams = useSearchParams();
   const agencyId = user?.primaryAgencyId ?? null;
   const { strategy, loading: strategyLoading } = usePrismBrand(agencyId);
+  const plan = usePrismPlan(agencyId);
 
   const [view, setView] = useState<"month" | "week">("month");
   const [anchor, setAnchor] = useState(() => new Date());
@@ -96,6 +99,12 @@ function PrismCalendarPage() {
     const id = searchParams.get("post");
     if (id) setTarget({ postId: id });
   }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("prism_subscribe_success") !== "true") return;
+    toast({ title: "Welcome to Prism Launch", description: "Studio, unlimited slides and 1,000 AI actions a month are unlocked." });
+    router.replace("/prism");
+  }, [searchParams, router, toast]);
 
   useEffect(() => {
     if (!agencyId) return;
@@ -179,6 +188,7 @@ function PrismCalendarPage() {
         description: data.rationale || "Open an idea and click Write all channels to draft it.",
       });
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       toast({ title: "Planning failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setPlanning(false);
@@ -210,6 +220,7 @@ function PrismCalendarPage() {
 
   const headerActions = (
     <>
+      <PrismPlanBadge plan={plan} />
       <Button variant="outline" asChild>
         <Link href="/prism/studio">
           <NotebookPen className="mr-2 h-4 w-4" />

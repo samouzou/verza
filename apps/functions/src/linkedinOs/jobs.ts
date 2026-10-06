@@ -10,6 +10,7 @@ import {
   requirePrismBrandStrategy,
 } from "./brandStrategy";
 import {ISO_DATE, PRISM_DEFAULT_TIMES, zonedToUtcIso} from "./channelFormats";
+import {releasePrismUsage, reservePrismUsage} from "./billing";
 import type {LinkedInOsJobItem, PrismFormat} from "./types";
 
 const MAX_ITEMS = PRISM_MAX_POSTS_PER_WEEK;
@@ -116,7 +117,9 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
   const jobRef = db.collection("linkedin_os_jobs").doc();
   const jobId = jobRef.id;
 
+  const prismUsage = await reservePrismUsage(agencyId, {studioRun: true, ai: parsed.length});
   await jobRef.set({
+    prismUsage,
     status: "queued",
     createdAt: FieldValue.serverTimestamp(),
     createdBy: uid,
@@ -129,6 +132,9 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
     ...(runBrief ? {weeklyBrief: runBrief} : {}),
     ...(runMust ? {mustMention: runMust} : {}),
     ...(runNever ? {neverMention: runNever} : {}),
+  }).catch(async (e) => {
+    await releasePrismUsage(agencyId, prismUsage);
+    throw e;
   });
 
   logger.info("[Prism] Job queued", {jobId, itemCount: parsed.length, createdBy: uid, agencyId});

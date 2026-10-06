@@ -21,6 +21,7 @@ import type {
   PrismChannel,
   PrismFormat,
 } from "./types";
+import {PRISM_AI_COST, withPrismUsage} from "./billing";
 
 const MODEL = "gemini-3.6-flash";
 const MAX_BRIEF = 6000;
@@ -208,7 +209,7 @@ export const generateLinkedInOsWeeklyPlan = onCall(
     const voiceSnap = await db.collection("linkedin_os_voice_profiles").doc(agencyId).get();
     const voice = voiceSnap.exists ? (voiceSnap.data() as LinkedInOsVoiceProfile) : null;
 
-    const {text} = await ai.generate({
+    const {text} = await withPrismUsage(agencyId, {ai: PRISM_AI_COST.weeklyPlan}, () => ai.generate({
       model: googleAI.model(MODEL),
       prompt: `You are the social media manager for ${strategy.brandName}.
 Plan ${weekLabel}: exactly ${total} posts across these channels:
@@ -265,7 +266,7 @@ Return ONLY valid JSON (no fences):
 Use stable ids like mon-x-*, tue-linkedin-*, wed-instagram-*.
 Do not invent fees, user counts, or legal claims.
 `,
-    });
+    }));
 
     if (!text?.trim()) {
       throw new HttpsError("internal", "Weekly plan returned empty text.");

@@ -6,6 +6,7 @@ import {ai} from "../ai/genkit";
 import {formatBrandStrategyForPrompt, requirePrismBrandStrategy} from "./brandStrategy";
 import {loadCompletedLinkedInOsJob} from "./jobAccess";
 import type {LinkedInOsJobOutput, LinkedInOsVideoPlatform, LinkedInOsVideoScript} from "./types";
+import {PRISM_AI_COST, withPrismUsage} from "./billing";
 
 const MODEL = "gemini-3.6-flash";
 const MAX_SOURCE = 24000;
@@ -188,11 +189,11 @@ export const generateLinkedInOsVideoScript = onCall(
     const system = buildSystemPrompt(strategy.brandName, brief, banned);
     const user = buildUserPrompt(platform, source);
 
-    const {text} = await ai.generate({
+    const {text} = await withPrismUsage(String(job.agencyId ?? ""), {ai: PRISM_AI_COST.repurpose}, () => ai.generate({
       model: googleAI.model(MODEL),
       prompt: `${system}\n\n${user}`,
       config: {temperature: 0.7},
-    });
+    }));
 
     const markdown = text?.trim();
     if (!markdown) {

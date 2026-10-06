@@ -484,6 +484,29 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
         completedAt: FieldValue.serverTimestamp(),
       })
       .catch(() => undefined);
+    await releaseJobUsage(String(data.agencyId ?? ""), data.prismUsage).catch(() => undefined);
     throw e;
   }
+}
+
+/**
+ * Gives a failed job's Prism usage back to the brand (mirrors releasePrismUsage in functions).
+ * @param {string} agencyId Agency id.
+ * @param {unknown} raw Job's prismUsage.
+ * @return {!Promise<void>}
+ */
+async function releaseJobUsage(agencyId: string, raw: unknown): Promise<void> {
+  const u = raw as {periodKey?: string; ai?: number; studioRun?: boolean} | undefined;
+  if (!agencyId || !u) return;
+  const agencyRef = db.collection("agencies").doc(agencyId);
+  await db.runTransaction(async (tx) => {
+    const d = (await tx.get(agencyRef)).data() ?? {};
+    const update: Record<string, number> = {};
+    const ai = Number(u.ai ?? 0);
+    if (ai > 0 && d.prismUsagePeriodKey === u.periodKey) {
+      update.prismAiActionsThisPeriod = Math.max(0, Number(d.prismAiActionsThisPeriod ?? 0) - ai);
+    }
+    if (u.studioRun) update.prismStudioRunsUsed = Math.max(0, Number(d.prismStudioRunsUsed ?? 0) - 1);
+    if (Object.keys(update).length) tx.update(agencyRef, update);
+  });
 }

@@ -12,6 +12,7 @@ import {
   PRISM_CHANNELS,
 } from "./brandStrategy";
 import {PRISM_MAX_VARIANT_CHARS} from "./channelFormats";
+import {withPrismUsage} from "./billing";
 import type {
   LinkedInOsJobItem,
   LinkedInOsJobOutput,
@@ -379,19 +380,22 @@ export const renderPrismSlides = onCall({timeoutSeconds: 180}, async (request) =
   const secret = LINKEDIN_OS_WORKER_SHARED_SECRET.value().trim();
   if (!workerUrl || !secret) throw new HttpsError("unavailable", "The slide renderer isn't configured.");
 
-  const res = await fetch(`${workerUrl.replace(/\/$/, "")}/internal/render-slides`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json", "x-verza-linkedin-os-secret": secret},
-    body: JSON.stringify({postId, channel}),
+  const body = await withPrismUsage(c.agencyId, {slideRender: true}, async () => {
+    const res = await fetch(`${workerUrl.replace(/\/$/, "")}/internal/render-slides`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "x-verza-linkedin-os-secret": secret},
+      body: JSON.stringify({postId, channel}),
+    });
+    const json = (await res.json().catch(() => ({}))) as {error?: string; slides?: number};
+    if (!res.ok) {
+      logger.error("[Prism] Slide render failed", {postId, channel, status: res.status, error: json.error});
+      throw new HttpsError(
+        res.status === 400 ? "failed-precondition" : "internal",
+        res.status === 400 && json.error ? json.error : "Could not render the slides. Try again."
+      );
+    }
+    return json;
   });
-  const body = (await res.json().catch(() => ({}))) as {error?: string; slides?: number};
-  if (!res.ok) {
-    logger.error("[Prism] Slide render failed", {postId, channel, status: res.status, error: body.error});
-    throw new HttpsError(
-      res.status === 400 ? "failed-precondition" : "internal",
-      res.status === 400 && body.error ? body.error : "Could not render the slides. Try again."
-    );
-  }
 
   const fresh = (await ref.get()).data() as PrismPost | undefined;
   await ref.update({

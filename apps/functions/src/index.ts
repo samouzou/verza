@@ -173,6 +173,11 @@ import {
 } from "./linkedinOs/posts";
 import {adaptPrismPost, generatePrismMonthPlan} from "./linkedinOs/planning";
 import {
+  createPrismBillingPortalSession,
+  createPrismSubscriptionCheckoutSession,
+  getPrismPricing,
+} from "./linkedinOs/billing";
+import {
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,
@@ -325,6 +330,9 @@ export {
   transitionPrismPost,
   adaptPrismPost,
   generatePrismMonthPlan,
+  getPrismPricing,
+  createPrismSubscriptionCheckoutSession,
+  createPrismBillingPortalSession,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

@@ -30,6 +30,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { toastPrismLimit } from "@/components/prism/prism-plan";
 import { db, functions } from "@/lib/firebase";
 import {
   PRISM_CHANNEL_META,
@@ -220,6 +221,7 @@ export function PostComposer({
     try {
       await fn();
     } catch (e: unknown) {
+      if (toastPrismLimit(toast, e)) return;
       toast({ title: "Something went wrong", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setBusy(null);

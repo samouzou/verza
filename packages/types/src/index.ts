@@ -633,6 +633,19 @@ export interface Agency {
   appsumoOpticCodeCount?: number;
   /** UTC YYYY-MM key for the current AppSumo Optic credit period. */
   opticAppsumoPeriodKey?: string | null;
+  /** Prism plan (Free when unset or the subscription isn't active). */
+  prismPlan?: 'launch' | 'enterprise' | null;
+  prismPlanId?: string | null;
+  prismSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
+  prismStripeSubscriptionId?: string | null;
+  prismBillingInterval?: 'month' | 'year' | null;
+  prismPeriodEnd?: Timestamp | null;
+  /** UTC YYYY-MM of the AI usage counter below. */
+  prismUsagePeriodKey?: string | null;
+  prismAiActionsThisPeriod?: number;
+  /** Lifetime counters for Prism Free's one-time Studio run and slide renders. */
+  prismStudioRunsUsed?: number;
+  prismSlideRendersUsed?: number;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
   talent: Talent[];

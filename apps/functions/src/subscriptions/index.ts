@@ -8,6 +8,7 @@ import type {UserProfileFirestoreData, SubscriptionPlanId} from "./../types";
 import * as params from "../config/params";
 import {sendSubscriptionReceiptEmail} from "../notifications";
 import {handleOpticStripeSubscriptionEvent} from "../optic/billing";
+import {handlePrismStripeSubscriptionEvent} from "../linkedinOs/billing";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
@@ -276,6 +277,11 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   try {
     const opticHandled = await handleOpticStripeSubscriptionEvent(stripe, event);
     if (opticHandled) {
+      response.json({received: true});
+      return;
+    }
+    const prismHandled = await handlePrismStripeSubscriptionEvent(stripe, event);
+    if (prismHandled) {
       response.json({received: true});
       return;
     }

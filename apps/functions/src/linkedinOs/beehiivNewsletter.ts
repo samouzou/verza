@@ -13,6 +13,7 @@ import {
 } from "./jobAccess";
 import {parseCarouselMarkdown} from "./parseCarouselMarkdown";
 import type {LinkedInOsBeehiivNewsletter, LinkedInOsCarouselSlideAsset} from "./types";
+import {PRISM_AI_COST, withPrismUsage} from "./billing";
 
 const MODEL = "gemini-3.6-flash";
 const SIGNED_URL_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -208,11 +209,11 @@ export const generateLinkedInOsBeehiivNewsletter = onCall(
     const system = buildSystemPrompt(strategy.brandName, brief, banned);
     const user = buildUserPrompt(source, weekLabel, strategy.websiteUrl);
 
-    const {text} = await ai.generate({
+    const {text} = await withPrismUsage(String(job.agencyId ?? ""), {ai: PRISM_AI_COST.repurpose}, () => ai.generate({
       model: googleAI.model(MODEL),
       prompt: `${system}\n\n${user}`,
       config: {temperature: 0.65},
-    });
+    }));
 
     const markdown = text?.trim();
     if (!markdown) {
