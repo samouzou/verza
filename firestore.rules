@@ -397,7 +397,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // LinkedIn Strategist — learned voice per agency (Admin writes via callable)
+    // Prism — per-brand social setup (Admin writes via callable)
+    match /prism_brands/{agencyId} {
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
+      allow write: if false;
+    }
+
+    // Prism — calendar posts (Admin writes via callables; agency team reads)
+    match /prism_posts/{postId} {
+      allow read: if request.auth != null && isTeamMemberOf(resource.data.agencyId);
+      allow write: if false;
+    }
+
+    // Prism — learned brand voice per agency (Admin writes via callable)
     match /linkedin_os_voice_profiles/{agencyId} {
       allow read: if request.auth != null && isTeamMemberOf(agencyId);
       allow write: if false;

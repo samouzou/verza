@@ -1,26 +1,29 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   Check,
   Copy,
-  Download,
-  Lightbulb,
-  Linkedin,
+  ExternalLink,
   Loader2,
   Mail,
   CalendarClock,
+  CalendarDays,
+  CalendarPlus,
   NotebookPen,
+  Settings2,
   Sparkles,
   Video,
 } from "lucide-react";
 import type { Timestamp } from "firebase/firestore";
 
 import { PageHeader } from "@/components/page-header";
+import { CarouselAssets } from "@/components/prism/carousel-assets";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,28 +46,104 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
-import { useLinkedInOsVoiceProfile } from "@/hooks/use-linkedin-os-voice";
+import { usePrismBrand } from "@/hooks/use-prism-brand";
+import { useStudioJobPosts } from "@/hooks/use-prism-posts";
 import { useToast } from "@/hooks/use-toast";
-import { functions, getDownloadURL, ref, storage } from "@/lib/firebase";
+import { ToastAction } from "@/components/ui/toast";
+import { functions } from "@/lib/firebase";
 import {
-  applyInspirationPreset,
-  LINKEDIN_OS_INSPIRATION_PRESETS,
-} from "@/lib/linkedin-os/inspiration";
-import {
-  DEFAULT_QUEUE_ITEMS,
   isLinkedInOsJobInFlight,
   LINKEDIN_OS_CTAS,
-  LINKEDIN_OS_PILLARS,
   LINKEDIN_OS_VIDEO_PLATFORMS,
   PRODUCT_RECEIPTS_OUTPUT_ID,
   type LinkedInOsBeehiivNewsletter,
-  type LinkedInOsCarouselAssets,
   type LinkedInOsJobItem,
+  type LinkedInOsJobOutput,
   type LinkedInOsJobRow,
-  type LinkedInOsPublishStatus,
   type LinkedInOsVideoPlatform,
   type LinkedInOsVideoScript,
 } from "@/lib/linkedin-os/types";
+import {
+  PRISM_CHANNEL_META,
+  PRISM_CHANNELS,
+  PRISM_FORMATS,
+  PRISM_STATUS_META,
+  prismFormatLabel,
+  type PrismBrandStrategy,
+  type PrismChannel,
+  type PrismPost,
+} from "@/lib/prism/types";
+import { cn } from "@/lib/utils";
+
+const NO_DATE = "none";
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function isoDay(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Parses YYYY-MM-DD as a local date (noon, so DST never shifts the day). */
+function fromIsoDay(s: string) {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+
+function addDays(s: string, n: number) {
+  const d = fromIsoDay(s);
+  d.setDate(d.getDate() + n);
+  return isoDay(d);
+}
+
+function mondayOf(d: Date) {
+  const back = (d.getDay() + 6) % 7;
+  return isoDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() - back, 12));
+}
+
+/** This week while at least two days are left, otherwise next week. */
+function defaultWeekStart() {
+  const now = new Date();
+  const monday = mondayOf(now);
+  return now.getDay() === 6 || now.getDay() === 0 ? addDays(monday, 7) : monday;
+}
+
+function weekLabelFor(weekStart: string) {
+  return `Week of ${fromIsoDay(weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+/** Days of the week that haven't passed yet. */
+function openDays(weekStart: string) {
+  const today = isoDay(new Date());
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).filter((d) => d >= today);
+}
+
+/** One starter slot per enabled channel, cycling through the brand's pillars and the open days. */
+function defaultQueue(strategy: PrismBrandStrategy, weekStart: string): LinkedInOsJobItem[] {
+  const channels = PRISM_CHANNELS.filter((ch) => strategy.channels[ch].enabled);
+  const days = openDays(weekStart);
+  return channels.map((channel, i) => ({
+    id: `${channel}-${i + 1}`,
+    channel,
+    pillar: strategy.pillars[i % Math.max(1, strategy.pillars.length)]?.id ?? "",
+    format: PRISM_FORMATS[channel][0].value,
+    hook: "",
+    productTruth: "",
+    cta: "comment",
+    notes: "",
+    ...(days.length ? { date: days[(i * 2) % days.length] } : {}),
+  }));
+}
+
+function ChannelChip({ channel }: { channel: PrismChannel | undefined }) {
+  const meta = PRISM_CHANNEL_META[channel ?? "linkedin"];
+  return (
+    <Badge variant="outline" className={meta.chip}>
+      {meta.label}
+    </Badge>
+  );
+}
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -82,112 +161,101 @@ function statusBadgeVariant(status: string | undefined) {
   return "outline" as const;
 }
 
-async function downloadStoragePath(storagePath: string, filename: string) {
-  const url = await getDownloadURL(ref(storage, storagePath));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.rel = "noopener";
-  anchor.target = "_blank";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-}
-
-function CarouselAssetsPanel({
-  assets,
-  outputId,
+/**
+ * One Studio draft. Once it's on the calendar, shows the live post (status, date, latest copy);
+ * edits and approvals happen in the calendar.
+ */
+function StudioDraftCard({
+  out,
+  post,
+  postsLoaded,
+  pillarLabel,
+  adding,
+  onAdd,
+  onOpen,
 }: {
-  assets: LinkedInOsCarouselAssets;
-  outputId: string;
+  out: LinkedInOsJobOutput;
+  post: PrismPost | undefined;
+  postsLoaded: boolean;
+  pillarLabel: (id: string) => string;
+  adding: boolean;
+  onAdd: () => void;
+  onOpen: (postId: string) => void;
 }) {
-  const [downloading, setDownloading] = useState<string | null>(null);
   const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const channel: PrismChannel = out.channel ?? "linkedin";
+  const variant = post?.variants?.[channel];
+  const text = variant?.text ?? out.markdown;
+  const assets = variant ? variant.assets : out.carouselAssets;
+  const removed = postsLoaded && !!out.postId && !post;
 
-  const handleDownload = async (storagePath: string, filename: string, key: string) => {
-    setDownloading(key);
-    try {
-      await downloadStoragePath(storagePath, filename);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Download failed.";
-      toast({ title: "Could not download", description: msg, variant: "destructive" });
-    } finally {
-      setDownloading(null);
-    }
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard" });
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const sortedSlides = [...(assets.slides ?? [])].sort((a, b) => a.index - b.index);
-
   return (
-    <div className="rounded-md border bg-muted/20 p-3 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Carousel assets (1080×1080)
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {assets.pdfStoragePath && (
-            <Button
-              size="sm"
-              disabled={downloading !== null}
-              onClick={() =>
-                void handleDownload(assets.pdfStoragePath!, "carousel.pdf", `${outputId}-pdf`)
-              }
-            >
-              {downloading === `${outputId}-pdf` ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-1" />
-                  Download PDF
-                </>
-              )}
+    <div className="rounded-lg border p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <ChannelChip channel={out.channel} />
+            <p className="text-sm font-medium truncate">{post?.title ?? out.id}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {pillarLabel(out.pillar)} · {prismFormatLabel(variant?.format ?? out.format)}
+            {post && (
+              <>
+                {" · "}
+                {post.scheduledAt
+                  ? new Date(post.scheduledAt).toLocaleString(undefined, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })
+                  : "Unscheduled"}
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {post ? (
+            <>
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={cn("h-2 w-2 rounded-full", PRISM_STATUS_META[post.status].dot)} />
+                {PRISM_STATUS_META[post.status].label}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => onOpen(post.id)}>
+                <ExternalLink className="mr-1 h-4 w-4" />
+                Open
+              </Button>
+            </>
+          ) : postsLoaded ? (
+            <Button size="sm" variant="outline" disabled={adding} onClick={onAdd}>
+              {adding ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CalendarPlus className="mr-1 h-4 w-4" />}
+              {removed ? "Add again" : "Add to calendar"}
             </Button>
+          ) : (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           )}
-          {assets.zipStoragePath && (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={downloading !== null}
-              onClick={() =>
-                void handleDownload(assets.zipStoragePath!, "carousel.zip", `${outputId}-zip`)
-              }
-            >
-              {downloading === `${outputId}-zip` ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Download className="h-4 w-4 mr-1" />
-                  PNG ZIP
-                </>
-              )}
-            </Button>
-          )}
+          <Button size="sm" variant="ghost" onClick={() => void copy()} title="Copy">
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {sortedSlides.map((slide) => (
-          <Button
-            key={slide.storagePath}
-            size="sm"
-            variant="outline"
-            className="justify-start text-xs h-auto py-2"
-            disabled={downloading !== null}
-            onClick={() =>
-              void handleDownload(slide.storagePath, slide.filename, slide.storagePath)
-            }
-          >
-            {downloading === slide.storagePath ? (
-              <Loader2 className="h-3 w-3 animate-spin mr-1 shrink-0" />
-            ) : (
-              <Download className="h-3 w-3 mr-1 shrink-0" />
-            )}
-            {slide.filename}
-          </Button>
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Upload the PDF to LinkedIn as a document post, or use individual PNGs in a design tool.
-      </p>
+      {removed && <p className="text-xs text-muted-foreground">This draft was deleted from the calendar.</p>}
+      {post && post.channels.length > 1 && (
+        <p className="text-xs text-muted-foreground">
+          Shares one calendar post with {post.channels.filter((c) => c !== channel).map((c) => PRISM_CHANNEL_META[c].label).join(", ")}.
+        </p>
+      )}
+      <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-64 overflow-y-auto">{text}</pre>
+      {assets && assets.slides.length > 0 && <CarouselAssets assets={assets} />}
     </div>
   );
 }
@@ -239,7 +307,7 @@ function VideoRepurposePanel({
           Repurpose for video
         </CardTitle>
         <CardDescription>
-          Turn this week&apos;s LinkedIn drafts into one platform-specific script. Edit before you
+          Turn this week&apos;s drafts into one platform-specific script. Edit before you
           film.
         </CardDescription>
       </CardHeader>
@@ -300,7 +368,7 @@ function VideoRepurposePanel({
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No {platformMeta?.label} script yet—generate one from the LinkedIn drafts above.
+            No {platformMeta?.label} script yet—generate one from the drafts above.
           </p>
         )}
 
@@ -429,148 +497,56 @@ function BeehiivNewsletterPanel({
   );
 }
 
-function publishBadgeVariant(status: LinkedInOsPublishStatus | undefined) {
-  if (status === "posted") return "default" as const;
-  if (status === "scheduled") return "secondary" as const;
-  if (status === "approved") return "outline" as const;
-  return "outline" as const;
-}
-
-function VoiceProfilePanel({ agencyId }: { agencyId: string }) {
-  const { toast } = useToast();
-  const { profile, loading, error } = useLinkedInOsVoiceProfile(agencyId);
-  const [posts, setPosts] = useState("");
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const handleAnalyze = async () => {
-    if (posts.trim().length < 200) {
-      toast({
-        title: "Paste more posts",
-        description: "Need roughly 200+ characters of recent LinkedIn posts.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setAnalyzing(true);
-    try {
-      const analyze = httpsCallable(functions, "analyzeLinkedInOsVoiceProfile");
-      await analyze({ posts: posts.trim() });
-      toast({
-        title: "Voice learned",
-        description: "Drafts and weekly plans will use this profile.",
-      });
-      setPosts("");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Could not analyze posts.";
-      toast({ title: "Voice analysis failed", description: msg, variant: "destructive" });
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <NotebookPen className="h-5 w-5 text-primary" />
-          Voice
-        </CardTitle>
-        <CardDescription>
-          Paste recent LinkedIn posts (yours or the page you write for). We learn tone, hooks, and
-          patterns — then plan and draft in that voice.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {loading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : profile ? (
-          <div className="rounded-lg border bg-muted/10 p-4 space-y-2 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">Saved profile</p>
-              <Badge variant="secondary">{profile.samplePostCount} post samples</Badge>
-            </div>
-            <p className="text-muted-foreground whitespace-pre-wrap">{profile.voiceSummary}</p>
-            {(profile.toneTraits?.length ?? 0) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Tone: {profile.toneTraits.join(" · ")}
-              </p>
-            )}
-            {(profile.doList?.length ?? 0) > 0 && (
-              <p className="text-xs text-muted-foreground">Do: {profile.doList.slice(0, 4).join("; ")}</p>
-            )}
-            {(profile.dontList?.length ?? 0) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Don&apos;t: {profile.dontList.slice(0, 4).join("; ")}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No voice profile yet. Paste 5–15 recent posts below to get started.
-          </p>
-        )}
-        <div className="space-y-2">
-          <Label htmlFor="voice-posts">Recent posts</Label>
-          <Textarea
-            id="voice-posts"
-            rows={6}
-            value={posts}
-            onChange={(e) => setPosts(e.target.value.slice(0, 28000))}
-            placeholder="Paste posts separated by blank lines…"
-          />
-          <p className="text-xs text-muted-foreground text-right">{posts.length}/28000</p>
-        </div>
-        <Button type="button" disabled={analyzing} onClick={() => void handleAnalyze()}>
-          {analyzing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Learning voice…
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              {profile ? "Re-learn from new posts" : "Learn voice"}
-            </>
-          )}
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-export default function LinkedInOsPage() {
+export default function PrismStudioPage() {
   const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const agencyId = user?.primaryAgencyId ?? null;
   const { jobs, error: jobsError, loading: jobsLoading } = useLinkedInOsJobs(agencyId);
+  const { strategy, loading: strategyLoading } = usePrismBrand(agencyId);
 
-  const [weekLabel, setWeekLabel] = useState(() => {
-    const d = new Date();
-    const onejan = new Date(d.getFullYear(), 0, 1);
-    const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
-    return `${d.getFullYear()}-W${String(week).padStart(2, "0")}`;
-  });
-  const [items, setItems] = useState<LinkedInOsJobItem[]>(() =>
-    DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x }))
-  );
+  const [weekStart, setWeekStart] = useState(defaultWeekStart);
+  const weekLabel = weekLabelFor(weekStart);
+  const [items, setItems] = useState<LinkedInOsJobItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [inspirationId, setInspirationId] = useState("");
   const [weeklyBrief, setWeeklyBrief] = useState("");
   const [mustMention, setMustMention] = useState("");
   const [neverMention, setNeverMention] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planRationale, setPlanRationale] = useState<string | null>(null);
-  const [scheduleDraftId, setScheduleDraftId] = useState<string | null>(null);
-  const [scheduleAt, setScheduleAt] = useState("");
-  const [updatingPublishId, setUpdatingPublishId] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const selectedJob: LinkedInOsJobRow | null = useMemo(
     () => jobs.find((j) => j.id === selectedJobId) ?? jobs[0] ?? null,
     [jobs, selectedJobId]
   );
+  const { posts: jobPosts, loaded: jobPostsLoaded } = useStudioJobPosts(agencyId, selectedJob?.id ?? null);
+
+  const weekOptions = useMemo(() => {
+    const current = mondayOf(new Date());
+    return [0, 1, 2, 3].map((n) => {
+      const start = addDays(current, n * 7);
+      const end = fromIsoDay(addDays(start, 6));
+      const range = `${fromIsoDay(start).toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+      return { value: start, label: n === 0 ? `This week (${range})` : n === 1 ? `Next week (${range})` : range };
+    });
+  }, []);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const todayIso = isoDay(new Date());
+
+  /** Moves the queue to another week, keeping each post on the same weekday when it's still ahead. */
+  const changeWeek = (next: string) => {
+    const shift = Math.round((fromIsoDay(next).getTime() - fromIsoDay(weekStart).getTime()) / 86400000);
+    setItems((prev) =>
+      prev.map((it) => {
+        if (!it.date) return it;
+        const date = addDays(it.date, shift);
+        return date >= todayIso ? { ...it, date } : { ...it, date: undefined };
+      })
+    );
+    setWeekStart(next);
+  };
 
   const productReceiptsOutput = useMemo(() => {
     if (!selectedJob?.outputs?.length) return null;
@@ -585,31 +561,27 @@ export default function LinkedInOsPage() {
 
   const inFlight = jobs.some((j) => isLinkedInOsJobInFlight(j.status));
 
+  useEffect(() => {
+    if (strategy && items.length === 0) setItems(defaultQueue(strategy, weekStart));
+    // Seed once when the brand loads; week changes are handled by changeWeek.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategy, items.length]);
+
+  const pillarLabel = useCallback(
+    (id: string) => strategy?.pillars.find((p) => p.id === id)?.label ?? id.replace(/_/g, " "),
+    [strategy]
+  );
+
   const updateItem = useCallback((index: number, patch: Partial<LinkedInOsJobItem>) => {
     setItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }, []);
 
-  const selectedInspiration = useMemo(
-    () => LINKEDIN_OS_INSPIRATION_PRESETS.find((p) => p.id === inspirationId) ?? null,
-    [inspirationId]
-  );
-
-  const handleApplyInspiration = () => {
-    if (!selectedInspiration) return;
-    setItems(applyInspirationPreset(selectedInspiration));
-    toast({
-      title: "Queue pre-filled",
-      description: `${selectedInspiration.label} — edit hooks and truths before generating.`,
-    });
-  };
-
   const handleResetQueue = () => {
-    setInspirationId("");
     setWeeklyBrief("");
     setMustMention("");
     setNeverMention("");
     setPlanRationale(null);
-    setItems(DEFAULT_QUEUE_ITEMS.map((x) => ({ ...x })));
+    setItems(strategy ? defaultQueue(strategy, weekStart) : []);
   };
 
   const handleGeneratePlan = async () => {
@@ -618,6 +590,7 @@ export default function LinkedInOsPage() {
       const plan = httpsCallable(functions, "generateLinkedInOsWeeklyPlan");
       const result = await plan({
         weekLabel,
+        weekStart,
         ...(weeklyBrief.trim() ? { weeklyBrief: weeklyBrief.trim() } : {}),
         ...(mustMention.trim() ? { mustMention: mustMention.trim() } : {}),
         ...(neverMention.trim() ? { neverMention: neverMention.trim() } : {}),
@@ -630,52 +603,13 @@ export default function LinkedInOsPage() {
       setPlanRationale(data.rationale?.trim() || null);
       toast({
         title: "Weekly plan ready",
-        description: "Review hooks and truths, then generate drafts.",
+        description: "Review hooks, truths and days, then write the drafts.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not generate plan.";
       toast({ title: "Plan failed", description: msg, variant: "destructive" });
     } finally {
       setPlanning(false);
-    }
-  };
-
-  const handlePublishStatus = async (
-    outputId: string,
-    publishStatus: LinkedInOsPublishStatus,
-    scheduledAt?: string
-  ) => {
-    if (!selectedJob) return;
-    setUpdatingPublishId(outputId);
-    try {
-      const update = httpsCallable(functions, "updateLinkedInOsDraftPublishStatus");
-      await update({
-        jobId: selectedJob.id,
-        outputId,
-        publishStatus,
-        ...(scheduledAt ? { scheduledAt } : {}),
-      });
-      toast({
-        title:
-          publishStatus === "scheduled"
-            ? "Scheduled"
-            : publishStatus === "approved"
-              ? "Approved"
-              : publishStatus === "posted"
-                ? "Marked posted"
-                : "Back to draft",
-        description:
-          publishStatus === "scheduled"
-            ? "Approved for that time. LinkedIn API auto-post comes next — copy/post manually for now."
-            : undefined,
-      });
-      setScheduleDraftId(null);
-      setScheduleAt("");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Could not update status.";
-      toast({ title: "Update failed", description: msg, variant: "destructive" });
-    } finally {
-      setUpdatingPublishId(null);
     }
   };
 
@@ -691,6 +625,7 @@ export default function LinkedInOsPage() {
       const enqueue = httpsCallable(functions, "enqueueLinkedInOsDraftJob");
       const result = await enqueue({
         weekLabel,
+        weekStart,
         reviewer: user.displayName || user.email || "Reviewer",
         items: valid,
         ...(weeklyBrief.trim() ? { weeklyBrief: weeklyBrief.trim() } : {}),
@@ -700,9 +635,8 @@ export default function LinkedInOsPage() {
       const data = result.data as { jobId?: string };
       if (data.jobId) setSelectedJobId(data.jobId);
       toast({
-        title: "Draft job queued",
-        description:
-          "We'll draft your posts next—watch Recent jobs for when they're ready.",
+        title: "Writing your drafts",
+        description: "They'll land on the calendar as drafts in a minute or two.",
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to enqueue job.";
@@ -712,11 +646,38 @@ export default function LinkedInOsPage() {
     }
   };
 
-  const copyMarkdown = async (outputId: string, text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(outputId);
-    toast({ title: "Copied to clipboard" });
-    setTimeout(() => setCopiedId(null), 2000);
+  const openPost = (postId: string) => router.push(`/prism?post=${postId}`);
+
+  /** For drafts from jobs that ran before Studio wrote straight to the calendar. */
+  const addToCalendar = async (out: LinkedInOsJobOutput) => {
+    if (!selectedJob) return;
+    setAddingId(out.id);
+    try {
+      const res = await httpsCallable(functions, "addStudioDraftToCalendar")({ jobId: selectedJob.id, outputId: out.id });
+      const { postId, existing } = res.data as { postId: string; existing: boolean };
+      toast({
+        title: existing ? "Already on the calendar" : "Added to the calendar",
+        description: existing || out.scheduledAt ? undefined : "It's in Unscheduled. Drag it onto a day.",
+        action: (
+          <ToastAction altText="Open" onClick={() => openPost(postId)}>
+            Open
+          </ToastAction>
+        ),
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not add to the calendar.";
+      toast({ title: "Add failed", description: msg, variant: "destructive" });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const postForOutput = (out: LinkedInOsJobOutput): PrismPost | undefined => {
+    if (out.postId) return jobPosts.get(out.postId);
+    for (const p of jobPosts.values()) {
+      if (p.studio?.itemId === out.id || p.studio?.itemIds?.includes(out.id)) return p;
+    }
+    return undefined;
   };
 
   if (authLoading) {
@@ -734,8 +695,8 @@ export default function LinkedInOsPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Agency account required</AlertTitle>
           <AlertDescription>
-            LinkedIn Strategist is for agency team members. Sign in with your agency account or
-            complete onboarding first.
+            Prism is for agency team members. Sign in with your agency account or complete
+            onboarding first.
           </AlertDescription>
         </Alert>
       </div>
@@ -749,7 +710,7 @@ export default function LinkedInOsPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Primary agency missing</AlertTitle>
           <AlertDescription>
-            Set a primary agency on your profile before generating LinkedIn drafts.
+            Set a primary agency on your profile before using Prism.
           </AlertDescription>
         </Alert>
       </div>
@@ -759,38 +720,68 @@ export default function LinkedInOsPage() {
   return (
     <div className="flex flex-col gap-8 pb-16">
       <PageHeader
-        title="LinkedIn Strategist"
-        description="Learn your voice, plan the week, draft posts, then approve and schedule — you stay in the loop."
+        title="Studio"
+        description="Batch a week of drafts across channels, render carousels, and spin off video scripts and newsletters. Send the keepers to the calendar."
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/optic">Optic (separate)</Link>
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/prism">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                Calendar
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/prism/setup">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Brand setup
+              </Link>
+            </Button>
+          </>
         }
       />
 
-      <Alert className="border-blue-500/30 bg-blue-50/10">
-        <Linkedin className="h-4 w-4" />
-        <AlertTitle>Approve before it ships</AlertTitle>
+      {strategyLoading ? (
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      ) : !strategy ? (
+        <Card className="border-primary/30 bg-primary/5 max-w-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Set up your brand first
+            </CardTitle>
+            <CardDescription>
+              Prism plans and writes from your brand brief, content pillars, and channel plan. Paste your
+              website and it drafts the setup for you in under a minute.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/prism/setup">Set up my brand</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+      <>
+      <Alert className="border-primary/30 bg-primary/5">
+        <CalendarDays className="h-4 w-4" />
+        <AlertTitle>Drafts go straight to the calendar</AlertTitle>
         <AlertDescription>
-          Scheduling marks a draft for a time slot. Direct LinkedIn posting is not connected yet —
-          copy the approved draft into LinkedIn (or wait for API publish). Never invent product
-          facts the brief doesn&apos;t support.
+          Each draft lands on its day as a calendar post. Edit, send for review, approve and mark posted from the
+          calendar. Prism only uses facts from {strategy.brandName}&apos;s brand setup.
         </AlertDescription>
       </Alert>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <div className="space-y-6">
-        <VoiceProfilePanel agencyId={agencyId} />
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              This week&apos;s plan
+              Plan a week
             </CardTitle>
             <CardDescription>
-              Generate a strategist plan from your voice + brief, or use inspiration presets — then
-              draft.
+              Prism proposes the week across your channels from your brand setup and voice. Edit
+              anything, then write the drafts.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -801,7 +792,7 @@ export default function LinkedInOsPage() {
                   <p className="text-sm font-medium">Context for this run</p>
                   <p className="text-xs text-muted-foreground">
                     Optional. If this week is different—new audience, launch, or angle—say it here
-                    before you pick inspiration or generate. We fold this into every post in the run,
+                    before you generate. We fold this into every post in the run,
                     together with your usual brand guardrails.
                   </p>
                 </div>
@@ -843,45 +834,20 @@ export default function LinkedInOsPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-dashed p-4 space-y-3 bg-muted/10">
-              <div className="flex items-start gap-2">
-                <Lightbulb className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Inspiration</p>
-                  <p className="text-xs text-muted-foreground">
-                    Pick a Verza feature to pre-fill hooks and product truths for all three posts.
-                  </p>
-                </div>
-              </div>
-              <Select value={inspirationId || undefined} onValueChange={setInspirationId}>
+            <div className="space-y-2 max-w-xs">
+              <Label>Week</Label>
+              <Select value={weekStart} onValueChange={changeWeek}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a feature angle…" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LINKEDIN_OS_INSPIRATION_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.label}
+                  {weekOptions.map((w) => (
+                    <SelectItem key={w.value} value={w.value}>
+                      {w.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedInspiration && (
-                <p className="text-xs text-muted-foreground">{selectedInspiration.description}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!selectedInspiration}
-                  onClick={handleApplyInspiration}
-                >
-                  Apply to queue
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={handleResetQueue}>
-                  Reset queue
-                </Button>
-              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -903,6 +869,9 @@ export default function LinkedInOsPage() {
                   </>
                 )}
               </Button>
+              <Button type="button" variant="ghost" onClick={handleResetQueue}>
+                Reset
+              </Button>
             </div>
             {planRationale && (
               <p className="text-sm text-muted-foreground rounded-md border bg-muted/10 px-3 py-2">
@@ -910,55 +879,71 @@ export default function LinkedInOsPage() {
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="week-label">Week label</Label>
-                <Input
-                  id="week-label"
-                  value={weekLabel}
-                  onChange={(e) => setWeekLabel(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Reviewer</Label>
-                <Input value={user.displayName || user.email || ""} disabled />
-              </div>
-            </div>
-
             {items.map((item, index) => (
               <div key={item.id} className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{item.id}</p>
-                  <Select
-                    value={item.format}
-                    onValueChange={(v) =>
-                      updateItem(index, {
-                        format: v === "carousel_outline" ? "carousel_outline" : "short_post",
-                      })
-                    }
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ChannelChip channel={item.channel} />
+                    <p className="text-sm font-medium truncate">{item.id}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
                   >
-                    <SelectTrigger className="w-[160px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="short_post">Short post</SelectItem>
-                      <SelectItem value="carousel_outline">Carousel (+ PNG slides)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    Remove
+                  </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Pillar</Label>
+                    <Label>Channel</Label>
                     <Select
-                      value={item.pillar}
-                      onValueChange={(v) => updateItem(index, { pillar: v })}
+                      value={item.channel}
+                      onValueChange={(v) => {
+                        const channel = v as PrismChannel;
+                        updateItem(index, { channel, format: PRISM_FORMATS[channel][0].value });
+                      }}
                     >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRISM_CHANNELS.map((ch) => (
+                          <SelectItem key={ch} value={ch}>
+                            {PRISM_CHANNEL_META[ch].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Format</Label>
+                    <Select
+                      value={item.format}
+                      onValueChange={(v) => updateItem(index, { format: v as LinkedInOsJobItem["format"] })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRISM_FORMATS[item.channel].map((f) => (
+                          <SelectItem key={f.value} value={f.value}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pillar</Label>
+                    <Select value={item.pillar} onValueChange={(v) => updateItem(index, { pillar: v })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Pillar" />
                       </SelectTrigger>
                       <SelectContent>
-                        {LINKEDIN_OS_PILLARS.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
+                        {strategy.pillars.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
                             {p.label}
                           </SelectItem>
                         ))}
@@ -980,13 +965,40 @@ export default function LinkedInOsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Day</Label>
+                    <Select
+                      value={item.date && weekDays.includes(item.date) ? item.date : NO_DATE}
+                      onValueChange={(v) => updateItem(index, { date: v === NO_DATE ? undefined : v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weekDays.map((d) => (
+                          <SelectItem key={d} value={d} disabled={d < todayIso}>
+                            {fromIsoDay(d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={NO_DATE}>No date (Unscheduled)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Hook (line 1)</Label>
+                  <Label>Idea (optional)</Label>
+                  <Input
+                    value={item.idea ?? ""}
+                    onChange={(e) => updateItem(index, { idea: e.target.value.slice(0, 160) })}
+                    placeholder="Same idea + same day on other channels = one calendar post"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hook</Label>
                   <Input
                     value={item.hook}
                     onChange={(e) => updateItem(index, { hook: e.target.value })}
-                    placeholder="What shows before “see more”"
+                    placeholder="First line, or first seconds of the video"
                   />
                 </div>
                 <div className="space-y-2">
@@ -995,7 +1007,7 @@ export default function LinkedInOsPage() {
                     value={item.productTruth}
                     onChange={(e) => updateItem(index, { productTruth: e.target.value })}
                     rows={2}
-                    placeholder="From brand brief—do not let the model invent facts"
+                    placeholder="From your brand brief. Prism won't go beyond it."
                   />
                 </div>
                 <div className="space-y-2">
@@ -1007,6 +1019,34 @@ export default function LinkedInOsPage() {
                 </div>
               </div>
             ))}
+
+            {items.length < 12 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const channel =
+                    PRISM_CHANNELS.find((ch) => strategy.channels[ch].enabled) ?? "linkedin";
+                  setItems((prev) => [
+                    ...prev,
+                    {
+                      id: `${channel}-${Date.now().toString(36)}`,
+                      channel,
+                      pillar: strategy.pillars[0]?.id ?? "",
+                      format: PRISM_FORMATS[channel][0].value,
+                      hook: "",
+                      productTruth: "",
+                      cta: "comment",
+                      notes: "",
+                      ...(openDays(weekStart)[0] ? { date: openDays(weekStart)[0] } : {}),
+                    },
+                  ]);
+                }}
+              >
+                Add post
+              </Button>
+            )}
 
             <Button
               className="w-full"
@@ -1022,7 +1062,7 @@ export default function LinkedInOsPage() {
               ) : (
                 <>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Generate first passes
+                  Write drafts to the calendar
                 </>
               )}
             </Button>
@@ -1092,7 +1132,7 @@ export default function LinkedInOsPage() {
                 <CardTitle>Drafts</CardTitle>
                 <CardDescription>
                   {selectedJob.status === "completed"
-                    ? "Approve, schedule a time, copy to LinkedIn, then mark posted."
+                    ? "Each draft is a calendar post. Open it to edit, review and mark posted."
                     : selectedJob.status === "failed"
                       ? selectedJob.error || "Job failed."
                       : "Waiting for the worker…"}
@@ -1124,124 +1164,18 @@ export default function LinkedInOsPage() {
                   </div>
                 )}
                 {selectedJob.status === "completed" &&
-                  (selectedJob.outputs ?? []).map((out) => {
-                    const pub = out.publishStatus ?? "draft";
-                    const busy = updatingPublishId === out.id;
-                    return (
-                    <div key={out.id} className="rounded-lg border p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium">{out.id}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {out.pillar} · {out.format}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={publishBadgeVariant(pub)}>{pub}</Badge>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copyMarkdown(out.id, out.markdown)}
-                          >
-                            {copiedId === out.id ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground max-h-64 overflow-y-auto">
-                        {out.markdown}
-                      </pre>
-                      {out.carouselAssets && out.carouselAssets.slides.length > 0 && (
-                        <CarouselAssetsPanel assets={out.carouselAssets} outputId={out.id} />
-                      )}
-                      {out.scheduledAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Scheduled for {new Date(out.scheduledAt).toLocaleString()}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        {pub === "draft" && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() => void handlePublishStatus(out.id, "approved")}
-                          >
-                            Approve
-                          </Button>
-                        )}
-                        {(pub === "draft" || pub === "approved") && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => {
-                              setScheduleDraftId(out.id);
-                              setScheduleAt("");
-                            }}
-                          >
-                            Schedule…
-                          </Button>
-                        )}
-                        {(pub === "approved" || pub === "scheduled") && (
-                          <Button
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => void handlePublishStatus(out.id, "posted")}
-                          >
-                            Mark posted
-                          </Button>
-                        )}
-                        {pub !== "draft" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={busy}
-                            onClick={() => void handlePublishStatus(out.id, "draft")}
-                          >
-                            Reset to draft
-                          </Button>
-                        )}
-                      </div>
-                      {scheduleDraftId === out.id && (
-                        <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/10 p-3">
-                          <div className="space-y-1 grow min-w-[12rem]">
-                            <Label htmlFor={`sched-${out.id}`}>Post time</Label>
-                            <Input
-                              id={`sched-${out.id}`}
-                              type="datetime-local"
-                              value={scheduleAt}
-                              onChange={(e) => setScheduleAt(e.target.value)}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            disabled={busy || !scheduleAt}
-                            onClick={() => {
-                              const iso = new Date(scheduleAt).toISOString();
-                              void handlePublishStatus(out.id, "scheduled", iso);
-                            }}
-                          >
-                            Confirm schedule
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setScheduleDraftId(null);
-                              setScheduleAt("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    );
-                  })}
+                  (selectedJob.outputs ?? []).map((out) => (
+                    <StudioDraftCard
+                      key={out.id}
+                      out={out}
+                      post={postForOutput(out)}
+                      postsLoaded={jobPostsLoaded}
+                      pillarLabel={pillarLabel}
+                      adding={addingId === out.id}
+                      onAdd={() => void addToCalendar(out)}
+                      onOpen={openPost}
+                    />
+                  ))}
                 {selectedJob.status === "running" && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1260,6 +1194,8 @@ export default function LinkedInOsPage() {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

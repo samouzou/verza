@@ -3,9 +3,16 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import {assertAgencyTeamForLinkedInOs} from "./access";
-import type {LinkedInOsJobItem} from "./types";
+import {
+  isPrismChannel,
+  PRISM_CHANNEL_FORMATS,
+  PRISM_MAX_POSTS_PER_WEEK,
+  requirePrismBrandStrategy,
+} from "./brandStrategy";
+import {ISO_DATE, PRISM_DEFAULT_TIMES, zonedToUtcIso} from "./channelFormats";
+import type {LinkedInOsJobItem, PrismFormat} from "./types";
 
-const MAX_ITEMS = 8;
+const MAX_ITEMS = PRISM_MAX_POSTS_PER_WEEK;
 const MAX_WEEKLY_BRIEF = 6000;
 const MAX_RUN_CONSTRAINT = 500;
 
@@ -23,11 +30,12 @@ function parseOptionalRunText(raw: unknown, max: number): string {
 }
 
 /**
- * Validates one queue item from the client.
+ * Validates one queue item from the client. A date becomes scheduledAt at the channel's default time.
  * @param {unknown} raw Unknown payload entry.
+ * @param {string} timeZone Brand timezone.
  * @return {LinkedInOsJobItem} Normalized item.
  */
-function parseJobItem(raw: unknown): LinkedInOsJobItem {
+function parseJobItem(raw: unknown, timeZone: string): LinkedInOsJobItem {
   if (!raw || typeof raw !== "object") {
     throw new HttpsError("invalid-argument", "Each item must be an object.");
   }
@@ -37,8 +45,12 @@ function parseJobItem(raw: unknown): LinkedInOsJobItem {
   const hook = typeof o.hook === "string" ? o.hook.trim() : "";
   const productTruth = typeof o.productTruth === "string" ? o.productTruth.trim() : "";
   const cta = typeof o.cta === "string" ? o.cta.trim() : "";
-  const format = o.format === "carousel_outline" ? "carousel_outline" : "short_post";
+  const channel = isPrismChannel(o.channel) ? o.channel : "linkedin";
+  const formats = PRISM_CHANNEL_FORMATS[channel];
+  const format = formats.includes(o.format as PrismFormat) ? (o.format as PrismFormat) : formats[0];
   const notes = typeof o.notes === "string" ? o.notes.trim() : "";
+  const date = typeof o.date === "string" && ISO_DATE.test(o.date) ? o.date : "";
+  const idea = typeof o.idea === "string" ? o.idea.trim().slice(0, 160) : "";
   if (!id) {
     throw new HttpsError("invalid-argument", "Each item needs a non-empty id.");
   }
@@ -47,29 +59,35 @@ function parseJobItem(raw: unknown): LinkedInOsJobItem {
   }
   return {
     id,
+    channel,
     pillar,
     format,
     hook,
     productTruth,
     cta,
     ...(notes ? {notes} : {}),
+    ...(idea ? {idea} : {}),
+    ...(date ? {date, scheduledAt: zonedToUtcIso(date, PRISM_DEFAULT_TIMES[channel], timeZone)} : {}),
   };
 }
 
 /**
- * Enqueues a LinkedIn OS draft job. Callable by signed-in agency team members (same as Optic).
- * A Firestore trigger dispatches the job to the LinkedIn OS worker when configured.
+ * Enqueues a Prism draft job. Callable by signed-in agency team members (same as Optic).
+ * A Firestore trigger dispatches the job to the worker when configured.
  * @return {!Promise<{jobId: string, status: string}>} New job id and status.
  */
 export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Sign in to enqueue a LinkedIn OS job.");
+    throw new HttpsError("unauthenticated", "Sign in to generate drafts.");
   }
   const uid = request.auth.uid;
   const agencyId = await assertAgencyTeamForLinkedInOs(uid);
+  const strategy = await requirePrismBrandStrategy(agencyId);
+  const timeZone = strategy.timezone || "America/New_York";
 
-  const {weekLabel, reviewer, items, weeklyBrief, mustMention, neverMention} = request.data as {
+  const {weekLabel, weekStart, reviewer, items, weeklyBrief, mustMention, neverMention} = request.data as {
     weekLabel?: unknown;
+    weekStart?: unknown;
     reviewer?: unknown;
     items?: unknown;
     weeklyBrief?: unknown;
@@ -89,7 +107,7 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
     throw new HttpsError("invalid-argument", `At most ${MAX_ITEMS} items per job.`);
   }
 
-  const parsed: LinkedInOsJobItem[] = items.map((x) => parseJobItem(x));
+  const parsed: LinkedInOsJobItem[] = items.map((x) => parseJobItem(x, timeZone));
 
   const runBrief = parseOptionalRunText(weeklyBrief, MAX_WEEKLY_BRIEF);
   const runMust = parseOptionalRunText(mustMention, MAX_RUN_CONSTRAINT);
@@ -104,6 +122,7 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
     createdBy: uid,
     agencyId,
     weekLabel: week,
+    ...(typeof weekStart === "string" && ISO_DATE.test(weekStart) ? {weekStart} : {}),
     reviewer: reviewerName,
     items: parsed,
     outputs: [],
@@ -112,7 +131,7 @@ export const enqueueLinkedInOsDraftJob = onCall(async (request) => {
     ...(runNever ? {neverMention: runNever} : {}),
   });
 
-  logger.info("[LinkedIn OS] Job queued", {jobId, itemCount: parsed.length, createdBy: uid, agencyId});
+  logger.info("[Prism] Job queued", {jobId, itemCount: parsed.length, createdBy: uid, agencyId});
 
   return {jobId, status: "queued"};
 });

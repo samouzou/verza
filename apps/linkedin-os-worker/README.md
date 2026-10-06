@@ -6,8 +6,11 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 
 1. Authorized caller invokes Firebase callable **`enqueueLinkedInOsDraftJob`** → creates `linkedin_os_jobs/{id}` with `status: "queued"` (optional `weeklyBrief`, `mustMention`, `neverMention` on the doc).
 2. **`dispatchLinkedInOsJobToWorker`** (Firestore onCreate) POSTs to this service `/internal/run-job` with `x-verza-linkedin-os-secret`.
-3. Worker loads prompt context from **`linkedin_os_prompts/default`** and writes **`outputs`** on the job doc.
+3. Worker loads the brand's Prism setup from **`prism_brands/{agencyId}`** and writes **`outputs`** on the job doc.
 4. For **carousel** items, the worker also renders **1080×1080 branded PNG slides**, a **multi-page PDF** (LinkedIn document upload), and a PNG ZIP — uploaded to Storage under `linkedin_os_carousels/{agencyId}/…`.
+5. It then creates calendar posts in **`prism_posts`** (items sharing an idea and day become one multi-channel post).
+6. **`/internal/render-slides`** `{postId, channel}` (same secret header) re-renders slides from a calendar post's current
+   outline and stores them on that channel's variant. Called by the **`renderPrismSlides`** callable.
 
 ## Environment
 
@@ -123,4 +126,4 @@ firebase deploy --only firestore:rules,firestore:indexes,storage --project "$PRO
 
 The Cloud Run service account needs **Storage Object Admin** (or equivalent) on the Firebase bucket so carousel PNGs can be uploaded.
 
-Carousel assets are stored at `linkedin_os_carousels/{agencyId}/{jobId}/{outputId}/` and download from **`/linkedin-os`** when a carousel job completes.
+Carousel assets are stored at `linkedin_os_carousels/{agencyId}/{jobId}/{outputId}/` and download from **`/prism`** when a carousel job completes.

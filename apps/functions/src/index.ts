@@ -163,7 +163,15 @@ import {generateLinkedInOsBeehiivNewsletter} from "./linkedinOs/beehiivNewslette
 import {generateLinkedInOsVideoScript} from "./linkedinOs/videoScript";
 import {analyzeLinkedInOsVoiceProfile} from "./linkedinOs/voiceProfile";
 import {generateLinkedInOsWeeklyPlan} from "./linkedinOs/weeklyPlan";
-import {updateLinkedInOsDraftPublishStatus} from "./linkedinOs/draftQueue";
+import {draftPrismBrandStrategy, savePrismBrandStrategy} from "./linkedinOs/brandStrategy";
+import {
+  addStudioDraftToCalendar,
+  deletePrismPost,
+  renderPrismSlides,
+  savePrismPost,
+  transitionPrismPost,
+} from "./linkedinOs/posts";
+import {adaptPrismPost, generatePrismMonthPlan} from "./linkedinOs/planning";
 import {
   beginGmailConnect,
   completeGmailConnect,
@@ -308,7 +316,15 @@ export {
   generateLinkedInOsBeehiivNewsletter,
   analyzeLinkedInOsVoiceProfile,
   generateLinkedInOsWeeklyPlan,
-  updateLinkedInOsDraftPublishStatus,
+  draftPrismBrandStrategy,
+  savePrismBrandStrategy,
+  savePrismPost,
+  addStudioDraftToCalendar,
+  renderPrismSlides,
+  deletePrismPost,
+  transitionPrismPost,
+  adaptPrismPost,
+  generatePrismMonthPlan,
   beginGmailConnect,
   completeGmailConnect,
   disconnectGmail,

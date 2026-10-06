@@ -5,7 +5,7 @@ import * as logger from "firebase-functions/logger";
 import {googleAI} from "@genkit-ai/google-genai";
 import {ai} from "../ai/genkit";
 import * as params from "../config/params";
-import {db} from "../config/firebase";
+import {formatBrandStrategyForPrompt, requirePrismBrandStrategy} from "./brandStrategy";
 import {
   findProductReceiptsCarouselOutput,
   loadCompletedLinkedInOsJob,
@@ -30,14 +30,15 @@ function truncate(s: string, max: number): string {
 
 /**
  * Builds the system prompt for Beehiiv newsletter generation.
- * @param {string} brief Brand brief markdown.
+ * @param {string} brandName Brand name.
+ * @param {string} brief Brand setup markdown.
  * @param {string} banned Banned claims markdown.
  * @return {string} System prompt.
  */
-function buildSystemPrompt(brief: string, banned: string): string {
-  return `You are a newsletter writer for Verza (tryverza) publishing on Beehiiv.
+function buildSystemPrompt(brandName: string, brief: string, banned: string): string {
+  return `You are a newsletter writer for ${brandName} publishing on Beehiiv.
 
-VOICE: operator-insider, concrete, respectful, no hype. Write like a sharp founder newsletter—not a press release.
+VOICE: concrete, respectful, no hype. Write like a sharp founder newsletter—not a press release.
 
 RULES:
 - Use ONLY facts from the CAROUSEL SOURCE and brand context. Do not invent features, metrics, fees, or outcomes.
@@ -47,7 +48,7 @@ RULES:
 
 BRAND CONTEXT:
 ---
-${brief || "(not configured — keep Verza-specific claims minimal)"}
+${brief}
 ---
 
 BANNED / SENSITIVE:
@@ -91,10 +92,11 @@ ${slideBlocks.join("\n\n")}
  * Beehiiv-specific user prompt.
  * @param {string} source Carousel source block.
  * @param {string} weekLabel Week label for context.
+ * @param {string} websiteUrl Brand website for the soft CTA.
  * @return {string} User prompt.
  */
-function buildUserPrompt(source: string, weekLabel: string): string {
-  return `Turn the LinkedIn product-receipts carousel below into a Beehiiv newsletter draft for week ${weekLabel}.
+function buildUserPrompt(source: string, weekLabel: string, websiteUrl: string): string {
+  return `Turn the carousel below into a Beehiiv newsletter draft for week ${weekLabel}.
 
 ${source}
 
@@ -120,7 +122,7 @@ include on the next line:
 ![Slide N caption](THE_EXACT_URL_FROM_SOURCE)
 
 Use the slide title as the ### heading. Last slide / CTA slide should end with a soft CTA
-(follow, reply, or tryverza.com)—no hard sell unless the slide implies it.
+(follow, reply${websiteUrl ? `, or ${websiteUrl}` : ""})—no hard sell unless the slide implies it.
 
 Keep total length readable in one sitting (~400–800 words unless the carousel is very short).`;
 }
@@ -187,25 +189,24 @@ export const generateLinkedInOsBeehiivNewsletter = onCall(
       try {
         slideImageUrls = await signCarouselSlideUrls(slides);
       } catch (e) {
-        logger.warn("[LinkedIn OS] Could not sign carousel slide URLs", {
+        logger.warn("[Prism] Could not sign carousel slide URLs", {
           jobId,
           error: e instanceof Error ? e.message : String(e),
         });
       }
     }
 
-    const promptsSnap = await db.collection("linkedin_os_prompts").doc("default").get();
-    const prompts = promptsSnap.exists ? promptsSnap.data()! : {};
-    const brief = truncate(String(prompts.brandBrief ?? ""), 12000);
-    const banned = truncate(String(prompts.bannedClaims ?? ""), 8000);
+    const strategy = await requirePrismBrandStrategy(String(job.agencyId ?? ""));
+    const brief = truncate(formatBrandStrategyForPrompt(strategy), 12000);
+    const banned = truncate(strategy.bannedClaims, 8000);
     const weekLabel = String(job.weekLabel ?? "this week");
     const source = truncate(
       formatCarouselSource(carouselOutput.markdown, slideImageUrls),
       24000
     );
 
-    const system = buildSystemPrompt(brief, banned);
-    const user = buildUserPrompt(source, weekLabel);
+    const system = buildSystemPrompt(strategy.brandName, brief, banned);
+    const user = buildUserPrompt(source, weekLabel, strategy.websiteUrl);
 
     const {text} = await ai.generate({
       model: googleAI.model(MODEL),
@@ -231,7 +232,7 @@ export const generateLinkedInOsBeehiivNewsletter = onCall(
       beehiivNewsletterUpdatedAt: FieldValue.serverTimestamp(),
     });
 
-    logger.info("[LinkedIn OS] Beehiiv newsletter generated", {
+    logger.info("[Prism] Beehiiv newsletter generated", {
       jobId,
       sourceOutputId: carouselOutput.id,
       uid: request.auth.uid,

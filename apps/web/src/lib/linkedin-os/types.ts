@@ -1,15 +1,23 @@
 import type { Timestamp } from "firebase/firestore";
 
+import type { PrismChannel, PrismFormat } from "@/lib/prism/types";
+
 export type LinkedInOsJobStatus = "queued" | "running" | "completed" | "failed";
 
 export type LinkedInOsJobItem = {
   id: string;
+  channel: PrismChannel;
   pillar: string;
-  format: "short_post" | "carousel_outline";
+  format: PrismFormat;
   hook: string;
   productTruth: string;
   cta: string;
   notes?: string;
+  /** Shared idea title. Items with the same idea and day become one calendar post. */
+  idea?: string;
+  /** Local post date (YYYY-MM-DD) in the brand timezone. */
+  date?: string;
+  scheduledAt?: string;
 };
 
 export type LinkedInOsCarouselSlideAsset = {
@@ -49,18 +57,19 @@ export type LinkedInOsBeehiivNewsletter = {
 
 export const PRODUCT_RECEIPTS_OUTPUT_ID = "thu-product-receipts";
 
-export type LinkedInOsPublishStatus = "draft" | "approved" | "scheduled" | "posted";
-
 export type LinkedInOsJobOutput = {
   id: string;
+  /** Missing on jobs from before Prism (LinkedIn). */
+  channel?: PrismChannel;
   format: string;
   pillar: string;
   markdown: string;
   generatedAt: string;
   model: string;
   carouselAssets?: LinkedInOsCarouselAssets;
-  publishStatus?: LinkedInOsPublishStatus;
   scheduledAt?: string;
+  /** Calendar post created from this draft. */
+  postId?: string;
 };
 
 export type LinkedInOsVoiceProfile = {
@@ -87,8 +96,10 @@ export type LinkedInOsJobRow = {
   createdBy?: string;
   agencyId?: string;
   weekLabel?: string;
+  /** Monday (YYYY-MM-DD) of the planned week. */
+  weekStart?: string;
   reviewer?: string;
-  /** Optional markdown: audience, campaign, or non-Verza context for this run only. */
+  /** Optional markdown: audience, campaign, or launch context for this run only. */
   weeklyBrief?: string;
   /** Optional one-line constraint the model should reflect. */
   mustMention?: string;
@@ -101,49 +112,12 @@ export type LinkedInOsJobRow = {
   error?: string;
 };
 
-export const LINKEDIN_OS_PILLARS = [
-  { value: "build_in_public", label: "Build in public" },
-  { value: "playbooks", label: "Playbooks" },
-  { value: "creator_respect", label: "Creator respect" },
-  { value: "product_receipts", label: "Product receipts" },
-] as const;
-
 export const LINKEDIN_OS_CTAS = [
   { value: "follow", label: "Follow / save" },
   { value: "comment", label: "Comment prompt" },
   { value: "soft_product", label: "Soft product CTA" },
   { value: "hard_product", label: "Direct product CTA" },
 ] as const;
-
-export const DEFAULT_QUEUE_ITEMS: LinkedInOsJobItem[] = [
-  {
-    id: "tue-playbooks",
-    pillar: "playbooks",
-    format: "short_post",
-    hook: "",
-    productTruth: "",
-    cta: "comment",
-    notes: "",
-  },
-  {
-    id: "wed-build-in-public",
-    pillar: "build_in_public",
-    format: "short_post",
-    hook: "",
-    productTruth: "",
-    cta: "follow",
-    notes: "",
-  },
-  {
-    id: "thu-product-receipts",
-    pillar: "product_receipts",
-    format: "carousel_outline",
-    hook: "",
-    productTruth: "",
-    cta: "soft_product",
-    notes: "",
-  },
-];
 
 export function isLinkedInOsJobInFlight(status: string | undefined): boolean {
   return status === "queued" || status === "running";

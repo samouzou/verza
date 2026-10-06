@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
       { source: '/deployments/post', destination: '/campaigns/post', permanent: false },
       { source: '/deployments/:id', destination: '/campaigns/:id', permanent: false },
       { source: '/deployments/:id/edit', destination: '/campaigns/:id/edit', permanent: false },
+      { source: '/linkedin-os', destination: '/prism', permanent: true },
+      { source: '/linkedin-os/:path*', destination: '/prism/:path*', permanent: true },
     ];
   },
   /* config options here */

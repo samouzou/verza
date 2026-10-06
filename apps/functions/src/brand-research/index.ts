@@ -24,7 +24,7 @@ const MAX_SITE_TEXT = 40_000;
  * @param {string} raw User-entered URL or domain.
  * @return {string} Absolute http(s) URL.
  */
-function normalizeBrandUrl(raw: string): string {
+export function normalizeBrandUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return trimmed;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
@@ -123,7 +123,7 @@ function extractLogoCandidates($: CheerioRoot, pageUrl: string): string[] {
  * @param {string} brandUrl Absolute brand URL.
  * @return {Promise<{websiteText: string, colorHints: string[], logoCandidates: string[]}>}
  */
-async function scrapeBrandPage(brandUrl: string): Promise<{
+export async function scrapeBrandPage(brandUrl: string): Promise<{
   websiteText: string;
   colorHints: string[];
   logoCandidates: string[];

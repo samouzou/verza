@@ -3,6 +3,7 @@ import {PDFDocument} from "pdf-lib";
 import sharp from "sharp";
 import {PassThrough} from "stream";
 
+import type {CarouselTheme} from "../brandColors";
 import {parseCarouselMarkdown} from "./parseCarouselMarkdown";
 import {renderSlideSvg} from "./renderSlideSvg";
 
@@ -15,9 +16,10 @@ export type RenderedSlide = {
 /**
  * Renders carousel markdown into PNG slide buffers.
  * @param {string} markdown Carousel outline markdown.
+ * @param {CarouselTheme} theme Brand theme.
  * @return {!Promise<!Array<RenderedSlide>>} PNG buffers per slide.
  */
-export async function renderCarouselPngs(markdown: string): Promise<RenderedSlide[]> {
+export async function renderCarouselPngs(markdown: string, theme: CarouselTheme): Promise<RenderedSlide[]> {
   const slides = parseCarouselMarkdown(markdown);
   if (slides.length === 0) {
     throw new Error("Could not parse carousel slides from markdown.");
@@ -29,7 +31,7 @@ export async function renderCarouselPngs(markdown: string): Promise<RenderedSlid
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i]!;
     const slideNum = i + 1;
-    const svg = renderSlideSvg(slide, slideNum, total);
+    const svg = renderSlideSvg(slide, slideNum, total, theme);
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
     rendered.push({
       index: slide.index,

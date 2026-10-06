@@ -21,14 +21,14 @@ export async function assertAgencyTeamForLinkedInOs(uid: string): Promise<string
   if (!TEAM_ROLES.has(role)) {
     throw new HttpsError(
       "permission-denied",
-      "LinkedIn OS requires an agency owner, admin, or member account."
+      "Prism requires an agency owner, admin, or member account."
     );
   }
   const agencyId = user.primaryAgencyId as string | undefined;
   if (!agencyId) {
     throw new HttpsError(
       "failed-precondition",
-      "Set a primary agency before using LinkedIn OS."
+      "Set a primary agency before using Prism."
     );
   }
   return agencyId;

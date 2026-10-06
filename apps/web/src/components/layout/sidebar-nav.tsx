@@ -30,7 +30,7 @@ import {
   ChevronRight,
   Zap,
   ScanSearch,
-  Linkedin,
+  Rainbow,
   ExternalLink,
   ShoppingBag,
   Youtube,
@@ -123,11 +123,11 @@ const creatorWorkflowNavItems: WorkflowNavItem[] = [
   { id: "nav-item-youtube-writer", href: "/youtube-writer", label: "YouTube Writer", icon: Youtube },
 ];
 
-const brandLinkedInOsNavItem: WorkflowNavItem = {
-  id: "nav-item-linkedin-os",
-  href: "/linkedin-os",
-  label: "LinkedIn Strategist",
-  icon: Linkedin,
+const brandPrismNavItem: WorkflowNavItem = {
+  id: "nav-item-prism",
+  href: "/prism",
+  label: "Prism",
+  icon: Rainbow,
 };
 
 const brandOpticNavItem: WorkflowNavItem = {
@@ -172,7 +172,7 @@ function workflowNavItemsForUser(
   const isCreator = user.role === "individual_creator" || user.role === "talent";
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
-  if (showBrandWorkflows) return [brandOpticNavItem, brandLinkedInOsNavItem];
+  if (showBrandWorkflows) return [brandOpticNavItem, brandPrismNavItem];
   if (isCreator) return creatorWorkflowNavItems;
   return [];
 }
@@ -181,7 +181,7 @@ type NavSubItem = { id: string; href: string; label: string };
 
 function subNavItemIsActive(pathname: string, parentHref: string, subHref: string): boolean {
   if (subHref === "/optic") return pathname === "/optic";
-  if (subHref === "/linkedin-os") return pathname === "/linkedin-os";
+  if (subHref === "/prism") return pathname.startsWith("/prism");
   if (subHref === parentHref) return pathname === subHref;
   return pathname.startsWith(subHref);
 }

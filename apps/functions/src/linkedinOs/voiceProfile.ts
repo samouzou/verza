@@ -59,14 +59,14 @@ function asStringArray(raw: unknown, max: number): string[] {
 }
 
 /**
- * Analyzes pasted LinkedIn posts and saves a voice profile for the agency.
+ * Analyzes pasted social posts and saves a voice profile for the agency.
  * @return {!Promise<object>} Saved voice profile summary.
  */
 export const analyzeLinkedInOsVoiceProfile = onCall(
   {timeoutSeconds: 120},
   async (request) => {
     if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Sign in to analyze LinkedIn voice.");
+      throw new HttpsError("unauthenticated", "Sign in to analyze your brand voice.");
     }
     const uid = request.auth.uid;
     const agencyId = await assertAgencyTeamForLinkedInOs(uid);
@@ -76,14 +76,14 @@ export const analyzeLinkedInOsVoiceProfile = onCall(
     if (postsRaw.length < MIN_POSTS_CHARS) {
       throw new HttpsError(
         "invalid-argument",
-        `Paste at least ~${MIN_POSTS_CHARS} characters of recent LinkedIn posts.`
+        `Paste at least ~${MIN_POSTS_CHARS} characters of recent posts.`
       );
     }
     const posts = truncate(postsRaw, MAX_POSTS_CHARS);
 
     const {text} = await ai.generate({
       model: googleAI.model(MODEL),
-      prompt: `You are a LinkedIn content strategist. Analyze the author's posts and extract a reusable VOICE PROFILE for future drafting.
+      prompt: `You are a social media strategist. Analyze the posts and extract a reusable VOICE PROFILE for future drafting.
 
 Return ONLY valid JSON (no markdown fences) with this shape:
 {
@@ -145,7 +145,7 @@ ${posts}
       {merge: true}
     );
 
-    logger.info("[LinkedIn OS] Voice profile saved", {
+    logger.info("[Prism] Voice profile saved", {
       agencyId,
       samplePostCount: profile.samplePostCount,
       updatedBy: uid,

@@ -11,8 +11,9 @@ You (Serge, signed in)
 
 onCreate linkedin_os_jobs
     → POST linkedin-os-worker /internal/run-job { jobId }
-        → Reads linkedin_os_prompts/default (brand brief, strategy, banned copy)
+        → Reads prism_brands/{agencyId} (brand brief, pillars, channels, banned copy)
         → Gemini → writes job.outputs[] + status completed | failed
+        → creates one prism_posts draft per output (calendar post, with carousel slides attached)
 ```
 
 ## One-time Firebase setup
@@ -26,21 +27,21 @@ Set Firebase **string params** (same names as local `.env` for emulators if you 
 | `LINKEDIN_OS_WORKER_URL` | Base URL of the Cloud Run (or local) worker, no trailing slash. |
 | `LINKEDIN_OS_WORKER_SHARED_SECRET` | Shared secret; worker checks header `x-verza-linkedin-os-secret`. |
 
-**Access:** Any signed-in **agency owner, admin, or member** with a primary agency can use **`/linkedin-os`** in the web app or call `enqueueLinkedInOsDraftJob`. No UID allowlist required.
+**Access:** Any signed-in **agency owner, admin, or member** with a primary agency can use **`/prism`** (formerly `/linkedin-os`) in the web app or call `enqueueLinkedInOsDraftJob`. No UID allowlist required.
 
 Worker env (Cloud Run): `LINKEDIN_OS_WORKER_SHARED_SECRET`, `GEMINI_API_KEY`, optional `GEMINI_MODEL` (default `gemini-3.6-flash`). **`OPENAI_*` vars are no longer used.**
 
-### 2) Seed prompt pack (Firestore)
+### 2) Brand setup (per brand)
 
-Create collection **`linkedin_os_prompts`**, document id **`default`**, with string fields:
+Each brand sets up Prism at **`/prism/setup`** (brief, audience, pillars, channels, banned claims). It's stored in
+**`prism_brands/{agencyId}`**; planning and drafting refuse to run without it.
 
-| Field | Content |
-| ----- | ------- |
-| `brandBrief` | Paste from `docs/BRAND_SIDE_TECHNICAL_BRIEF.md` (update when brief changes). |
-| `socialStrategy` | Paste from `docs/VERZA_SOCIAL_CREATOR_STRATEGY.md` (or excerpt). |
-| `bannedClaims` | Paste from `marketing/verza-linkedin/BANNED_CLAIMS.md`. |
+The old global **`linkedin_os_prompts/default`** pack is no longer read. To carry Verza's existing pack over to
+Verza's own agency once:
 
-Optional: `updatedAt` timestamp for your own tracking.
+```bash
+cd apps/functions && node ../../scripts/migrate-prism-brand.mjs --agency <verzaAgencyId> --project verza-canvas
+```
 
 ### 3) Deploy worker
 
@@ -55,8 +56,9 @@ Deploy Cloud Functions so `enqueueLinkedInOsDraftJob` and `dispatchLinkedInOsJob
 `enqueueLinkedInOsDraftJob`:
 
 - `weekLabel` (string, optional)
+- `weekStart` (YYYY-MM-DD Monday, optional)
 - `reviewer` (string, optional, default `"Serge"`)
-- `items` (array, required): same shape as `marketing/verza-linkedin/queue.example.json` (`id`, `pillar`, `format`, `hook`, `productTruth`, `cta`, optional `notes`)
+- `items` (array, required): same shape as `marketing/verza-linkedin/queue.example.json` (`id`, `channel`, `pillar`, `format`, `hook`, `productTruth`, `cta`, optional `notes`, optional `date` YYYY-MM-DD — the post lands on that day at the channel's default time in the brand timezone)
 - Optional **per-job context** (stored on the job doc and merged by the worker into Gemini system context):
   - `weeklyBrief` (string, markdown ok, max 6000 chars) — audience, campaign, or narrative not in the global prompt pack.
   - `mustMention` (string, max 500) — phrase the drafts should reflect.
@@ -64,7 +66,9 @@ Deploy Cloud Functions so `enqueueLinkedInOsDraftJob` and `dispatchLinkedInOsJob
 
 ## Reading results
 
-Open **Firebase Console → Firestore → `linkedin_os_jobs`**, or use the in-app **`/linkedin-os`** page (agency team login). Each completed job has an **`outputs`** array with `markdown` per slot—copy, edit, publish.
+Each draft becomes a post on the **`/prism`** calendar (`prism_posts`, `source: "studio"`, `studio.jobId`), where it's edited,
+reviewed, approved and marked posted. **`/prism/studio`** lists a job's drafts with their live calendar status. The raw
+copy also stays on the job's **`outputs`** array (`postId` links each output to its post).
 
 ## Local script (no cloud)
 

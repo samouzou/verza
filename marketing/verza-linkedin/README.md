@@ -43,7 +43,7 @@ Details: **[scripts/README.md](./scripts/README.md)**.
 
 ### Option B — LinkedIn OS (Optic-shaped, **not** Optic)
 
-Callable **`enqueueLinkedInOsDraftJob`** → Firestore **`linkedin_os_jobs`** → dedicated worker **`apps/linkedin-os-worker`** writes **`outputs`** (same item shape as `queue.example.json`). Uses Firestore **`linkedin_os_prompts/default`** for brief/strategy/banned text.
+Callable **`enqueueLinkedInOsDraftJob`** → Firestore **`linkedin_os_jobs`** → dedicated worker **`apps/linkedin-os-worker`** writes **`outputs`** (same item shape as `queue.example.json`). Uses the brand's Prism setup in **`prism_brands/{agencyId}`** (brief, pillars, channels, banned claims), edited at `/prism/setup`.
 
 Full setup: **[LINKEDIN_OS_AGENT.md](./LINKEDIN_OS_AGENT.md)**.
 

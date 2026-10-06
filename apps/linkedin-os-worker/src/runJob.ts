@@ -2,6 +2,7 @@ import {GoogleGenerativeAI} from "@google/generative-ai";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
 
 import {buildCarouselPdf, buildCarouselZip, renderCarouselPngs} from "./carousel/renderCarousel";
+import {loadWorkerBrand, type WorkerBrand} from "./brand";
 import "./firebaseAdmin";
 import type {CarouselAssets} from "./carousel/uploadCarousel";
 import {uploadCarouselAssets} from "./carousel/uploadCarousel";
@@ -14,25 +15,32 @@ const MAX_RUN_CONSTRAINT = 500;
 
 type JobItem = {
   id: string;
+  channel?: string;
   pillar: string;
-  format: "short_post" | "carousel_outline";
+  format: string;
   hook: string;
   productTruth: string;
   cta: string;
   notes?: string;
+  idea?: string;
+  date?: string;
+  scheduledAt?: string;
 };
 
 type JobOutput = {
   id: string;
+  channel: string;
   format: string;
   pillar: string;
   markdown: string;
   generatedAt: string;
   model: string;
   carouselAssets?: CarouselAssets;
-  publishStatus?: "draft" | "approved" | "scheduled" | "posted";
   scheduledAt?: string;
+  postId?: string;
 };
+
+const CAROUSEL_FORMATS = new Set(["carousel_outline", "ig_carousel"]);
 
 /**
  * Truncates context for token safety.
@@ -47,9 +55,7 @@ function truncate(s: string, max: number): string {
 
 /**
  * Builds the system prompt for Gemini.
- * @param {string} brief Brand brief markdown.
- * @param {string} strategy Social strategy markdown.
- * @param {string} banned Banned-claims markdown.
+ * @param {WorkerBrand} brand Brand setup.
  * @param {string} voice Learned voice profile markdown.
  * @param {object} run Optional per-job author context.
  * @param {string} run.weeklyBrief Markdown for this run only.
@@ -58,45 +64,40 @@ function truncate(s: string, max: number): string {
  * @return {string} System prompt.
  */
 function buildSystemPrompt(
-  brief: string,
-  strategy: string,
-  banned: string,
+  brand: WorkerBrand,
   voice: string,
   run: {weeklyBrief: string; mustMention: string; neverMention: string}
 ): string {
   const runBrief =
     run.weeklyBrief ||
-    "(none — rely on global brief and each queue item's productTruth / hook / notes only)";
+    "(none — rely on the brand setup and each task's productTruth / hook / notes only)";
   const runMust = run.mustMention || "(none)";
   const runNever = run.neverMention || "(none)";
 
-  return `You are a LinkedIn ghostwriter for Verza (tryverza). Verza is the operating system for the creator economy.
+  return `You are the social media writer for ${brand.brandName}. You write native content for each channel.
 
-VOICE: Match the LEARNED VOICE PROFILE when present. Otherwise: operator-insider, concrete, respectful, no hype. Short lines. No hashtag spam (max 3 if any).
+VOICE: Match the LEARNED VOICE PROFILE when present. Otherwise: concrete, respectful, no hype. Short lines.
 
 RULES:
-- Use ONLY the product facts implied by the CONTEXT below plus the user's "productTruth" line for each task. Do not invent fees, thresholds, features, or legal outcomes.
+- Use ONLY the product facts in the BRAND SETUP below plus the task's "productTruth" line. Do not invent fees, metrics,
+  customers, features, or legal outcomes.
 - Obey the BANNED / sensitive list literally.
-- Honor CONTEXT — THIS RUN when it conflicts with generic Verza copy (e.g. another brand voice, a launch week); never contradict explicit "never mention" lines.
-- LinkedIn: strong first line (hook). Use whitespace. Optional short numbered list (max 3 bullets).
+- Honor CONTEXT — THIS RUN when it conflicts with the generic brand setup; never contradict explicit "never mention" lines.
+- Write natively for the channel in the task — never paste the same copy across channels.
 - Never guarantee income, ROI, or virality. No legal/tax advice.
+- Output only the deliverable — no preamble like "Here is your post."
 
 CONTEXT — LEARNED VOICE PROFILE:
 ---
-${voice || "(none — use default operator-insider voice)"}
+${voice || "(none — use the default voice above)"}
 ---
 
-CONTEXT — BRAND / PRODUCT BRIEF:
+CONTEXT — BRAND SETUP:
 ---
-${brief || "(not configured — keep Verza-specific claims minimal)"}
----
-
-CONTEXT — SOCIAL STRATEGY:
----
-${strategy || "(not configured)"}
+${truncate(brand.setupBlock, MAX_CTX)}
 ---
 
-CONTEXT — THIS RUN (submitted with the job; combine with each item's productTruth, hook, and notes):
+CONTEXT — THIS RUN (submitted with the job; combine with each task's productTruth, hook, and notes):
 ---
 ${runBrief}
 ---
@@ -107,68 +108,179 @@ RUN CONSTRAINTS (treat as hard filters when non-empty):
 
 BANNED / SENSITIVE:
 ---
-${banned || "(not configured)"}
+${truncate(brand.bannedClaims, MAX_CTX) || "(not configured)"}
 ---
 `;
 }
 
 /**
- * Builds the user message for one queue item.
+ * Carousel slide-format instructions shared by LinkedIn and Instagram.
+ * @param {number} min Min slides.
+ * @param {number} max Max slides.
+ * @return {string} Format block.
+ */
+function slideFormat(min: number, max: number): string {
+  return `Slides (${min}–${max}), each as:
+## Slide N — short label
+- title (5 words max)
+- 1–2 bullets
+
+Slide 1 is the hook. The last slide is CTA only (soft unless cta is hard_product).`;
+}
+
+/**
+ * Builds the user message for one queue item, per channel and format.
  * @param {JobItem} item Queue item.
  * @param {string} weekLabel Week label.
  * @param {string} reviewer Reviewer display name.
  * @return {string} User message.
  */
 function userMessageForItem(item: JobItem, weekLabel: string, reviewer: string): string {
-  const pillar = item.pillar || "playbooks";
-  const format = item.format || "short_post";
   const hook =
     (item.hook || "").trim() ||
-    "(author may supply hook—propose 2 hook options in line 1)";
+    "(no hook supplied—propose 2 hook options first)";
   const truth =
     (item.productTruth || "").trim() ||
-    "(no productTruth supplied—keep post generic about category, no Verza-specific claims)";
-  const cta = item.cta || "comment";
+    "(no productTruth supplied—stay general about the category, no specific product claims)";
   const notes = (item.notes || "").trim();
-
-  if (format === "carousel_outline") {
-    return `Week: ${weekLabel}
+  const header = `Week: ${weekLabel}
 Reviewer (human in the loop): ${reviewer}
+Pillar: ${item.pillar}
+Hook / direction: ${hook}
+Product truth you may assume (do not exceed): ${truth}
+CTA type: ${item.cta || "comment"}
+Extra notes: ${notes || "none"}`;
 
-Write a LinkedIn **document carousel outline** (7–10 slides).
+  switch (item.format) {
+  case "carousel_outline":
+    return `${header}
 
-Pillar: ${pillar}
-Suggested hook direction: ${hook}
-Product truth to reflect (do not exceed it): ${truth}
-CTA type: ${cta}
-Extra notes: ${notes || "none"}
+Write a LinkedIn **document carousel outline**.
 
-Output format (markdown):
-## Slide 1 — Hook
-- title (5 words max)
-- 1–2 bullets
+${slideFormat(7, 10)}`;
+  case "x_post":
+    return `${header}
 
-Repeat ## Slide N for each slide. Last slide must be CTA only (soft unless cta is hard_product).
+Write ONE post for X. Plain text, 280 characters max including spaces. One idea, punchy, no thread.
+No hashtags unless essential (max 1). No emojis unless the voice uses them.`;
+  case "x_thread":
+    return `${header}
 
-Do not claim specific Verza metrics not in the product truth.`;
-  }
+Write an X thread of 4–7 posts. Format each as "1/", "2/"… on its own line followed by the post.
+Each post is 280 characters max. Post 1 must stand alone as a hook. Last post is the CTA. No hashtags.`;
+  case "ig_feed":
+    return `${header}
 
-  return `Week: ${weekLabel}
-Reviewer (human in the loop): ${reviewer}
+Write an Instagram feed post.
+
+## Visual
+One or two sentences describing the single image or graphic to post (what's in frame, any on-image text ≤ 8 words).
+
+## Caption
+- First line is the hook (under 125 characters — it shows before "more").
+- 3–8 short lines of value. Line breaks between ideas.
+- One CTA line (save, share, comment, or link in bio).
+- Last line: 3–5 relevant hashtags.`;
+  case "ig_carousel":
+    return `${header}
+
+Write an Instagram carousel. Put the caption FIRST, then the slides.
+
+## Caption
+Hook line (under 125 characters), 2–4 short lines, a "save this" or comment CTA, then 3–5 hashtags.
+
+${slideFormat(5, 8)}`;
+  case "ig_reel":
+    return `${header}
+
+Write an Instagram Reel (15–45 seconds, vertical).
+
+## Hook (0–2s)
+On-screen text + first spoken line.
+
+## Beats
+3–5 beats, each with [on-screen text] and what's on camera.
+
+## Spoken script
+Teleprompter lines, conversational.
+
+## Caption
+Hook line, 1–2 lines, CTA, 3–5 hashtags.
+
+## Audio
+Suggest original voiceover vs. trending audio, and why.`;
+  case "tiktok_video":
+    return `${header}
+
+Write a TikTok video (20–45 seconds, vertical, native — not an ad).
+
+## Hook (0–1s)
+Pattern interrupt: first spoken line + [on-screen text]. Must stop the scroll.
+
+## Beats
+3–5 fast beats with [on-screen text] cues and what's on camera.
+
+## Spoken script
+Teleprompter lines — short sentences, talking-to-a-friend energy.
+
+## Caption
+One line + 3–4 hashtags.
+
+## Sound
+Original voiceover or trending sound, and why.`;
+  default:
+    return `${header}
 
 Write ONE LinkedIn post (plain text; avoid markdown headings).
 
-Pillar: ${pillar}
-Format: short post
-Hook / direction: ${hook}
-Product truth you may assume (do not exceed): ${truth}
-CTA type: ${cta}
-Extra notes: ${notes || "none"}
-
 Structure:
-- Line 1 must work as LinkedIn preview (punchy, under ~140 chars if possible).
-- Then body: 4–10 short lines.
-- End with one CTA line.`;
+- Line 1 must work as the LinkedIn preview (punchy, under ~140 chars if possible).
+- Then body: 4–10 short lines. Optional short numbered list (max 3 bullets).
+- End with one CTA line. Max 3 hashtags if any.`;
+  }
+}
+
+/**
+ * Calendar title for a draft: the planned hook, else the first line of copy.
+ * Mirrors studioTitle in functions/src/linkedinOs/posts.ts.
+ * @param {string} hook Planned hook.
+ * @param {string} markdown Draft copy.
+ * @param {string} fallback Fallback (item id).
+ * @return {string} Title.
+ */
+function studioTitle(hook: string, markdown: string, fallback: string): string {
+  const firstLine = markdown.split("\n").find((l) => l.trim() && !l.trim().startsWith("#"))?.trim() ?? "";
+  return (hook.trim() || firstLine).replace(/^[-*\d/.\s]+/, "").slice(0, 120) || fallback;
+}
+
+/**
+ * Groups item indexes into calendar posts: items with the same idea on the same day share a post,
+ * one version per channel. Items without an idea, or repeating a channel, get their own post.
+ * @param {!Array<JobItem>} items Job items.
+ * @return {!Array<!Array<number>>} Groups of item indexes, in item order.
+ */
+function groupByIdea(items: JobItem[]): number[][] {
+  const groups: number[][] = [];
+  const open = new Map<string, number[]>();
+  items.forEach((item, i) => {
+    const idea = (item.idea || "").trim().toLowerCase();
+    const day = item.date || item.scheduledAt?.slice(0, 10) || "";
+    const channel = item.channel || "linkedin";
+    if (!idea) {
+      groups.push([i]);
+      return;
+    }
+    const key = `${idea}|${day}`;
+    const group = open.get(key);
+    if (group && !group.some((j) => (items[j]!.channel || "linkedin") === channel)) {
+      group.push(i);
+      return;
+    }
+    const fresh = [i];
+    groups.push(fresh);
+    open.set(key, fresh);
+  });
+  return groups;
 }
 
 /**
@@ -200,7 +312,7 @@ async function geminiComplete(
 }
 
 /**
- * Runs a LinkedIn OS job: loads prompts from Firestore, generates drafts, writes outputs.
+ * Runs a Prism draft job: loads the brand setup, generates drafts per channel, writes outputs.
  * @param {string} jobId Firestore job id.
  * @return {!Promise<void>}
  */
@@ -227,11 +339,6 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
   });
 
   try {
-    const promptsSnap = await db.collection("linkedin_os_prompts").doc("default").get();
-    const prompts = promptsSnap.exists ? promptsSnap.data()! : {};
-    const brief = truncate(String(prompts.brandBrief ?? ""), MAX_CTX);
-    const strategy = truncate(String(prompts.socialStrategy ?? ""), MAX_CTX);
-    const banned = truncate(String(prompts.bannedClaims ?? ""), MAX_CTX);
     const weeklyBrief = truncate(String(data.weeklyBrief ?? ""), MAX_RUN_BRIEF);
     const mustMention = truncate(String(data.mustMention ?? ""), MAX_RUN_CONSTRAINT);
     const neverMention = truncate(String(data.neverMention ?? ""), MAX_RUN_CONSTRAINT);
@@ -261,7 +368,8 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
       }
     }
 
-    const system = buildSystemPrompt(brief, strategy, banned, voiceBlock, {
+    const brand = await loadWorkerBrand(agencyIdEarly);
+    const system = buildSystemPrompt(brand, voiceBlock, {
       weeklyBrief,
       mustMention,
       neverMention,
@@ -273,29 +381,34 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
     }
 
     const weekLabel = String(data.weekLabel ?? "");
-    const reviewer = String(data.reviewer ?? "Serge");
+    const reviewer = String(data.reviewer ?? "Reviewer");
     const agencyId = String(data.agencyId ?? "").trim();
     if (!agencyId) {
       throw new Error("Job is missing agencyId.");
     }
 
+    const texts = await Promise.all(
+      items.map((item) => geminiComplete(system, userMessageForItem(item, weekLabel, reviewer), apiKey, model))
+    );
+
     const outputs: JobOutput[] = [];
-    for (const item of items) {
-      const userMsg = userMessageForItem(item, weekLabel, reviewer);
-      const markdown = await geminiComplete(system, userMsg, apiKey, model);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const markdown = texts[i]!;
       const output: JobOutput = {
         id: item.id,
+        channel: item.channel || "linkedin",
         format: item.format,
         pillar: item.pillar,
         markdown,
         generatedAt: new Date().toISOString(),
         model,
-        publishStatus: "draft",
+        ...(item.scheduledAt ? {scheduledAt: item.scheduledAt} : {}),
       };
 
-      if (item.format === "carousel_outline") {
+      if (CAROUSEL_FORMATS.has(item.format)) {
         try {
-          const pngSlides = await renderCarouselPngs(markdown);
+          const pngSlides = await renderCarouselPngs(markdown, brand.theme);
           const [pdf, zip] = await Promise.all([
             buildCarouselPdf(pngSlides),
             buildCarouselZip(pngSlides),
@@ -317,11 +430,51 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
       outputs.push(output);
     }
 
-    await ref.update({
+    const createdBy = String(data.createdBy ?? "");
+    const batch = db.batch();
+    for (const group of groupByIdea(items)) {
+      const first = group[0]!;
+      const firstOut = outputs[first]!;
+      const firstItem = items[first]!;
+      const postRef = db.collection("prism_posts").doc();
+      const variants: Record<string, unknown> = {};
+      const times: string[] = [];
+      for (const i of group) {
+        const output = outputs[i]!;
+        output.postId = postRef.id;
+        if (output.scheduledAt) times.push(output.scheduledAt);
+        variants[output.channel] = {
+          format: output.format,
+          text: output.markdown,
+          generatedAt: output.generatedAt,
+          ...(output.carouselAssets ? {assets: {...output.carouselAssets, renderedAt: output.generatedAt}} : {}),
+        };
+      }
+      const idea = (firstItem.idea || "").trim();
+      batch.set(postRef, {
+        agencyId,
+        title: group.length > 1 && idea ? idea.slice(0, 120) : studioTitle(firstItem.hook || idea, firstOut.markdown, firstOut.id),
+        angle: firstItem.productTruth || "",
+        pillar: firstOut.pillar,
+        channels: group.map((i) => outputs[i]!.channel),
+        scheduledAt: times.sort()[0] ?? null,
+        status: "draft",
+        variants,
+        history: [{at: firstOut.generatedAt, uid: createdBy, name: reviewer, action: "written in Studio"}],
+        source: "studio",
+        studio: {jobId, itemId: firstOut.id, ...(group.length > 1 ? {itemIds: group.map((i) => outputs[i]!.id)} : {})},
+        createdBy,
+        createdByName: reviewer,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    batch.update(ref, {
       status: "completed",
       outputs,
       completedAt: FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await ref

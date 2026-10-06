@@ -1,12 +1,5 @@
 import type {ParsedCarouselSlide} from "./parseCarouselMarkdown";
-import {
-  VERZA_CHEVRON_PATH,
-  VERZA_EMERALD,
-  VERZA_EVERGREEN,
-  VERZA_INK,
-  VERZA_MUTED_ON_INK,
-  VERZA_WHITE,
-} from "../brandColors";
+import {type CarouselTheme, VERZA_CHEVRON_PATH} from "../brandColors";
 
 const W = 1080;
 const H = 1080;
@@ -68,13 +61,17 @@ function tspans(x: number, startY: number, lineHeight: number, lines: string[]):
     .join("");
 }
 
-/** Shared gradient defs — matches apps/web/public/verza-icon.svg. */
-function brandGradientDefs(): string {
+/**
+ * Shared accent gradient defs.
+ * @param {CarouselTheme} theme Slide theme.
+ * @return {string} SVG defs.
+ */
+function brandGradientDefs(theme: CarouselTheme): string {
   return `
   <defs>
     <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="${VERZA_EVERGREEN}"/>
-      <stop offset="100%" stop-color="${VERZA_EMERALD}"/>
+      <stop offset="0%" stop-color="${escapeXml(theme.accentFrom)}"/>
+      <stop offset="100%" stop-color="${escapeXml(theme.accentTo)}"/>
     </linearGradient>
   </defs>`;
 }
@@ -83,9 +80,10 @@ function brandGradientDefs(): string {
  * Renders a pill CTA button with vertically centered, wrapped label text.
  * @param {string} label Button label.
  * @param {number} topY Top edge of the button.
+ * @param {string} textColor Label color.
  * @return {string} SVG markup for the button group.
  */
-function renderCtaButton(label: string, topY: number): string {
+function renderCtaButton(label: string, topY: number, textColor: string): string {
   const fontSize = 30;
   const lineHeight = 36;
   const padY = 28;
@@ -100,7 +98,7 @@ function renderCtaButton(label: string, topY: number): string {
 
   return `
       <rect x="${PAD}" y="${topY}" width="${CONTENT_W}" height="${btnHeight}" rx="${btnRadius}" fill="url(#brandGrad)" opacity="0.95"/>
-      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${VERZA_WHITE}" text-anchor="middle">
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${escapeXml(textColor)}" text-anchor="middle">
         ${tspans(W / 2, firstBaseline, lineHeight, lines)}
       </text>`;
 }
@@ -121,12 +119,14 @@ function verzaMark(): string {
  * @param {ParsedCarouselSlide} slide Slide content.
  * @param {number} slideNum 1-based slide number for footer.
  * @param {number} totalSlides Total slide count.
+ * @param {CarouselTheme} theme Brand theme.
  * @return {string} SVG document.
  */
 export function renderSlideSvg(
   slide: ParsedCarouselSlide,
   slideNum: number,
-  totalSlides: number
+  totalSlides: number,
+  theme: CarouselTheme
 ): string {
   const isCover = slideNum === 1 && !slide.isCta;
   const isCta = slide.isCta;
@@ -163,7 +163,7 @@ export function renderSlideSvg(
     }
 
     bodySvg = `
-      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="${VERZA_MUTED_ON_INK}">
+      <text font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="${escapeXml(theme.muted)}">
         ${tspans(PAD, bodyStartY, 46, bulletLines.slice(0, 8))}
       </text>`;
   } else if (isCover) {
@@ -175,24 +175,24 @@ export function renderSlideSvg(
   if (isCta) {
     const ctaText = slide.bullets[0] ?? slide.title;
     const btnY = Math.max(titleBlockBottom + 72, 560);
-    ctaSvg = renderCtaButton(ctaText, btnY);
+    ctaSvg = renderCtaButton(ctaText, btnY, theme.onAccent);
   }
 
   const footer = `
-    <text x="${W - PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${VERZA_MUTED_ON_INK}" text-anchor="end">
+    <text x="${W - PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${escapeXml(theme.muted)}" text-anchor="end">
       ${slideNum} / ${totalSlides}
     </text>
-    <text x="${PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" fill="${VERZA_EMERALD}">
-      tryverza.com
+    <text x="${PAD}" y="${H - 56}" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" font-weight="600" fill="url(#brandGrad)">
+      ${escapeXml(theme.footer)}
     </text>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  ${brandGradientDefs()}
-  <rect width="${W}" height="${H}" fill="${VERZA_INK}"/>
-  ${verzaMark()}
+  ${brandGradientDefs(theme)}
+  <rect width="${W}" height="${H}" fill="${escapeXml(theme.background)}"/>
+  ${theme.showVerzaMark ? verzaMark() : ""}
   ${accentBar}
-  <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleSize}" font-weight="700" fill="${VERZA_WHITE}">
+  <text font-family="DejaVu Sans, Arial, sans-serif" font-size="${titleSize}" font-weight="700" fill="${escapeXml(theme.text)}">
     ${tspans(PAD, titleStartY, titleLineHeight, visibleTitleLines)}
   </text>
   ${bodySvg}
