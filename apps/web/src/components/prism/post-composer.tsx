@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 
 import { CarouselAssets, FeedGraphic } from "@/components/prism/carousel-assets";
+import { VideoPanel } from "@/components/prism/video-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +45,8 @@ import {
   PRISM_CHANNEL_META,
   PRISM_CHANNELS,
   PRISM_FORMATS,
-  PRISM_MANUAL_FORMATS,
   PRISM_STATUS_META,
+  PRISM_VIDEO_FORMATS,
   type PrismBrandStrategy,
   type PrismConnectedAccount,
   type PrismChannel,
@@ -136,7 +137,7 @@ function publishPlan(v: PrismVariant | undefined, account: PrismConnectedAccount
   if (!account) return { ok: false, note: "Not connected" };
   if (account.status !== "connected") return { ok: false, note: "Reconnect needed" };
   if (!v?.text.trim()) return { ok: false, note: "No copy yet" };
-  if (PRISM_MANUAL_FORMATS.has(v.format)) return { ok: false, note: "Needs a video or image, post by hand" };
+  if (PRISM_VIDEO_FORMATS.has(v.format) && !v.video) return { ok: false, note: "Make the video first" };
   if (v.format === "carousel_outline" && !v.assets?.pdfStoragePath) return { ok: false, note: "Render the slides first" };
   if (v.format === "ig_carousel" && (v.assets?.slides.length ?? 0) < 2) return { ok: false, note: "Render the slides first" };
   if (v.format === "ig_feed" && !v.assets?.slides.length) return { ok: false, note: "Make the graphic first" };
@@ -325,6 +326,18 @@ export function PostComposer({
       setGraphicNote((g) => ({ ...g, [ch]: "" }));
       toast({ title: "Graphic ready", description: "Check it below. Regenerate with a note if it needs changes." });
     });
+
+  /** Errors go back to the panel so it can open the credit packs. */
+  const handleVideo = async (ch: PrismChannel, seconds: number) => {
+    if (!form.title.trim()) throw new Error("Give the idea a title first.");
+    setBusy(`video-${ch}`);
+    try {
+      const id = await save();
+      await call("renderPrismVideo", { postId: id, channel: ch, seconds });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const transition = (action: string, extra: Record<string, unknown> = {}) =>
     run(action, async () => {
@@ -647,6 +660,16 @@ export function PostComposer({
                         {busy === `graphic-${ch}` && <span className="text-xs text-muted-foreground">Designing from the Visual section…</span>}
                       </div>
                     )}
+                    {PRISM_VIDEO_FORMATS.has(v.format) && (
+                      <VideoPanel
+                        variant={v}
+                        saved={post?.variants?.[ch]}
+                        locked={locked}
+                        disabled={!!busy}
+                        onGenerate={(seconds) => handleVideo(ch, seconds)}
+                        returnPath={postId ? `/prism?post=${postId}` : "/prism"}
+                      />
+                    )}
                     {v.format === "ig_feed" && v.assets?.slides[0] && (
                       <FeedGraphic graphic={v.assets.slides[0]} stale={assetsStale(v, post?.variants?.[ch])} />
                     )}
@@ -752,7 +775,8 @@ export function PostComposer({
               <ul className="space-y-1.5">
                 {form.channels.map((ch) => {
                   const result = publish?.channels?.[ch];
-                  const planned = publishPlan(form.variants[ch], accounts[ch]);
+                  const local = form.variants[ch];
+                  const planned = publishPlan(local && { ...local, video: post?.variants?.[ch]?.video ?? local.video }, accounts[ch]);
                   return (
                     <li key={ch} className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="w-20 font-medium">{PRISM_CHANNEL_META[ch].label}</span>

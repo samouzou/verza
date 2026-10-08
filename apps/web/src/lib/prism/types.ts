@@ -165,6 +165,25 @@ export type PrismVariantAssets = {
   visual?: string;
 };
 
+export type PrismVariantVideo = {
+  storagePath: string;
+  coverPath: string;
+  seconds: number;
+  renderedAt: string;
+  jobId: string;
+};
+
+export type PrismVideoJobStatus = "queued" | "planning" | "generating" | "assembling" | "done" | "failed";
+
+export type PrismVariantVideoJob = {
+  jobId: string;
+  status: PrismVideoJobStatus;
+  stage: string;
+  seconds: number;
+  error?: string;
+  updatedAt: string;
+};
+
 export type PrismVariant = {
   format: PrismFormat;
   text: string;
@@ -172,6 +191,26 @@ export type PrismVariant = {
   editedAt?: string;
   postedUrl?: string;
   assets?: PrismVariantAssets;
+  /** Reels and TikToks: the generated video. */
+  video?: PrismVariantVideo;
+  /** The latest video render for this variant, mirrored from prism_video_jobs. */
+  videoJob?: PrismVariantVideoJob;
+};
+
+/** Formats Prism turns into a vertical video. */
+export const PRISM_VIDEO_FORMATS = new Set<PrismFormat>(["ig_reel", "tiktok_video"]);
+/** 1 credit = 1 second. Omni makes 10s and extends in 10s steps. */
+export const PRISM_VIDEO_LENGTHS = [10, 20, 30, 40] as const;
+
+export type PrismVideoCredits = {
+  tier: "free" | "launch" | "enterprise";
+  allowance: number;
+  allowanceLeft: number;
+  freeLeft: number;
+  purchased: number;
+  total: number;
+  packs: { credits: number; cents: number }[];
+  canBuy: boolean;
 };
 
 export type PrismPostEvent = {
@@ -232,15 +271,12 @@ export type PrismConnections = {
   accounts: Partial<Record<PrismChannel, PrismConnectedAccount>>;
 };
 
-/** Channels Prism can't post through the API yet (no video upload). */
 /** A brand's third-party API usage for one month. Stored at prism_usage/{agencyId}/months/{YYYY-MM}. */
 export type PrismUsageMonth = {
   agencyId: string;
   periodKey: string;
   x?: { posts?: number; tweets?: number; linkTweets?: number; costMicros?: number };
 };
-
-export const PRISM_MANUAL_FORMATS = new Set<PrismFormat>(["ig_reel", "tiktok_video"]);
 
 export const PRISM_STATUS_META: Record<PrismPostStatus, { label: string; dot: string }> = {
   idea: { label: "Idea", dot: "bg-zinc-400" },

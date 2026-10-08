@@ -3,6 +3,7 @@ import express from "express";
 import {renderPostSlides, RenderInputError} from "./renderPost";
 import {renderFeedGraphic} from "./renderFeed";
 import {runLinkedInOsJob} from "./runJob";
+import {renderPrismVideo} from "./video/renderVideo";
 
 const port = Number.parseInt(process.env.PORT || "8080", 10);
 
@@ -72,6 +73,21 @@ app.post("/internal/render-feed", async (req, res) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(e instanceof RenderInputError ? 400 : 500).json({error: msg});
+  }
+});
+
+app.post("/internal/render-video", async (req, res) => {
+  const jobId = req.body?.jobId;
+  if (typeof jobId !== "string" || !jobId.trim()) {
+    res.status(400).json({error: "jobId required"});
+    return;
+  }
+  try {
+    await renderPrismVideo(jobId.trim());
+    res.status(200).json({ok: true});
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({error: msg});
   }
 });
 

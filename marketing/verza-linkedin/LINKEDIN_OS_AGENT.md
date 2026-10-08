@@ -96,8 +96,9 @@ Publishing goes through [Zernio](https://zernio.com) (formerly Late). Code: `app
   `scheduledFor`. Zernio publishes at the exact time. An `Idempotency-Key` on every send prevents double posts.
 - **What goes out:** LinkedIn text and PDF carousels (rendered slides, caption = the draft's `## Caption` section, falling back to the post title), X posts and threads,
   Instagram carousels (rendered slides, `## Caption`) and Instagram feed posts (the graphic `generatePrismGraphic` makes
-  from `## Visual` with Gemini at 4:5, plus `## Caption`; it counts as a render). Reels and TikTok videos are
-  marked "post by hand".
+  from `## Visual` with Gemini at 4:5, plus `## Caption`; it counts as a render). Instagram Reels and TikTok videos
+  post the generated video (see Video below) with `## Caption`; without a video they're marked "post by hand". TikTok
+  posts read the creator's allowed privacy levels first and are labeled AI-generated, duets and stitches off.
 - **X fees:** Zernio passes X's API fees through ($0.015 per tweet, $0.20 with a link). Each X publish adds to
   `prism_usage/{agencyId}/months/{YYYY-MM}`. On the 1st, `billPrismXUsage` bills Launch brands for last month's fees
   above $5, plus 5% for processing, as a Stripe invoice item (next renewal for monthly plans; its own invoice once
@@ -113,6 +114,32 @@ Setup: set `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` in `apps/functions/.env.
 same secret and the events `post.platform.published`, `post.platform.failed`, `post.published`, `post.partial`,
 `post.failed`, `post.cancelled`, `account.connected`, `account.disconnected`. Connecting X needs a card on the Zernio
 account (X API calls are passed through).
+
+## Video (Reels and TikToks)
+
+The composer's **Make video** button on an `ig_reel` or `tiktok_video` variant turns the script into a 9:16 1080p video
+with Gemini Omni (`gemini-omni-1.1-flash`). Code: `apps/functions/src/linkedinOs/video.ts`, `videoCredits.ts`, and
+`apps/linkedin-os-worker/src/video/`.
+
+- **Length:** 10, 20, 30 or 40 seconds. Omni makes the first 10s; each extra 10s uploads the last 10s back to Omni as a
+  source clip and appends the new half. The featured product's images go in as references on every segment.
+- **Pipeline:** `renderPrismVideo` (callable) spends credits and creates `prism_video_jobs/{id}` in one transaction, then
+  queues `renderPrismVideoTask` (Cloud Tasks, 30 min). The task calls the worker's `/internal/render-video`, which plans
+  the shots with Gemini, renders with Omni, records a Gemini TTS voiceover over the clip's own sound, stitches with
+  ffmpeg, and stores `video.mp4` + `cover.jpg` under `linkedin_os_carousels/{agencyId}/posts/{postId}/`. One render at a
+  time per brand. `onPrismVideoJobUpdated` mirrors progress onto the variant (`videoJob`), refunds failures once, and
+  notifies whoever started it.
+- **Credits:** 1 credit = 1 second. Launch and Enterprise get 60 a month (no rollover), Free gets 10 once. Packs: 60 for
+  $18, 200 for $55, 600 for $150 (Stripe prices with lookup keys `prism_video_credits_{60,200,600}`), bought by owners
+  and admins through `createPrismVideoCreditCheckout`; the subscriptions webhook grants them on payment
+  (`handlePrismVideoCreditsEvent`, idempotent per Checkout session). Spending uses the monthly allowance first, then
+  free, then purchased. Balance: `prism_video_credits/{agencyId}`, with a `ledger` subcollection.
+- **Cost:** Omni at 1080p is about $0.15 per second, so packs keep roughly 40% to 50% margin and each Launch brand's
+  monthly allowance costs about $9 if fully used.
+
+Setup: create the three Stripe prices (one product, `metadata.purpose = prism_video_credits`), deploy the worker with
+`--timeout=1800 --memory=2Gi` (see the worker README), and give the Functions service account **Cloud Tasks Enqueuer**
+and **Service Account User** so `renderPrismVideo` can queue the task.
 
 ## Local script (no cloud)
 

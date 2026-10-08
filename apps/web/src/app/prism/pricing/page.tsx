@@ -35,6 +35,7 @@ const freeFeatures = [
   "Brand strategy and voice profile",
   `${PRISM_AI_LIMITS.free} AI actions a month`,
   `Try Studio once and render ${PRISM_FREE_SLIDE_RENDERS} carousels`,
+  "One free 10-second AI video",
 ];
 
 const launchFeatures = [
@@ -43,7 +44,8 @@ const launchFeatures = [
   "Unlimited carousel slides and feed graphics",
   "AI month plans, channel adaptation, scripts and newsletters",
   `${PRISM_AI_LIMITS.launch.toLocaleString()} AI actions a month`,
-  "Auto-publishing to LinkedIn, X and Instagram",
+  "60 seconds of AI Reels and TikToks a month (1080p); top up from $18",
+  "Auto-publishing to LinkedIn, X, Instagram and TikTok",
   `$${PRISM_X_INCLUDED_DOLLARS} of X API fees included monthly; beyond that, X's rates + ${PRISM_X_MARKUP * 100}% processing`,
 ];
 

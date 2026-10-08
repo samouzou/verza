@@ -223,7 +223,7 @@ function resolvePrismPlan(sub: Stripe.Subscription) {
  * @param {string} uid Auth uid.
  * @return {!Promise<object>} Agency id and user data.
  */
-async function prismBillingAdmin(uid: string): Promise<{agencyId: string; user: Record<string, unknown>}> {
+export async function prismBillingAdmin(uid: string): Promise<{agencyId: string; user: Record<string, unknown>}> {
   const user = (await db.collection("users").doc(uid).get()).data();
   const agencyId = String(user?.primaryAgencyId ?? "");
   if (!user || !agencyId) throw new HttpsError("failed-precondition", "Set a primary brand workspace first.");
@@ -241,7 +241,7 @@ async function prismBillingAdmin(uid: string): Promise<{agencyId: string; user: 
  * @param {Record<string, unknown>} user User data.
  * @return {!Promise<string>} Customer id.
  */
-async function stripeCustomerFor(stripe: Stripe, uid: string, user: Record<string, unknown>): Promise<string> {
+export async function stripeCustomerFor(stripe: Stripe, uid: string, user: Record<string, unknown>): Promise<string> {
   const existing = user.stripeCustomerId;
   if (typeof existing === "string" && existing) return existing;
   const customer = await stripe.customers.create({

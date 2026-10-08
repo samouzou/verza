@@ -155,17 +155,26 @@ Output only the deliverable, no preamble.`,
       });
       const body = (text ?? "").trim().slice(0, PRISM_MAX_VARIANT_CHARS);
       if (!body) throw new HttpsError("internal", `No copy came back for ${PRISM_CHANNEL_LABELS[ch]}.`);
-      return {ch, variant: {...(current ?? {}), format, text: body, generatedAt: now} as PrismVariant};
+      return {ch, current, variant: {...(current ?? {}), format, text: body, generatedAt: now} as PrismVariant};
     })
   ));
 
-  const variants = {...(post.variants ?? {})};
-  for (const r of results) variants[r.ch] = r.variant;
+  // Field paths, so a video render finishing during the AI call isn't overwritten.
+  const variantUpdates: Record<string, unknown> = {};
+  for (const r of results) {
+    if (!r.current) {
+      variantUpdates[`variants.${r.ch}`] = r.variant;
+      continue;
+    }
+    variantUpdates[`variants.${r.ch}.format`] = r.variant.format;
+    variantUpdates[`variants.${r.ch}.text`] = r.variant.text;
+    variantUpdates[`variants.${r.ch}.generatedAt`] = now;
+  }
   let status: PrismPostStatus = post.status;
   if (status === "idea" || status === "approved" || status === "in_review") status = "draft";
 
   await ref.update({
-    variants,
+    ...variantUpdates,
     status,
     history: appendHistory(
       post.history,

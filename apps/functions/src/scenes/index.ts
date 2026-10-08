@@ -10,7 +10,7 @@ import type {Generation} from "./../types";
 import * as params from "../config/params";
 import {resolveReferenceImageDataUri} from "../ai/referenceImage";
 
-const MODEL = "gemini-omni-flash-preview";
+const MODEL = "gemini-omni-1.1-flash";
 const styleOptions = ["Anime", "3D Render", "Realistic", "Claymation"] as const;
 const VIDEO_COST = 10;
 const EDIT_COST = 10;

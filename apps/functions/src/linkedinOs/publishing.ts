@@ -301,6 +301,38 @@ async function signedUrl(path: string): Promise<string> {
 }
 
 /**
+ * TikTok post settings, which TikTok requires on every API post: the creator's allowed privacy level,
+ * explicit interaction toggles, brand and AI disclosure, and the consent flags.
+ * @param {string} accountId Zernio TikTok account id.
+ * @return {!Promise<object>} tiktokSettings.
+ */
+async function tiktokSettings(accountId: string): Promise<Record<string, unknown>> {
+  type Toggle = {enabled?: boolean} | null;
+  let levels: string[] = [];
+  let comments = true;
+  try {
+    const {data} = await zernio<{
+      privacyLevels?: Array<{value?: string}>;
+      postingLimits?: {interactionSettings?: {allow_comment?: Toggle}};
+    }>(`/accounts/${encodeURIComponent(accountId)}/tiktok/creator-info?mediaType=video`);
+    levels = (data.privacyLevels ?? []).map((l) => String(l.value ?? "")).filter(Boolean);
+    comments = data.postingLimits?.interactionSettings?.allow_comment?.enabled !== false;
+  } catch (e) {
+    logger.warn("[Prism publish] TikTok creator info unavailable", {accountId, e: String(e)});
+  }
+  return {
+    privacy_level: levels.length && !levels.includes("PUBLIC_TO_EVERYONE") ? levels[0] : "PUBLIC_TO_EVERYONE",
+    allow_comment: comments,
+    allow_duet: false,
+    allow_stitch: false,
+    commercialContentType: "brand_organic",
+    video_made_with_ai: true,
+    content_preview_confirmed: true,
+    express_consent_given: true,
+  };
+}
+
+/**
  * Splits "1/ … 2/ …" thread copy into posts (falls back to blank-line paragraphs).
  * @param {string} text Thread copy.
  * @return {!Array<string>} Posts.
@@ -396,9 +428,20 @@ async function buildEntry(
     };
   }
   case "ig_reel":
-    return {manual: "Reels need a video. Post this one by hand."};
-  case "tiktok_video":
-    return {manual: "TikTok needs a video. Post this one by hand."};
+  case "tiktok_video": {
+    if (!v.video) return {manual: "Make the video first so there's something to post."};
+    const [url, cover] = await Promise.all([signedUrl(v.video.storagePath), signedUrl(v.video.coverPath)]);
+    if (ch === "tiktok") {
+      return {entry: {customContent: section(text, "Caption") || post.title, customMedia: [{type: "video", url}]}};
+    }
+    return {
+      entry: {
+        customContent: section(text, "Caption") || post.title,
+        customMedia: [{type: "video", url}],
+        platformSpecificData: {instagramThumbnail: cover, isAiGenerated: true},
+      },
+    };
+  }
   default:
     return {manual: `${PRISM_CHANNEL_LABELS[ch]} can't publish this format yet.`};
   }
@@ -600,11 +643,18 @@ async function sendPost(postId: string, manualRetry = false): Promise<PrismPubli
   const scheduledFor = new Date(Math.max(Date.parse(post.scheduledAt ?? "") || 0, Date.now())).toISOString();
   const sentAt = new Date().toISOString();
   await ref.update({"publish.channels": channels, "publish.sentAt": sentAt});
+  const tiktokAccount = channels.tiktok?.state === "pending" ? conn?.accounts?.tiktok?.accountId : undefined;
   try {
     const {data} = await zernio<{post?: ZernioPost}>("/posts", {
       method: "POST",
       headers: {"Idempotency-Key": publish.idempotencyKey ?? `prism-${postId}`},
-      body: {content: post.title, platforms, scheduledFor, metadata: {prismPostId: postId, agencyId: post.agencyId}},
+      body: {
+        content: post.title,
+        platforms,
+        scheduledFor,
+        metadata: {prismPostId: postId, agencyId: post.agencyId},
+        ...(tiktokAccount ? {tiktokSettings: await tiktokSettings(tiktokAccount)} : {}),
+      },
     });
     const zp = data.post ?? {};
     const final = ["published", "partial", "failed"].includes(zp.status ?? "");

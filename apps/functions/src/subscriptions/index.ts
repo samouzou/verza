@@ -9,6 +9,7 @@ import * as params from "../config/params";
 import {sendSubscriptionReceiptEmail} from "../notifications";
 import {handleOpticStripeSubscriptionEvent} from "../optic/billing";
 import {handlePrismStripeSubscriptionEvent} from "../linkedinOs/billing";
+import {handlePrismVideoCreditsEvent} from "../linkedinOs/videoCredits";
 
 /**
  * Helper function to map a Stripe Price ID to our internal plan details.
@@ -275,6 +276,10 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
   }
 
   try {
+    if (await handlePrismVideoCreditsEvent(event)) {
+      response.json({received: true});
+      return;
+    }
     const opticHandled = await handleOpticStripeSubscriptionEvent(stripe, event);
     if (opticHandled) {
       response.json({received: true});

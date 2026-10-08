@@ -108,6 +108,13 @@ function PrismCalendarPage() {
   }, [searchParams, router, toast]);
 
   useEffect(() => {
+    if (searchParams.get("video_credits") !== "success") return;
+    toast({ title: "Video credits added", description: "They show in your balance as soon as the payment clears." });
+    const id = searchParams.get("post");
+    router.replace(id ? `/prism?post=${id}` : "/prism");
+  }, [searchParams, router, toast]);
+
+  useEffect(() => {
     if (!agencyId) return;
     getDocs(query(collection(db, "gigs"), where("brandId", "==", agencyId)))
       .then((snap) =>

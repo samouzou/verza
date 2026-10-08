@@ -12,6 +12,7 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fontconfig \
     fonts-dejavu-core \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 COPY fonts/*.ttf /usr/share/fonts/truetype/prism/
 RUN fc-cache -f

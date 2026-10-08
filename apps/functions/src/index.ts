@@ -174,6 +174,8 @@ import {
 import {adaptPrismPost, generatePrismMonthPlan} from "./linkedinOs/planning";
 import {generatePrismGraphic} from "./linkedinOs/graphics";
 import {billPrismXUsage} from "./linkedinOs/xBilling";
+import {onPrismVideoJobUpdated, renderPrismVideo, renderPrismVideoTask} from "./linkedinOs/video";
+import {createPrismVideoCreditCheckout, getPrismVideoCredits} from "./linkedinOs/videoCredits";
 import {
   createPrismBillingPortalSession,
   createPrismSubscriptionCheckoutSession,
@@ -339,6 +341,11 @@ export {
   renderPrismSlides,
   generatePrismGraphic,
   billPrismXUsage,
+  renderPrismVideo,
+  renderPrismVideoTask,
+  onPrismVideoJobUpdated,
+  getPrismVideoCredits,
+  createPrismVideoCreditCheckout,
   deletePrismPost,
   transitionPrismPost,
   adaptPrismPost,

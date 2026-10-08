@@ -62,6 +62,27 @@ export type PrismVariantAssets = {
   visual?: string;
 };
 
+/** Finished vertical video attached to a Reel or TikTok variant. */
+export type PrismVariantVideo = {
+  storagePath: string;
+  coverPath: string;
+  seconds: number;
+  renderedAt: string;
+  jobId: string;
+};
+
+export type PrismVideoJobStatus = "queued" | "planning" | "generating" | "assembling" | "done" | "failed";
+
+/** Live progress of the latest video render, mirrored from prism_video_jobs for the composer. */
+export type PrismVariantVideoJob = {
+  jobId: string;
+  status: PrismVideoJobStatus;
+  stage: string;
+  seconds: number;
+  error?: string;
+  updatedAt: string;
+};
+
 export type PrismVariant = {
   format: PrismFormat;
   text: string;
@@ -69,6 +90,36 @@ export type PrismVariant = {
   editedAt?: string;
   postedUrl?: string;
   assets?: PrismVariantAssets;
+  video?: PrismVariantVideo;
+  videoJob?: PrismVariantVideoJob;
+};
+
+/** Where a video render's credits came from, so a failure can give them back. */
+export type PrismVideoSpend = {
+  periodKey: string;
+  allowance: number;
+  free: number;
+  purchased: number;
+};
+
+/** One video render. Stored at prism_video_jobs/{jobId}; written by Functions and the worker only. */
+export type PrismVideoJob = {
+  agencyId: string;
+  postId: string;
+  channel: PrismChannel;
+  format: PrismFormat;
+  seconds: number;
+  credits: number;
+  spend: PrismVideoSpend;
+  status: PrismVideoJobStatus;
+  stage: string;
+  error?: string;
+  createdBy: string;
+  createdByName: string;
+  refunded?: boolean;
+  output?: {storagePath: string; coverPath: string};
+  /** Omni output tokens across all segments, for cost tracking. */
+  outputTokens?: number;
 };
 
 export type PrismPostEvent = {

@@ -256,7 +256,10 @@ export const savePrismPost = onCall(async (request) => {
       const changed = !prev || prev.text !== next.text || prev.format !== next.format;
       if (changed) copyChanged = true;
       const merged: PrismVariant = {...(prev ?? {}), format: next.format, text: next.text, ...(changed ? {editedAt: now} : {})};
-      if (prev && prev.format !== next.format) delete merged.assets;
+      if (prev && prev.format !== next.format) {
+        delete merged.assets;
+        delete merged.video;
+      }
       variants[ch] = merged;
     }
     if (channels.some((ch) => !post.channels.includes(ch)) || channels.length !== post.channels.length) {

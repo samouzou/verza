@@ -11,6 +11,9 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 5. It then creates calendar posts in **`prism_posts`** (items sharing an idea and day become one multi-channel post).
 6. **`/internal/render-slides`** `{postId, channel}` (same secret header) re-renders slides from a calendar post's current
    outline and stores them on that channel's variant. Called by the **`renderPrismSlides`** callable.
+7. **`/internal/render-video`** `{jobId}` renders a `prism_video_jobs` doc: Gemini shot plan, Gemini Omni 9:16 1080p
+   segments (10s, extended in 10s steps up to 40s), Gemini TTS voiceover, ffmpeg stitch, then `video.mp4` and
+   `cover.jpg` on the variant. Called by the **`renderPrismVideoTask`** Cloud Task and can run for up to ~25 minutes.
 
 ## Environment
 
@@ -19,6 +22,10 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 | `LINKEDIN_OS_WORKER_SHARED_SECRET` | yes | Must match Firebase param `LINKEDIN_OS_WORKER_SHARED_SECRET` |
 | `GEMINI_API_KEY` | yes | Google AI Studio / Gemini API key (same name as `apps/functions/src/config/params.ts` `GEMINI_API_KEY`) |
 | `GEMINI_MODEL` | no | Default `gemini-3.6-flash` (aligned with `apps/optic-worker`) |
+| `PRISM_VIDEO_MODEL` | no | Default `gemini-omni-1.1-flash` |
+| `PRISM_TTS_MODEL` | no | Default `gemini-3.8-flash-tts` |
+| `PRISM_TTS_VOICE` | no | Default `Kore` |
+| `FFMPEG_PATH` / `FFPROBE_PATH` | no | Default `ffmpeg` / `ffprobe` on `PATH` (installed by the Dockerfile) |
 | `APP_STORAGE_BUCKET` | no | Firebase Storage bucket. If unset, worker uses `{GOOGLE_CLOUD_PROJECT}.firebasestorage.app` (set automatically on Cloud Run). |
 | `PORT` | no | Default `8080` |
 
@@ -72,8 +79,9 @@ gcloud run deploy "$SERVICE" \
   --region="$REGION" \
   --source=. \
   --port=8080 \
-  --memory=512Mi \
-  --timeout=300 \
+  --memory=2Gi \
+  --cpu=2 \
+  --timeout=1800 \
   --min-instances=0 \
   --max-instances=5 \
   --allow-unauthenticated \
@@ -89,8 +97,9 @@ gcloud run deploy "$SERVICE" \
   --region="$REGION" \
   --source=. \
   --port=8080 \
-  --memory=512Mi \
-  --timeout=300 \
+  --memory=2Gi \
+  --cpu=2 \
+  --timeout=1800 \
   --allow-unauthenticated \
   --set-env-vars="GEMINI_API_KEY=YOUR_KEY,GEMINI_MODEL=gemini-3.6-flash,LINKEDIN_OS_WORKER_SHARED_SECRET=${LINKEDIN_OS_WORKER_SHARED_SECRET}"
 ```
@@ -122,6 +131,13 @@ Also deploy Firestore rules/indexes if not yet done:
 
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes,storage --project "$PROJECT_ID"
+```
+
+Video renders need the 30-minute timeout and 2Gi memory above (ffmpeg holds up to 40s of 1080p in temp files). Existing
+services can be updated without a rebuild:
+
+```bash
+gcloud run services update "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --timeout=1800 --memory=2Gi --cpu=2
 ```
 
 The Cloud Run service account needs **Storage Object Admin** (or equivalent) on the Firebase bucket so carousel PNGs can be uploaded.

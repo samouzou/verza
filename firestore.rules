@@ -431,6 +431,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Prism — video credit balance and ledger per brand (Functions only)
+    match /prism_video_credits/{agencyId} {
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
+      allow write: if false;
+      match /ledger/{entryId} {
+        allow read: if request.auth != null && isTeamMemberOf(agencyId);
+        allow write: if false;
+      }
+    }
+
+    // Prism — video renders (Functions and the worker write; agency team reads)
+    match /prism_video_jobs/{jobId} {
+      allow read: if request.auth != null && isTeamMemberOf(resource.data.agencyId);
+      allow write: if false;
+    }
+
     // Prism — Zernio webhook dedupe markers (server only)
     match /prism_webhook_events/{eventId} {
       allow read, write: if false;
