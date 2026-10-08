@@ -33,7 +33,7 @@ export async function renderPostSlides(postId: string, channel: string): Promise
   if (!text) throw new RenderInputError("Write the carousel outline first.");
 
   const brand = await loadWorkerBrand(agencyId);
-  const kit = await loadSlideKit(agencyId, brand, channel);
+  const kit = await loadSlideKit(agencyId, brand, channel, typeof post.productId === "string" ? post.productId : undefined);
   let pngSlides;
   try {
     pngSlides = await renderCarouselPngs(text, kit);

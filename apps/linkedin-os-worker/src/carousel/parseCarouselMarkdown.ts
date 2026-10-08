@@ -1,4 +1,4 @@
-export type SlideLayout = "cover" | "stat" | "split" | "steps" | "quote" | "list" | "cta";
+export type SlideLayout = "cover" | "stat" | "split" | "steps" | "quote" | "list" | "cta" | "product" | "screenshot";
 
 export type ParsedCarouselSlide = {
   index: number;
@@ -14,6 +14,8 @@ export type ParsedCarouselSlide = {
 const LAYOUT_WORDS: [RegExp, SlideLayout][] = [
   [/\bcta\b|call to action/i, "cta"],
   [/\bcover\b|\bhook\b/i, "cover"],
+  [/screenshot|\bscreens?\b|\binterface\b|\bui\b/i, "screenshot"],
+  [/\bproduct\b|showcase/i, "product"],
   [/\bstat\b|\bnumber\b|\bdata\b|\bmetric\b/i, "stat"],
   [/\bsplit\b|\bvs\.?\b|before|myth|compare|old way/i, "split"],
   [/\bsteps?\b|how to|process|framework/i, "steps"],

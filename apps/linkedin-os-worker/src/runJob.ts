@@ -2,7 +2,7 @@ import {GoogleGenerativeAI} from "@google/generative-ai";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
 
 import {buildCarouselPdf, buildCarouselZip, renderCarouselPngs} from "./carousel/renderCarousel";
-import {loadWorkerBrand, type WorkerBrand} from "./brand";
+import {catalogLine, findProduct, loadWorkerBrand, visualLayoutFor, type WorkerBrand} from "./brand";
 import {loadSlideKit} from "./carousel/slideKit";
 import "./firebaseAdmin";
 import type {CarouselAssets} from "./carousel/uploadCarousel";
@@ -26,6 +26,7 @@ type JobItem = {
   idea?: string;
   date?: string;
   scheduledAt?: string;
+  product?: string;
 };
 
 type JobOutput = {
@@ -115,12 +116,33 @@ ${truncate(brand.bannedClaims, MAX_CTX) || "(not configured)"}
 }
 
 /**
+ * Extra slide layout that shows real catalog images, when the brand has any.
+ * @param {?string} layout "Product" | "Screenshot" | null.
+ * @return {string} Layout line(s), or "".
+ */
+function visualSlideFormat(layout: "Product" | "Screenshot" | null): string {
+  if (layout === "Product") {
+    return `
+- Product: "- exact CATALOG name", "- headline (8 words max)", optional "- one line (14 words max)". Shows the real
+  product photo. Only for catalog items marked [has images]; use 1–2 when the post features a product.`;
+  }
+  if (layout === "Screenshot") {
+    return `
+- Screenshot: "- exact CATALOG name", "- title (6 words max)", optional "- caption (14 words max)". Shows the real
+  screenshot in a browser or phone frame. Only for catalog items marked [has images]; use 1–2 when the post is about
+  a feature.`;
+  }
+  return "";
+}
+
+/**
  * Carousel slide-format instructions shared by LinkedIn and Instagram.
  * @param {number} min Min slides.
  * @param {number} max Max slides.
+ * @param {?string} visual Image layout available to this brand.
  * @return {string} Format block.
  */
-function slideFormat(min: number, max: number): string {
+function slideFormat(min: number, max: number, visual: "Product" | "Screenshot" | null): string {
   return `Slides (${min}–${max}). Head each one "## Slide N — Layout", then its bullet lines. Layouts:
 - Cover (slide 1 only): "- headline" (8 words max), then optional "- subline" (14 words max)
 - Stat: "- the number" (e.g. 3.2× or 47%), "- what it means" (10 words max), optional "- Source: …"
@@ -128,7 +150,8 @@ function slideFormat(min: number, max: number): string {
 - Steps: "- title" (6 words max), then 2–4 steps (8 words each)
 - Quote: "- the quote" (22 words max), "- — Name, Role"
 - List: "- title" (6 words max), then 2–3 points (12 words each)
-- CTA (last slide only, soft unless cta is hard_product): "- headline" (6 words max), "- the action" (e.g. Comment "ROAS" for the demo)
+- CTA (last slide only, soft unless cta is hard_product): "- headline" (6 words max), "- the action" (e.g. Comment "ROAS" for the demo)${
+  visualSlideFormat(visual)}
 Use at least 3 different layouts and never two of the same in a row. Use Stat only with numbers from the
 product truth or notes, and Quote only with a real person you were given; never invent either.
 Wrap the 1–2 words that matter most in the Cover and List titles in *asterisks*.`;
@@ -139,9 +162,12 @@ Wrap the 1–2 words that matter most in the Cover and List titles in *asterisks
  * @param {JobItem} item Queue item.
  * @param {string} weekLabel Week label.
  * @param {string} reviewer Reviewer display name.
+ * @param {WorkerBrand} brand Brand (catalog and category).
  * @return {string} User message.
  */
-function userMessageForItem(item: JobItem, weekLabel: string, reviewer: string): string {
+function userMessageForItem(item: JobItem, weekLabel: string, reviewer: string, brand: WorkerBrand): string {
+  const featured = findProduct(brand.catalog, item.product);
+  const visual = visualLayoutFor(brand);
   const hook =
     (item.hook || "").trim() ||
     "(no hook supplied—propose 2 hook options first)";
@@ -155,7 +181,9 @@ Pillar: ${item.pillar}
 Hook / direction: ${hook}
 Product truth you may assume (do not exceed): ${truth}
 CTA type: ${item.cta || "comment"}
-Extra notes: ${notes || "none"}`;
+Extra notes: ${notes || "none"}${featured ? `
+Featured product (the hero of this post; use only these facts):
+${catalogLine(featured)}` : ""}`;
 
   switch (item.format) {
   case "carousel_outline":
@@ -169,7 +197,7 @@ line 1 is a hook under ~140 characters that works before "see more"; then 3–6 
 insight, number or story that makes people open the document (don't just list the slides); one CTA line;
 0–3 hashtags at the end. No "swipe" or "link in bio".
 
-${slideFormat(7, 10)}`;
+${slideFormat(7, 10, visual)}`;
   case "x_post":
     return `${header}
 
@@ -187,7 +215,12 @@ Write an Instagram feed post.
 
 ## Visual
 Describe the ONE graphic to post so an image model can make it: subject, composition, style and mood.
-Put any on-image text in double quotes, 8 words max (or say "no text").
+Put any on-image text in double quotes, 8 words max (or say "no text").${!featured?.images.length ? "" :
+    visual === "Screenshot" ?
+      "\nThe real screenshot of the featured product is placed in a device frame: describe the background, mood and " +
+      "on-image text only." :
+      "\nThe real photo of the featured product is used as-is: describe the scene, surface, props and lighting around " +
+      "it; never redesign the product."}
 
 ## Caption
 - First line is the hook (under 125 characters — it shows before "more").
@@ -202,7 +235,7 @@ Write an Instagram carousel. Put the caption FIRST, then the slides.
 ## Caption
 Hook line (under 125 characters), 2–4 short lines, a "save this" or comment CTA, then 3–5 hashtags.
 
-${slideFormat(5, 8)}`;
+${slideFormat(5, 8, visual)}`;
   case "ig_reel":
     return `${header}
 
@@ -400,7 +433,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
     }
 
     const texts = await Promise.all(
-      items.map((item) => geminiComplete(system, userMessageForItem(item, weekLabel, reviewer), apiKey, model))
+      items.map((item) => geminiComplete(system, userMessageForItem(item, weekLabel, reviewer, brand), apiKey, model))
     );
 
     const outputs: JobOutput[] = [];
@@ -420,7 +453,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
 
       if (CAROUSEL_FORMATS.has(item.format)) {
         try {
-          const pngSlides = await renderCarouselPngs(markdown, await loadSlideKit(agencyId, brand, output.channel));
+          const pngSlides = await renderCarouselPngs(markdown, await loadSlideKit(agencyId, brand, output.channel, item.product));
           const [pdf, zip] = await Promise.all([
             buildCarouselPdf(pngSlides),
             buildCarouselZip(pngSlides),
@@ -463,6 +496,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
         };
       }
       const idea = (firstItem.idea || "").trim();
+      const featured = group.map((i) => findProduct(brand.catalog, items[i]!.product)).find(Boolean);
       batch.set(postRef, {
         agencyId,
         title: group.length > 1 && idea ? idea.slice(0, 120) : studioTitle(firstItem.hook || idea, firstOut.markdown, firstOut.id),
@@ -475,6 +509,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
         history: [{at: firstOut.generatedAt, uid: createdBy, name: reviewer, action: "written in Studio"}],
         source: "studio",
         studio: {jobId, itemId: firstOut.id, ...(group.length > 1 ? {itemIds: group.map((i) => outputs[i]!.id)} : {})},
+        ...(featured ? {productId: featured.id} : {}),
         createdBy,
         createdByName: reviewer,
         createdAt: FieldValue.serverTimestamp(),

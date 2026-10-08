@@ -13,6 +13,7 @@ import {
 } from "./brandStrategy";
 import {PRISM_MAX_VARIANT_CHARS} from "./channelFormats";
 import {withPrismUsage} from "./billing";
+import {findCatalogItem, loadPrismCatalog} from "./products";
 import type {
   LinkedInOsJobItem,
   LinkedInOsJobOutput,
@@ -227,6 +228,15 @@ export const savePrismPost = onCall(async (request) => {
   const scheduledAt = parseSchedule(d.scheduledAt);
   const incoming = parseVariants(d.variants, channels);
   const autoPublish = typeof d.autoPublish === "boolean" ? d.autoPublish : undefined;
+  let productId: string | undefined;
+  if (typeof d.productId === "string") {
+    productId = "";
+    if (d.productId.trim()) {
+      const product = findCatalogItem(await loadPrismCatalog(c.agencyId), d.productId);
+      if (!product) throw new HttpsError("invalid-argument", "That product isn't in your catalog anymore.");
+      productId = product.id;
+    }
+  }
   const now = new Date().toISOString();
 
   if (typeof d.postId === "string" && d.postId.trim()) {
@@ -278,6 +288,7 @@ export const savePrismPost = onCall(async (request) => {
       variants,
       status,
       ...(autoPublish !== undefined ? {autoPublish} : {}),
+      ...(productId !== undefined ? {productId: productId || FieldValue.delete()} : {}),
       ...(changed && stalePublish(post) ? {publish: FieldValue.delete()} : {}),
       history: appendHistory(post.history, ...events),
       updatedAt: FieldValue.serverTimestamp(),
@@ -303,6 +314,7 @@ export const savePrismPost = onCall(async (request) => {
     history: [prismEvent(c, "created")],
     source: "manual",
     ...(autoPublish === false ? {autoPublish} : {}),
+    ...(productId ? {productId} : {}),
     createdBy: c.uid,
     createdByName: c.name,
   };

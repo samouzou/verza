@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import {renderPostSlides, RenderInputError} from "./renderPost";
+import {renderFeedGraphic} from "./renderFeed";
 import {runLinkedInOsJob} from "./runJob";
 
 const port = Number.parseInt(process.env.PORT || "8080", 10);
@@ -48,6 +49,26 @@ app.post("/internal/render-slides", async (req, res) => {
   try {
     const result = await renderPostSlides(postId.trim(), channel.trim());
     res.status(200).json({ok: true, ...result});
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(e instanceof RenderInputError ? 400 : 500).json({error: msg});
+  }
+});
+
+app.post("/internal/render-feed", async (req, res) => {
+  const {agencyId, productId, headline, sub} = req.body ?? {};
+  if (typeof agencyId !== "string" || !agencyId.trim() || typeof productId !== "string" || !productId.trim()) {
+    res.status(400).json({error: "agencyId and productId required"});
+    return;
+  }
+  try {
+    const png = await renderFeedGraphic({
+      agencyId: agencyId.trim(),
+      productId: productId.trim(),
+      headline: typeof headline === "string" ? headline.trim().slice(0, 120) : "",
+      sub: typeof sub === "string" ? sub.trim().slice(0, 160) : "",
+    });
+    res.status(200).json({ok: true, png: png.toString("base64")});
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(e instanceof RenderInputError ? 400 : 500).json({error: msg});

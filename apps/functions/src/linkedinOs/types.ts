@@ -25,9 +25,13 @@ export type PrismChannelPlan = {
   postsPerWeek: number;
 };
 
+export type PrismBrandCategory = "dtc" | "saas" | "app" | "services" | "creator" | "local";
+
 /** Per-brand Prism setup, stored at prism_brands/{agencyId}. */
 export type PrismBrandStrategy = {
   agencyId: string;
+  /** Empty until the brand picks one. */
+  category: PrismBrandCategory | "";
   brandName: string;
   websiteUrl: string;
   brief: string;
@@ -126,6 +130,8 @@ export type PrismPost = {
   /** false = post by hand even when accounts are connected. Default true. */
   autoPublish?: boolean;
   publish?: PrismPublish;
+  /** Brand kit product this post features; its images go into slides and graphics. */
+  productId?: string;
   createdBy: string;
   createdByName: string;
 };
@@ -148,6 +154,8 @@ export type LinkedInOsJobItem = {
   date?: string;
   /** Set server-side from date + the channel's default time. */
   scheduledAt?: string;
+  /** Catalog product to feature, by exact name. */
+  product?: string;
 };
 
 export type LinkedInOsVoiceProfile = {

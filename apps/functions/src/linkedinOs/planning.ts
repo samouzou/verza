@@ -31,6 +31,15 @@ import type {
   PrismVariant,
 } from "./types";
 
+import {
+  catalogLine,
+  findCatalogItem,
+  formatCatalogForPrompt,
+  loadPrismCatalog,
+  type PrismCatalogItem,
+  visualLayoutFor,
+} from "./products";
+
 const MODEL = "gemini-3.6-flash";
 const MAX_PLAN_IDEAS = 40;
 
@@ -57,9 +66,10 @@ async function voiceBlock(agencyId: string): Promise<string> {
  * Shared system rules for anything Prism writes.
  * @param {PrismBrandStrategy} s Brand setup.
  * @param {string} voice Voice block.
+ * @param {!Array<PrismCatalogItem>} catalog Brand kit products.
  * @return {string} Prompt preamble.
  */
-function writerPreamble(s: PrismBrandStrategy, voice: string): string {
+function writerPreamble(s: PrismBrandStrategy, voice: string, catalog: PrismCatalogItem[]): string {
   return `You are the social media manager for ${s.brandName}.
 
 RULES:
@@ -70,6 +80,8 @@ RULES:
 ${s.bannedClaims || "(none)"}
 
 ${formatBrandStrategyForPrompt(s)}
+
+${formatCatalogForPrompt(catalog) || "CATALOG: (none on file — don't name specific products)"}
 
 VOICE:
 ${voice}`;
@@ -113,7 +125,10 @@ export const adaptPrismPost = onCall({timeoutSeconds: 120}, async (request) => {
     request.data.instruction.trim().slice(0, 500) :
     "";
 
-  const preamble = writerPreamble(strategy, await voiceBlock(c.agencyId));
+  const [voice, catalog] = await Promise.all([voiceBlock(c.agencyId), loadPrismCatalog(c.agencyId)]);
+  const preamble = writerPreamble(strategy, voice, catalog);
+  const featured = findCatalogItem(catalog, post.productId);
+  const visual = visualLayoutFor(catalog, strategy.category);
   const pillar = strategy.pillars.find((p) => p.id === post.pillar);
   const now = new Date().toISOString();
 
@@ -130,10 +145,11 @@ IDEA: ${post.title}
 ANGLE / NOTES: ${post.angle || "(none)"}
 PILLAR: ${pillar ? `${pillar.label} — ${pillar.description}` : post.pillar}
 CHANNEL: ${PRISM_CHANNEL_LABELS[ch]} (role: ${strategy.channels[ch].role || "not specified"})
-${current?.text && instruction ? `CURRENT DRAFT:\n${current.text}\n` : ""}${
+${featured ? `FEATURED PRODUCT (the hero of this post; use only these facts):\n${catalogLine(featured)}\n` : ""}${
+  current?.text && instruction ? `CURRENT DRAFT:\n${current.text}\n` : ""}${
   instruction ? `EDITOR'S REQUEST: ${instruction}\n` : ""
 }
-Write: ${formatInstructions(format)}
+Write: ${formatInstructions(format, {visual, featured: !!featured?.images.length})}
 
 Output only the deliverable, no preamble.`,
       });
@@ -217,9 +233,15 @@ export const generatePrismMonthPlan = onCall({timeoutSeconds: 180}, async (reque
     });
 
   const formatList = channels.map((ch) => `${ch}: ${PRISM_CHANNEL_FORMATS[ch].join(" | ")}`).join("\n");
+  const [voice, catalog] = await Promise.all([voiceBlock(c.agencyId), loadPrismCatalog(c.agencyId)]);
+  const productRule = catalog.length ?
+    "\n- Feature catalog products where they fit the idea (launches, how-tos, proof). Not every post sells." :
+    "";
+  const productField = catalog.length ? `,
+      "product": "exact CATALOG name this idea features, or empty"` : "";
   const {text} = await withPrismUsage(c.agencyId, {ai: PRISM_AI_COST.monthPlan}, async () => ai.generate({
     model: googleAI.model(MODEL),
-    prompt: `${writerPreamble(strategy, await voiceBlock(c.agencyId))}
+    prompt: `${writerPreamble(strategy, voice, catalog)}
 
 TASK: Plan ${strategy.brandName}'s content calendar from ${firstDate} to ${lastDate} (timezone ${tz}).
 Propose exactly ${ideaCount} ideas. One idea can run on several channels (adapted natively later).
@@ -229,7 +251,7 @@ ${channels.map((ch) => `- ${ch}: ${targets[ch]}`).join("\n")}
 Think like a strategist:
 - Balance pillars by their share. Mix formats. Spread posts across the period; avoid stacking the same day.
 - Build in moments: launches, campaigns, seasonal or industry dates relevant to this audience.
-- Each idea needs a specific angle, not a topic ("3 mistakes we made pricing creators", not "pricing").
+- Each idea needs a specific angle, not a topic ("3 mistakes we made pricing creators", not "pricing").${productRule}
 
 MONTH BRIEF FROM THE TEAM:
 ${brief || "(none)"}
@@ -252,7 +274,7 @@ Return ONLY JSON:
       "title": "specific idea",
       "angle": "1–3 sentences: the hook, the point, the proof to use",
       "pillar": "${strategy.pillars.map((p) => p.id).join("|")}",
-      "channels": [{"channel": "${channels.join("|")}", "format": "one of that channel's formats"}]
+      "channels": [{"channel": "${channels.join("|")}", "format": "one of that channel's formats"}]${productField}
     }
   ]
 }`,
@@ -288,6 +310,7 @@ Return ONLY JSON:
       variants[ch] = {format: PRISM_CHANNEL_FORMATS[ch][0], text: ""};
     }
     const pillarRaw = typeof idea.pillar === "string" ? idea.pillar.trim() : "";
+    const product = findCatalogItem(catalog, idea.product);
     const post: PrismPost = {
       agencyId: c.agencyId,
       title,
@@ -299,6 +322,7 @@ Return ONLY JSON:
       variants,
       history: [{at: now, uid: c.uid, name: c.name, action: `planned for ${month}`}],
       source: "plan",
+      ...(product ? {productId: product.id} : {}),
       createdBy: c.uid,
       createdByName: c.name,
     };

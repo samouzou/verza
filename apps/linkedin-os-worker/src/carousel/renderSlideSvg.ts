@@ -1,5 +1,6 @@
 import type {ParsedCarouselSlide} from "./parseCarouselMarkdown";
 import {type CarouselTheme, VERZA_CHEVRON_PATH} from "../brandColors";
+import type {WorkerProduct} from "../brand";
 
 const W = 1080;
 const H = 1350;
@@ -26,6 +27,24 @@ export type SlideKit = {
   logo?: SlideLogo;
   /** Who's posting: shown on the cover and the CTA. */
   byline?: {name: string; handle: string; avatar?: string};
+  /** Brand kit products whose images Product / Screenshot slides can show. */
+  catalog?: WorkerProduct[];
+  /** The post's featured product, used when a slide doesn't name one. */
+  featuredId?: string;
+};
+
+/** A real image resolved for a Product or Screenshot slide. */
+export type SlideVisual = {
+  /** Data URI. */
+  image: string;
+  /** Width / height. */
+  aspect: number;
+  /** Uniform edge color of an opaque image (blends the stage into the photo), or null for busy photos. */
+  backdrop: string | null;
+  transparent: boolean;
+  name: string;
+  headline: string;
+  sub: string;
 };
 
 type Surface = {
@@ -323,9 +342,17 @@ function byline(kit: SlideKit, s: Surface, y: number, prefix?: string): string {
  * @param {number} n Slide number.
  * @param {number} total Slide count.
  * @param {boolean} footer Whether to show the footer domain.
+ * @param {boolean} [single] A standalone graphic: no page count or progress rail.
  * @return {{back: string, front: string}} Background and foreground layers.
  */
-function chrome(kit: SlideKit, s: Surface, n: number, total: number, footer: boolean): {back: string; front: string} {
+function chrome(
+  kit: SlideKit,
+  s: Surface,
+  n: number,
+  total: number,
+  footer: boolean,
+  single = false
+): {back: string; front: string} {
   const t = kit.theme;
   const bg = s.kind === "dark" ? t.background : s.kind === "light" ? mix("#FFFFFF", t.accentFrom, 0.045) : t.accentFrom;
   const glow = s.kind === "dark" ?
@@ -337,10 +364,11 @@ function chrome(kit: SlideKit, s: Surface, n: number, total: number, footer: boo
   const back = `<rect width="${W}" height="${H}" fill="${bg}"/>${glow}`;
   const front = `
   ${brandMark(kit, s, 82, 40)}
-  <text x="${W - PAD}" y="${82 + 30}" font-family="${SANS}" font-size="22" font-weight="500" letter-spacing="3" ` +
-    `fill="${esc(s.muted)}" text-anchor="end">${String(n).padStart(2, "0")} / ${String(total).padStart(2, "0")}</text>
+  ${single ? "" : `<text x="${W - PAD}" y="${82 + 30}" font-family="${SANS}" font-size="22" font-weight="500" ` +
+    `letter-spacing="3" fill="${esc(s.muted)}" text-anchor="end">${String(n).padStart(2, "0")} / ` +
+    `${String(total).padStart(2, "0")}</text>
   <rect x="${PAD}" y="${railY}" width="${CONTENT_W}" height="4" rx="2" fill="${esc(s.rule)}"/>
-  <rect x="${PAD}" y="${railY}" width="${filled.toFixed(0)}" height="4" rx="2" fill="${s.fill}"/>
+  <rect x="${PAD}" y="${railY}" width="${filled.toFixed(0)}" height="4" rx="2" fill="${s.fill}"/>`}
   ${footer ? `<text x="${PAD}" y="${railY - 30}" font-family="${SANS}" font-size="22" font-weight="500" fill="${esc(s.muted)}">` +
     `${esc(t.footer)}</text>` : ""}`;
   return {back, front};
@@ -568,6 +596,108 @@ function cta(slide: ParsedCarouselSlide, kit: SlideKit, s: Surface): string {
 }
 
 /**
+ * Product: the real product photo on a stage, with its name, headline and one line.
+ * @param {SlideVisual} v Resolved visual.
+ * @param {SlideKit} kit Kit.
+ * @param {Surface} s Surface.
+ * @return {string} SVG.
+ */
+function product(v: SlideVisual, kit: SlideKit, s: Surface): string {
+  const head = fit(v.headline || v.name, CONTENT_W, [76, 68, 60, 52], 2, {weight: 700});
+  const hlh = head.font.size * 1.06;
+  const sub = v.sub ? fit(v.sub, CONTENT_W, [34, 31, 28], 2, {weight: 400}) : null;
+  const slh = sub ? sub.font.size * 1.3 : 0;
+  const textEnd = H - 190;
+  const subH = sub ? 28 + (sub.lines.length - 1) * slh + sub.font.size : 0;
+  const headH = (head.lines.length - 1) * hlh + head.font.size;
+  const textTop = textEnd - subH - headH - 52;
+  const stageY = 180;
+  const stageH = textTop - 56 - stageY;
+  const paper = mix("#FFFFFF", kit.theme.accentFrom, 0.045);
+  const stageFill = v.backdrop ?? mix(paper, kit.theme.accentFrom, 0.1);
+  const inset = v.backdrop || v.transparent ? 64 : 0;
+  const fitMode = inset ? "xMidYMid meet" : "xMidYMid slice";
+  const shadow = v.transparent ?
+    `<ellipse cx="${W / 2}" cy="${stageY + stageH - 54}" rx="${CONTENT_W * 0.3}" ry="18" fill="${INK}" opacity="0.10"/>` :
+    "";
+  const headY = textTop + 34 + head.font.size;
+  const headEnd = bottom(headY, head.lines.length, hlh, head.font.size);
+  return `
+  <clipPath id="stage"><rect x="${PAD}" y="${stageY}" width="${CONTENT_W}" height="${stageH}" rx="40"/></clipPath>
+  <rect x="${PAD}" y="${stageY}" width="${CONTENT_W}" height="${stageH}" rx="40" fill="${esc(stageFill)}"/>
+  ${shadow}
+  <image x="${PAD + inset}" y="${stageY + inset}" width="${CONTENT_W - inset * 2}" height="${stageH - inset * 2}" ` +
+    `xlink:href="${v.image}" preserveAspectRatio="${fitMode}" clip-path="url(#stage)"/>
+  <rect x="${PAD}" y="${stageY}" width="${CONTENT_W}" height="${stageH}" rx="40" fill="none" stroke="${esc(s.rule)}" stroke-width="2"/>
+  <text x="${PAD}" y="${textTop}" font-family="${SANS}" font-size="22" font-weight="700" letter-spacing="3.5" ` +
+    `fill="${esc(s.accent)}">${esc(v.name.toUpperCase())}</text>
+  ${textBlock({...head, x: PAD, y: headY, lh: hlh, color: s.text, accent: s.accent, tracking: -0.025})}
+  ${sub ? textBlock({...sub, x: PAD, y: headEnd + 28 + sub.font.size * 0.8, lh: slh, color: s.muted, accent: s.accent}) : ""}`;
+}
+
+/**
+ * Screenshot: title and caption above the real screenshot, framed as a browser window (wide) or a phone (tall).
+ * @param {SlideVisual} v Resolved visual.
+ * @param {SlideKit} kit Kit.
+ * @param {Surface} s Surface.
+ * @return {string} SVG.
+ */
+function screenshot(v: SlideVisual, kit: SlideKit, s: Surface): string {
+  const t = sectionTitle(v.headline || v.name, s, 190);
+  const cap = v.sub ? fit(v.sub, CONTENT_W, [34, 31, 28], 2, {weight: 400}) : null;
+  const clh = cap ? cap.font.size * 1.3 : 0;
+  const capY = t.end + 24 + (cap?.font.size ?? 0);
+  const textEnd = cap ? bottom(capY, cap.lines.length, clh, cap.font.size) : t.end;
+  const top = textEnd + 64;
+  const maxH = H - 170 - top;
+  const shadow = (x: number, y: number, w: number, h: number, r: number) =>
+    `<rect x="${x}" y="${y + 24}" width="${w}" height="${h}" rx="${r}" fill="#000000" opacity="0.28" filter="url(#soft)"/>`;
+  let frame: string;
+  if (v.aspect < 0.85) {
+    const bezel = 18;
+    const h = maxH;
+    const screenH = h - bezel * 2;
+    const w = Math.min(CONTENT_W * 0.62, screenH * v.aspect + bezel * 2);
+    const x = (W - w) / 2;
+    frame = `
+    ${shadow(x, top, w, h, 70)}
+    <rect x="${x}" y="${top}" width="${w}" height="${h}" rx="70" fill="#0B0B0D"/>
+    <clipPath id="screen"><rect x="${x + bezel}" y="${top + bezel}" width="${w - bezel * 2}" height="${screenH}" rx="54"/></clipPath>
+    <image x="${x + bezel}" y="${top + bezel}" width="${w - bezel * 2}" height="${screenH}" xlink:href="${v.image}" ` +
+      `preserveAspectRatio="xMidYMin slice" clip-path="url(#screen)"/>
+    <rect x="${W / 2 - 58}" y="${top + bezel + 16}" width="116" height="34" rx="17" fill="#0B0B0D"/>`;
+  } else {
+    const bar = 60;
+    const natural = CONTENT_W / v.aspect + bar;
+    const grown = Math.min((maxH - bar) * v.aspect, W - PAD + 200);
+    const bleed = natural < maxH && grown > CONTENT_W + 60;
+    const w = bleed ? grown : CONTENT_W;
+    const h = Math.min(maxH, w / v.aspect + bar);
+    const y = bleed ? top : top + (maxH - h) / 2;
+    const urlX = PAD + Math.min(w, CONTENT_W) / 2;
+    const host = kit.theme.footer.replace(/^https?:\/\//, "");
+    frame = `
+    ${shadow(PAD, y, w, h, 24)}
+    <clipPath id="screen"><rect x="${PAD}" y="${y}" width="${w}" height="${h}" rx="24"/></clipPath>
+    <g clip-path="url(#screen)">
+      <rect x="${PAD}" y="${y}" width="${w}" height="${h}" fill="#FFFFFF"/>
+      <image x="${PAD}" y="${y + bar}" width="${w}" height="${h - bar}" xlink:href="${v.image}" ` +
+      `preserveAspectRatio="xMinYMin slice"/>
+      <rect x="${PAD}" y="${y}" width="${w}" height="${bar}" fill="#F1F2F4"/>
+      <rect x="${PAD}" y="${y + bar - 1}" width="${w}" height="1" fill="#DADCE0"/>
+    </g>
+    ${["#FF5F57", "#FEBC2E", "#28C840"].map((c, i) =>
+    `<circle cx="${PAD + 34 + i * 26}" cy="${y + bar / 2}" r="8" fill="${c}"/>`).join("")}
+    <rect x="${urlX - 200}" y="${y + 14}" width="400" height="32" rx="16" fill="#FFFFFF"/>
+    <text x="${urlX}" y="${y + 37}" font-family="${SANS}" font-size="18" font-weight="500" fill="#5F6368" ` +
+      `text-anchor="middle">${esc(host)}</text>`;
+  }
+  return `${t.svg}
+  ${cap ? textBlock({...cap, x: PAD, y: capY, lh: clh, color: s.muted, accent: s.accent}) : ""}
+  ${frame}`;
+}
+
+/**
  * Picks each slide's surface so the carousel has rhythm: dark cover and CTA, accent stats,
  * and alternating light/dark content in between.
  * @param {!Array<ParsedCarouselSlide>} slides Slides.
@@ -577,7 +707,8 @@ export function slideSurfaces(slides: ParsedCarouselSlide[]): Surface["kind"][] 
   let alt = 0;
   return slides.map((s) => {
     if (s.layout === "cover" || s.layout === "cta" || s.layout === "quote") return "dark";
-    if (s.layout === "stat") return "accent";
+    if (s.layout === "stat" || s.layout === "screenshot") return "accent";
+    if (s.layout === "product") return "light";
     return alt++ % 2 === 0 ? "light" : "dark";
   });
 }
@@ -589,6 +720,8 @@ export function slideSurfaces(slides: ParsedCarouselSlide[]): Surface["kind"][] 
  * @param {number} total Total slide count.
  * @param {SlideKit} kit Brand kit.
  * @param {Surface["kind"]} kind Surface for this slide.
+ * @param {?SlideVisual} [visual] Real image for Product / Screenshot slides; without one they render as a list.
+ * @param {boolean} [single] A standalone graphic: no page count or progress rail.
  * @return {string} SVG document.
  */
 export function renderSlideSvg(
@@ -596,20 +729,25 @@ export function renderSlideSvg(
   n: number,
   total: number,
   kit: SlideKit,
-  kind: Surface["kind"]
+  kind: Surface["kind"],
+  visual?: SlideVisual | null,
+  single = false
 ): string {
   const s = surfaces(kit.theme)[kind];
   const people = slide.layout === "cover" || slide.layout === "cta";
-  const {back, front} = chrome(kit, s, n, total, !people);
+  const {back, front} = chrome(kit, s, n, total, !people, single);
   const body =
-    slide.layout === "cover" ? cover(slide, kit, s) :
+    visual && slide.layout === "product" ? product(visual, kit, s) :
+      visual && slide.layout === "screenshot" ? screenshot(visual, kit, s) :
+        slide.layout === "cover" ? cover(slide, kit, s) :
       slide.layout === "stat" ? stat(slide, s) :
         slide.layout === "split" ? split(slide, s, kit) :
           slide.layout === "steps" ? steps(slide, s) :
             slide.layout === "quote" ? quote(slide, s) :
               slide.layout === "cta" ? cta(slide, kit, s) :
                 list(slide, s);
-  const decor = slide.layout === "list" || slide.layout === "steps" || slide.layout === "split" ? ghost(s, n) : "";
+  const decor = slide.layout === "list" || slide.layout === "steps" || slide.layout === "split" ||
+    (!visual && (slide.layout === "product" || slide.layout === "screenshot")) ? ghost(s, n) : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
@@ -617,6 +755,7 @@ export function renderSlideSvg(
       <stop offset="0%" stop-color="${esc(kit.theme.accentFrom)}"/>
       <stop offset="100%" stop-color="${esc(kit.theme.accentTo)}"/>
     </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="28"/></filter>
     <radialGradient id="glow">
       <stop offset="0%" stop-color="${esc(kit.theme.accentTo)}" stop-opacity="${kind === "accent" ? 0.55 : 0.28}"/>
       <stop offset="100%" stop-color="${esc(kit.theme.accentTo)}" stop-opacity="0"/>

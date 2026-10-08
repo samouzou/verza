@@ -34,6 +34,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { productImages, useBrandProducts } from "@/hooks/use-brand-products";
 import { usePrismConnections } from "@/hooks/use-prism-connections";
 import { usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
@@ -64,7 +65,11 @@ type Form = {
   time: string;
   variants: Partial<Record<PrismChannel, PrismVariant>>;
   autoPublish: boolean;
+  /** "" = no featured product. */
+  productId: string;
 };
+
+const NO_PRODUCT = "none";
 
 export type ComposerTarget = { postId: string } | { newOn: Date | null };
 
@@ -87,6 +92,7 @@ function formFromPost(p: PrismPost): Form {
     time: d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "09:00",
     variants: p.variants ?? {},
     autoPublish: p.autoPublish !== false,
+    productId: p.productId ?? "",
   };
 }
 
@@ -103,6 +109,7 @@ function emptyForm(strategy: PrismBrandStrategy, on: Date | null): Form {
     time: "09:00",
     variants,
     autoPublish: true,
+    productId: "",
   };
 }
 
@@ -233,6 +240,9 @@ export function PostComposer({
   const agencyId = post?.agencyId ?? strategy.agencyId ?? null;
   const plan = usePrismPlan(agencyId);
   const { accounts } = usePrismConnections(agencyId);
+  const { products } = useBrandProducts(agencyId);
+  const productLabel =
+    strategy.category === "saas" ? "Feature to show" : strategy.category === "app" ? "Screen to show" : "Featured product";
   const publish = post?.publish;
   const withPublisher = publish?.state === "sending" || publish?.state === "scheduled";
   const locked = status === "posted" || withPublisher;
@@ -271,6 +281,7 @@ export function PostComposer({
       scheduledAt: scheduledIso(form),
       variants: Object.fromEntries(form.channels.map((ch) => [ch, form.variants[ch] ?? { format: PRISM_FORMATS[ch][0].value, text: "" }])),
       autoPublish: form.autoPublish,
+      productId: form.productId,
     });
     setDirty(false);
     if (!postId) setPostId(res.postId);
@@ -401,6 +412,43 @@ export function PostComposer({
               placeholder="The hook, the point, the proof to use."
             />
           </div>
+          {products.length > 0 && (
+            <div className="space-y-2">
+              <Label>{productLabel}</Label>
+              <Select
+                value={form.productId || NO_PRODUCT}
+                onValueChange={(v) => edit({ productId: v === NO_PRODUCT ? "" : v })}
+                disabled={locked}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_PRODUCT}>None</SelectItem>
+                  {products.map((p) => {
+                    const img = productImages(p)[0];
+                    return (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">
+                          {img ? (
+                            <img src={img} alt="" className="h-5 w-5 rounded object-cover" />
+                          ) : (
+                            <span className="h-5 w-5 rounded bg-muted" />
+                          )}
+                          {p.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {form.productId && !productImages(products.find((p) => p.id === form.productId) ?? { imageUrl: "" }).length && (
+                <p className="text-xs text-muted-foreground">
+                  Add images to this product in Brand setup so slides and graphics can show it.
+                </p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label>Pillar</Label>

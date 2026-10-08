@@ -23,8 +23,56 @@ export type PrismChannelPlan = {
   postsPerWeek: number;
 };
 
+export type PrismBrandCategory = "dtc" | "saas" | "app" | "services" | "creator" | "local";
+
+export const PRISM_CATEGORIES: PrismBrandCategory[] = ["dtc", "saas", "app", "services", "creator", "local"];
+
+/** `catalog` names the products step for the category; `imageHint` says what pictures to upload. */
+export const PRISM_CATEGORY_META: Record<
+  PrismBrandCategory,
+  { label: string; hint: string; catalog: string; imageHint: string }
+> = {
+  dtc: {
+    label: "DTC / e-commerce",
+    hint: "Physical products sold online",
+    catalog: "Products",
+    imageHint: "Product photos on a clean background work best.",
+  },
+  saas: {
+    label: "SaaS / software",
+    hint: "Software for businesses",
+    catalog: "Features & screenshots",
+    imageHint: "Desktop screenshots of the feature. Prism frames them in a browser window.",
+  },
+  app: {
+    label: "Consumer app",
+    hint: "An app people use on their phone",
+    catalog: "App screens",
+    imageHint: "Phone screenshots. Prism frames them in a device.",
+  },
+  services: {
+    label: "Agency / services",
+    hint: "Expertise, delivered by a team",
+    catalog: "Services",
+    imageHint: "Optional: team, work samples, or case-study visuals.",
+  },
+  creator: {
+    label: "Creator / personal brand",
+    hint: "A person is the brand",
+    catalog: "Offers",
+    imageHint: "Course covers, book covers, merch, or photos of you.",
+  },
+  local: {
+    label: "Local business",
+    hint: "A place people visit",
+    catalog: "Menu & offers",
+    imageHint: "Photos of the place, the menu, or your best sellers.",
+  },
+};
+
 export type PrismBrandStrategy = {
   agencyId?: string;
+  category: PrismBrandCategory | "";
   brandName: string;
   websiteUrl: string;
   brief: string;
@@ -72,6 +120,7 @@ export function prismFormatLabel(format: string): string {
 
 export function emptyPrismStrategy(): PrismBrandStrategy {
   return {
+    category: "",
     brandName: "",
     websiteUrl: "",
     brief: "",
@@ -149,6 +198,8 @@ export type PrismPost = {
   /** false = post by hand even when accounts are connected. */
   autoPublish?: boolean;
   publish?: PrismPublish;
+  /** Brand kit product this post features; its images go into slides and graphics. */
+  productId?: string;
   createdBy: string;
   createdByName: string;
 };

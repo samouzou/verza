@@ -22,6 +22,7 @@ import type {
   PrismFormat,
 } from "./types";
 import {PRISM_AI_COST, withPrismUsage} from "./billing";
+import {findCatalogItem, formatCatalogForPrompt, loadPrismCatalog, type PrismCatalogItem} from "./products";
 
 const MODEL = "gemini-3.6-flash";
 const MAX_BRIEF = 6000;
@@ -114,6 +115,7 @@ export function planSlots(s: PrismBrandStrategy, channels: PrismChannel[]): Part
  * @param {PrismBrandStrategy} s Brand setup (valid pillars and channels).
  * @param {!Array<PrismChannel>} channels Channels being planned.
  * @param {!Array<string>} dates Dates the item may land on.
+ * @param {!Array<PrismCatalogItem>} catalog Brand kit products the item may feature.
  * @return {LinkedInOsJobItem} Item.
  */
 function normalizeItem(
@@ -121,7 +123,8 @@ function normalizeItem(
   index: number,
   s: PrismBrandStrategy,
   channels: PrismChannel[],
-  dates: string[]
+  dates: string[],
+  catalog: PrismCatalogItem[] = []
 ): LinkedInOsJobItem {
   const channel: PrismChannel = isPrismChannel(raw.channel) && channels.includes(raw.channel) ?
     raw.channel :
@@ -138,6 +141,7 @@ function normalizeItem(
   const notes = typeof raw.notes === "string" ? raw.notes.trim().slice(0, 400) : "";
   const date = typeof raw.date === "string" && dates.includes(raw.date) ? raw.date : dates[index % dates.length];
   const idea = typeof raw.idea === "string" ? raw.idea.trim().slice(0, 160) : "";
+  const product = findCatalogItem(catalog, raw.product);
   return {
     id,
     channel,
@@ -149,6 +153,7 @@ function normalizeItem(
     productTruth: typeof raw.productTruth === "string" ? raw.productTruth.trim().slice(0, 500) : "",
     cta: CTAS.has(ctaRaw) ? ctaRaw : "comment",
     ...(notes ? {notes} : {}),
+    ...(product ? {product: product.name} : {}),
   };
 }
 
@@ -206,7 +211,11 @@ export const generateLinkedInOsWeeklyPlan = onCall(
       .map((ch) => `- ${ch}: ${slots[ch]} post(s); formats: ${PRISM_CHANNEL_FORMATS[ch].join(" | ")}`)
       .join("\n");
 
-    const voiceSnap = await db.collection("linkedin_os_voice_profiles").doc(agencyId).get();
+    const [voiceSnap, catalog] = await Promise.all([
+      db.collection("linkedin_os_voice_profiles").doc(agencyId).get(),
+      loadPrismCatalog(agencyId),
+    ]);
+    const catalogBlock = formatCatalogForPrompt(catalog);
     const voice = voiceSnap.exists ? (voiceSnap.data() as LinkedInOsVoiceProfile) : null;
 
     const {text} = await withPrismUsage(agencyId, {ai: PRISM_AI_COST.weeklyPlan}, () => ai.generate({
@@ -227,7 +236,9 @@ Think like a strategist:
   must use the exact same "idea" text and the same date — they become one calendar post with a version per channel.
 
 ${formatBrandStrategyForPrompt(strategy)}
-
+${catalogBlock ?
+    `\n${catalogBlock}\nFeature catalog products where they fit (launches, how-tos, proof). Not every post sells.\n` :
+    ""}
 VOICE PROFILE:
 ---
 ${formatVoice(voice)}
@@ -258,7 +269,8 @@ Return ONLY valid JSON (no fences):
       "hook": "suggested first line / opening seconds",
       "productTruth": "one factual sentence the human can stand behind (no invented metrics)",
       "cta": "follow|comment|soft_product|hard_product",
-      "notes": "optional planner note (visual idea, angle)"
+      "notes": "optional planner note (visual idea, angle)"${catalog.length ? `,
+      "product": "exact CATALOG name this post features, or empty"` : ""}
     }
   ]
 }
@@ -296,7 +308,7 @@ Do not invent fees, user counts, or legal claims.
 
     const seen = new Set<string>();
     const items = rawItems.slice(0, PRISM_MAX_POSTS_PER_WEEK).map((row, i) => {
-      const item = normalizeItem(row, i, strategy, channels, dates);
+      const item = normalizeItem(row, i, strategy, channels, dates, catalog);
       if (seen.has(item.id)) item.id = `${item.id}-${i + 1}`;
       seen.add(item.id);
       return item;

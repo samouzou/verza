@@ -1,26 +1,30 @@
 import {getFirestore} from "firebase-admin/firestore";
 import sharp from "sharp";
 
-import type {WorkerBrand} from "../brand";
+import {findProduct, type WorkerBrand} from "../brand";
 import "../firebaseAdmin";
-import type {SlideKit, SlideLogo} from "./renderSlideSvg";
+import type {ParsedCarouselSlide} from "./parseCarouselMarkdown";
+import {prepareProductImage} from "./productImage";
+import type {SlideKit, SlideLogo, SlideVisual} from "./renderSlideSvg";
 
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_PRODUCT_BYTES = 15 * 1024 * 1024;
 
 /**
  * Downloads an image over https, or null on any failure.
  * @param {string} url Image URL.
+ * @param {number} [maxBytes] Size limit.
  * @return {!Promise<?Buffer>} Bytes.
  */
-async function download(url: string): Promise<Buffer | null> {
+export async function download(url: string, maxBytes = MAX_BYTES): Promise<Buffer | null> {
   if (!/^https:\/\//i.test(url)) return null;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 6000);
+  const timer = setTimeout(() => ctrl.abort(), maxBytes > MAX_BYTES ? 12000 : 6000);
   try {
     const res = await fetch(url, {signal: ctrl.signal, redirect: "follow"});
-    if (!res.ok || Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) return null;
+    if (!res.ok || Number(res.headers.get("content-length") ?? 0) > maxBytes) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    return buf.length > MAX_BYTES ? null : buf;
+    return buf.length > maxBytes ? null : buf;
   } catch {
     return null;
   } finally {
@@ -88,14 +92,53 @@ async function avatar(url: string): Promise<string | undefined> {
 }
 
 /**
+ * Resolves the real image for each Product / Screenshot slide. A slide whose first line names a catalog item
+ * uses that item; otherwise it falls back to the featured product and its first line becomes the headline.
+ * Repeat slides of one product step through its images.
+ * @param {!Array<ParsedCarouselSlide>} slides Slides.
+ * @param {SlideKit} kit Kit with catalog and featured product.
+ * @return {!Promise<!Array<?SlideVisual>>} Visual per slide (null for other layouts or when no image is available).
+ */
+export async function resolveSlideVisuals(slides: ParsedCarouselSlide[], kit: SlideKit): Promise<(SlideVisual | null)[]> {
+  const catalog = kit.catalog ?? [];
+  const featured = findProduct(catalog, kit.featuredId);
+  const used = new Map<string, number>();
+  const cache = new Map<string, Promise<Awaited<ReturnType<typeof prepareProductImage>>>>();
+  const load = (url: string) => {
+    if (!cache.has(url)) {
+      cache.set(url, download(url, MAX_PRODUCT_BYTES).then((b) => (b ? prepareProductImage(b) : null)));
+    }
+    return cache.get(url)!;
+  };
+  return Promise.all(slides.map(async (slide) => {
+    if (slide.layout !== "product" && slide.layout !== "screenshot") return null;
+    const named = findProduct(catalog, slide.title);
+    const p = named?.images.length ? named : featured?.images.length ? featured : null;
+    if (!p) return null;
+    const n = used.get(p.id) ?? 0;
+    used.set(p.id, n + 1);
+    const img = await load(p.images[n % p.images.length]!);
+    if (!img) return null;
+    const [headline, sub] = named ? [slide.bullets[0] ?? "", slide.bullets[1] ?? ""] : [slide.title, slide.bullets[0] ?? ""];
+    return {...img, name: p.name, headline, sub};
+  }));
+}
+
+/**
  * Builds the slide kit: theme, logo and the connected account that will post (for the byline).
  * A logo that's a full-bleed rectangle (no transparency) is skipped, since it would look pasted on.
  * @param {string} agencyId Agency id.
  * @param {WorkerBrand} brand Brand context.
  * @param {string} channel Channel the carousel is for.
+ * @param {string} [featuredId] The post's featured product id or name.
  * @return {!Promise<SlideKit>} Kit.
  */
-export async function loadSlideKit(agencyId: string, brand: WorkerBrand, channel: string): Promise<SlideKit> {
+export async function loadSlideKit(
+  agencyId: string,
+  brand: WorkerBrand,
+  channel: string,
+  featuredId?: string
+): Promise<SlideKit> {
   const [logoBuf, conn] = await Promise.all([
     brand.logoUrl ? download(brand.logoUrl) : Promise.resolve(null),
     getFirestore().collection("prism_connections").doc(agencyId).get().catch(() => null),
@@ -107,9 +150,12 @@ export async function loadSlideKit(agencyId: string, brand: WorkerBrand, channel
     .find((a) => a?.status === "connected" && (a.displayName || a.username));
   const logo = logoBuf ? await prepareLogo(logoBuf) : null;
   const handle = account?.username ? (channel === "instagram" ? `@${account.username.replace(/^@/, "")}` : brand.brandName) : "";
+  const featured = findProduct(brand.catalog, featuredId);
   return {
     theme: brand.theme,
     brandName: brand.brandName,
+    catalog: brand.catalog,
+    ...(featured ? {featuredId: featured.id} : {}),
     ...(logo ? {logo} : {}),
     ...(account ? {
       byline: {

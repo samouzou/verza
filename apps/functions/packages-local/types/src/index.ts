@@ -572,7 +572,10 @@ export interface BrandProduct {
   description: string;
   price: number;
   url: string;
+  /** Main image; always images[0] when images is set. */
   imageUrl: string;
+  /** All images: product shots, or screenshots for software. */
+  images?: string[];
   videoUrl?: string;
   usps: string[]; // Unique Selling Propositions
 }

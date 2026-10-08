@@ -52,6 +52,7 @@ function parseJobItem(raw: unknown, timeZone: string): LinkedInOsJobItem {
   const notes = typeof o.notes === "string" ? o.notes.trim() : "";
   const date = typeof o.date === "string" && ISO_DATE.test(o.date) ? o.date : "";
   const idea = typeof o.idea === "string" ? o.idea.trim().slice(0, 160) : "";
+  const product = typeof o.product === "string" ? o.product.trim().slice(0, 80) : "";
   if (!id) {
     throw new HttpsError("invalid-argument", "Each item needs a non-empty id.");
   }
@@ -68,6 +69,7 @@ function parseJobItem(raw: unknown, timeZone: string): LinkedInOsJobItem {
     cta,
     ...(notes ? {notes} : {}),
     ...(idea ? {idea} : {}),
+    ...(product ? {product} : {}),
     ...(date ? {date, scheduledAt: zonedToUtcIso(date, PRISM_DEFAULT_TIMES[channel], timeZone)} : {}),
   };
 }

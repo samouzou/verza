@@ -33,8 +33,22 @@ Worker env (Cloud Run): `LINKEDIN_OS_WORKER_SHARED_SECRET`, `GEMINI_API_KEY`, op
 
 ### 2) Brand setup (per brand)
 
-Each brand sets up Prism at **`/prism/setup`** (brief, audience, pillars, channels, banned claims). It's stored in
-**`prism_brands/{agencyId}`**; planning and drafting refuse to run without it.
+Each brand sets up Prism at **`/prism/setup`** (category, brief, audience, pillars, channels, banned claims). It's
+stored in **`prism_brands/{agencyId}`**; planning and drafting refuse to run without it.
+
+- **Category** (`dtc`, `saas`, `app`, `services`, `creator`, `local`) is required on save and inferred by the website
+  draft. It adds category guidance to every writer prompt and picks the image slide layout: Screenshot for `saas` and
+  `app`, Product for everything else.
+- **Products** are the brand kit catalog (`agencies/{id}/private/brandKit.products`), edited in setup or at
+  `/agency/products`. Each product has up to 6 `images` (`imageUrl` = the first). Writers see the catalog and may only
+  name real products. Month plans and weekly plans can pick a product per idea (`productId` on the post, `product`
+  name on Studio items); the composer has a picker too.
+- **Product / Screenshot slides** (`## Slide N — Product` or `— Screenshot`, first line = exact catalog name) render
+  the real image: product photos on a stage, screenshots in a browser frame (wide) or phone frame (tall). Without an
+  image the slide falls back to a list.
+- **Feed graphics** for a post with a featured product: product brands pass the product photo to Gemini as a reference
+  to keep it exact; screenshot brands skip the image model and get a framed screenshot from the worker's
+  `/internal/render-feed`.
 
 The old global **`linkedin_os_prompts/default`** pack is no longer read. To carry Verza's existing pack over to
 Verza's own agency once:

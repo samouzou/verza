@@ -18,6 +18,8 @@ export type LinkedInOsJobItem = {
   /** Local post date (YYYY-MM-DD) in the brand timezone. */
   date?: string;
   scheduledAt?: string;
+  /** Catalog product to feature, by exact name. */
+  product?: string;
 };
 
 export type LinkedInOsCarouselSlideAsset = {

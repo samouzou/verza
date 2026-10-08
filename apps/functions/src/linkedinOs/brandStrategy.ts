@@ -8,6 +8,7 @@ import {brandKitRef} from "../agency/brandKit";
 import {normalizeBrandUrl, scrapeBrandPage} from "../brand-research";
 import {assertAgencyTeamForLinkedInOs} from "./access";
 import type {
+  PrismBrandCategory,
   PrismBrandStrategy,
   PrismChannel,
   PrismChannelPlan,
@@ -17,6 +18,46 @@ import type {
 
 const MODEL = "gemini-3.6-flash";
 const MAX_SITE_TEXT = 12000;
+
+/** Brand categories and how each one should show up in content and graphics. */
+export const PRISM_CATEGORIES: Record<PrismBrandCategory, {label: string; guidance: string}> = {
+  dtc: {
+    label: "DTC / e-commerce",
+    guidance: "Lead with the product in use, what customers feel, social proof, drops and offers. " +
+      "Feature real products from the catalog by name; never invent products, prices or reviews.",
+  },
+  saas: {
+    label: "SaaS / software",
+    guidance: "Lead with the buyer's problem, the workflow and a measurable outcome. " +
+      "Show the product through real screenshots from the catalog; LinkedIn and X carry the thought leadership.",
+  },
+  app: {
+    label: "Consumer app",
+    guidance: "Show the app in hand: real phone screenshots from the catalog, moments of use and quick wins. " +
+      "Short, energetic copy.",
+  },
+  services: {
+    label: "Agency / services",
+    guidance: "Sell expertise and results: case studies, frameworks and the team's point of view. No product shots.",
+  },
+  creator: {
+    label: "Creator / personal brand",
+    guidance: "First-person stories, opinions and lessons. The person is the product.",
+  },
+  local: {
+    label: "Local business",
+    guidance: "Places, people and occasions: offers, events, behind the scenes and community. Always say where.",
+  },
+};
+
+/**
+ * Narrows a value to a brand category.
+ * @param {unknown} v Candidate.
+ * @return {boolean} True for a known category.
+ */
+export function isPrismCategory(v: unknown): v is PrismBrandCategory {
+  return typeof v === "string" && v in PRISM_CATEGORIES;
+}
 
 export const PRISM_BRANDS = "prism_brands";
 export const PRISM_CHANNELS: PrismChannel[] = ["linkedin", "x", "instagram", "tiktok"];
@@ -124,6 +165,7 @@ export function parseBrandStrategy(raw: unknown, agencyId: string): PrismBrandSt
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
     agencyId,
+    category: isPrismCategory(o.category) ? o.category : "",
     brandName: str(o.brandName, 80),
     websiteUrl: str(o.websiteUrl, 300),
     brief: str(o.brief, 6000),
@@ -179,13 +221,15 @@ export function formatBrandStrategyForPrompt(s: PrismBrandStrategy): string {
       return `- ${PRISM_CHANNEL_LABELS[ch]}: ${c.postsPerWeek}/week. Role: ${c.role || "not specified"}`;
     })
     .join("\n");
+  const category = s.category ? PRISM_CATEGORIES[s.category] : null;
   return [
     `BRAND: ${s.brandName}${s.websiteUrl ? ` (${s.websiteUrl})` : ""}`,
+    category ? `CATEGORY: ${category.label}. ${category.guidance}` : "",
     `BRIEF:\n${s.brief || "(none)"}`,
     `AUDIENCE:\n${s.audience || "(none)"}`,
     `PILLARS:\n${pillars}`,
     `CHANNELS:\n${channels || "(none enabled)"}`,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
 
 /**
@@ -277,9 +321,12 @@ Rules:
 - Channels: linkedin, x, instagram, tiktok. Enable the ones that fit the audience. For each, give a one-line role
   (what this channel does for the brand) and a realistic posts-per-week (0–7) for a small team.
 - bannedClaims: claims this brand must avoid (regulated, unverifiable, competitor-bashing), one per line.
+- category: one of dtc (sells physical products online), saas (B2B software), app (consumer app),
+  services (agency or professional services), creator (a person's brand), local (a local business).
 
 Return ONLY JSON:
 {
+  "category": "dtc",
   "brandName": "...",
   "brief": "What the brand sells, to whom, why it's different, proof points (markdown, under 1200 chars)",
   "audience": "Who we're talking to and what they care about (under 600 chars)",
@@ -320,6 +367,9 @@ export const savePrismBrandStrategy = onCall(async (request) => {
 
   if (!s.brandName) {
     throw new HttpsError("invalid-argument", "Brand name is required.");
+  }
+  if (!s.category) {
+    throw new HttpsError("invalid-argument", "Pick your brand's category.");
   }
   if (!s.brief) {
     throw new HttpsError("invalid-argument", "Add a brand brief so drafts stay factual.");

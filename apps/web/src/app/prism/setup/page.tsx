@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
-import { AlertTriangle, ArrowLeft, Globe, Loader2, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Edit,
+  Globe,
+  ImageOff,
+  Loader2,
+  Plus,
+  Save,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 
+import { ProductDialog } from "@/components/agency/product-dialog";
 import { PageHeader } from "@/components/page-header";
 import { VoiceProfilePanel } from "@/components/prism/voice-profile-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,12 +29,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
+import { productImages, useBrandProducts, type BrandProductInput } from "@/hooks/use-brand-products";
+import { cn } from "@/lib/utils";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import {
   emptyPrismStrategy,
   normalizePrismStrategy,
+  PRISM_CATEGORIES,
+  PRISM_CATEGORY_META,
   PRISM_CHANNEL_META,
   PRISM_CHANNELS,
   type PrismBrandStrategy,
@@ -29,6 +46,7 @@ import {
   type PrismChannelPlan,
   type PrismPillar,
 } from "@/lib/prism/types";
+import type { BrandProduct } from "@/types";
 
 const MAX_PILLARS = 6;
 
@@ -42,6 +60,11 @@ export default function PrismSetupPage() {
   const [hydrated, setHydrated] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const catalog = useBrandProducts(agencyId);
+  const [productOpen, setProductOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<BrandProduct | null>(null);
+  const categoryMeta = form.category ? PRISM_CATEGORY_META[form.category] : null;
+  const catalogNoun = categoryMeta?.catalog ?? "Products";
 
   useEffect(() => {
     if (loading || hydrated) return;
@@ -98,6 +121,31 @@ export default function PrismSetupPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveProduct = async (input: BrandProductInput) => {
+    try {
+      await catalog.upsert(input, editingProduct?.id);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not save.";
+      toast({ title: "Save failed", description: msg, variant: "destructive" });
+      throw e;
+    }
+  };
+
+  const handleRemoveProduct = async (p: BrandProduct) => {
+    if (!confirm(`Remove ${p.name}? It's also removed from your brand kit catalog.`)) return;
+    try {
+      await catalog.remove(p.id);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not remove.";
+      toast({ title: "Remove failed", description: msg, variant: "destructive" });
+    }
+  };
+
+  const openProduct = (p: BrandProduct | null) => {
+    setEditingProduct(p);
+    setProductOpen(true);
   };
 
   if (authLoading || (agencyId && loading)) {
@@ -170,6 +218,29 @@ export default function PrismSetupPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>Category</Label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {PRISM_CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => patch({ category: c })}
+                  aria-pressed={form.category === c}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-colors hover:bg-muted/50",
+                    form.category === c && "border-primary bg-primary/5 ring-1 ring-primary"
+                  )}
+                >
+                  <p className="text-sm font-medium">{PRISM_CATEGORY_META[c].label}</p>
+                  <p className="text-xs text-muted-foreground">{PRISM_CATEGORY_META[c].hint}</p>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Shapes what Prism writes and how graphics use your products and screenshots.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="brand-name">Brand name</Label>
             <Input id="brand-name" value={form.brandName} onChange={(e) => patch({ brandName: e.target.value })} />
           </div>
@@ -195,6 +266,103 @@ export default function PrismSetupPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5 text-primary" />
+                {catalogNoun}
+              </CardTitle>
+              <CardDescription>
+                Prism features these by name in posts and puts the real images in carousels and feed graphics.{" "}
+                {categoryMeta?.imageHint}
+              </CardDescription>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => openProduct(null)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {catalog.loading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          ) : catalog.products.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing yet. Add a few so Prism can show what you actually sell instead of generic imagery.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {catalog.products.map((p) => {
+                const images = productImages(p);
+                return (
+                  <div key={p.id} className="group overflow-hidden rounded-lg border">
+                    <div className="relative aspect-[4/3] bg-muted/40">
+                      {images[0] ? (
+                        <img src={images[0]} alt={p.name} className="h-full w-full object-contain" />
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-1 text-muted-foreground">
+                          <ImageOff className="h-5 w-5" />
+                          <span className="text-[11px]">No images yet</span>
+                        </div>
+                      )}
+                      {images.length > 1 && (
+                        <Badge variant="secondary" className="absolute bottom-2 right-2 text-[10px]">
+                          {images.length} images
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 p-2">
+                      <p className="truncate text-sm font-medium">{p.name}</p>
+                      <div className="flex shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Edit ${p.name}`}
+                          onClick={() => openProduct(p)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Remove ${p.name}`}
+                          onClick={() => void handleRemoveProduct(p)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Same list as your brand kit&apos;s{" "}
+            <Link href="/agency/products" className="underline">
+              Product Catalog
+            </Link>
+            .
+          </p>
+        </CardContent>
+      </Card>
+
+      <ProductDialog
+        open={productOpen}
+        onOpenChange={setProductOpen}
+        product={editingProduct}
+        onSave={handleSaveProduct}
+        noun={form.category === "saas" ? "Feature" : form.category === "app" ? "Screen" : "Product"}
+        imageHint={categoryMeta?.imageHint}
+        showVideo={false}
+      />
 
       <Card>
         <CardHeader>

@@ -5,6 +5,7 @@ import {PassThrough} from "stream";
 
 import {parseCarouselMarkdown} from "./parseCarouselMarkdown";
 import {CAROUSEL_SLIDE_SIZE, renderSlideSvg, slideSurfaces, type SlideKit} from "./renderSlideSvg";
+import {resolveSlideVisuals} from "./slideKit";
 
 export type RenderedSlide = {
   index: number;
@@ -25,13 +26,15 @@ export async function renderCarouselPngs(markdown: string, kit: SlideKit): Promi
   }
 
   const total = slides.length;
-  const kinds = slideSurfaces(slides);
+  const visuals = await resolveSlideVisuals(slides, kit);
+  const kinds = slideSurfaces(slides.map((s, i) =>
+    (s.layout === "product" || s.layout === "screenshot") && !visuals[i] ? {...s, layout: "list" as const} : s));
   const rendered: RenderedSlide[] = [];
 
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i]!;
     const slideNum = i + 1;
-    const svg = renderSlideSvg(slide, slideNum, total, kit, kinds[i]!);
+    const svg = renderSlideSvg(slide, slideNum, total, kit, kinds[i]!, visuals[i]);
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
     rendered.push({
       index: slide.index,
