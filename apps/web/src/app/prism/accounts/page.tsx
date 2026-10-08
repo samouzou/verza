@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { usePrismConnections } from "@/hooks/use-prism-connections";
-import { PRISM_PRICING_PATH, usePrismPlan } from "@/hooks/use-prism-plan";
+import { usePrismConnections, usePrismUsageMonth } from "@/hooks/use-prism-connections";
+import { PRISM_PRICING_PATH, PRISM_X_INCLUDED_DOLLARS, PRISM_X_MARKUP, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import { PRISM_CHANNEL_META, PRISM_CHANNELS, type PrismChannel } from "@/lib/prism/types";
@@ -41,6 +41,10 @@ function PrismAccountsPage() {
   const agencyId = user?.primaryAgencyId ?? null;
   const plan = usePrismPlan(agencyId);
   const { connections, accounts, loading } = usePrismConnections(agencyId);
+  const usage = usePrismUsageMonth(agencyId);
+  const x = usage?.x;
+  const xSpent = (x?.costMicros ?? 0) / 1e6;
+  const xOver = Math.max(0, xSpent - PRISM_X_INCLUDED_DOLLARS);
   const [busy, setBusy] = useState<string | null>(null);
   const handledRedirect = useRef(false);
   const isLead = user?.role === "agency_owner" || user?.role === "agency_admin";
@@ -229,6 +233,17 @@ function PrismAccountsPage() {
                     </Button>
                   )}
                 </div>
+                {ch === "x" && (x?.posts ?? 0) > 0 && (
+                  <p className="w-full text-xs text-muted-foreground">
+                    This month: {x?.posts} post{x?.posts === 1 ? "" : "s"}, {x?.tweets ?? 0} tweet{x?.tweets === 1 ? "" : "s"}
+                    {x?.linkTweets ? ` (${x.linkTweets} with links)` : ""} ·{" "}
+                    {plan.tier === "enterprise"
+                      ? `about $${xSpent.toFixed(2)} in X API fees, covered by your plan`
+                      : `$${Math.min(xSpent, PRISM_X_INCLUDED_DOLLARS).toFixed(2)} of $${PRISM_X_INCLUDED_DOLLARS.toFixed(2)} included X API fees`}
+                    {plan.tier !== "enterprise" && xOver > 0 &&
+                      ` · $${(xOver * (1 + PRISM_X_MARKUP)).toFixed(2)} over (incl. ${PRISM_X_MARKUP * 100}% processing), added to your next invoice`}
+                  </p>
+                )}
               </CardContent>
             </Card>
           );

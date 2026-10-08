@@ -9,6 +9,10 @@ export type PrismPlanTier = "free" | "launch" | "enterprise";
 export const PRISM_AI_LIMITS: Record<Exclude<PrismPlanTier, "enterprise">, number> = { free: 15, launch: 1000 };
 export const PRISM_FREE_STUDIO_RUNS = 1;
 export const PRISM_FREE_SLIDE_RENDERS = 3;
+/** X API fees included each month on Launch (keep in sync with functions billing.ts). */
+export const PRISM_X_INCLUDED_DOLLARS = 5;
+/** Markup on X fees above the allowance, covering card processing. */
+export const PRISM_X_MARKUP = 0.05;
 export const PRISM_PRICING_PATH = "/prism/pricing";
 
 export interface PrismPlan {

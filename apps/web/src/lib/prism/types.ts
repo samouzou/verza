@@ -182,6 +182,13 @@ export type PrismConnections = {
 };
 
 /** Channels Prism can't post through the API yet (no video upload). */
+/** A brand's third-party API usage for one month. Stored at prism_usage/{agencyId}/months/{YYYY-MM}. */
+export type PrismUsageMonth = {
+  agencyId: string;
+  periodKey: string;
+  x?: { posts?: number; tweets?: number; linkTweets?: number; costMicros?: number };
+};
+
 export const PRISM_MANUAL_FORMATS = new Set<PrismFormat>(["ig_reel", "tiktok_video"]);
 
 export const PRISM_STATUS_META: Record<PrismPostStatus, { label: string; dot: string }> = {

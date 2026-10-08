@@ -84,6 +84,10 @@ Publishing goes through [Zernio](https://zernio.com) (formerly Late). Code: `app
   Instagram carousels (rendered slides, `## Caption`) and Instagram feed posts (the graphic `generatePrismGraphic` makes
   from `## Visual` with Gemini at 4:5, plus `## Caption`; it counts as a render). Reels and TikTok videos are
   marked "post by hand".
+- **X fees:** Zernio passes X's API fees through ($0.015 per tweet, $0.20 with a link). Each X publish adds to
+  `prism_usage/{agencyId}/months/{YYYY-MM}`. On the 1st, `billPrismXUsage` bills Launch brands for last month's fees
+  above $5, plus 5% for processing, as a Stripe invoice item (next renewal for monthly plans; its own invoice once
+  $10+ is pending for yearly or canceled plans). Enterprise X usage is covered by contract.
 - **Results:** `prismZernioWebhook` (HMAC-verified, deduped in `prism_webhook_events`) records each channel's link or
   error. Once every channel is live the post becomes `posted`. Failures notify the team in-app; network errors retry
   up to 3 times.

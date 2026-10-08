@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { PrismConnections } from "@/lib/prism/types";
+import type { PrismConnections, PrismUsageMonth } from "@/lib/prism/types";
 
 /** Live connected social accounts for a brand. */
 export function usePrismConnections(agencyId: string | null | undefined) {
@@ -31,4 +31,24 @@ export function usePrismConnections(agencyId: string | null | undefined) {
   }, [agencyId]);
 
   return { connections, accounts: connections?.accounts ?? {}, loading };
+}
+
+/** This month's third-party API usage for a brand (UTC month, like Prism's plan limits). */
+export function usePrismUsageMonth(agencyId: string | null | undefined) {
+  const [usage, setUsage] = useState<PrismUsageMonth | null>(null);
+
+  useEffect(() => {
+    if (!agencyId) {
+      setUsage(null);
+      return;
+    }
+    const periodKey = new Date().toISOString().slice(0, 7);
+    return onSnapshot(
+      doc(db, "prism_usage", agencyId, "months", periodKey),
+      (snap) => setUsage(snap.exists() ? (snap.data() as PrismUsageMonth) : null),
+      () => setUsage(null)
+    );
+  }, [agencyId]);
+
+  return usage;
 }

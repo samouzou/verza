@@ -425,6 +425,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Monthly usage the brand incurs on third-party APIs (X fees today); written by Functions only.
+    match /prism_usage/{agencyId}/months/{periodKey} {
+      allow read: if request.auth != null && isTeamMemberOf(agencyId);
+      allow write: if false;
+    }
+
     // Prism — Zernio webhook dedupe markers (server only)
     match /prism_webhook_events/{eventId} {
       allow read, write: if false;

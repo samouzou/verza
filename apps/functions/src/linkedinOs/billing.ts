@@ -23,6 +23,11 @@ export const PRISM_FREE_SLIDE_RENDERS = 3;
 
 export const PRISM_AI_COST = {monthPlan: 5, weeklyPlan: 2, repurpose: 1} as const;
 
+/** X API fees included each month on Launch, in millionths of a dollar. Enterprise is by contract. */
+export const PRISM_X_INCLUDED_MICROS = 5_000_000;
+/** Added to X fees above the allowance to cover card processing and Stripe Billing. */
+export const PRISM_X_MARKUP = 0.05;
+
 const STRIPE_API_VERSION = "2026-04-22.dahlia";
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
@@ -252,7 +257,7 @@ async function stripeCustomerFor(stripe: Stripe, uid: string, user: Record<strin
  * Stripe client.
  * @return {Stripe} Client.
  */
-function stripeClient(): Stripe {
+export function stripeClient(): Stripe {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Stripe(params.STRIPE_SECRET_KEY.value(), {apiVersion: STRIPE_API_VERSION as any});
 }

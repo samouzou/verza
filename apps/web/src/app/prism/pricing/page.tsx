@@ -18,7 +18,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { PRISM_AI_LIMITS, PRISM_FREE_SLIDE_RENDERS, PRISM_FREE_STUDIO_RUNS, usePrismPlan } from "@/hooks/use-prism-plan";
+import {
+  PRISM_AI_LIMITS,
+  PRISM_FREE_SLIDE_RENDERS,
+  PRISM_FREE_STUDIO_RUNS,
+  PRISM_X_INCLUDED_DOLLARS,
+  PRISM_X_MARKUP,
+  usePrismPlan,
+} from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 
@@ -36,6 +43,8 @@ const launchFeatures = [
   "Unlimited carousel slides and feed graphics",
   "AI month plans, channel adaptation, scripts and newsletters",
   `${PRISM_AI_LIMITS.launch.toLocaleString()} AI actions a month`,
+  "Auto-publishing to LinkedIn, X and Instagram",
+  `$${PRISM_X_INCLUDED_DOLLARS} of X API fees included monthly; beyond that, X's rates + ${PRISM_X_MARKUP * 100}% processing`,
 ];
 
 const enterpriseFeatures = [

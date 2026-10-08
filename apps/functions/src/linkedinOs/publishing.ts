@@ -7,7 +7,7 @@ import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 import {isPrismChannel, loadPrismBrandStrategy, PRISM_CHANNEL_LABELS} from "./brandStrategy";
-import {prismEntitlementsFrom} from "./billing";
+import {prismEntitlementsFrom, prismPeriodKey} from "./billing";
 import {agencyTeamUids, appendHistory, loadPrismPost, notify, prismCaller, PRISM_POSTS, type PrismCaller} from "./posts";
 import type {
   PrismChannel,
@@ -30,6 +30,10 @@ const LOOKAHEAD_MS = 10 * 60 * 1000;
 const OVERDUE_LIMIT_MS = 24 * 60 * 60 * 1000;
 const STALE_LOCK_MS = 10 * 60 * 1000;
 const SIGNED_URL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** X API fees Zernio passes through at cost, in millionths of a dollar. */
+const X_TWEET_MICROS = 15_000;
+const X_LINK_TWEET_MICROS = 200_000;
+const X_LINK = /https?:\/\/\S|\bwww\.\S|\b[a-z0-9-]+\.(?:com|io|co|ai|app|dev|net|org|xyz|me|so|gg|ly|tv)\b/i;
 
 const PLATFORM: Record<PrismChannel, string> = {
   linkedin: "linkedin",
@@ -313,6 +317,20 @@ function splitThread(text: string): string[] {
 }
 
 /**
+ * What publishing one X variant costs: tweets sent, how many carry a link, and the fee.
+ * @param {PrismVariant | undefined} v X variant.
+ * @return {{tweets: number, linkTweets: number, micros: number}} Usage.
+ */
+function xUsage(v: PrismVariant | undefined): {tweets: number; linkTweets: number; micros: number} {
+  const text = v?.text.trim() ?? "";
+  if (!v || !text) return {tweets: 0, linkTweets: 0, micros: 0};
+  const items = v.format === "x_thread" ? splitThread(text) : [text];
+  const tweets = Math.max(items.length, 1);
+  const linkTweets = items.filter((t) => X_LINK.test(t)).length;
+  return {tweets, linkTweets, micros: (tweets - linkTweets) * X_TWEET_MICROS + linkTweets * X_LINK_TWEET_MICROS};
+}
+
+/**
  * The body of a "## Heading" section in format copy.
  * @param {string} text Copy.
  * @param {string} heading Heading text.
@@ -452,6 +470,7 @@ async function applyZernioPost(postId: string, zp: ZernioPost, rollup: boolean):
     const channels = {...prev.channels};
     const events: PrismPostEvent[] = [];
     const newlyFailed: string[] = [];
+    let xPublished = false;
     for (const p of zp.platforms ?? []) {
       const ch = CHANNEL_BY_PLATFORM[p.platform];
       const before = ch ? channels[ch] : undefined;
@@ -462,6 +481,7 @@ async function applyZernioPost(postId: string, zp: ZernioPost, rollup: boolean):
       channels[ch] = {state, ...(url ? {url} : {}), ...(state === "failed" && error ? {error: error.slice(0, 500)} : {})};
       if (state === "published") {
         events.push(systemEvent(`published to ${PRISM_CHANNEL_LABELS[ch]}`));
+        if (ch === "x") xPublished = true;
       } else if (state === "failed" && before?.state !== "failed") {
         events.push(systemEvent(`${PRISM_CHANNEL_LABELS[ch]} failed: ${error ?? "unknown error"}`));
         newlyFailed.push(`${PRISM_CHANNEL_LABELS[ch]}${error ? ` (${error.slice(0, 120)})` : ""}`);
@@ -495,6 +515,21 @@ async function applyZernioPost(postId: string, zp: ZernioPost, rollup: boolean):
     }
     if (events.length) update.history = appendHistory(post.history, ...events);
     tx.update(ref, update);
+    if (xPublished) {
+      const x = xUsage(post.variants?.x);
+      const periodKey = prismPeriodKey();
+      tx.set(db.collection("prism_usage").doc(post.agencyId).collection("months").doc(periodKey), {
+        agencyId: post.agencyId,
+        periodKey,
+        x: {
+          posts: FieldValue.increment(1),
+          tweets: FieldValue.increment(x.tweets),
+          linkTweets: FieldValue.increment(x.linkTweets),
+          costMicros: FieldValue.increment(x.micros),
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
     return {post, newlyFailed};
   });
 
