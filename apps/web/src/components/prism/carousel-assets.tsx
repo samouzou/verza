@@ -25,6 +25,62 @@ async function downloadStoragePath(storagePath: string, filename: string) {
   anchor.remove();
 }
 
+/** A feed post's generated graphic with a download button. */
+export function FeedGraphic({ graphic, stale }: { graphic: CarouselAssetFiles["slides"][number]; stale?: boolean }) {
+  const { toast } = useToast();
+  const [url, setUrl] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    getDownloadURL(ref(storage, graphic.storagePath))
+      .then((u) => !cancelled && setUrl(u))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [graphic.storagePath]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadStoragePath(graphic.storagePath, graphic.filename);
+    } catch (e: unknown) {
+      toast({ title: "Could not download", description: e instanceof Error ? e.message : "Download failed.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Graphic (4:5)</p>
+        <Button size="sm" variant="secondary" disabled={downloading} onClick={() => void handleDownload()}>
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+          Download
+        </Button>
+      </div>
+      <div className="mx-auto aspect-[4/5] w-full max-w-[280px] overflow-hidden rounded border bg-muted">
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="Feed graphic" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {stale
+          ? "The Visual section changed after this graphic was made. Regenerate it to match."
+          : "Auto-publishing posts this image with the caption."}
+      </p>
+    </div>
+  );
+}
+
 /** Rendered carousel slides with thumbnails and PDF / ZIP downloads. */
 export function CarouselAssets({ assets, stale }: { assets: CarouselAssetFiles; stale?: boolean }) {
   const { toast } = useToast();
@@ -67,7 +123,7 @@ export function CarouselAssets({ assets, stale }: { assets: CarouselAssetFiles; 
     <div className="rounded-md border bg-muted/20 p-3 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Slides ({slides.length}, 1080×1080)
+          Slides ({slides.length})
         </p>
         <div className="flex flex-wrap gap-2">
           {assets.pdfStoragePath && (
@@ -97,7 +153,7 @@ export function CarouselAssets({ assets, stale }: { assets: CarouselAssetFiles; 
             title={`Download ${s.filename}`}
             disabled={downloading !== null}
             onClick={() => void handleDownload(s.storagePath, s.filename)}
-            className="relative aspect-square overflow-hidden rounded border bg-muted hover:ring-2 hover:ring-primary/40"
+            className="relative aspect-[4/5] overflow-hidden rounded border bg-muted hover:ring-2 hover:ring-primary/40"
           >
             {thumbs[s.storagePath] ? (
               // eslint-disable-next-line @next/next/no-img-element

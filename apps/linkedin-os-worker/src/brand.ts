@@ -19,6 +19,7 @@ export type WorkerBrand = {
   setupBlock: string;
   bannedClaims: string;
   theme: CarouselTheme;
+  logoUrl: string;
 };
 
 /**
@@ -68,6 +69,7 @@ export async function loadWorkerBrand(agencyId: string): Promise<WorkerBrand> {
 
   const host = hostname(websiteUrl);
   let theme: CarouselTheme;
+  let logoUrl = "";
   if (host.includes("tryverza")) {
     theme = VERZA_THEME;
   } else {
@@ -76,6 +78,7 @@ export async function loadWorkerBrand(agencyId: string): Promise<WorkerBrand> {
       db.collection("agencies").doc(agencyId).get(),
     ]);
     const guide = (kitSnap.data()?.brandGuide ?? agencySnap.data()?.brandGuide ?? {}) as Record<string, unknown>;
+    logoUrl = typeof guide.logoUrl === "string" ? guide.logoUrl.trim() : "";
     theme = brandTheme({
       primary: guide.primaryColor,
       secondary: guide.secondaryColor,
@@ -90,5 +93,6 @@ export async function loadWorkerBrand(agencyId: string): Promise<WorkerBrand> {
     setupBlock,
     bannedClaims: String(s.bannedClaims ?? ""),
     theme,
+    logoUrl,
   };
 }

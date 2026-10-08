@@ -81,7 +81,8 @@ Publishing goes through [Zernio](https://zernio.com) (formerly Late). Code: `app
   next 10 minutes (up to 24h overdue), locks each one, and creates one Zernio post with each channel's copy and
   `scheduledFor`. Zernio publishes at the exact time. An `Idempotency-Key` on every send prevents double posts.
 - **What goes out:** LinkedIn text and PDF carousels (rendered slides, caption = the draft's `## Caption` section, falling back to the post title), X posts and threads,
-  Instagram carousels (rendered slides, `## Caption`). Instagram single images, Reels and TikTok videos are
+  Instagram carousels (rendered slides, `## Caption`) and Instagram feed posts (the graphic `generatePrismGraphic` makes
+  from `## Visual` with Gemini at 4:5, plus `## Caption`; it counts as a render). Reels and TikTok videos are
   marked "post by hand".
 - **Results:** `prismZernioWebhook` (HMAC-verified, deduped in `prism_webhook_events`) records each channel's link or
   error. Once every channel is live the post becomes `posted`. Failures notify the team in-app; network errors retry

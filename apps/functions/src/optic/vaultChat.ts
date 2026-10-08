@@ -129,7 +129,6 @@ ${question}
       const {text} = await ai.generate({
         model: googleAI.model(MODEL),
         prompt,
-        config: {temperature: 0.2},
       });
       const answer = (text ?? "").trim();
       if (!answer) {

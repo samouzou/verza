@@ -32,7 +32,7 @@ export function parseCarouselMarkdown(markdown: string): ParsedCarouselSlide[] {
     const bullets: string[] = [];
     for (const line of rawLines) {
       if (!/^[-*•]/.test(line)) continue;
-      const bullet = line.replace(/^[-*•]\s*/, "").trim();
+      const bullet = line.replace(/^[-*•]\s*/, "").replace(/\*/g, "").trim();
       if (bullet) bullets.push(bullet);
     }
 

@@ -2,6 +2,7 @@ import {getFirestore} from "firebase-admin/firestore";
 
 import {loadWorkerBrand} from "./brand";
 import {buildCarouselPdf, buildCarouselZip, renderCarouselPngs} from "./carousel/renderCarousel";
+import {loadSlideKit} from "./carousel/slideKit";
 import {uploadCarouselAssets} from "./carousel/uploadCarousel";
 import {getDefaultBucket} from "./firebaseAdmin";
 
@@ -32,9 +33,10 @@ export async function renderPostSlides(postId: string, channel: string): Promise
   if (!text) throw new RenderInputError("Write the carousel outline first.");
 
   const brand = await loadWorkerBrand(agencyId);
+  const kit = await loadSlideKit(agencyId, brand, channel);
   let pngSlides;
   try {
-    pngSlides = await renderCarouselPngs(text, brand.theme);
+    pngSlides = await renderCarouselPngs(text, kit);
   } catch {
     throw new RenderInputError("No slides found. Keep the \"## Slide 1 — label\" headings in the outline.");
   }

@@ -172,6 +172,7 @@ import {
   transitionPrismPost,
 } from "./linkedinOs/posts";
 import {adaptPrismPost, generatePrismMonthPlan} from "./linkedinOs/planning";
+import {generatePrismGraphic} from "./linkedinOs/graphics";
 import {
   createPrismBillingPortalSession,
   createPrismSubscriptionCheckoutSession,
@@ -335,6 +336,7 @@ export {
   savePrismPost,
   addStudioDraftToCalendar,
   renderPrismSlides,
+  generatePrismGraphic,
   deletePrismPost,
   transitionPrismPost,
   adaptPrismPost,

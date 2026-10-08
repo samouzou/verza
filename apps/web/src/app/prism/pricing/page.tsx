@@ -33,7 +33,7 @@ const freeFeatures = [
 const launchFeatures = [
   "Everything in Free",
   "Studio: batch a week of drafts any time",
-  "Unlimited carousel slide renders (PDF + PNG)",
+  "Unlimited carousel slides and feed graphics",
   "AI month plans, channel adaptation, scripts and newsletters",
   `${PRISM_AI_LIMITS.launch.toLocaleString()} AI actions a month`,
 ];
@@ -207,7 +207,7 @@ export default function PrismPricingPage() {
             {plan.tier === "free" && !plan.loading && (
               <p className="text-xs text-muted-foreground">
                 {Math.max(0, (plan.aiLimit ?? 0) - plan.aiUsed)} AI actions left this month · {plan.studioRunsLeft} of {PRISM_FREE_STUDIO_RUNS} Studio
-                run left · {plan.slideRendersLeft} of {PRISM_FREE_SLIDE_RENDERS} slide renders left
+                run left · {plan.slideRendersLeft} of {PRISM_FREE_SLIDE_RENDERS} slide or graphic renders left
               </p>
             )}
           </CardContent>

@@ -121,7 +121,6 @@ export const writeFromYouTubeVideo = onCall(
           {media: {url: canonicalWatchUrl, contentType: "video/*"}},
           {text: prompt},
         ],
-        config: {temperature: 0.7},
       });
 
       const output = text?.trim() ?? "";

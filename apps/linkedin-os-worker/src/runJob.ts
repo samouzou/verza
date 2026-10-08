@@ -3,6 +3,7 @@ import {FieldValue, getFirestore} from "firebase-admin/firestore";
 
 import {buildCarouselPdf, buildCarouselZip, renderCarouselPngs} from "./carousel/renderCarousel";
 import {loadWorkerBrand, type WorkerBrand} from "./brand";
+import {loadSlideKit} from "./carousel/slideKit";
 import "./firebaseAdmin";
 import type {CarouselAssets} from "./carousel/uploadCarousel";
 import {uploadCarouselAssets} from "./carousel/uploadCarousel";
@@ -120,12 +121,17 @@ ${truncate(brand.bannedClaims, MAX_CTX) || "(not configured)"}
  * @return {string} Format block.
  */
 function slideFormat(min: number, max: number): string {
-  return `Slides (${min}–${max}), each as:
-## Slide N — short label
-- title (5 words max)
-- 1–2 bullets
-
-Slide 1 is the hook. The last slide is CTA only (soft unless cta is hard_product).`;
+  return `Slides (${min}–${max}). Head each one "## Slide N — Layout", then its bullet lines. Layouts:
+- Cover (slide 1 only): "- headline" (8 words max), then optional "- subline" (14 words max)
+- Stat: "- the number" (e.g. 3.2× or 47%), "- what it means" (10 words max), optional "- Source: …"
+- Split: "- title" (6 words max), "- Before: …", "- After: …" (or Myth/Fact, Old way/New way; 12 words each)
+- Steps: "- title" (6 words max), then 2–4 steps (8 words each)
+- Quote: "- the quote" (22 words max), "- — Name, Role"
+- List: "- title" (6 words max), then 2–3 points (12 words each)
+- CTA (last slide only, soft unless cta is hard_product): "- headline" (6 words max), "- the action" (e.g. Comment "ROAS" for the demo)
+Use at least 3 different layouts and never two of the same in a row. Use Stat only with numbers from the
+product truth or notes, and Quote only with a real person you were given; never invent either.
+Wrap the 1–2 words that matter most in the Cover and List titles in *asterisks*.`;
 }
 
 /**
@@ -180,7 +186,8 @@ Each post is 280 characters max. Post 1 must stand alone as a hook. Last post is
 Write an Instagram feed post.
 
 ## Visual
-One or two sentences describing the single image or graphic to post (what's in frame, any on-image text ≤ 8 words).
+Describe the ONE graphic to post so an image model can make it: subject, composition, style and mood.
+Put any on-image text in double quotes, 8 words max (or say "no text").
 
 ## Caption
 - First line is the hook (under 125 characters — it shows before "more").
@@ -307,7 +314,6 @@ async function geminiComplete(
   const genModel = genAI.getGenerativeModel({
     model,
     systemInstruction: system,
-    generationConfig: {temperature: 0.7},
   });
   const result = await genModel.generateContent(user);
   const text = result.response.text();
@@ -414,7 +420,7 @@ export async function runLinkedInOsJob(jobId: string): Promise<void> {
 
       if (CAROUSEL_FORMATS.has(item.format)) {
         try {
-          const pngSlides = await renderCarouselPngs(markdown, brand.theme);
+          const pngSlides = await renderCarouselPngs(markdown, await loadSlideKit(agencyId, brand, output.channel));
           const [pdf, zip] = await Promise.all([
             buildCarouselPdf(pngSlides),
             buildCarouselZip(pngSlides),

@@ -175,7 +175,6 @@ If quiet is true, be brief and point to readyToContact as the next step.
 
 FACTS:
 ${JSON.stringify(facts)}`,
-      config: {temperature: 0.3},
     });
     const line = (text ?? "").trim().replace(/\s+/g, " ");
     return line && line.length <= 400 ? line : fallback;

@@ -70,11 +70,17 @@ export function weekDates(weekStart: string): string[] {
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const SLIDES = `Slides, each as:
-## Slide N — short label
-- title (5 words max)
-- 1–2 bullets
-Slide 1 is the hook. The last slide is CTA only.`;
+const SLIDES = `Slides. Head each one "## Slide N — Layout", then its bullet lines. Layouts:
+- Cover (slide 1 only): "- headline" (8 words max), then optional "- subline" (14 words max)
+- Stat: "- the number" (e.g. 3.2× or 47%), "- what it means" (10 words max), optional "- Source: …"
+- Split: "- title" (6 words max), "- Before: …", "- After: …" (or Myth/Fact, Old way/New way; 12 words each)
+- Steps: "- title" (6 words max), then 2–4 steps (8 words each)
+- Quote: "- the quote" (22 words max), "- — Name, Role"
+- List: "- title" (6 words max), then 2–3 points (12 words each)
+- CTA (last slide only): "- headline" (6 words max), "- the action" (e.g. Comment "ROAS" for the demo)
+Use at least 3 different layouts and never two of the same in a row. Use Stat only with real numbers from the
+brand context, and Quote only with a real person; never invent either.
+Wrap the 1–2 words that matter most in the Cover and List titles in *asterisks*.`;
 
 const LINKEDIN_CAPTION = `## Caption
 The LinkedIn post text that goes above the PDF. Write it as a real LinkedIn post, not an Instagram caption:
@@ -101,7 +107,8 @@ ${SLIDES}`;
   case "ig_feed":
     return `An Instagram feed post:
 ## Visual
-One or two sentences describing the image or graphic (on-image text 8 words max).
+Describe the ONE graphic to post so an image model can make it: subject, composition, style and mood.
+Put any on-image text in double quotes, 8 words max (or say "no text").
 ## Caption
 Hook line under 125 characters, 3–8 short lines, one CTA line, then 3–5 hashtags on the last line.`;
   case "ig_carousel":

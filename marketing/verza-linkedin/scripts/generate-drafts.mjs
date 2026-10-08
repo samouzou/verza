@@ -136,7 +136,6 @@ async function geminiComplete(system, user) {
   const genModel = genAI.getGenerativeModel({
     model: MODEL,
     systemInstruction: system,
-    generationConfig: {temperature: 0.7},
   });
   const result = await genModel.generateContent(user);
   const text = result.response.text();

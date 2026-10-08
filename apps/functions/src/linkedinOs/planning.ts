@@ -124,7 +124,6 @@ export const adaptPrismPost = onCall({timeoutSeconds: 120}, async (request) => {
       const format = current && formats.includes(current.format) ? current.format : formats[0];
       const {text} = await ai.generate({
         model: googleAI.model(MODEL),
-        config: {temperature: 0.7},
         prompt: `${preamble}
 
 IDEA: ${post.title}
@@ -220,7 +219,6 @@ export const generatePrismMonthPlan = onCall({timeoutSeconds: 180}, async (reque
   const formatList = channels.map((ch) => `${ch}: ${PRISM_CHANNEL_FORMATS[ch].join(" | ")}`).join("\n");
   const {text} = await withPrismUsage(c.agencyId, {ai: PRISM_AI_COST.monthPlan}, async () => ai.generate({
     model: googleAI.model(MODEL),
-    config: {temperature: 0.8},
     prompt: `${writerPreamble(strategy, await voiceBlock(c.agencyId))}
 
 TASK: Plan ${strategy.brandName}'s content calendar from ${firstDate} to ${lastDate} (timezone ${tz}).

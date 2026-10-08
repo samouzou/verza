@@ -192,7 +192,6 @@ export const generateLinkedInOsVideoScript = onCall(
     const {text} = await withPrismUsage(String(job.agencyId ?? ""), {ai: PRISM_AI_COST.repurpose}, () => ai.generate({
       model: googleAI.model(MODEL),
       prompt: `${system}\n\n${user}`,
-      config: {temperature: 0.7},
     }));
 
     const markdown = text?.trim();

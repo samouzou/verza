@@ -10,8 +10,11 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    fontconfig \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+COPY fonts/*.ttf /usr/share/fonts/truetype/prism/
+RUN fc-cache -f
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist

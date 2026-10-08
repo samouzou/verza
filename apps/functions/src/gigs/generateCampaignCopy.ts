@@ -185,7 +185,6 @@ ${userPrompt}
       const {text} = await ai.generate({
         model: googleAI.model(MODEL),
         prompt: `${system}\n\n${directive}`,
-        config: {temperature: 0.65},
       });
 
       const raw = text?.trim() ?? "";

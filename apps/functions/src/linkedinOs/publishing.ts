@@ -367,8 +367,16 @@ async function buildEntry(
       },
     };
   }
-  case "ig_feed":
-    return {manual: "Instagram feed posts need an image. Post this one by hand."};
+  case "ig_feed": {
+    const graphic = v.assets?.slides?.[0];
+    if (!graphic) return {manual: "Make the graphic first so there's an image to post."};
+    return {
+      entry: {
+        customContent: section(text, "Caption") || post.title,
+        customMedia: [{type: "image", url: await signedUrl(graphic.storagePath)}],
+      },
+    };
+  }
   case "ig_reel":
     return {manual: "Reels need a video. Post this one by hand."};
   case "tiktok_video":

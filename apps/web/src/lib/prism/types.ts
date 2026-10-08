@@ -112,6 +112,8 @@ export type PrismVariantAssets = {
   pdfStoragePath?: string;
   zipStoragePath?: string;
   renderedAt: string;
+  /** Feed graphics: the "## Visual" text the image was made from. */
+  visual?: string;
 };
 
 export type PrismVariant = {
@@ -180,7 +182,7 @@ export type PrismConnections = {
 };
 
 /** Channels Prism can't post through the API yet (no video upload). */
-export const PRISM_MANUAL_FORMATS = new Set<PrismFormat>(["ig_feed", "ig_reel", "tiktok_video"]);
+export const PRISM_MANUAL_FORMATS = new Set<PrismFormat>(["ig_reel", "tiktok_video"]);
 
 export const PRISM_STATUS_META: Record<PrismPostStatus, { label: string; dot: string }> = {
   idea: { label: "Idea", dot: "bg-zinc-400" },

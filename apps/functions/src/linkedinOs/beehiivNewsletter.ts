@@ -212,7 +212,6 @@ export const generateLinkedInOsBeehiivNewsletter = onCall(
     const {text} = await withPrismUsage(String(job.agencyId ?? ""), {ai: PRISM_AI_COST.repurpose}, () => ai.generate({
       model: googleAI.model(MODEL),
       prompt: `${system}\n\n${user}`,
-      config: {temperature: 0.65},
     }));
 
     const markdown = text?.trim();

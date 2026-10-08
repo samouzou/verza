@@ -17,6 +17,12 @@ export function captionOf(text: string): string {
   return (m ? m[1] : text).trim();
 }
 
+/** The "## Visual" section of a feed post, or "". */
+export function visualOf(text: string): string {
+  const m = text.match(/^##\s*Visual\s*\n([\s\S]*?)(?=^##\s|$(?![\s\S]))/im);
+  return m ? m[1].trim() : "";
+}
+
 export function hasCaption(text: string): boolean {
   return /^##\s*Caption\s*$/im.test(text);
 }
@@ -84,6 +90,9 @@ export function checkVariant(channel: PrismChannel, v: PrismVariant | undefined)
     case "ig_reel": {
       const cap = captionOf(text);
       checkInstagramCaption(cap, issues);
+      if (v?.format === "ig_feed" && !visualOf(text)) {
+        issues.push({ level: "warn", message: "Add a ## Visual section: Prism makes the graphic from it." });
+      }
       return { counter: `${cap.length} / 2,200`, over: cap.length > 2200, issues };
     }
     case "tiktok_video": {

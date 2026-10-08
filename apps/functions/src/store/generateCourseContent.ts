@@ -157,7 +157,6 @@ ${userPrompt}
         const {text} = await ai.generate({
           model: googleAI.model(MODEL),
           prompt: `${system}\n\nGenerate the JSON now.`,
-          config: {temperature: 0.7},
         });
 
         const parsed = parseJsonFromModel(text ?? "") as {
@@ -251,7 +250,6 @@ ${userPrompt}
       const {text} = await ai.generate({
         model: googleAI.model(MODEL),
         prompt: `${system}\n\nGenerate the JSON now.`,
-        config: {temperature: 0.65},
       });
 
       const parsed = parseJsonFromModel(text ?? "") as {

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  ImagePlus,
   Images,
   Loader2,
   MessageSquareWarning,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { CarouselAssets } from "@/components/prism/carousel-assets";
+import { CarouselAssets, FeedGraphic } from "@/components/prism/carousel-assets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ import {
   type PrismPost,
   type PrismVariant,
 } from "@/lib/prism/types";
-import { captionOf, checkVariant, hasCaption } from "@/lib/prism/validate";
+import { captionOf, checkVariant, hasCaption, visualOf } from "@/lib/prism/validate";
 import { cn } from "@/lib/utils";
 
 type Form = {
@@ -117,6 +118,7 @@ const CAROUSEL_FORMATS = new Set<PrismFormat>(["carousel_outline", "ig_carousel"
 /** Slides are stale once the copy changed after they were rendered, saved or not. */
 function assetsStale(local: PrismVariant, saved: PrismVariant | undefined): boolean {
   if (!local.assets) return false;
+  if (local.format === "ig_feed") return (local.assets.visual ?? "") !== visualOf(local.text);
   if (saved && local.text !== saved.text) return true;
   const changedAt = saved?.editedAt ?? saved?.generatedAt ?? "";
   return changedAt > local.assets.renderedAt;
@@ -130,6 +132,7 @@ function publishPlan(v: PrismVariant | undefined, account: PrismConnectedAccount
   if (PRISM_MANUAL_FORMATS.has(v.format)) return { ok: false, note: "Needs a video or image, post by hand" };
   if (v.format === "carousel_outline" && !v.assets?.pdfStoragePath) return { ok: false, note: "Render the slides first" };
   if (v.format === "ig_carousel" && (v.assets?.slides.length ?? 0) < 2) return { ok: false, note: "Render the slides first" };
+  if (v.format === "ig_feed" && !v.assets?.slides.length) return { ok: false, note: "Make the graphic first" };
   return { ok: true, note: `Publishes as @${account.username || account.displayName || "connected account"}` };
 }
 
@@ -160,6 +163,7 @@ export function PostComposer({
   const [tab, setTab] = useState<PrismChannel | "">("");
   const [busy, setBusy] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
+  const [graphicNote, setGraphicNote] = useState<Partial<Record<PrismChannel, string>>>({});
   const [comment, setComment] = useState("");
   const [showChanges, setShowChanges] = useState(false);
   const [showPosted, setShowPosted] = useState(false);
@@ -300,6 +304,17 @@ export function PostComposer({
       toast({ title: `${slides} slides ready`, description: "Download the PDF or PNGs below." });
     });
 
+  const handleGraphic = (ch: PrismChannel) =>
+    run(`graphic-${ch}`, async () => {
+      if (!form.title.trim()) throw new Error("Give the idea a title first.");
+      if (!visualOf(form.variants[ch]?.text ?? "")) throw new Error("Add a \"## Visual\" section describing the image first.");
+      const id = await save();
+      const note = graphicNote[ch]?.trim();
+      await call("generatePrismGraphic", { postId: id, channel: ch, ...(note ? { instruction: note } : {}) });
+      setGraphicNote((g) => ({ ...g, [ch]: "" }));
+      toast({ title: "Graphic ready", description: "Check it below. Regenerate with a note if it needs changes." });
+    });
+
   const transition = (action: string, extra: Record<string, unknown> = {}) =>
     run(action, async () => {
       const id = await save();
@@ -338,9 +353,9 @@ export function PostComposer({
       onClose();
     });
 
-  /** Carousels post the slides as media, so only the caption is pasted as text. */
+  /** Carousels and feed posts post their media separately, so only the caption is pasted as text. */
   const copyText = (v: PrismVariant | undefined) =>
-    v && CAROUSEL_FORMATS.has(v.format) && hasCaption(v.text) ? captionOf(v.text) : v?.text ?? "";
+    v && (CAROUSEL_FORMATS.has(v.format) || v.format === "ig_feed") && hasCaption(v.text) ? captionOf(v.text) : v?.text ?? "";
 
   const copy = async (ch: PrismChannel) => {
     await navigator.clipboard.writeText(copyText(form.variants[ch]));
@@ -518,7 +533,7 @@ export function PostComposer({
                             {busy === `adapt-${ch}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                           </Button>
                         )}
-                        <Button type="button" size="sm" variant="ghost" onClick={() => void copy(ch)} title={CAROUSEL_FORMATS.has(v.format) && hasCaption(v.text) ? "Copy caption" : "Copy"}>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => void copy(ch)} title={copyText(v) !== v.text ? "Copy caption" : "Copy"}>
                           {copied === ch ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
@@ -558,6 +573,34 @@ export function PostComposer({
                         </Button>
                         {busy === `render-${ch}` && <span className="text-xs text-muted-foreground">Rendering in your brand colors…</span>}
                       </div>
+                    )}
+                    {v.format === "ig_feed" && !locked && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {v.assets?.slides.length ? (
+                          <Input
+                            value={graphicNote[ch] ?? ""}
+                            onChange={(e) => setGraphicNote((g) => ({ ...g, [ch]: e.target.value }))}
+                            placeholder="Optional: what to change (e.g. brighter, no text)"
+                            className="h-8 max-w-xs text-xs"
+                            maxLength={500}
+                            disabled={!!busy}
+                          />
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={v.assets && assetsStale(v, post?.variants?.[ch]) ? "default" : "outline"}
+                          disabled={!!busy || !visualOf(v.text)}
+                          onClick={() => void handleGraphic(ch)}
+                        >
+                          {busy === `graphic-${ch}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                          {v.assets?.slides.length ? "Regenerate graphic" : "Make graphic"}
+                        </Button>
+                        {busy === `graphic-${ch}` && <span className="text-xs text-muted-foreground">Designing from the Visual section…</span>}
+                      </div>
+                    )}
+                    {v.format === "ig_feed" && v.assets?.slides[0] && (
+                      <FeedGraphic graphic={v.assets.slides[0]} stale={assetsStale(v, post?.variants?.[ch])} />
                     )}
                     {v.assets && v.assets.slides.length > 0 && CAROUSEL_FORMATS.has(v.format) && (
                       <CarouselAssets assets={v.assets} stale={assetsStale(v, post?.variants?.[ch])} />

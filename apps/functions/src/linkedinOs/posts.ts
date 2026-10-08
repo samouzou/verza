@@ -98,7 +98,7 @@ export async function loadPrismPost(c: PrismCaller, rawId: unknown) {
  * @param {PrismPost} post Post.
  * @return {boolean} True while locked.
  */
-function withPublisher(post: PrismPost): boolean {
+export function withPublisher(post: PrismPost): boolean {
   return post.publish?.state === "sending" || post.publish?.state === "scheduled";
 }
 
@@ -112,7 +112,7 @@ function stalePublish(post: PrismPost): boolean {
   return s === "failed" || s === "manual" || s === "cancelled";
 }
 
-const LOCKED_MESSAGE = "This post is scheduled to publish. Cancel auto-publish first.";
+export const LOCKED_MESSAGE = "This post is scheduled to publish. Cancel auto-publish first.";
 
 /**
  * Whether every selected channel has copy.

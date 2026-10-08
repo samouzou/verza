@@ -95,11 +95,10 @@ function isCauseOrBarter(ct: string | null | undefined): boolean {
   return ct === "cause_campaign" || ct === "barter_campaign";
 }
 
-async function generateGeminiText(prompt: string, temperature = 0.5): Promise<string> {
+async function generateGeminiText(prompt: string): Promise<string> {
   const {text} = await ai.generate({
     model: googleAI.model(MODEL),
     prompt,
-    config: {temperature},
   });
   return text?.trim() ?? "";
 }
@@ -273,7 +272,7 @@ Rules:
 - Prefer creators in the niche described — micro/mid creators, not mega-celebrities unless the brief asks for fame
 - Avoid generic tags: creators, influencer, marketing, lifestyle, fitness, beauty unless explicitly in the brief${audienceRule}`;
 
-  const text = await generateGeminiText(prompt, 0.35);
+  const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
 
   let parsed: {
@@ -387,7 +386,7 @@ Rules:
 - Prefer operators, founders, creators, and practitioners — not recruiters or closed company pages
 - Avoid generic queries like "influencer" or "marketing" unless the brief is truly that broad${audienceRule}`;
 
-  const text = await generateGeminiText(prompt, 0.35);
+  const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: {
     summary?: string;
@@ -477,7 +476,7 @@ Rules:
 - Prefer active creators and operators, not brands or news orgs unless the brief asks for them
 - Avoid generic queries like "influencer" unless the brief is truly that broad${audienceRule}`;
 
-  const text = await generateGeminiText(prompt, 0.35);
+  const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: {
     summary?: string;
@@ -543,7 +542,7 @@ Generate ONE niche Instagram hashtag (no # symbol, no spaces, lowercase) that wo
 Avoid generic tags like creators, influencer, marketing, lifestyle unless the brief is truly that broad.
 Return only the hashtag text.`;
 
-  const text = await generateGeminiText(prompt, 0.3);
+  const text = await generateGeminiText(prompt);
   return cleanHashtag(text) ?? "creators";
 }
 
@@ -560,7 +559,7 @@ ${brief}
 Generate a short Instagram account search phrase (3-6 words) to find creators who match THIS specific brief.
 Return only the search phrase, no quotes.`;
 
-  const text = await generateGeminiText(prompt, 0.35);
+  const text = await generateGeminiText(prompt);
   return cleanSearchQuery(text) ?? objectives.trim().slice(0, 80);
 }
 
@@ -582,7 +581,7 @@ Suggest ${ask} real Instagram creators who would be a strong fit for THIS specif
 Return STRICT JSON only (no markdown): an array of objects with "username" (handle without @) and "profileUrl" (full https://instagram.com/... URL).
 Prefer niche creators who match the campaign — not generic influencers.`;
 
-  const text = await generateGeminiText(prompt, 0.45);
+  const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return [];
 
@@ -819,7 +818,7 @@ export async function regenerateVaultEmailDraft(
     Do not include markdown outside the JSON.
   `;
 
-  const text = await generateGeminiText(prompt, 0.5);
+  const text = await generateGeminiText(prompt);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   let parsed: {draftEmail?: string | null; draftEmailSubject?: string | null} = {};
   if (jsonMatch) {

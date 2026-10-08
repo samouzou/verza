@@ -49,7 +49,6 @@ Return the creator's quoted fee in USD for ONE sponsorship package.
 NOTE:
 ${text}`,
     output: {schema: QuotedRateSchema},
-    config: {temperature: 0},
   });
   const rate = output?.rateUsd;
   if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0 || rate > QUOTED_RATE_MAX_USD) return null;

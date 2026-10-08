@@ -54,6 +54,8 @@ export type PrismVariantAssets = {
   pdfStoragePath?: string;
   zipStoragePath?: string;
   renderedAt: string;
+  /** Feed graphics: the "## Visual" text the image was made from. */
+  visual?: string;
 };
 
 export type PrismVariant = {
