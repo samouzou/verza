@@ -247,12 +247,6 @@ export function VideoPanel({
                     </span>
                   </div>
                 )}
-                {credits.freeLeft > 0 && (
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Free trial credits</span>
-                    <span className="tabular-nums">{credits.freeLeft}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Purchased (never expire)</span>
                   <span className="tabular-nums">{credits.purchased}</span>

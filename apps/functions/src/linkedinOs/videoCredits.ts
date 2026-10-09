@@ -26,8 +26,6 @@ export const PRISM_VIDEO_ALLOWANCE: Record<PrismPlanTier, number> = {
   pro: 120,
   enterprise: 120,
 };
-/** One-time credits on Free: enough for one 10-second video. */
-export const PRISM_FREE_VIDEO_CREDITS = 10;
 /** Pack size → Stripe price lookup key. */
 export const PRISM_VIDEO_PACKS: Record<number, string> = {
   60: "prism_video_credits_60",
@@ -40,7 +38,6 @@ export type PrismVideoBalance = {
   tier: PrismPlanTier;
   allowance: number;
   allowanceLeft: number;
-  freeLeft: number;
   purchased: number;
   total: number;
 };
@@ -65,13 +62,12 @@ export function videoBalanceFrom(agency: Record<string, unknown>, credits: Recor
   const allowance = PRISM_VIDEO_ALLOWANCE[tier];
   const used = credits.allowancePeriodKey === prismPeriodKey() ? count(credits.allowanceUsed) : 0;
   const allowanceLeft = Math.max(0, allowance - used);
-  const freeLeft = tier === "free" ? Math.max(0, PRISM_FREE_VIDEO_CREDITS - count(credits.freeUsed)) : 0;
   const purchased = count(credits.purchased);
-  return {tier, allowance, allowanceLeft, freeLeft, purchased, total: allowanceLeft + freeLeft + purchased};
+  return {tier, allowance, allowanceLeft, purchased, total: allowanceLeft + purchased};
 }
 
 /**
- * Takes credits inside a transaction: monthly allowance first, then Free credits, then purchased ones.
+ * Takes credits inside a transaction: monthly allowance first, then purchased ones.
  * Throws resource-exhausted when the brand doesn't have enough.
  * @param {Transaction} tx Transaction (no writes may precede this call).
  * @param {string} agencyId Agency id.
@@ -103,18 +99,16 @@ export async function spendVideoCredits(
   }
   const periodKey = prismPeriodKey();
   const allowance = Math.min(credits, b.allowanceLeft);
-  const free = Math.min(credits - allowance, b.freeLeft);
-  const purchased = credits - allowance - free;
+  const purchased = credits - allowance;
   const used = data.allowancePeriodKey === periodKey ? count(data.allowanceUsed) : 0;
   tx.set(creditsRef, {
     agencyId,
     allowancePeriodKey: periodKey,
     allowanceUsed: used + allowance,
-    freeUsed: count(data.freeUsed) + free,
     purchased: b.purchased - purchased,
     updatedAt: FieldValue.serverTimestamp(),
   }, {merge: true});
-  const spend = {periodKey, allowance, free, purchased};
+  const spend = {periodKey, allowance, free: 0, purchased};
   tx.set(creditsRef.collection("ledger").doc(), {
     type: "render", credits: -credits, spend, jobId, uid, createdAt: FieldValue.serverTimestamp(),
   });

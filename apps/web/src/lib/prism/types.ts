@@ -206,7 +206,6 @@ export type PrismVideoCredits = {
   tier: "free" | "lifetime" | "starter" | "launch" | "pro" | "enterprise";
   allowance: number;
   allowanceLeft: number;
-  freeLeft: number;
   purchased: number;
   total: number;
   packs: { credits: number; cents: number }[];

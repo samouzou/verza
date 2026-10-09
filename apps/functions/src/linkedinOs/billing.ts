@@ -27,7 +27,7 @@ export type PrismTierLimits = {
 };
 
 export const PRISM_TIERS: Record<PrismPlanTier, PrismTierLimits> = {
-  free: {ai: 15, graphics: null, publish: false, xIncludedMicros: 0},
+  free: {ai: 0, graphics: 0, publish: false, xIncludedMicros: 0},
   lifetime: {ai: 300, graphics: 30, publish: false, xIncludedMicros: 0},
   starter: {ai: 300, graphics: 30, publish: false, xIncludedMicros: 0},
   launch: {ai: 1000, graphics: 100, publish: true, xIncludedMicros: 5_000_000},
@@ -54,9 +54,8 @@ const TIER_NAME: Record<PrismPlanTier, string> = {
   enterprise: "Enterprise",
 };
 
-/** One-time taste of the paid plans on Free; never resets. */
-export const PRISM_FREE_STUDIO_RUNS = 1;
-export const PRISM_FREE_SLIDE_RENDERS = 3;
+/** Free trial on a brand's first self-serve subscription (card collected up front). */
+export const PRISM_TRIAL_DAYS = 7;
 
 export const PRISM_AI_COST = {monthPlan: 5, weeklyPlan: 2, repurpose: 1} as const;
 
@@ -179,17 +178,13 @@ export async function reservePrismUsage(
     const studioRun = usage.studioRun === true;
     const slideRender = usage.slideRender === true;
     const graphic = usage.graphic === true;
-    const ai = e.tier === "free" && studioRun ? 0 : Math.max(0, Math.floor(usage.ai ?? 0));
+    const ai = Math.max(0, Math.floor(usage.ai ?? 0));
 
-    if (e.tier === "free") {
-      if (studioRun && e.studioRunsUsed >= PRISM_FREE_STUDIO_RUNS) {
-        upgradeError("You've used your free Studio run. Upgrade to Prism Starter to batch a week of drafts any time.");
-      }
-      if (slideRender && e.slideRendersUsed >= PRISM_FREE_SLIDE_RENDERS) {
-        upgradeError(
-          `You've used your ${PRISM_FREE_SLIDE_RENDERS} free slide renders. Upgrade to Prism Starter for unlimited carousels.`
-        );
-      }
+    if (e.tier === "free" && (ai > 0 || studioRun || slideRender || graphic)) {
+      upgradeError(
+        `AI writing, Studio and design need a Prism plan. Start a ${PRISM_TRIAL_DAYS}-day free trial of Starter, ` +
+          "Launch or Pro; you can cancel before it ends and pay nothing."
+      );
     }
     if (graphic && e.graphicsLimit !== null && e.graphicsUsed >= e.graphicsLimit) {
       upgradeError(
@@ -396,8 +391,22 @@ export const getPrismPricing = onCall(async (request) => {
       yearlyCents: prices.find((p) => p.tier === tier && p.interval === "year")?.cents ?? null,
     }])
   );
-  return {currency: prices[0]?.currency ?? "usd", plans};
+  return {currency: prices[0]?.currency ?? "usd", plans, trialDays: PRISM_TRIAL_DAYS};
 });
+
+/**
+ * Whether a brand's checkout gets the free trial: once per brand and once per Stripe customer,
+ * so a new brand under the same billing account doesn't restart it.
+ * @param {Stripe} stripe Stripe client.
+ * @param {Record<string, unknown>} agency Agency data.
+ * @param {string} customer Stripe customer id.
+ * @return {!Promise<boolean>} True when the trial applies.
+ */
+async function trialEligible(stripe: Stripe, agency: Record<string, unknown>, customer: string): Promise<boolean> {
+  if (agency.prismTrialUsed === true || agency.prismStripeSubscriptionId) return false;
+  const {data} = await stripe.subscriptions.list({customer, status: "all", limit: 100});
+  return !data.some((s) => s.metadata?.productType === "prism" && s.trial_start);
+}
 
 /** Stripe Checkout for Prism Starter, Launch or Pro (monthly or yearly). Free and Lifetime brands only. */
 export const createPrismSubscriptionCheckoutSession = onCall(async (request) => {
@@ -420,28 +429,62 @@ export const createPrismSubscriptionCheckoutSession = onCall(async (request) => 
   const price = (await planPrices(stripe)).find((p) => p.tier === tier && p.interval === interval);
   if (!price) throw new HttpsError("failed-precondition", "Prism pricing isn't configured yet.");
   const customer = await stripeCustomerFor(stripe, uid, user);
+  const promo = await promotionCodeFor(stripe, request.data?.promoCode);
   const metadata = {firebaseUID: uid, agencyId, productType: "prism", prismPlanId: planId};
-  const session = await stripe.checkout.sessions.create({
+  const create = (promotionCode: string | null, trial: boolean) => stripe.checkout.sessions.create({
     mode: "subscription",
     customer,
     line_items: [{price: price.priceId, quantity: 1}],
-    success_url: `${params.APP_URL.value()}/prism?prism_subscribe_success=${tier}`,
+    success_url: `${params.APP_URL.value()}/prism?prism_subscribe_success=${tier}${trial ? "&trial=1" : ""}`,
     cancel_url: `${params.APP_URL.value()}/prism/pricing`,
-    subscription_data: {metadata},
+    payment_method_collection: "always",
+    subscription_data: {
+      metadata,
+      ...(trial ? {
+        trial_period_days: PRISM_TRIAL_DAYS,
+        trial_settings: {end_behavior: {missing_payment_method: "cancel" as const}},
+      } : {}),
+    },
     metadata,
-    allow_promotion_codes: true,
+    // Stripe rejects allow_promotion_codes together with discounts.
+    ...(promotionCode ? {discounts: [{promotion_code: promotionCode}]} : {allow_promotion_codes: true}),
   });
-  return {url: session.url};
+
+  if (promo) {
+    try {
+      const session = await create(promo, false);
+      return {url: session.url, trial: false, promoApplied: true};
+    } catch (e) {
+      if (!(e instanceof Stripe.errors.StripeInvalidRequestError)) throw e;
+      logger.info("[Prism billing] Promo code not applicable, falling back to manual entry", {promo, tier, message: e.message});
+    }
+  }
+  const trial = await trialEligible(stripe, agency, customer);
+  const session = await create(null, trial);
+  return {url: session.url, trial, promoApplied: false};
 });
 
 /**
- * Moves a self-serve subscription to another plan or interval. Upgrades are charged the prorated
- * difference now and only take effect once that payment succeeds; downgrades leave a credit for later invoices.
+ * Active Stripe promotion code id for a customer-facing code, or null when it's missing or inactive.
+ * @param {Stripe} stripe Stripe client.
+ * @param {unknown} code Code from the client (e.g. TECHWEEK26).
+ * @return {!Promise<string|null>} Promotion code id.
  */
-export const changePrismPlan = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to change your Prism plan.");
-  const {tier, interval} = requestedPlan(request.data);
-  const {agencyId} = await prismBillingAdmin(request.auth.uid);
+async function promotionCodeFor(stripe: Stripe, code: unknown): Promise<string | null> {
+  if (typeof code !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(code.trim())) return null;
+  const {data} = await stripe.promotionCodes.list({code: code.trim(), active: true, limit: 1});
+  return data[0]?.id ?? null;
+}
+
+/**
+ * Loads what a plan switch needs and checks the brand can switch itself.
+ * @param {string} uid Auth uid.
+ * @param {unknown} data Callable data ({plan, interval}).
+ * @return {!Promise<object>} Brand, current tier, target price, subscription and its item.
+ */
+async function loadPlanChange(uid: string, data: unknown) {
+  const {tier, interval} = requestedPlan(data);
+  const {agencyId} = await prismBillingAdmin(uid);
   const agency = (await db.collection("agencies").doc(agencyId).get()).data() ?? {};
   const current = prismEntitlementsFrom(agency);
   const subId = String(agency.prismStripeSubscriptionId ?? "");
@@ -451,13 +494,67 @@ export const changePrismPlan = onCall(async (request) => {
   if (!PRISM_SELF_SERVE_TIERS.includes(current.tier as PrismSelfServeTier) || !subId) {
     throw new HttpsError("failed-precondition", "This brand has no Prism subscription to change. Pick a plan to subscribe.");
   }
-
   const stripe = stripeClient();
   const price = (await planPrices(stripe)).find((p) => p.tier === tier && p.interval === interval);
   if (!price) throw new HttpsError("failed-precondition", "Prism pricing isn't configured yet.");
   const sub = await stripe.subscriptions.retrieve(subId);
   const item = sub.items.data[0];
   if (!item) throw new HttpsError("failed-precondition", "This subscription has no plan to change.");
+  return {stripe, agencyId, current, tier, interval, price, sub, item};
+}
+
+/**
+ * What switching plans costs, from Stripe's own proration: charged now (or credited), and the next renewal.
+ */
+export const previewPrismPlanChange = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to change your Prism plan.");
+  const {stripe, current, tier, interval, price, sub, item} = await loadPlanChange(request.auth.uid, request.data);
+  const fromCents = item.price.unit_amount ?? 0;
+  const fromInterval = item.price.recurring?.interval === "year" ? "year" : "month";
+  const base = {
+    fromTier: current.tier,
+    fromCents,
+    fromInterval,
+    toTier: tier,
+    toCents: price.cents,
+    toInterval: interval,
+    currency: price.currency,
+  };
+  if (item.price.id === price.priceId) return {...base, same: true};
+
+  const preview = await stripe.invoices.createPreview({
+    customer: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+    subscription: sub.id,
+    subscription_details: {
+      items: [{id: item.id, price: price.priceId}],
+      proration_behavior: "always_invoice",
+    },
+  });
+  const total = preview.total ?? 0;
+  const trialEnd = sub.status === "trialing" && sub.trial_end ? sub.trial_end : null;
+  const periodEnd = (item as {current_period_end?: number}).current_period_end ?? null;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const nextChargeAt = trialEnd ??
+    (fromInterval === interval ? periodEnd : nowSec + (interval === "year" ? 365 : 30) * 86400);
+  return {
+    ...base,
+    same: false,
+    dueNowCents: Math.max(0, total),
+    creditCents: Math.max(0, -total),
+    trialEndsAt: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+    nextChargeAt: nextChargeAt ? new Date(nextChargeAt * 1000).toISOString() : null,
+    nextChargeCents: price.cents,
+  };
+});
+
+/**
+ * Moves a self-serve subscription to another plan or interval. Upgrades are charged the prorated
+ * difference now and only take effect once that payment succeeds; downgrades leave a credit for later invoices.
+ */
+export const changePrismPlan = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in to change your Prism plan.");
+  const {stripe, agencyId, current, tier, interval, price, sub, item} = await loadPlanChange(request.auth.uid, request.data);
+  const subId = sub.id;
   if (item.price.id === price.priceId) return {tier, interval, changed: false};
 
   const updated = await stripe.subscriptions.update(sub.id, {
@@ -576,6 +673,8 @@ async function applyPrismSubscription(
     prismStripeSubscriptionId: sub.id,
     prismBillingInterval: plan.interval,
     prismPeriodEnd: typeof end === "number" ? Timestamp.fromMillis(end * 1000) : null,
+    prismTrialEnd: sub.status === "trialing" && sub.trial_end ? Timestamp.fromMillis(sub.trial_end * 1000) : null,
+    ...(sub.trial_start ? {prismTrialUsed: true} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 }

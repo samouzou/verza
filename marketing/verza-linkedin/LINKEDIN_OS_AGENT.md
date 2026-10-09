@@ -91,21 +91,25 @@ Billing is per brand (agency doc). Code: `apps/functions/src/linkedinOs/billing.
 
 | Plan | Price | AI actions / mo | Feed graphics / mo | Auto-publish | Video / mo | X fees included |
 |---|---|---|---|---|---|---|
-| Free | $0 | 15 | within 3 one-time renders | no | 10s once | — |
+| No plan | $0 | — | — | no | — | — |
 | Lifetime (AppSumo) | $69 once | 300 | 30 | no | packs | — |
 | Starter | $29/mo, $290/yr | 300 | 30 | no | packs | — |
 | Launch | $79/mo, $790/yr | 1,000 | 100 | yes | 30s | $5 |
 | Pro | $149/mo, $1,490/yr | 3,000 | unlimited | yes | 120s | $10 |
 | Enterprise | custom | unlimited | unlimited | yes | 120s | by contract |
 
-Starter, Launch and Pro unlock Studio and unlimited carousels. Lifetime is Starter for good; a Lifetime brand that
-subscribes and later cancels falls back to Lifetime.
+There's no free AI plan. Without a plan a brand keeps the calendar, composer, approvals, brand setup and manual posting;
+AI writing, Studio, renders, video and auto-publishing need a plan. A brand's first self-serve subscription gets a 7-day
+trial with the card collected at Checkout (`PRISM_TRIAL_DAYS`), once per brand and once per Stripe customer
+(`prismTrialUsed`, `prismTrialEnd` on the agency). Starter, Launch and Pro unlock Studio and unlimited carousels.
+Lifetime is Starter for good; a Lifetime brand that subscribes and later cancels falls back to Lifetime.
 
 - **Stripe prices** are found by lookup key `prism_{starter|launch|pro}_{monthly|yearly}`. Create or verify them with
   `STRIPE_SECRET_KEY=… node scripts/prism-stripe-plans.mjs [--dry-run]` (idempotent; also retires the old $199 Launch
   prices). Enterprise uses Payment Links whose price carries `metadata.prismPlanId = prism_enterprise_{monthly|yearly}`.
 - **Checkout:** `createPrismSubscriptionCheckoutSession({plan, interval})` for Free and Lifetime brands.
-  **Switching:** `changePrismPlan({plan, interval})` swaps the subscription's price in place; upgrades charge the
+  **Switching:** `previewPrismPlanChange` returns Stripe's prorated amount due now (or credit) and the next charge for
+  the confirmation dialog; `changePrismPlan({plan, interval})` swaps the subscription's price in place; upgrades charge the
   prorated difference immediately and only apply once paid, downgrades leave a credit.
 - **Webhook:** the plan comes from the subscription price's lookup key, then price metadata, then subscription metadata.
   A Launch subscription on a price without the current lookup key is on the retired $199 Launch and gets Pro.
@@ -157,13 +161,13 @@ with Gemini Omni (`gemini-omni-1.1-flash`). Code: `apps/functions/src/linkedinOs
   ffmpeg, and stores `video.mp4` + `cover.jpg` under `linkedin_os_carousels/{agencyId}/posts/{postId}/`. One render at a
   time per brand. `onPrismVideoJobUpdated` mirrors progress onto the variant (`videoJob`), refunds failures once, and
   notifies whoever started it.
-- **Credits:** 1 credit = 1 second. Launch gets 30 a month, Pro and Enterprise 120 (no rollover), Free gets 10 once;
+- **Credits:** 1 credit = 1 second. Launch gets 30 a month, Pro and Enterprise 120 (no rollover);
   Starter and Lifetime buy packs. Packs: 60 for
   $18, 200 for $55, 600 for $150 (Stripe prices with lookup keys `prism_video_credits_{60,200,600}`), bought by owners
   and admins through `createPrismVideoCreditCheckout`; the subscriptions webhook grants them on payment
   (`handlePrismVideoCreditsEvent`, idempotent per Checkout session). Spending uses the monthly allowance first, then
-  free, then purchased. Balance: `prism_video_credits/{agencyId}`, with a `ledger` subcollection.
-- **Cost:** Omni at 1080p is about $0.15 per second, so packs keep roughly 40% to 50%   margin; a fully used monthly allowance costs about $4.50 on Launch and
+  purchased credits. Balance: `prism_video_credits/{agencyId}`, with a `ledger` subcollection.
+- **Cost:** Omni at 1080p is about $0.15 per second, so packs keep roughly 40% to 50% margin; a fully used monthly allowance costs about $4.50 on Launch and
   $18 on Pro.
 
 Setup: create the three Stripe prices (one product, `metadata.purpose = prism_video_credits`), deploy the worker with

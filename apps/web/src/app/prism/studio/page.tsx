@@ -48,7 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
-import { PRISM_PRICING_PATH, usePrismPlan } from "@/hooks/use-prism-plan";
+import { PRISM_PRICING_PATH, PRISM_TRIAL_DAYS, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useStudioJobPosts } from "@/hooks/use-prism-posts";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -1074,13 +1074,11 @@ export default function PrismStudioPage() {
                 </>
               )}
             </Button>
-            {plan.studioRunsLeft !== null && !plan.loading && (
+            {!plan.paid && !plan.loading && (
               <p className="text-center text-xs text-muted-foreground">
-                {plan.studioRunsLeft > 0
-                  ? "Prism Free includes one Studio run to try it out."
-                  : "You've used your free Studio run."}{" "}
+                Studio is part of every Prism plan.{" "}
                 <Link href={PRISM_PRICING_PATH} className="font-medium text-primary hover:underline">
-                  Upgrade to Starter
+                  {plan.trialEligible ? `Start a ${PRISM_TRIAL_DAYS}-day free trial` : "Pick a plan"}
                 </Link>{" "}
                 to batch drafts every week.
               </p>

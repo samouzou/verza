@@ -8,7 +8,8 @@ import { useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { isCampaignApplyPath, peekPostAuthRedirect } from "@/lib/post-auth-redirect";
+import { isCampaignApplyPath, peekPostAuthRedirect, setPostAuthRedirect } from "@/lib/post-auth-redirect";
+import { rememberPrismPromo } from "@/lib/prism/promo";
 
 /** Server-rendered, indexable pages that must show content before auth resolves. */
 function isSeoPublicPath(pathname: string): boolean {
@@ -30,6 +31,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   // Added /data-deletion to public paths for Facebook compliance
   const publicPaths = ['/login', '/pay/contract', '/share/contract', '/data-deletion', '/sms-opt-in', '/l/', '/overview', '/s/', '/c/', '/campaigns/open'];
   const onboardingPath = '/onboarding';
+
+  useEffect(() => {
+    if (pathname.startsWith('/prism')) rememberPrismPromo();
+  }, [pathname]);
 
   useEffect(() => {
     if (isLoading || seoPublic) return; // Wait for authentication state to be determined
@@ -65,6 +70,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       // If user is not authenticated and not on a public path, redirect to login
       const isPublicPath = publicPaths.some(p => pathname.startsWith(p));
       if (!isPublicPath && pathname !== onboardingPath) {
+        if (pathname === '/prism/pricing') setPostAuthRedirect(pathname);
         router.replace('/login');
       }
     }

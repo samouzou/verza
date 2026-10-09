@@ -22,7 +22,7 @@ export type PrismTierLimits = {
 
 /** Keep in sync with functions billing.ts and videoCredits.ts. */
 export const PRISM_TIERS: Record<PrismPlanTier, PrismTierLimits> = {
-  free: { ai: 15, graphics: null, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
+  free: { ai: 0, graphics: 0, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
   lifetime: { ai: 300, graphics: 30, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
   starter: { ai: 300, graphics: 30, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
   launch: { ai: 1000, graphics: 100, publish: true, xIncludedDollars: 5, videoSeconds: 30 },
@@ -31,7 +31,7 @@ export const PRISM_TIERS: Record<PrismPlanTier, PrismTierLimits> = {
 };
 
 export const PRISM_TIER_LABEL: Record<PrismPlanTier, string> = {
-  free: "Prism Free",
+  free: "No Prism plan",
   lifetime: "Prism Lifetime",
   starter: "Prism Starter",
   launch: "Prism Launch",
@@ -39,10 +39,8 @@ export const PRISM_TIER_LABEL: Record<PrismPlanTier, string> = {
   enterprise: "Prism Enterprise",
 };
 
-export const PRISM_FREE_STUDIO_RUNS = 1;
-export const PRISM_FREE_SLIDE_RENDERS = 3;
-/** One-time video credits on Free (seconds). */
-export const PRISM_FREE_VIDEO_SECONDS = 10;
+/** Free trial on a brand's first subscription (keep in sync with functions billing.ts). */
+export const PRISM_TRIAL_DAYS = 7;
 /** Markup on X fees above the allowance, covering card processing. */
 export const PRISM_X_MARKUP = 0.05;
 export const PRISM_PRICING_PATH = "/prism/pricing";
@@ -65,10 +63,10 @@ export interface PrismPlan {
   aiUsed: number;
   /** null = unlimited. */
   aiLimit: number | null;
-  /** null = unlimited. */
-  studioRunsLeft: number | null;
-  /** null = unlimited. */
-  slideRendersLeft: number | null;
+  /** The brand hasn't had a Prism subscription or trial yet (Checkout makes the final call). */
+  trialEligible: boolean;
+  /** ISO time the current trial ends, while trialing. */
+  trialEndsAt: string | null;
 }
 
 function count(raw: unknown): number {
@@ -100,8 +98,9 @@ function planFrom(d: DocumentData | undefined): Omit<PrismPlan, "loading"> {
     billingInterval: d?.prismBillingInterval === "month" || d?.prismBillingInterval === "year" ? d.prismBillingInterval : null,
     aiUsed,
     aiLimit: limits.ai,
-    studioRunsLeft: tier === "free" ? Math.max(0, PRISM_FREE_STUDIO_RUNS - count(d?.prismStudioRunsUsed)) : null,
-    slideRendersLeft: tier === "free" ? Math.max(0, PRISM_FREE_SLIDE_RENDERS - count(d?.prismSlideRendersUsed)) : null,
+    trialEligible: d?.prismTrialUsed !== true && !d?.prismStripeSubscriptionId,
+    trialEndsAt:
+      status === "trialing" && typeof d?.prismTrialEnd?.toDate === "function" ? d.prismTrialEnd.toDate().toISOString() : null,
   };
 }
 

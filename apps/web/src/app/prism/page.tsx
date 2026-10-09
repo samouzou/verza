@@ -49,7 +49,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
-import { usePrismPlan } from "@/hooks/use-prism-plan";
+import { PRISM_TRIAL_DAYS, usePrismPlan } from "@/hooks/use-prism-plan";
 import { usePrismPosts } from "@/hooks/use-prism-posts";
 import { useToast } from "@/hooks/use-toast";
 import { db, functions } from "@/lib/firebase";
@@ -112,7 +112,9 @@ function PrismCalendarPage() {
     const tier = subscribed in welcome ? subscribed : "launch";
     toast({
       title: `Welcome to Prism ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
-      description: subscribed === "true" ? "Your plan is active." : welcome[tier],
+      description:
+        (subscribed === "true" ? "Your plan is active." : welcome[tier]) +
+        (searchParams.get("trial") === "1" ? ` Your ${PRISM_TRIAL_DAYS}-day free trial has started.` : ""),
     });
     router.replace("/prism");
   }, [searchParams, router, toast]);

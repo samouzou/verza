@@ -3,10 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
-import { Check, Crown, Loader2, Mail, Rocket, Sparkles, Zap } from "lucide-react";
+import { CalendarDays, Check, Crown, Loader2, Mail, Rocket, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { PrismPlanBadge } from "@/components/prism/prism-plan";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +28,9 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  PRISM_FREE_SLIDE_RENDERS,
-  PRISM_FREE_STUDIO_RUNS,
-  PRISM_FREE_VIDEO_SECONDS,
   PRISM_TIER_LABEL,
   PRISM_TIERS,
+  PRISM_TRIAL_DAYS,
   PRISM_X_MARKUP,
   usePrismPlan,
   type PrismPlanTier,
@@ -31,10 +38,26 @@ import {
 } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
+import { readPrismPromo } from "@/lib/prism/promo";
 import { cn } from "@/lib/utils";
 
 type Interval = "month" | "year";
 type PlanPrices = Record<PrismSelfServeTier, { monthlyCents: number | null; yearlyCents: number | null }>;
+type ChangePreview = {
+  fromTier: PrismPlanTier;
+  fromCents: number;
+  fromInterval: Interval;
+  toTier: PrismSelfServeTier;
+  toCents: number;
+  toInterval: Interval;
+  currency: string;
+  same: boolean;
+  dueNowCents?: number;
+  creditCents?: number;
+  trialEndsAt?: string | null;
+  nextChargeAt?: string | null;
+  nextChargeCents?: number;
+};
 
 /** Shown until Stripe answers (and if it can't); Checkout always charges the Stripe price. */
 const LIST_PRICES: PlanPrices = {
@@ -63,7 +86,7 @@ const PLANS: {
     icon: Sparkles,
     blurb: "For founders and small teams who post themselves.",
     features: [
-      "Everything in Free",
+      "Calendar, composer and team approvals",
       `${n(PRISM_TIERS.starter.ai!)} AI actions a month`,
       "Studio: batch a week of drafts any time",
       "Unlimited branded carousels (PDF and PNG)",
@@ -102,15 +125,6 @@ const PLANS: {
   },
 ];
 
-const freeFeatures = [
-  "Content calendar, composer and team approvals",
-  "LinkedIn, X, Instagram, TikTok, YouTube and newsletter",
-  "Brand strategy and voice profile",
-  `${PRISM_TIERS.free.ai} AI actions a month`,
-  `Try Studio ${PRISM_FREE_STUDIO_RUNS === 1 ? "once" : `${PRISM_FREE_STUDIO_RUNS} times`} and render ${PRISM_FREE_SLIDE_RENDERS} carousels`,
-  `One free ${PRISM_FREE_VIDEO_SECONDS}-second AI video`,
-];
-
 const enterpriseFeatures = [
   "Unlimited AI actions",
   "Multiple brands under one contract",
@@ -120,16 +134,13 @@ const enterpriseFeatures = [
 
 const COMPARE: { label: string; value: (t: PrismPlanTier) => string }[] = [
   { label: "AI actions a month", value: (t) => (PRISM_TIERS[t].ai === null ? "Unlimited" : n(PRISM_TIERS[t].ai!)) },
-  { label: "Studio (week of drafts)", value: (t) => (t === "free" ? `${PRISM_FREE_STUDIO_RUNS} run` : "Unlimited") },
-  { label: "Carousels", value: (t) => (t === "free" ? `${PRISM_FREE_SLIDE_RENDERS} renders` : "Unlimited") },
   {
     label: "Feed graphics a month",
-    value: (t) => (t === "free" ? "Within renders" : PRISM_TIERS[t].graphics === null ? "Unlimited" : String(PRISM_TIERS[t].graphics)),
+    value: (t) => (PRISM_TIERS[t].graphics === null ? "Unlimited" : String(PRISM_TIERS[t].graphics)),
   },
   {
     label: "AI video included",
-    value: (t) =>
-      t === "free" ? `${PRISM_FREE_VIDEO_SECONDS}s once` : PRISM_TIERS[t].videoSeconds ? `${PRISM_TIERS[t].videoSeconds}s / month` : "Packs",
+    value: (t) => (PRISM_TIERS[t].videoSeconds ? `${PRISM_TIERS[t].videoSeconds}s / month` : "Packs"),
   },
   { label: "Auto-publishing", value: (t) => (PRISM_TIERS[t].publish ? "Yes" : "—") },
   { label: "X API fees included", value: (t) => (PRISM_TIERS[t].xIncludedDollars ? `$${PRISM_TIERS[t].xIncludedDollars} / month` : "—") },
@@ -166,6 +177,12 @@ export default function PrismPricingPage() {
   const [prices, setPrices] = useState<PlanPrices>(LIST_PRICES);
   const [currency, setCurrency] = useState("usd");
   const [busy, setBusy] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ChangePreview | null>(null);
+  const [promo, setPromo] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPromo(readPrismPromo());
+  }, []);
 
   useEffect(() => {
     if (plan.billingInterval) setBillingInterval(plan.billingInterval);
@@ -202,7 +219,11 @@ export default function PrismPricingPage() {
     if (!requireTeam()) return;
     setBusy(tier);
     try {
-      const res = await httpsCallable(functions, "createPrismSubscriptionCheckoutSession")({ plan: tier, interval: billingInterval });
+      const res = await httpsCallable(functions, "createPrismSubscriptionCheckoutSession")({
+        plan: tier,
+        interval: billingInterval,
+        promoCode: promo,
+      });
       const url = (res.data as { url?: string })?.url;
       if (!url) throw new Error("No checkout URL");
       window.location.href = url;
@@ -212,19 +233,27 @@ export default function PrismPricingPage() {
     }
   };
 
-  const switchPlan = async (tier: PrismSelfServeTier) => {
+  const previewSwitch = async (tier: PrismSelfServeTier) => {
     if (!requireTeam()) return;
-    const upgrade = RANK[tier] > RANK[plan.tier] || (tier === plan.tier && billingInterval === "year");
-    const ok = window.confirm(
-      upgrade
-        ? `Switch to Prism ${tier[0].toUpperCase()}${tier.slice(1)} (${billingInterval}ly)? You'll be charged the prorated difference now.`
-        : `Switch to Prism ${tier[0].toUpperCase()}${tier.slice(1)} (${billingInterval}ly)? The unused part of your current plan becomes credit on future invoices.`
-    );
-    if (!ok) return;
     setBusy(tier);
     try {
-      await httpsCallable(functions, "changePrismPlan")({ plan: tier, interval: billingInterval });
-      toast({ title: `You're on Prism ${tier[0].toUpperCase()}${tier.slice(1)}`, description: "Your new limits apply right away." });
+      const res = await httpsCallable(functions, "previewPrismPlanChange")({ plan: tier, interval: billingInterval });
+      setPreview(res.data as ChangePreview);
+    } catch (e: unknown) {
+      toast({ title: "Could not price that change", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmSwitch = async () => {
+    if (!preview) return;
+    const { toTier, toInterval } = preview;
+    setBusy("confirm");
+    try {
+      await httpsCallable(functions, "changePrismPlan")({ plan: toTier, interval: toInterval });
+      setPreview(null);
+      toast({ title: `You're on ${PRISM_TIER_LABEL[toTier]}`, description: "Your new limits apply right away." });
     } catch (e: unknown) {
       toast({ title: "Could not change plan", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -250,6 +279,7 @@ export default function PrismPricingPage() {
     return monthlyCents && yearlyCents ? Math.round((1 - yearlyCents / (monthlyCents * 12)) * 100) : null;
   };
   const yearlySavings = savings("launch");
+  const showPromo = !!promo && !plan.loading && !plan.selfServe && plan.tier !== "enterprise";
 
   const action = (tier: PrismSelfServeTier): { label: string; disabled?: boolean; onClick?: () => void; variant?: "default" | "outline" } => {
     const name = tier[0].toUpperCase() + tier.slice(1);
@@ -260,15 +290,15 @@ export default function PrismPricingPage() {
       if (plan.tier === tier && plan.billingInterval === billingInterval) {
         return { label: "Manage billing", onClick: () => void openPortal(), variant: "outline" };
       }
-      if (plan.tier === tier) return { label: `Switch to ${billingInterval}ly`, onClick: () => void switchPlan(tier), variant: "outline" };
+      if (plan.tier === tier) return { label: `Switch to ${billingInterval}ly`, onClick: () => void previewSwitch(tier), variant: "outline" };
       return {
         label: RANK[tier] > RANK[plan.tier] ? `Upgrade to ${name}` : `Switch to ${name}`,
-        onClick: () => void switchPlan(tier),
+        onClick: () => void previewSwitch(tier),
         variant: RANK[tier] > RANK[plan.tier] ? "default" : "outline",
       };
     }
     return {
-      label: plan.tier === "lifetime" ? `Upgrade to ${name}` : `Get ${name}`,
+      label: plan.trialEligible && !showPromo ? `Start ${PRISM_TRIAL_DAYS}-day free trial` : plan.tier === "lifetime" ? `Upgrade to ${name}` : `Get ${name}`,
       onClick: () => void startCheckout(tier),
       variant: tier === "launch" ? "default" : "outline",
     };
@@ -286,7 +316,7 @@ export default function PrismPricingPage() {
     <div className="container max-w-6xl space-y-8 py-8">
       <PageHeader
         title="Prism plans"
-        description="Start free. Pay for more AI, design and video when you need it, and add auto-publishing when you're ready."
+        description={`Every plan starts with a ${PRISM_TRIAL_DAYS}-day free trial. Pick the AI, design and video you need, and add auto-publishing when you're ready.`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {agencyId && isAgencyTeam && <PrismPlanBadge plan={plan} />}
@@ -366,33 +396,25 @@ export default function PrismPricingPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative flex flex-col">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-muted-foreground" />
-                Free
-              </CardTitle>
-              {plan.tier === "free" && !plan.loading && <Badge variant="secondary">Current</Badge>}
-            </div>
-            <CardDescription>Run a content calendar as a team.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 space-y-4">
-            <div>
-              <p className="text-3xl font-semibold tracking-tight">$0</p>
-              <p className="text-sm text-muted-foreground">forever</p>
-            </div>
-            <FeatureList items={freeFeatures} />
-            {plan.tier === "free" && !plan.loading && (
-              <p className="text-xs text-muted-foreground">
-                {Math.max(0, (plan.aiLimit ?? 0) - plan.aiUsed)} AI actions left this month · {plan.studioRunsLeft} of{" "}
-                {PRISM_FREE_STUDIO_RUNS} Studio run left · {plan.slideRendersLeft} of {PRISM_FREE_SLIDE_RENDERS} renders left
-              </p>
-            )}
+      {showPromo && (
+        <Card className="border-emerald-500/40 bg-emerald-500/5">
+          <CardContent className="py-4 text-sm">
+            Code <span className="font-mono font-semibold">{promo}</span> is saved. We&rsquo;ll apply it at checkout in place of
+            the free trial, and you&rsquo;ll see the discount before you pay.
           </CardContent>
         </Card>
+      )}
 
+      {plan.trialEndsAt && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-4 text-sm">
+            Your free trial ends {new Date(plan.trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })}.
+            Your card is charged then unless you cancel from &ldquo;Invoices, card and cancellation&rdquo;.
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 md:grid-cols-3">
         {PLANS.map((p) => {
           const Icon = p.icon;
           const cents = billingInterval === "year" ? prices[p.tier].yearlyCents : prices[p.tier].monthlyCents;
@@ -428,6 +450,12 @@ export default function PrismPricingPage() {
                       ? `${money(cents, currency) ?? "—"} billed yearly${savings(p.tier) ? ` · save ${savings(p.tier)}%` : ""}`
                       : "billed monthly, cancel any time"}
                   </p>
+                  {!plan.loading && !plan.selfServe && plan.trialEligible && !showPromo && !(plan.tier === "lifetime" && p.tier === "starter") && (
+                    <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                      Free for {PRISM_TRIAL_DAYS} days, then {money(cents, currency) ?? "—"}/{billingInterval}. Cancel before then
+                      and pay nothing.
+                    </p>
+                  )}
                 </div>
                 <FeatureList items={p.features} />
               </CardContent>
@@ -445,6 +473,15 @@ export default function PrismPricingPage() {
             </Card>
           );
         })}
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="text-muted-foreground">
+          <span className="font-medium text-foreground">The calendar stays free.</span> Without a plan your team can still plan,
+          write, review and approve posts by hand, and invited reviewers never need a seat. AI writing, Studio, design, video
+          and auto-publishing come with a plan.
+        </p>
       </div>
 
       <Card>
@@ -478,11 +515,11 @@ export default function PrismPricingPage() {
           <CardTitle className="text-base">Compare plans</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-2 pr-4 font-medium" />
-                {(["free", "starter", "launch", "pro"] as const).map((t) => (
+                {(["starter", "launch", "pro"] as const).map((t) => (
                   <th key={t} className={cn("py-2 pr-4 font-medium", plan.tier === t && "text-foreground")}>
                     {PRISM_TIER_LABEL[t].replace("Prism ", "")}
                   </th>
@@ -493,7 +530,7 @@ export default function PrismPricingPage() {
               {COMPARE.map((row) => (
                 <tr key={row.label} className="border-b last:border-0">
                   <td className="py-2 pr-4 text-muted-foreground">{row.label}</td>
-                  {(["free", "starter", "launch", "pro"] as const).map((t) => (
+                  {(["starter", "launch", "pro"] as const).map((t) => (
                     <td key={t} className="py-2 pr-4">
                       {row.value(t)}
                     </td>
@@ -517,6 +554,61 @@ export default function PrismPricingPage() {
           rates plus {PRISM_X_MARKUP * 100}% processing on your next invoice.
         </p>
       </div>
+
+      <AlertDialog open={preview !== null} onOpenChange={(open) => !open && busy !== "confirm" && setPreview(null)}>
+        <AlertDialogContent>
+          {preview && <ChangeSummary preview={preview} />}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy === "confirm"}>Keep my plan</AlertDialogCancel>
+            {preview && !preview.same && (
+              <Button disabled={busy === "confirm"} onClick={() => void confirmSwitch()}>
+                {busy === "confirm" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {preview.dueNowCents ? `Pay ${money(preview.dueNowCents, preview.currency)} and switch` : "Confirm switch"}
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function ChangeSummary({ preview: p }: { preview: ChangePreview }) {
+  const price = (cents: number, interval: Interval) => `${money(cents, p.currency)}/${interval}`;
+  const date = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const rows: [string, string][] = [
+    ["Current plan", `${PRISM_TIER_LABEL[p.fromTier]} · ${price(p.fromCents, p.fromInterval)}`],
+    ["New plan", `${PRISM_TIER_LABEL[p.toTier]} · ${price(p.toCents, p.toInterval)}`],
+  ];
+  if (!p.same) {
+    if (p.trialEndsAt) rows.push(["Due today", `${money(0, p.currency)} (you're still in your free trial)`]);
+    else if (p.dueNowCents) rows.push(["Due today", `${money(p.dueNowCents, p.currency)}, prorated for the rest of this period`]);
+    else rows.push(["Due today", money(0, p.currency) ?? "$0"]);
+    if (p.creditCents) rows.push(["Credit", `${money(p.creditCents, p.currency)} for the unused part of your plan, applied to future invoices`]);
+    if (p.nextChargeAt && p.nextChargeCents) rows.push(["Next charge", `${money(p.nextChargeCents, p.currency)} on ${date(p.nextChargeAt)}`]);
+  }
+  return (
+    <AlertDialogHeader>
+      <AlertDialogTitle>{p.same ? "You're already on this plan" : `Switch to ${PRISM_TIER_LABEL[p.toTier]}?`}</AlertDialogTitle>
+      <AlertDialogDescription asChild>
+        <div className="space-y-3 pt-2">
+          <dl className="divide-y rounded-md border text-sm">
+            {rows.map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-4 px-3 py-2">
+                <dt className="text-muted-foreground">{k}</dt>
+                <dd className="text-right font-medium text-foreground">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {!p.same && (
+            <p className="text-xs">
+              {RANK[p.toTier] < RANK[p.fromTier]
+                ? "Your new limits apply right away, including anything above them this month."
+                : "Your new limits apply as soon as the payment goes through."}
+            </p>
+          )}
+        </div>
+      </AlertDialogDescription>
+    </AlertDialogHeader>
   );
 }

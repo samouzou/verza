@@ -6,12 +6,21 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
 import type { toast as toastFn } from "@/hooks/use-toast";
-import { isPrismLimitError, PRISM_PRICING_PATH, PRISM_TIER_LABEL, type PrismPlan } from "@/hooks/use-prism-plan";
+import {
+  isPrismLimitError,
+  PRISM_PRICING_PATH,
+  PRISM_TIER_LABEL,
+  PRISM_TRIAL_DAYS,
+  type PrismPlan,
+} from "@/hooks/use-prism-plan";
 
-/** Plan name, AI usage this month and an upgrade link (Free only). */
+/** Plan name, AI usage this month (or trial end) and a trial link when there's no plan. */
 export function PrismPlanBadge({ plan }: { plan: PrismPlan }) {
   if (plan.loading) return null;
   const nearLimit = plan.aiLimit !== null && plan.aiUsed >= plan.aiLimit * 0.8;
+  const trialDaysLeft = plan.trialEndsAt
+    ? Math.max(0, Math.ceil((Date.parse(plan.trialEndsAt) - Date.now()) / 86_400_000))
+    : null;
   return (
     <Link
       href={PRISM_PRICING_PATH}
@@ -21,13 +30,16 @@ export function PrismPlanBadge({ plan }: { plan: PrismPlan }) {
       <Badge variant={plan.paid ? "default" : "secondary"} className="font-medium">
         {PRISM_TIER_LABEL[plan.tier]}
       </Badge>
-      <span className={nearLimit ? "text-amber-600" : "text-muted-foreground"}>
-        {plan.aiLimit === null ? "Unlimited AI" : `${plan.aiUsed}/${plan.aiLimit} AI this month`}
-      </span>
+      {plan.paid && (
+        <span className={nearLimit ? "text-amber-600" : "text-muted-foreground"}>
+          {plan.aiLimit === null ? "Unlimited AI" : `${plan.aiUsed}/${plan.aiLimit} AI this month`}
+          {trialDaysLeft !== null ? ` · trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"}` : ""}
+        </span>
+      )}
       {!plan.paid && (
         <span className="inline-flex items-center gap-1 font-medium text-primary">
           <Sparkles className="h-3 w-3" />
-          Upgrade
+          {plan.trialEligible ? `Start ${PRISM_TRIAL_DAYS}-day free trial` : "Pick a plan"}
         </span>
       )}
     </Link>

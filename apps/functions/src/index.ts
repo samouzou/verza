@@ -182,6 +182,7 @@ import {
   createPrismBillingPortalSession,
   createPrismSubscriptionCheckoutSession,
   getPrismPricing,
+  previewPrismPlanChange,
 } from "./linkedinOs/billing";
 import {
   getPrismConnectUrl,
@@ -356,6 +357,7 @@ export {
   getPrismPricing,
   createPrismSubscriptionCheckoutSession,
   changePrismPlan,
+  previewPrismPlanChange,
   createPrismBillingPortalSession,
   getPrismConnectUrl,
   syncPrismConnections,
