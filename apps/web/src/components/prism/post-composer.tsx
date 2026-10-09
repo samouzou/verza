@@ -724,7 +724,7 @@ export function PostComposer({
             </div>
           )}
 
-          {post && plan.paid && (status === "approved" || publish) && (
+          {post && plan.canPublish && (status === "approved" || publish) && (
             <div className="rounded-lg border p-3 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -815,7 +815,7 @@ export function PostComposer({
               </ul>
             </div>
           )}
-          {post && !plan.loading && !plan.paid && status === "approved" && (
+          {post && !plan.loading && !plan.canPublish && status === "approved" && (
             <p className="text-xs text-muted-foreground">
               Copy each channel and mark it posted, or{" "}
               <Link href="/prism/pricing" className="text-primary underline">

@@ -131,13 +131,13 @@ function rethrowForClient(e: unknown): never {
 }
 
 /**
- * Whether the brand is on a paid Prism plan.
+ * Whether the brand's plan includes auto-publishing.
  * @param {string} agencyId Agency id.
- * @return {!Promise<boolean>} True on Launch or Enterprise.
+ * @return {!Promise<boolean>} True on Launch or Enterprise (not Free or Lifetime).
  */
 async function agencyHasLaunch(agencyId: string): Promise<boolean> {
   const agency = (await db.collection("agencies").doc(agencyId).get()).data() ?? {};
-  return prismEntitlementsFrom(agency).tier !== "free";
+  return prismEntitlementsFrom(agency).canPublish;
 }
 
 /**

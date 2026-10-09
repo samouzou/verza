@@ -10,6 +10,7 @@ import { isPrismLimitError, PRISM_PRICING_PATH, type PrismPlan } from "@/hooks/u
 
 const TIER_LABEL: Record<PrismPlan["tier"], string> = {
   free: "Prism Free",
+  lifetime: "Prism Lifetime",
   launch: "Prism Launch",
   enterprise: "Prism Enterprise",
 };

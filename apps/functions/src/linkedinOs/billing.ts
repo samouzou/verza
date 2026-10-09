@@ -5,7 +5,8 @@ import Stripe from "stripe";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
 
-export type PrismPlanTier = "free" | "launch" | "enterprise";
+/** "lifetime" = AppSumo: paid features with monthly caps, no auto-publishing. */
+export type PrismPlanTier = "free" | "lifetime" | "launch" | "enterprise";
 export type PrismPlanId =
   | "prism_launch_monthly"
   | "prism_launch_yearly"
@@ -15,11 +16,14 @@ export type PrismPlanId =
 /** Monthly AI actions (one channel written = 1, month plan = 5, weekly plan = 2). Enterprise is unlimited. */
 export const PRISM_AI_LIMITS: Record<Exclude<PrismPlanTier, "enterprise">, number> = {
   free: 15,
+  lifetime: 300,
   launch: 1000,
 };
 /** One-time taste of Launch on Free; never resets. */
 export const PRISM_FREE_STUDIO_RUNS = 1;
 export const PRISM_FREE_SLIDE_RENDERS = 3;
+/** Feed graphics a month on Lifetime (each is a paid image-model call). */
+export const PRISM_LIFETIME_GRAPHICS = 30;
 
 export const PRISM_AI_COST = {monthPlan: 5, weeklyPlan: 2, repurpose: 1} as const;
 
@@ -38,6 +42,9 @@ export type PrismEntitlements = {
   aiLimit: number | null;
   studioRunsUsed: number;
   slideRendersUsed: number;
+  graphicsUsed: number;
+  /** Launch and Enterprise only. */
+  canPublish: boolean;
 };
 
 export type PrismUsage = {
@@ -45,6 +52,8 @@ export type PrismUsage = {
   ai?: number;
   studioRun?: boolean;
   slideRender?: boolean;
+  /** A feed graphic (also pass slideRender). */
+  graphic?: boolean;
 };
 
 /**
@@ -72,15 +81,19 @@ function count(raw: unknown): number {
 export function prismEntitlementsFrom(d: Record<string, unknown>): PrismEntitlements {
   const active = ACTIVE_STATUSES.has(String(d.prismSubscriptionStatus ?? ""));
   const plan = String(d.prismPlan ?? "");
-  const tier: PrismPlanTier = active && (plan === "launch" || plan === "enterprise") ? plan : "free";
+  const subscribed = active && (plan === "launch" || plan === "enterprise");
+  const tier: PrismPlanTier = subscribed ? plan : d.prismLifetime === true ? "lifetime" : "free";
   const periodKey = prismPeriodKey();
+  const thisPeriod = d.prismUsagePeriodKey === periodKey;
   return {
     tier,
     periodKey,
-    aiUsed: d.prismUsagePeriodKey === periodKey ? count(d.prismAiActionsThisPeriod) : 0,
+    aiUsed: thisPeriod ? count(d.prismAiActionsThisPeriod) : 0,
     aiLimit: tier === "enterprise" ? null : PRISM_AI_LIMITS[tier],
     studioRunsUsed: count(d.prismStudioRunsUsed),
     slideRendersUsed: count(d.prismSlideRendersUsed),
+    graphicsUsed: thisPeriod ? count(d.prismGraphicsThisPeriod) : 0,
+    canPublish: subscribed,
   };
 }
 
@@ -101,7 +114,7 @@ function upgradeError(message: string): never {
 export async function reservePrismUsage(
   agencyId: string,
   usage: PrismUsage
-): Promise<{periodKey: string; ai: number; studioRun: boolean; slideRender: boolean}> {
+): Promise<PrismReservation> {
   const ref = db.collection("agencies").doc(agencyId);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -109,6 +122,7 @@ export async function reservePrismUsage(
     const e = prismEntitlementsFrom(snap.data() ?? {});
     const studioRun = usage.studioRun === true;
     const slideRender = usage.slideRender === true;
+    const graphic = usage.graphic === true;
     const ai = e.tier === "free" && studioRun ? 0 : Math.max(0, Math.floor(usage.ai ?? 0));
 
     if (e.tier === "free") {
@@ -121,26 +135,35 @@ export async function reservePrismUsage(
         );
       }
     }
+    if (e.tier === "lifetime" && graphic && e.graphicsUsed >= PRISM_LIFETIME_GRAPHICS) {
+      upgradeError(
+        `You've made your ${PRISM_LIFETIME_GRAPHICS} feed graphics this month. They reset on the 1st, ` +
+          "or upgrade to Prism Launch for unlimited graphics."
+      );
+    }
     if (ai > 0 && e.aiLimit !== null && e.aiUsed + ai > e.aiLimit) {
       const left = Math.max(0, e.aiLimit - e.aiUsed);
+      const needs = `That needs ${ai} AI action${ai === 1 ? "" : "s"} and you have ${left} left this month`;
       upgradeError(
-        e.tier === "free" ?
-          `That needs ${ai} AI action${ai === 1 ? "" : "s"} and you have ${left} left this month on Prism Free. ` +
-            "Upgrade to Prism Launch for 1,000 a month." :
-          `That needs ${ai} AI actions and you have ${left} left this month. Contact us about Prism Enterprise.`
+        e.tier === "free" || e.tier === "lifetime" ?
+          `${needs} on Prism ${e.tier === "free" ? "Free" : "Lifetime"}. Upgrade to Prism Launch for 1,000 a month.` :
+          `${needs}. Contact us about Prism Enterprise.`
       );
     }
 
     const update: Record<string, string | number | FieldValue> = {
       prismUsagePeriodKey: e.periodKey,
       prismAiActionsThisPeriod: e.aiUsed + ai,
+      prismGraphicsThisPeriod: e.graphicsUsed + (graphic ? 1 : 0),
     };
     if (studioRun) update.prismStudioRunsUsed = FieldValue.increment(1);
     if (slideRender) update.prismSlideRendersUsed = FieldValue.increment(1);
     tx.update(ref, update);
-    return {periodKey: e.periodKey, ai, studioRun, slideRender};
+    return {periodKey: e.periodKey, ai, studioRun, slideRender, graphic};
   });
 }
+
+export type PrismReservation = {periodKey: string; ai: number; studioRun: boolean; slideRender: boolean; graphic: boolean};
 
 /**
  * Gives usage back after the action failed (best effort, same period only).
@@ -148,16 +171,16 @@ export async function reservePrismUsage(
  * @param {object} r Result of reservePrismUsage.
  * @return {!Promise<void>}
  */
-export async function releasePrismUsage(
-  agencyId: string,
-  r: {periodKey: string; ai: number; studioRun: boolean; slideRender: boolean}
-): Promise<void> {
+export async function releasePrismUsage(agencyId: string, r: PrismReservation): Promise<void> {
   const ref = db.collection("agencies").doc(agencyId);
   await db.runTransaction(async (tx) => {
     const d = (await tx.get(ref)).data() ?? {};
     const update: Record<string, number> = {};
     if (r.ai > 0 && d.prismUsagePeriodKey === r.periodKey) {
       update.prismAiActionsThisPeriod = Math.max(0, count(d.prismAiActionsThisPeriod) - r.ai);
+    }
+    if (r.graphic && d.prismUsagePeriodKey === r.periodKey) {
+      update.prismGraphicsThisPeriod = Math.max(0, count(d.prismGraphicsThisPeriod) - 1);
     }
     if (r.studioRun) update.prismStudioRunsUsed = Math.max(0, count(d.prismStudioRunsUsed) - 1);
     if (r.slideRender) update.prismSlideRendersUsed = Math.max(0, count(d.prismSlideRendersUsed) - 1);
@@ -294,7 +317,7 @@ export const createPrismSubscriptionCheckoutSession = onCall(async (request) => 
   const {agencyId, user} = await prismBillingAdmin(uid);
   const agency = (await db.collection("agencies").doc(agencyId).get()).data() ?? {};
   const current = prismEntitlementsFrom(agency);
-  if (current.tier !== "free") {
+  if (current.tier !== "free" && current.tier !== "lifetime") {
     throw new HttpsError("failed-precondition", "This brand already has a Prism plan. Use Manage billing to change it.");
   }
 

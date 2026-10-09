@@ -150,7 +150,7 @@ function PrismAccountsPage() {
         }
       />
 
-      {!plan.loading && !plan.paid && (
+      {!plan.loading && !plan.canPublish && (
         <Card className="border-primary/30 bg-primary/5 max-w-3xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -158,7 +158,7 @@ function PrismAccountsPage() {
               Auto-publishing is part of Prism Launch
             </CardTitle>
             <CardDescription>
-              On Free you copy each approved post and mark it posted. Launch connects your accounts and publishes for you
+              On {plan.tier === "lifetime" ? "Lifetime" : "Free"} you copy each approved post and mark it posted. Launch connects your accounts and publishes for you
               at the scheduled time, with retries and alerts if a network rejects a post.
             </CardDescription>
           </CardHeader>
@@ -170,7 +170,7 @@ function PrismAccountsPage() {
         </Card>
       )}
 
-      {plan.paid && !isLead && (
+      {plan.canPublish && !isLead && (
         <Alert className="max-w-3xl">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Only owners and admins can connect accounts</AlertTitle>
@@ -219,7 +219,7 @@ function PrismAccountsPage() {
                   {(!connected || !account) && (
                     <Button
                       size="sm"
-                      disabled={busy !== null || !plan.paid || !isLead}
+                      disabled={busy !== null || !plan.canPublish || !isLead}
                       onClick={() => void connect(ch)}
                     >
                       {busy === `connect-${ch}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}

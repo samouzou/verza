@@ -179,7 +179,7 @@ export const generatePrismGraphic = onCall({timeoutSeconds: 120, memory: "1GiB"}
   const screenshots = visualLayoutFor(catalog, strategy?.category ?? "") === "Screenshot";
   const mode = !featured ? "ai" : screenshots ? "screenshot" : "product";
 
-  const assets = await withPrismUsage(c.agencyId, {slideRender: true}, async () => {
+  const assets = await withPrismUsage(c.agencyId, {slideRender: true, graphic: true}, async () => {
     let graphic: Graphic;
     if (featured && screenshots) {
       graphic = await screenshotGraphic(c.agencyId, featured.product, headlineFrom(visual, hook));

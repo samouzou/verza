@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   PRISM_AI_LIMITS,
   PRISM_FREE_SLIDE_RENDERS,
+  PRISM_LIFETIME_GRAPHICS,
   PRISM_FREE_STUDIO_RUNS,
   PRISM_X_INCLUDED_DOLLARS,
   PRISM_X_MARKUP,
@@ -165,7 +166,20 @@ export default function PrismPricingPage() {
         }
       />
 
-      {plan.paid && (
+      {plan.tier === "lifetime" && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="space-y-1 py-4">
+            <p className="font-medium">Current plan: Prism Lifetime (AppSumo)</p>
+            <p className="text-sm text-muted-foreground">
+              {plan.aiUsed.toLocaleString()} of {(plan.aiLimit ?? 0).toLocaleString()} AI actions and{" "}
+              {PRISM_LIFETIME_GRAPHICS - (plan.graphicsLeft ?? 0)} of {PRISM_LIFETIME_GRAPHICS} feed graphics used this month ·
+              unlimited carousels · video credits sold separately. Upgrade to Launch to publish automatically.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {plan.canPublish && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -257,7 +271,7 @@ export default function PrismPricingPage() {
             <FeatureList items={launchFeatures} />
           </CardContent>
           <CardFooter>
-            {plan.paid ? (
+            {plan.canPublish ? (
               <Button className="w-full" variant="outline" disabled={portalLoading} onClick={() => void openPortal()}>
                 Manage billing
               </Button>

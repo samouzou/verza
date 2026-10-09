@@ -311,6 +311,12 @@ service cloud.firestore {
           'prismAiActionsThisPeriod',
           'prismStudioRunsUsed',
           'prismSlideRendersUsed',
+          'prismGraphicsThisPeriod',
+          'prismLifetime',
+          'prismLifetimeSource',
+          'prismLifetimeCode',
+          'prismLifetimeSince',
+          'prismLifetimeRevokedAt',
           'hasBrandKit',
           'brandGuide',
           'products',
@@ -336,6 +342,10 @@ service cloud.firestore {
     }
 
     match /appsumo_optic_codes/{codeId} {
+      allow read, write: if false;
+    }
+
+    match /appsumo_prism_codes/{codeId} {
       allow read, write: if false;
     }
     
