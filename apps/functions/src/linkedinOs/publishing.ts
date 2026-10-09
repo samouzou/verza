@@ -133,7 +133,7 @@ function rethrowForClient(e: unknown): never {
 /**
  * Whether the brand's plan includes auto-publishing.
  * @param {string} agencyId Agency id.
- * @return {!Promise<boolean>} True on Launch or Enterprise (not Free or Lifetime).
+ * @return {!Promise<boolean>} True on Launch, Pro or Enterprise (not Free, Starter or Lifetime).
  */
 async function agencyHasLaunch(agencyId: string): Promise<boolean> {
   const agency = (await db.collection("agencies").doc(agencyId).get()).data() ?? {};
@@ -141,14 +141,14 @@ async function agencyHasLaunch(agencyId: string): Promise<boolean> {
 }
 
 /**
- * Throws an upgrade error unless the brand is on Launch or Enterprise.
+ * Throws an upgrade error unless the brand is on Launch, Pro or Enterprise.
  * @param {string} agencyId Agency id.
  */
 async function requireLaunch(agencyId: string): Promise<void> {
   if (await agencyHasLaunch(agencyId)) return;
   throw new HttpsError(
     "resource-exhausted",
-    "Auto-publishing is part of Prism Launch. Upgrade to connect your accounts.",
+    "Auto-publishing starts on Prism Launch. Upgrade to connect your accounts.",
     {upgrade: true, pricingPath: "/prism/pricing"}
   );
 }

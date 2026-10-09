@@ -1080,7 +1080,7 @@ export default function PrismStudioPage() {
                   ? "Prism Free includes one Studio run to try it out."
                   : "You've used your free Studio run."}{" "}
                 <Link href={PRISM_PRICING_PATH} className="font-medium text-primary hover:underline">
-                  Upgrade to Launch
+                  Upgrade to Starter
                 </Link>{" "}
                 to batch drafts every week.
               </p>

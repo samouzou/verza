@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { usePrismConnections, usePrismUsageMonth } from "@/hooks/use-prism-connections";
-import { PRISM_PRICING_PATH, PRISM_X_INCLUDED_DOLLARS, PRISM_X_MARKUP, usePrismPlan } from "@/hooks/use-prism-plan";
+import { PRISM_PRICING_PATH, PRISM_TIER_LABEL, PRISM_TIERS, PRISM_X_MARKUP, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import { PRISM_CHANNEL_META, PRISM_CHANNELS, type PrismChannel } from "@/lib/prism/types";
@@ -44,7 +44,8 @@ function PrismAccountsPage() {
   const usage = usePrismUsageMonth(agencyId);
   const x = usage?.x;
   const xSpent = (x?.costMicros ?? 0) / 1e6;
-  const xOver = Math.max(0, xSpent - PRISM_X_INCLUDED_DOLLARS);
+  const xIncluded = PRISM_TIERS[plan.tier].xIncludedDollars;
+  const xOver = Math.max(0, xSpent - xIncluded);
   const [busy, setBusy] = useState<string | null>(null);
   const handledRedirect = useRef(false);
   const isLead = user?.role === "agency_owner" || user?.role === "agency_admin";
@@ -155,11 +156,11 @@ function PrismAccountsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              Auto-publishing is part of Prism Launch
+              Auto-publishing starts on Prism Launch
             </CardTitle>
             <CardDescription>
-              On {plan.tier === "lifetime" ? "Lifetime" : "Free"} you copy each approved post and mark it posted. Launch connects your accounts and publishes for you
-              at the scheduled time, with retries and alerts if a network rejects a post.
+              On {PRISM_TIER_LABEL[plan.tier]} you copy each approved post and mark it posted. Launch and Pro connect your
+              accounts and publish for you at the scheduled time, with retries and alerts if a network rejects a post.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -239,7 +240,7 @@ function PrismAccountsPage() {
                     {x?.linkTweets ? ` (${x.linkTweets} with links)` : ""} ·{" "}
                     {plan.tier === "enterprise"
                       ? `about $${xSpent.toFixed(2)} in X API fees, covered by your plan`
-                      : `$${Math.min(xSpent, PRISM_X_INCLUDED_DOLLARS).toFixed(2)} of $${PRISM_X_INCLUDED_DOLLARS.toFixed(2)} included X API fees`}
+                      : `$${Math.min(xSpent, xIncluded).toFixed(2)} of $${xIncluded.toFixed(2)} included X API fees`}
                     {plan.tier !== "enterprise" && xOver > 0 &&
                       ` · $${(xOver * (1 + PRISM_X_MARKUP)).toFixed(2)} over (incl. ${PRISM_X_MARKUP * 100}% processing), added to your next invoice`}
                   </p>

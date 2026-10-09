@@ -203,7 +203,7 @@ export const PRISM_VIDEO_FORMATS = new Set<PrismFormat>(["ig_reel", "tiktok_vide
 export const PRISM_VIDEO_LENGTHS = [10, 20, 30, 40] as const;
 
 export type PrismVideoCredits = {
-  tier: "free" | "launch" | "enterprise";
+  tier: "free" | "lifetime" | "starter" | "launch" | "pro" | "enterprise";
   allowance: number;
   allowanceLeft: number;
   freeLeft: number;

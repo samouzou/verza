@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
-import { Check, Loader2, Mail, Sparkles, Zap } from "lucide-react";
+import { Check, Crown, Loader2, Mail, Rocket, Sparkles, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { PrismPlanBadge } from "@/components/prism/prism-plan";
@@ -19,46 +19,121 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  PRISM_AI_LIMITS,
   PRISM_FREE_SLIDE_RENDERS,
-  PRISM_LIFETIME_GRAPHICS,
   PRISM_FREE_STUDIO_RUNS,
-  PRISM_X_INCLUDED_DOLLARS,
+  PRISM_FREE_VIDEO_SECONDS,
+  PRISM_TIER_LABEL,
+  PRISM_TIERS,
   PRISM_X_MARKUP,
   usePrismPlan,
+  type PrismPlanTier,
+  type PrismSelfServeTier,
 } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
+import { cn } from "@/lib/utils";
 
-const freeFeatures = [
-  "Content calendar, composer and approvals",
-  "All channels: LinkedIn, X, Instagram, TikTok, YouTube, newsletter",
-  "Brand strategy and voice profile",
-  `${PRISM_AI_LIMITS.free} AI actions a month`,
-  `Try Studio once and render ${PRISM_FREE_SLIDE_RENDERS} carousels`,
-  "One free 10-second AI video",
+type Interval = "month" | "year";
+type PlanPrices = Record<PrismSelfServeTier, { monthlyCents: number | null; yearlyCents: number | null }>;
+
+/** Shown until Stripe answers (and if it can't); Checkout always charges the Stripe price. */
+const LIST_PRICES: PlanPrices = {
+  starter: { monthlyCents: 2900, yearlyCents: 29000 },
+  launch: { monthlyCents: 7900, yearlyCents: 79000 },
+  pro: { monthlyCents: 14900, yearlyCents: 149000 },
+};
+
+const RANK: Record<PrismPlanTier, number> = { free: 0, lifetime: 1, starter: 1, launch: 2, pro: 3, enterprise: 4 };
+
+const ENTERPRISE_MAIL = "mailto:serge@tryverza.com?subject=Prism%20Enterprise";
+
+const n = (v: number) => v.toLocaleString("en-US");
+const seconds = (s: number) => (s >= 60 && s % 60 === 0 ? `${s / 60} minute${s === 60 ? "" : "s"}` : `${s} seconds`);
+
+const PLANS: {
+  tier: PrismSelfServeTier;
+  name: string;
+  icon: typeof Sparkles;
+  blurb: string;
+  features: string[];
+}[] = [
+  {
+    tier: "starter",
+    name: "Starter",
+    icon: Sparkles,
+    blurb: "For founders and small teams who post themselves.",
+    features: [
+      "Everything in Free",
+      `${n(PRISM_TIERS.starter.ai!)} AI actions a month`,
+      "Studio: batch a week of drafts any time",
+      "Unlimited branded carousels (PDF and PNG)",
+      `${PRISM_TIERS.starter.graphics} Instagram feed graphics a month`,
+      "AI Reels and TikToks with video credit packs",
+      "Copy, approve and mark posted by hand",
+    ],
+  },
+  {
+    tier: "launch",
+    name: "Launch",
+    icon: Rocket,
+    blurb: "For brands that want Prism to publish for them.",
+    features: [
+      "Everything in Starter",
+      `${n(PRISM_TIERS.launch.ai!)} AI actions a month`,
+      "Auto-publishing to LinkedIn, X, Instagram and TikTok",
+      `${PRISM_TIERS.launch.graphics} feed graphics a month`,
+      `${seconds(PRISM_TIERS.launch.videoSeconds)} of 1080p AI video a month`,
+      `$${PRISM_TIERS.launch.xIncludedDollars} of X API fees included monthly`,
+    ],
+  },
+  {
+    tier: "pro",
+    name: "Pro",
+    icon: Crown,
+    blurb: "For brands posting daily across every channel.",
+    features: [
+      "Everything in Launch",
+      `${n(PRISM_TIERS.pro.ai!)} AI actions a month`,
+      "Unlimited feed graphics",
+      `${seconds(PRISM_TIERS.pro.videoSeconds)} of 1080p AI video a month`,
+      `$${PRISM_TIERS.pro.xIncludedDollars} of X API fees included monthly`,
+      "Priority support",
+    ],
+  },
 ];
 
-const launchFeatures = [
-  "Everything in Free",
-  "Studio: batch a week of drafts any time",
-  "Unlimited carousel slides and feed graphics",
-  "AI month plans, channel adaptation, scripts and newsletters",
-  `${PRISM_AI_LIMITS.launch.toLocaleString()} AI actions a month`,
-  "60 seconds of AI Reels and TikToks a month (1080p); top up from $18",
-  "Auto-publishing to LinkedIn, X, Instagram and TikTok",
-  `$${PRISM_X_INCLUDED_DOLLARS} of X API fees included monthly; beyond that, X's rates + ${PRISM_X_MARKUP * 100}% processing`,
+const freeFeatures = [
+  "Content calendar, composer and team approvals",
+  "LinkedIn, X, Instagram, TikTok, YouTube and newsletter",
+  "Brand strategy and voice profile",
+  `${PRISM_TIERS.free.ai} AI actions a month`,
+  `Try Studio ${PRISM_FREE_STUDIO_RUNS === 1 ? "once" : `${PRISM_FREE_STUDIO_RUNS} times`} and render ${PRISM_FREE_SLIDE_RENDERS} carousels`,
+  `One free ${PRISM_FREE_VIDEO_SECONDS}-second AI video`,
 ];
 
 const enterpriseFeatures = [
-  "Everything in Launch",
   "Unlimited AI actions",
-  "Multiple brands and custom workflows",
+  "Multiple brands under one contract",
+  "Custom workflows and X fees covered",
   "Dedicated onboarding and support",
-  "Custom terms, monthly or annual",
 ];
 
-const ENTERPRISE_MAIL = "mailto:serge@tryverza.com?subject=Prism%20Enterprise";
+const COMPARE: { label: string; value: (t: PrismPlanTier) => string }[] = [
+  { label: "AI actions a month", value: (t) => (PRISM_TIERS[t].ai === null ? "Unlimited" : n(PRISM_TIERS[t].ai!)) },
+  { label: "Studio (week of drafts)", value: (t) => (t === "free" ? `${PRISM_FREE_STUDIO_RUNS} run` : "Unlimited") },
+  { label: "Carousels", value: (t) => (t === "free" ? `${PRISM_FREE_SLIDE_RENDERS} renders` : "Unlimited") },
+  {
+    label: "Feed graphics a month",
+    value: (t) => (t === "free" ? "Within renders" : PRISM_TIERS[t].graphics === null ? "Unlimited" : String(PRISM_TIERS[t].graphics)),
+  },
+  {
+    label: "AI video included",
+    value: (t) =>
+      t === "free" ? `${PRISM_FREE_VIDEO_SECONDS}s once` : PRISM_TIERS[t].videoSeconds ? `${PRISM_TIERS[t].videoSeconds}s / month` : "Packs",
+  },
+  { label: "Auto-publishing", value: (t) => (PRISM_TIERS[t].publish ? "Yes" : "—") },
+  { label: "X API fees included", value: (t) => (PRISM_TIERS[t].xIncludedDollars ? `$${PRISM_TIERS[t].xIncludedDollars} / month` : "—") },
+];
 
 function money(cents: number | null | undefined, currency: string): string | null {
   if (typeof cents !== "number") return null;
@@ -87,50 +162,78 @@ export default function PrismPricingPage() {
   const { toast } = useToast();
   const agencyId = user?.primaryAgencyId ?? null;
   const plan = usePrismPlan(agencyId);
-  const [billingInterval, setBillingInterval] = useState<"month" | "year">("month");
-  const [prices, setPrices] = useState<{ monthlyCents: number | null; yearlyCents: number | null; currency: string }>({
-    monthlyCents: 19900,
-    yearlyCents: null,
-    currency: "usd",
-  });
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<Interval>("month");
+  const [prices, setPrices] = useState<PlanPrices>(LIST_PRICES);
+  const [currency, setCurrency] = useState("usd");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (plan.billingInterval) setBillingInterval(plan.billingInterval);
+  }, [plan.billingInterval]);
 
   useEffect(() => {
     if (!user) return;
     httpsCallable(functions, "getPrismPricing")({})
-      .then((res) => setPrices(res.data as typeof prices))
+      .then((res) => {
+        const data = res.data as { currency?: string; plans?: Partial<PlanPrices> };
+        if (!data.plans) return;
+        setPrices((prev) => {
+          const next = { ...prev };
+          for (const tier of Object.keys(prev) as PrismSelfServeTier[]) {
+            const p = data.plans?.[tier];
+            if (p?.monthlyCents || p?.yearlyCents) {
+              next[tier] = { monthlyCents: p.monthlyCents ?? prev[tier].monthlyCents, yearlyCents: p.yearlyCents ?? prev[tier].yearlyCents };
+            }
+          }
+          return next;
+        });
+        if (data.currency) setCurrency(data.currency);
+      })
       .catch(() => undefined);
   }, [user]);
 
-  const monthly = money(prices.monthlyCents, prices.currency);
-  const yearly = money(prices.yearlyCents, prices.currency);
-  const yearlyPerMonth = money(prices.yearlyCents ? Math.round(prices.yearlyCents / 12) : null, prices.currency);
-  const savings =
-    prices.monthlyCents && prices.yearlyCents
-      ? Math.round((1 - prices.yearlyCents / (prices.monthlyCents * 12)) * 100)
-      : null;
+  const requireTeam = () => {
+    if (user && agencyId && isAgencyTeam) return true;
+    toast({ title: "Sign in as a brand team member", description: "Billing is for the workspace you'll use Prism in.", variant: "destructive" });
+    return false;
+  };
 
-  const startCheckout = async () => {
-    if (!user || !agencyId || !isAgencyTeam) {
-      toast({ title: "Sign in as a brand team member", description: "Checkout is for the workspace you'll bill.", variant: "destructive" });
-      return;
-    }
-    setCheckoutLoading(true);
+  const startCheckout = async (tier: PrismSelfServeTier) => {
+    if (!requireTeam()) return;
+    setBusy(tier);
     try {
-      const res = await httpsCallable(functions, "createPrismSubscriptionCheckoutSession")({ interval: billingInterval });
+      const res = await httpsCallable(functions, "createPrismSubscriptionCheckoutSession")({ plan: tier, interval: billingInterval });
       const url = (res.data as { url?: string })?.url;
       if (!url) throw new Error("No checkout URL");
       window.location.href = url;
     } catch (e: unknown) {
       toast({ title: "Could not start checkout", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      setBusy(null);
+    }
+  };
+
+  const switchPlan = async (tier: PrismSelfServeTier) => {
+    if (!requireTeam()) return;
+    const upgrade = RANK[tier] > RANK[plan.tier] || (tier === plan.tier && billingInterval === "year");
+    const ok = window.confirm(
+      upgrade
+        ? `Switch to Prism ${tier[0].toUpperCase()}${tier.slice(1)} (${billingInterval}ly)? You'll be charged the prorated difference now.`
+        : `Switch to Prism ${tier[0].toUpperCase()}${tier.slice(1)} (${billingInterval}ly)? The unused part of your current plan becomes credit on future invoices.`
+    );
+    if (!ok) return;
+    setBusy(tier);
+    try {
+      await httpsCallable(functions, "changePrismPlan")({ plan: tier, interval: billingInterval });
+      toast({ title: `You're on Prism ${tier[0].toUpperCase()}${tier.slice(1)}`, description: "Your new limits apply right away." });
+    } catch (e: unknown) {
+      toast({ title: "Could not change plan", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
-      setCheckoutLoading(false);
+      setBusy(null);
     }
   };
 
   const openPortal = async () => {
-    setPortalLoading(true);
+    setBusy("portal");
     try {
       const res = await httpsCallable(functions, "createPrismBillingPortalSession")({});
       const url = (res.data as { url?: string })?.url;
@@ -138,9 +241,37 @@ export default function PrismPricingPage() {
       window.location.href = url;
     } catch (e: unknown) {
       toast({ title: "Could not open billing", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    } finally {
-      setPortalLoading(false);
+      setBusy(null);
     }
+  };
+
+  const savings = (tier: PrismSelfServeTier) => {
+    const { monthlyCents, yearlyCents } = prices[tier];
+    return monthlyCents && yearlyCents ? Math.round((1 - yearlyCents / (monthlyCents * 12)) * 100) : null;
+  };
+  const yearlySavings = savings("launch");
+
+  const action = (tier: PrismSelfServeTier): { label: string; disabled?: boolean; onClick?: () => void; variant?: "default" | "outline" } => {
+    const name = tier[0].toUpperCase() + tier.slice(1);
+    if (plan.loading) return { label: "Loading…", disabled: true };
+    if (plan.tier === "enterprise") return { label: "Included in Enterprise", disabled: true, variant: "outline" };
+    if (plan.tier === "lifetime" && tier === "starter") return { label: "Included in your Lifetime deal", disabled: true, variant: "outline" };
+    if (plan.selfServe) {
+      if (plan.tier === tier && plan.billingInterval === billingInterval) {
+        return { label: "Manage billing", onClick: () => void openPortal(), variant: "outline" };
+      }
+      if (plan.tier === tier) return { label: `Switch to ${billingInterval}ly`, onClick: () => void switchPlan(tier), variant: "outline" };
+      return {
+        label: RANK[tier] > RANK[plan.tier] ? `Upgrade to ${name}` : `Switch to ${name}`,
+        onClick: () => void switchPlan(tier),
+        variant: RANK[tier] > RANK[plan.tier] ? "default" : "outline",
+      };
+    }
+    return {
+      label: plan.tier === "lifetime" ? `Upgrade to ${name}` : `Get ${name}`,
+      onClick: () => void startCheckout(tier),
+      variant: tier === "launch" ? "default" : "outline",
+    };
   };
 
   if (authLoading) {
@@ -152,10 +283,10 @@ export default function PrismPricingPage() {
   }
 
   return (
-    <div className="container max-w-5xl space-y-8 py-8">
+    <div className="container max-w-6xl space-y-8 py-8">
       <PageHeader
         title="Prism plans"
-        description="Plan, write and approve content for free. Launch adds Studio, unlimited slides and room for daily AI work."
+        description="Start free. Pay for more AI, design and video when you need it, and add auto-publishing when you're ready."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {agencyId && isAgencyTeam && <PrismPlanBadge plan={plan} />}
@@ -171,31 +302,34 @@ export default function PrismPricingPage() {
           <CardContent className="space-y-1 py-4">
             <p className="font-medium">Current plan: Prism Lifetime (AppSumo)</p>
             <p className="text-sm text-muted-foreground">
-              {plan.aiUsed.toLocaleString()} of {(plan.aiLimit ?? 0).toLocaleString()} AI actions and{" "}
-              {PRISM_LIFETIME_GRAPHICS - (plan.graphicsLeft ?? 0)} of {PRISM_LIFETIME_GRAPHICS} feed graphics used this month ·
-              unlimited carousels · video credits sold separately. Upgrade to Launch to publish automatically.
+              Everything in Starter, for good. {n(plan.aiUsed)} of {n(plan.aiLimit ?? 0)} AI actions and{" "}
+              {(plan.graphicsLimit ?? 0) - (plan.graphicsLeft ?? 0)} of {plan.graphicsLimit} feed graphics used this month.
+              Upgrade to Launch or Pro to publish automatically; your Lifetime stays if you ever cancel.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {plan.canPublish && (
+      {plan.paid && plan.tier !== "lifetime" && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-medium capitalize">
-                Current plan: Prism {plan.tier}
+              <p className="font-medium">
+                Current plan: {PRISM_TIER_LABEL[plan.tier]}
                 {plan.billingInterval ? ` · ${plan.billingInterval}ly` : ""}
               </p>
               <p className="text-sm text-muted-foreground">
                 {plan.aiLimit === null
                   ? "Unlimited AI actions"
-                  : `${plan.aiUsed.toLocaleString()} of ${plan.aiLimit.toLocaleString()} AI actions used this month`}
+                  : `${n(plan.aiUsed)} of ${n(plan.aiLimit)} AI actions used this month`}
+                {plan.graphicsLimit !== null ? ` · ${plan.graphicsLeft} of ${plan.graphicsLimit} feed graphics left` : ""}
               </p>
             </div>
-            <Button variant="outline" size="sm" disabled={portalLoading} onClick={() => void openPortal()}>
-              {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Manage billing"}
-            </Button>
+            {plan.selfServe && (
+              <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void openPortal()}>
+                {busy === "portal" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Invoices, card and cancellation"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -203,27 +337,48 @@ export default function PrismPricingPage() {
       {plan.subscriptionStatus === "past_due" && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm">Your last Prism payment failed. Update your card to keep Launch.</p>
-            <Button variant="outline" size="sm" disabled={portalLoading} onClick={() => void openPortal()}>
+            <p className="text-sm">Your last Prism payment failed. Update your card to keep your plan.</p>
+            <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void openPortal()}>
               Update payment
             </Button>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="relative">
+      <div className="flex justify-center">
+        <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
+          {(["month", "year"] as const).map((i) => (
+            <Button
+              key={i}
+              type="button"
+              size="sm"
+              variant={billingInterval === i ? "default" : "ghost"}
+              onClick={() => setBillingInterval(i)}
+            >
+              {i === "month" ? "Monthly" : "Yearly"}
+              {i === "year" && yearlySavings ? (
+                <span className={cn("ml-2 text-xs", billingInterval === "year" ? "opacity-90" : "text-emerald-600")}>
+                  2 months free
+                </span>
+              ) : null}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="relative flex flex-col">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-muted-foreground" />
+                <Zap className="h-5 w-5 text-muted-foreground" />
                 Free
               </CardTitle>
               {plan.tier === "free" && !plan.loading && <Badge variant="secondary">Current</Badge>}
             </div>
-            <CardDescription>Everything you need to run a content calendar as a team.</CardDescription>
+            <CardDescription>Run a content calendar as a team.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex-1 space-y-4">
             <div>
               <p className="text-3xl font-semibold tracking-tight">$0</p>
               <p className="text-sm text-muted-foreground">forever</p>
@@ -231,94 +386,137 @@ export default function PrismPricingPage() {
             <FeatureList items={freeFeatures} />
             {plan.tier === "free" && !plan.loading && (
               <p className="text-xs text-muted-foreground">
-                {Math.max(0, (plan.aiLimit ?? 0) - plan.aiUsed)} AI actions left this month · {plan.studioRunsLeft} of {PRISM_FREE_STUDIO_RUNS} Studio
-                run left · {plan.slideRendersLeft} of {PRISM_FREE_SLIDE_RENDERS} slide or graphic renders left
+                {Math.max(0, (plan.aiLimit ?? 0) - plan.aiUsed)} AI actions left this month · {plan.studioRunsLeft} of{" "}
+                {PRISM_FREE_STUDIO_RUNS} Studio run left · {plan.slideRendersLeft} of {PRISM_FREE_SLIDE_RENDERS} renders left
               </p>
             )}
           </CardContent>
         </Card>
 
-        <Card className="relative border-primary/40 shadow-md">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-primary" />
-                Launch
-              </CardTitle>
-              <Badge>{plan.tier === "launch" ? "Current" : "Self-serve"}</Badge>
-            </div>
-            <CardDescription>For brands publishing every week across several channels.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-3xl font-semibold tracking-tight">
-                {billingInterval === "year" ? yearly ?? "—" : monthly ?? "—"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {billingInterval === "year"
-                  ? `per year${yearlyPerMonth ? ` · ${yearlyPerMonth}/month` : ""}${savings ? ` · save ${savings}%` : ""}`
-                  : "per month"}
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button type="button" size="sm" variant={billingInterval === "month" ? "default" : "outline"} onClick={() => setBillingInterval("month")}>
-                  Monthly
+        {PLANS.map((p) => {
+          const Icon = p.icon;
+          const cents = billingInterval === "year" ? prices[p.tier].yearlyCents : prices[p.tier].monthlyCents;
+          const perMonth = billingInterval === "year" && cents ? money(Math.round(cents / 12), currency) : null;
+          const current = plan.tier === p.tier && !plan.loading;
+          const a = action(p.tier);
+          const featured = p.tier === "launch";
+          return (
+            <Card key={p.tier} className={cn("relative flex flex-col", featured && "border-primary/50 shadow-md")}>
+              {featured && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="shadow-sm">Recommended</Badge>
+                </div>
+              )}
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon className={cn("h-5 w-5", featured ? "text-primary" : p.tier === "pro" ? "text-amber-500" : "text-muted-foreground")} />
+                    {p.name}
+                  </CardTitle>
+                  {current && <Badge>Current</Badge>}
+                </div>
+                <CardDescription>{p.blurb}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-4">
+                <div>
+                  <p className="text-3xl font-semibold tracking-tight">
+                    {billingInterval === "year" ? perMonth ?? "—" : money(cents, currency) ?? "—"}
+                    <span className="ml-1 text-base font-normal text-muted-foreground">/month</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {billingInterval === "year"
+                      ? `${money(cents, currency) ?? "—"} billed yearly${savings(p.tier) ? ` · save ${savings(p.tier)}%` : ""}`
+                      : "billed monthly, cancel any time"}
+                  </p>
+                </div>
+                <FeatureList items={p.features} />
+              </CardContent>
+              <CardFooter>
+                <Button
+                  className="w-full"
+                  variant={a.variant ?? "default"}
+                  disabled={a.disabled || busy !== null}
+                  onClick={a.onClick}
+                >
+                  {busy === p.tier ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {a.label}
                 </Button>
-                <Button type="button" size="sm" variant={billingInterval === "year" ? "default" : "outline"} onClick={() => setBillingInterval("year")}>
-                  Yearly
-                </Button>
-              </div>
-            </div>
-            <FeatureList items={launchFeatures} />
-          </CardContent>
-          <CardFooter>
-            {plan.canPublish ? (
-              <Button className="w-full" variant="outline" disabled={portalLoading} onClick={() => void openPortal()}>
-                Manage billing
-              </Button>
-            ) : (
-              <Button className="w-full" disabled={checkoutLoading || plan.loading} onClick={() => void startCheckout()}>
-                {checkoutLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Upgrade to Launch
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-
-        <Card className="relative">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-amber-500" />
-                Enterprise
-              </CardTitle>
-              <Badge variant={plan.tier === "enterprise" ? "default" : "outline"}>
-                {plan.tier === "enterprise" ? "Current" : "Custom"}
-              </Badge>
-            </div>
-            <CardDescription>For teams and agencies running content at scale.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-3xl font-semibold tracking-tight">Custom</p>
-              <p className="text-sm text-muted-foreground">Monthly or annual, quoted via payment link</p>
-            </div>
-            <FeatureList items={enterpriseFeatures} />
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" variant="outline" asChild>
-              <a href={ENTERPRISE_MAIL}>
-                <Mail className="mr-2 h-4 w-4" />
-                Talk to us
-              </a>
-            </Button>
-          </CardFooter>
-        </Card>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
-      <p className="mx-auto max-w-2xl text-center text-xs text-muted-foreground">
-        An AI action is one piece of generated copy: adapting a post to one channel, one Studio draft, a script or a
-        newsletter. A weekly plan counts as 2 and a month plan as 5. Usage resets on the 1st of each month (UTC).
-      </p>
+      <Card>
+        <CardContent className="flex flex-col gap-4 py-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-semibold">Enterprise</p>
+              {plan.tier === "enterprise" && <Badge>Current</Badge>}
+            </div>
+            <p className="text-sm text-muted-foreground">For agencies and teams running several brands. Custom terms, monthly or annual.</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              {enterpriseFeatures.map((f) => (
+                <span key={f} className="flex items-center gap-1.5">
+                  <Check className="h-4 w-4 text-emerald-600" />
+                  {f}
+                </span>
+              ))}
+            </div>
+          </div>
+          <Button variant="outline" asChild className="shrink-0">
+            <a href={ENTERPRISE_MAIL}>
+              <Mail className="mr-2 h-4 w-4" />
+              Talk to us
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Compare plans</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="py-2 pr-4 font-medium" />
+                {(["free", "starter", "launch", "pro"] as const).map((t) => (
+                  <th key={t} className={cn("py-2 pr-4 font-medium", plan.tier === t && "text-foreground")}>
+                    {PRISM_TIER_LABEL[t].replace("Prism ", "")}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE.map((row) => (
+                <tr key={row.label} className="border-b last:border-0">
+                  <td className="py-2 pr-4 text-muted-foreground">{row.label}</td>
+                  {(["free", "starter", "launch", "pro"] as const).map((t) => (
+                    <td key={t} className="py-2 pr-4">
+                      {row.value(t)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <div className="mx-auto max-w-3xl space-y-2 text-center text-xs text-muted-foreground">
+        <p>
+          Prices are per brand. An AI action is one piece of generated copy: adapting a post to one channel, one Studio
+          draft, a script or a newsletter. A weekly plan counts as 2 and a month plan as 5. Usage resets on the 1st of
+          each month (UTC).
+        </p>
+        <p>
+          Video: 1 credit is 1 second of finished 1080p video. Included seconds reset monthly; extra packs (60 seconds for
+          $18, 200 for $55, 600 for $150) never expire. X charges per post: beyond your included fees you pay X&apos;s
+          rates plus {PRISM_X_MARKUP * 100}% processing on your next invoice.
+        </p>
+      </div>
     </div>
   );
 }

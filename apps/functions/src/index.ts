@@ -178,6 +178,7 @@ import {onPrismVideoJobUpdated, renderPrismVideo, renderPrismVideoTask} from "./
 import {createPrismVideoCreditCheckout, getPrismVideoCredits} from "./linkedinOs/videoCredits";
 import {redeemAppSumoPrismCode} from "./linkedinOs/appsumo";
 import {
+  changePrismPlan,
   createPrismBillingPortalSession,
   createPrismSubscriptionCheckoutSession,
   getPrismPricing,
@@ -354,6 +355,7 @@ export {
   generatePrismMonthPlan,
   getPrismPricing,
   createPrismSubscriptionCheckoutSession,
+  changePrismPlan,
   createPrismBillingPortalSession,
   getPrismConnectUrl,
   syncPrismConnections,

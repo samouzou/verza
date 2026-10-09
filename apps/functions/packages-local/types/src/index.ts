@@ -637,7 +637,7 @@ export interface Agency {
   /** UTC YYYY-MM key for the current AppSumo Optic credit period. */
   opticAppsumoPeriodKey?: string | null;
   /** Prism plan (Free when unset or the subscription isn't active). */
-  prismPlan?: 'launch' | 'enterprise' | null;
+  prismPlan?: 'starter' | 'launch' | 'pro' | 'enterprise' | null;
   prismPlanId?: string | null;
   prismSubscriptionStatus?: 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | null;
   prismStripeSubscriptionId?: string | null;

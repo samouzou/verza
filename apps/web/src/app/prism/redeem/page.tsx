@@ -13,16 +13,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
-import { PRISM_AI_LIMITS, PRISM_LIFETIME_GRAPHICS, usePrismPlan } from "@/hooks/use-prism-plan";
+import { PRISM_TIERS, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 
 const INCLUDED = [
   "Content calendar, composer and team approvals on every channel",
   "Brand setup, product catalog and voice profile",
-  `${PRISM_AI_LIMITS.lifetime} AI actions a month, Studio included`,
+  `${PRISM_TIERS.lifetime.ai} AI actions a month, Studio included`,
   "Unlimited branded carousels (PDF and PNG)",
-  `${PRISM_LIFETIME_GRAPHICS} Instagram feed graphics a month`,
+  `${PRISM_TIERS.lifetime.graphics} Instagram feed graphics a month`,
   "AI Reels and TikToks with video credit packs",
 ];
 
@@ -163,8 +163,8 @@ export default function PrismRedeemPage() {
             ))}
           </ul>
           <p className="mt-4 text-xs text-muted-foreground">
-            Auto-publishing to connected accounts is part of Prism Launch. On Lifetime you copy each approved post and mark
-            it posted, or upgrade any time.
+            Lifetime matches our $29/month Starter plan, paid once. Auto-publishing to connected accounts starts on Prism
+            Launch: on Lifetime you copy each approved post and mark it posted, or upgrade any time.
           </p>
         </CardContent>
       </Card>

@@ -18,7 +18,14 @@ import type {PrismVideoSpend} from "./types";
 export const PRISM_VIDEO_CREDITS = "prism_video_credits";
 
 /** 1 credit = 1 second of finished 1080p video. Monthly allowance, no rollover. */
-export const PRISM_VIDEO_ALLOWANCE: Record<PrismPlanTier, number> = {free: 0, lifetime: 0, launch: 60, enterprise: 60};
+export const PRISM_VIDEO_ALLOWANCE: Record<PrismPlanTier, number> = {
+  free: 0,
+  lifetime: 0,
+  starter: 0,
+  launch: 30,
+  pro: 120,
+  enterprise: 120,
+};
 /** One-time credits on Free: enough for one 10-second video. */
 export const PRISM_FREE_VIDEO_CREDITS = 10;
 /** Pack size → Stripe price lookup key. */

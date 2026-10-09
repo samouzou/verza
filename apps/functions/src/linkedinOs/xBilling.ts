@@ -3,7 +3,10 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import type Stripe from "stripe";
 import {db} from "../config/firebase";
-import {PRISM_X_INCLUDED_MICROS, PRISM_X_MARKUP, stripeClient} from "./billing";
+import {PRISM_TIERS, PRISM_X_MARKUP, stripeClient} from "./billing";
+
+/** Plans that pay for X fees above their monthly allowance (Enterprise is by contract). */
+const METERED_TIERS = ["launch", "pro"] as const;
 
 /** Yearly and canceled plans get their own invoice once the pending X charges reach this much. */
 const STANDALONE_INVOICE_MIN_CENTS = 1000;
@@ -22,10 +25,11 @@ function previousPeriodKey(): string {
 /**
  * Amount to bill for a month's X fees: what's above the allowance, plus the processing markup.
  * @param {number} costMicros X fees in millionths of a dollar.
+ * @param {number} includedMicros The plan's monthly X allowance in millionths of a dollar.
  * @return {{overageMicros: number, cents: number}} Overage and charge.
  */
-export function xCharge(costMicros: number): {overageMicros: number; cents: number} {
-  const overageMicros = Math.max(0, Math.round(costMicros) - PRISM_X_INCLUDED_MICROS);
+export function xCharge(costMicros: number, includedMicros: number): {overageMicros: number; cents: number} {
+  const overageMicros = Math.max(0, Math.round(costMicros) - includedMicros);
   return {overageMicros, cents: Math.round((overageMicros * (1 + PRISM_X_MARKUP)) / 10_000)};
 }
 
@@ -44,7 +48,9 @@ async function billBrand(stripe: Stripe, agencyId: string, agency: Record<string
   const month = (await ref.get()).data();
   if (!month || month.xBilling) return;
   const x = (month.x ?? {}) as {tweets?: number; linkTweets?: number; costMicros?: number};
-  const {overageMicros, cents} = xCharge(Number(x.costMicros ?? 0));
+  const tier = agency.prismPlan === "pro" ? "pro" : "launch";
+  const includedMicros = PRISM_TIERS[tier].xIncludedMicros;
+  const {overageMicros, cents} = xCharge(Number(x.costMicros ?? 0), includedMicros);
   if (cents < 1) {
     await ref.set({xBilling: {cents: 0, overageMicros, billedAt: FieldValue.serverTimestamp()}}, {merge: true});
     return;
@@ -65,7 +71,7 @@ async function billBrand(stripe: Stripe, agencyId: string, agency: Record<string
     currency: sub.currency || "usd",
     amount: cents,
     description: `Prism X API usage, ${periodKey}: ${tweets} tweets (${links} with links). ` +
-      `$${(overageMicros / 1e6).toFixed(2)} above the $${(PRISM_X_INCLUDED_MICROS / 1e6).toFixed(0)} included, ` +
+      `$${(overageMicros / 1e6).toFixed(2)} above the $${(includedMicros / 1e6).toFixed(0)} included, ` +
       `plus ${Math.round(PRISM_X_MARKUP * 100)}% card processing`,
     metadata: {kind: "prism_x_usage", agencyId, periodKey},
     ...(monthlyLive ? {subscription: subId} : {}),
@@ -102,7 +108,7 @@ async function billBrand(stripe: Stripe, agencyId: string, agency: Record<string
 }
 
 /**
- * 1st of each month: bills last month's X fees above each Launch brand's allowance.
+ * 1st of each month: bills last month's X fees above each Launch or Pro brand's allowance.
  * Enterprise X usage is covered by contract.
  */
 export const billPrismXUsage = onSchedule(
@@ -110,7 +116,7 @@ export const billPrismXUsage = onSchedule(
   async () => {
     const periodKey = previousPeriodKey();
     const stripe = stripeClient();
-    const brands = await db.collection("agencies").where("prismPlan", "==", "launch").get();
+    const brands = await db.collection("agencies").where("prismPlan", "in", [...METERED_TIERS]).get();
     for (const doc of brands.docs) {
       try {
         await billBrand(stripe, doc.id, doc.data(), periodKey);

@@ -4,16 +4,45 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot, type DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-/** "lifetime" = AppSumo: paid features with monthly caps, no auto-publishing. */
-export type PrismPlanTier = "free" | "lifetime" | "launch" | "enterprise";
+/** "lifetime" = AppSumo: Starter's limits for good, no auto-publishing. */
+export type PrismPlanTier = "free" | "lifetime" | "starter" | "launch" | "pro" | "enterprise";
+export type PrismSelfServeTier = "starter" | "launch" | "pro";
 
-export const PRISM_AI_LIMITS: Record<Exclude<PrismPlanTier, "enterprise">, number> = { free: 15, lifetime: 300, launch: 1000 };
+export type PrismTierLimits = {
+  /** AI actions a month; null = unlimited. */
+  ai: number | null;
+  /** Feed graphics a month; null = no monthly cap. */
+  graphics: number | null;
+  publish: boolean;
+  /** X API fees included each month. Enterprise is by contract. */
+  xIncludedDollars: number;
+  /** Seconds of AI video included each month. */
+  videoSeconds: number;
+};
+
+/** Keep in sync with functions billing.ts and videoCredits.ts. */
+export const PRISM_TIERS: Record<PrismPlanTier, PrismTierLimits> = {
+  free: { ai: 15, graphics: null, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
+  lifetime: { ai: 300, graphics: 30, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
+  starter: { ai: 300, graphics: 30, publish: false, xIncludedDollars: 0, videoSeconds: 0 },
+  launch: { ai: 1000, graphics: 100, publish: true, xIncludedDollars: 5, videoSeconds: 30 },
+  pro: { ai: 3000, graphics: null, publish: true, xIncludedDollars: 10, videoSeconds: 120 },
+  enterprise: { ai: null, graphics: null, publish: true, xIncludedDollars: 0, videoSeconds: 120 },
+};
+
+export const PRISM_TIER_LABEL: Record<PrismPlanTier, string> = {
+  free: "Prism Free",
+  lifetime: "Prism Lifetime",
+  starter: "Prism Starter",
+  launch: "Prism Launch",
+  pro: "Prism Pro",
+  enterprise: "Prism Enterprise",
+};
+
 export const PRISM_FREE_STUDIO_RUNS = 1;
 export const PRISM_FREE_SLIDE_RENDERS = 3;
-/** Keep in sync with functions billing.ts. */
-export const PRISM_LIFETIME_GRAPHICS = 30;
-/** X API fees included each month on Launch (keep in sync with functions billing.ts). */
-export const PRISM_X_INCLUDED_DOLLARS = 5;
+/** One-time video credits on Free (seconds). */
+export const PRISM_FREE_VIDEO_SECONDS = 10;
 /** Markup on X fees above the allowance, covering card processing. */
 export const PRISM_X_MARKUP = 0.05;
 export const PRISM_PRICING_PATH = "/prism/pricing";
@@ -23,9 +52,13 @@ export interface PrismPlan {
   loading: boolean;
   /** Any paid plan, including AppSumo Lifetime. */
   paid: boolean;
-  /** Auto-publishing: Launch or Enterprise with an active or trialing subscription. */
+  /** Auto-publishing: Launch, Pro or Enterprise with an active or trialing subscription. */
   canPublish: boolean;
-  /** null = not capped (Lifetime caps feed graphics monthly). */
+  /** Starter, Launch or Pro billed through a self-serve subscription (can switch plans in place). */
+  selfServe: boolean;
+  /** null = no monthly cap. */
+  graphicsLimit: number | null;
+  /** null = no monthly cap. */
   graphicsLeft: number | null;
   subscriptionStatus: string | null;
   billingInterval: "month" | "year" | null;
@@ -49,20 +82,24 @@ function periodKey(): string {
 function planFrom(d: DocumentData | undefined): Omit<PrismPlan, "loading"> {
   const status = typeof d?.prismSubscriptionStatus === "string" ? d.prismSubscriptionStatus : null;
   const active = status === "active" || status === "trialing";
-  const subscribed = active && (d?.prismPlan === "launch" || d?.prismPlan === "enterprise");
-  const tier: PrismPlanTier = subscribed ? d!.prismPlan : d?.prismLifetime === true ? "lifetime" : "free";
+  const plan = d?.prismPlan;
+  const subscribed = active && (plan === "starter" || plan === "launch" || plan === "pro" || plan === "enterprise");
+  const tier: PrismPlanTier = subscribed ? plan : d?.prismLifetime === true ? "lifetime" : "free";
+  const limits = PRISM_TIERS[tier];
   const thisPeriod = d?.prismUsagePeriodKey === periodKey();
   const aiUsed = thisPeriod ? count(d?.prismAiActionsThisPeriod) : 0;
+  const graphicsUsed = thisPeriod ? count(d?.prismGraphicsThisPeriod) : 0;
   return {
     tier,
     paid: tier !== "free",
-    canPublish: subscribed,
-    graphicsLeft:
-      tier === "lifetime" ? Math.max(0, PRISM_LIFETIME_GRAPHICS - (thisPeriod ? count(d?.prismGraphicsThisPeriod) : 0)) : null,
+    canPublish: subscribed && limits.publish,
+    selfServe: subscribed && tier !== "enterprise" && typeof d?.prismStripeSubscriptionId === "string",
+    graphicsLimit: limits.graphics,
+    graphicsLeft: limits.graphics === null ? null : Math.max(0, limits.graphics - graphicsUsed),
     subscriptionStatus: status,
     billingInterval: d?.prismBillingInterval === "month" || d?.prismBillingInterval === "year" ? d.prismBillingInterval : null,
     aiUsed,
-    aiLimit: tier === "enterprise" ? null : PRISM_AI_LIMITS[tier],
+    aiLimit: limits.ai,
     studioRunsLeft: tier === "free" ? Math.max(0, PRISM_FREE_STUDIO_RUNS - count(d?.prismStudioRunsUsed)) : null,
     slideRendersLeft: tier === "free" ? Math.max(0, PRISM_FREE_SLIDE_RENDERS - count(d?.prismSlideRendersUsed)) : null,
   };

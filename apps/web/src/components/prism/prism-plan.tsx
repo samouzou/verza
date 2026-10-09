@@ -6,14 +6,7 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
 import type { toast as toastFn } from "@/hooks/use-toast";
-import { isPrismLimitError, PRISM_PRICING_PATH, type PrismPlan } from "@/hooks/use-prism-plan";
-
-const TIER_LABEL: Record<PrismPlan["tier"], string> = {
-  free: "Prism Free",
-  lifetime: "Prism Lifetime",
-  launch: "Prism Launch",
-  enterprise: "Prism Enterprise",
-};
+import { isPrismLimitError, PRISM_PRICING_PATH, PRISM_TIER_LABEL, type PrismPlan } from "@/hooks/use-prism-plan";
 
 /** Plan name, AI usage this month and an upgrade link (Free only). */
 export function PrismPlanBadge({ plan }: { plan: PrismPlan }) {
@@ -26,7 +19,7 @@ export function PrismPlanBadge({ plan }: { plan: PrismPlan }) {
       title="Plans and usage"
     >
       <Badge variant={plan.paid ? "default" : "secondary"} className="font-medium">
-        {TIER_LABEL[plan.tier]}
+        {PRISM_TIER_LABEL[plan.tier]}
       </Badge>
       <span className={nearLimit ? "text-amber-600" : "text-muted-foreground"}>
         {plan.aiLimit === null ? "Unlimited AI" : `${plan.aiUsed}/${plan.aiLimit} AI this month`}

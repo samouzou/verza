@@ -102,8 +102,18 @@ function PrismCalendarPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (searchParams.get("prism_subscribe_success") !== "true") return;
-    toast({ title: "Welcome to Prism Launch", description: "Studio, unlimited slides and 1,000 AI actions a month are unlocked." });
+    const subscribed = searchParams.get("prism_subscribe_success");
+    if (!subscribed) return;
+    const welcome: Record<string, string> = {
+      starter: "Studio, unlimited carousels and 300 AI actions a month are unlocked.",
+      launch: "Auto-publishing, 1,000 AI actions and 30 seconds of video a month are unlocked. Connect your accounts next.",
+      pro: "Auto-publishing, 3,000 AI actions, unlimited graphics and 2 minutes of video a month are unlocked.",
+    };
+    const tier = subscribed in welcome ? subscribed : "launch";
+    toast({
+      title: `Welcome to Prism ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
+      description: subscribed === "true" ? "Your plan is active." : welcome[tier],
+    });
     router.replace("/prism");
   }, [searchParams, router, toast]);
 
