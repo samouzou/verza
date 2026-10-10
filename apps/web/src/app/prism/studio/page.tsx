@@ -16,7 +16,6 @@ import {
   CalendarDays,
   CalendarPlus,
   NotebookPen,
-  Settings2,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -729,23 +728,7 @@ export default function PrismStudioPage() {
       <PageHeader
         title="Studio"
         description="Batch a week of drafts across channels, render carousels, and spin off video scripts and newsletters. Send the keepers to the calendar."
-        actions={
-          <>
-            <PrismPlanBadge plan={plan} />
-            <Button variant="outline" asChild>
-              <Link href="/prism">
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Calendar
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/prism/setup">
-                <Settings2 className="mr-2 h-4 w-4" />
-                Brand setup
-              </Link>
-            </Button>
-          </>
-        }
+        actions={<PrismPlanBadge plan={plan} />}
       />
 
       {strategyLoading ? (

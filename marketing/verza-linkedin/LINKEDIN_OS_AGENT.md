@@ -107,7 +107,10 @@ Lifetime is Starter for good; a Lifetime brand that subscribes and later cancels
 - **Stripe prices** are found by lookup key `prism_{starter|launch|pro}_{monthly|yearly}`. Create or verify them with
   `STRIPE_SECRET_KEY=… node scripts/prism-stripe-plans.mjs [--dry-run]` (idempotent; also retires the old $199 Launch
   prices). Enterprise uses Payment Links whose price carries `metadata.prismPlanId = prism_enterprise_{monthly|yearly}`.
-- **Checkout:** `createPrismSubscriptionCheckoutSession({plan, interval})` for Free and Lifetime brands.
+- **Checkout:** `createPrismSubscriptionCheckoutSession({plan, interval, promoCode?, referralCode?})` for Free and
+  Lifetime brands. A valid Stripe promo code (e.g. `TECHWEEK26`) is applied instead of the trial, then a referral discount,
+  then the trial. Links like `/prism/pricing?code=TECHWEEK26` or `?ref=VERZA-7Q2K` are remembered in the browser for
+  30 days (`apps/web/src/lib/prism/promo.ts`) so they survive sign-up and onboarding.
   **Switching:** `previewPrismPlanChange` returns Stripe's prorated amount due now (or credit) and the next charge for
   the confirmation dialog; `changePrismPlan({plan, interval})` swaps the subscription's price in place; upgrades charge the
   prorated difference immediately and only apply once paid, downgrades leave a credit.
@@ -115,6 +118,15 @@ Lifetime is Starter for good; a Lifetime brand that subscribes and later cancels
   A Launch subscription on a price without the current lookup key is on the retired $199 Launch and gets Pro.
 - **Costs per brand at full use:** Launch about $40 (AI, graphics, 30s video, Zernio accounts, X allowance), Pro about
   $80. A brand connects at most one account per channel (four), which caps Zernio fees.
+- **Referrals** (`referrals.ts`, `referralCodes.ts`): brands on Starter, Launch, Pro or Lifetime get a share link from
+  `getPrismReferral` (code on `agencies.prismReferralCode`, owner in `prism_referral_codes/{code}`). A friend new to
+  Prism gets 50% off their first month on monthly plans (Stripe coupon `prism_referral_half_first_month`, created on first
+  use); yearly checkouts keep the trial but still count. The referrer is stored on the friend's subscription metadata
+  (`prismReferrerAgencyId`). On the friend's first non-zero paid invoice the webhook rewards the referrer once
+  (`prism_referrals/{friendSubscriptionId}`): one month of the referrer's plan at the monthly list price as Stripe
+  customer balance credit, or 60 video seconds for Lifetime. Capped at 12 rewards per brand per year
+  (`prismReferralYear`, `prismReferralRewards`). Self-referrals (same brand, owner or Stripe customer) are ignored.
+  Refunds don't claw credit back automatically; reverse the balance transaction in Stripe if needed.
 
 ## Auto-publishing (Prism Launch, Pro and Enterprise)
 

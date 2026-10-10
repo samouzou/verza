@@ -5,7 +5,6 @@ import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
 import {
   AlertTriangle,
-  ArrowLeft,
   Edit,
   Globe,
   ImageOff,
@@ -176,14 +175,6 @@ export default function PrismSetupPage() {
       <PageHeader
         title="Brand setup"
         description="What Prism knows about your brand. Every plan and draft is grounded in this."
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/prism">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Prism
-            </Link>
-          </Button>
-        }
       />
 
       <Card className="border-primary/30 bg-primary/5">

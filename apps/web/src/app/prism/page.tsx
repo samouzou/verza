@@ -21,11 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
-  Link2,
   Loader2,
-  NotebookPen,
   Plus,
-  Settings2,
   Sparkles,
 } from "lucide-react";
 
@@ -238,34 +235,12 @@ function PrismCalendarPage() {
     );
   }
 
-  const headerActions = (
-    <>
-      <PrismPlanBadge plan={plan} />
-      <Button variant="outline" asChild>
-        <Link href="/prism/studio">
-          <NotebookPen className="mr-2 h-4 w-4" />
-          Studio
-        </Link>
-      </Button>
-      <Button variant="outline" asChild>
-        <Link href="/prism/accounts">
-          <Link2 className="mr-2 h-4 w-4" />
-          Accounts
-        </Link>
-      </Button>
-      <Button variant="outline" asChild>
-        <Link href="/prism/setup">
-          <Settings2 className="mr-2 h-4 w-4" />
-          Brand setup
-        </Link>
-      </Button>
-    </>
-  );
+  const headerActions = <PrismPlanBadge plan={plan} />;
 
   if (!strategy) {
     return (
       <div className="flex flex-col gap-8 pb-16">
-        <PageHeader title="Prism" description="Your social calendar across LinkedIn, X, Instagram, and TikTok." actions={headerActions} />
+        <PageHeader title="Calendar" description="Your social calendar across LinkedIn, X, Instagram, and TikTok." actions={headerActions} />
         <Card className="border-primary/30 bg-primary/5 max-w-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -295,7 +270,7 @@ function PrismCalendarPage() {
   return (
     <div className="flex flex-col gap-6 pb-16">
       <PageHeader
-        title="Prism"
+        title="Calendar"
         description={`${strategy.brandName}'s social calendar. Plan the month, write each channel natively, approve, and post.`}
         actions={
           <>

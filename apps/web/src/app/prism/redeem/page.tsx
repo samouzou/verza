@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { httpsCallable } from "firebase/functions";
-import { ArrowLeft, CheckCircle2, Loader2, Ticket } from "lucide-react";
+import { CheckCircle2, Loader2, Ticket } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { PrismPlanBadge } from "@/components/prism/prism-plan";
@@ -72,17 +72,7 @@ export default function PrismRedeemPage() {
       <PageHeader
         title="Redeem your AppSumo code"
         description="One code unlocks Prism Lifetime for one brand: plan, write, design and schedule your social content, for life."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {agencyId && isAgencyTeam && <PrismPlanBadge plan={plan} />}
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/prism">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Prism
-              </Link>
-            </Button>
-          </div>
-        }
+        actions={agencyId && isAgencyTeam ? <PrismPlanBadge plan={plan} /> : undefined}
       />
 
       {!isAgencyTeam && (

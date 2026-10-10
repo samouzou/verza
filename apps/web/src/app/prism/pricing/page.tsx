@@ -7,6 +7,7 @@ import { CalendarDays, Check, Crown, Loader2, Mail, Rocket, Sparkles } from "luc
 
 import { PageHeader } from "@/components/page-header";
 import { PrismPlanBadge } from "@/components/prism/prism-plan";
+import { PrismReferralCard } from "@/components/prism/referral-card";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,7 +39,7 @@ import {
 } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
-import { readPrismPromo } from "@/lib/prism/promo";
+import { readPrismPromo, readPrismReferral } from "@/lib/prism/promo";
 import { cn } from "@/lib/utils";
 
 type Interval = "month" | "year";
@@ -179,9 +180,11 @@ export default function PrismPricingPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<ChangePreview | null>(null);
   const [promo, setPromo] = useState<string | null>(null);
+  const [referral, setReferral] = useState<string | null>(null);
 
   useEffect(() => {
     setPromo(readPrismPromo());
+    setReferral(readPrismReferral());
   }, []);
 
   useEffect(() => {
@@ -223,6 +226,7 @@ export default function PrismPricingPage() {
         plan: tier,
         interval: billingInterval,
         promoCode: promo,
+        referralCode: referral,
       });
       const url = (res.data as { url?: string })?.url;
       if (!url) throw new Error("No checkout URL");
@@ -280,6 +284,8 @@ export default function PrismPricingPage() {
   };
   const yearlySavings = savings("launch");
   const showPromo = !!promo && !plan.loading && !plan.selfServe && plan.tier !== "enterprise";
+  const showReferral = !!referral && !showPromo && !plan.loading && !plan.selfServe && plan.trialEligible;
+  const referralMonthly = showReferral && billingInterval === "month";
 
   const action = (tier: PrismSelfServeTier): { label: string; disabled?: boolean; onClick?: () => void; variant?: "default" | "outline" } => {
     const name = tier[0].toUpperCase() + tier.slice(1);
@@ -298,7 +304,7 @@ export default function PrismPricingPage() {
       };
     }
     return {
-      label: plan.trialEligible && !showPromo ? `Start ${PRISM_TRIAL_DAYS}-day free trial` : plan.tier === "lifetime" ? `Upgrade to ${name}` : `Get ${name}`,
+      label: plan.trialEligible && !showPromo && !referralMonthly ? `Start ${PRISM_TRIAL_DAYS}-day free trial` : plan.tier === "lifetime" ? `Upgrade to ${name}` : `Get ${name}`,
       onClick: () => void startCheckout(tier),
       variant: tier === "launch" ? "default" : "outline",
     };
@@ -315,16 +321,9 @@ export default function PrismPricingPage() {
   return (
     <div className="container max-w-6xl space-y-8 py-8">
       <PageHeader
-        title="Prism plans"
+        title="Plan & billing"
         description={`Every plan starts with a ${PRISM_TRIAL_DAYS}-day free trial. Pick the AI, design and video you need, and add auto-publishing when you're ready.`}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {agencyId && isAgencyTeam && <PrismPlanBadge plan={plan} />}
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/prism">Back to calendar</Link>
-            </Button>
-          </div>
-        }
+        actions={agencyId && isAgencyTeam ? <PrismPlanBadge plan={plan} /> : undefined}
       />
 
       {plan.tier === "lifetime" && (
@@ -364,6 +363,10 @@ export default function PrismPricingPage() {
         </Card>
       )}
 
+      {agencyId && isAgencyTeam && plan.paid && !plan.loading && plan.tier !== "enterprise" && (
+        <PrismReferralCard agencyId={agencyId} tier={plan.tier} />
+      )}
+
       {plan.subscriptionStatus === "past_due" && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -401,6 +404,15 @@ export default function PrismPricingPage() {
           <CardContent className="py-4 text-sm">
             Code <span className="font-mono font-semibold">{promo}</span> is saved. We&rsquo;ll apply it at checkout in place of
             the free trial, and you&rsquo;ll see the discount before you pay.
+          </CardContent>
+        </Card>
+      )}
+
+      {showReferral && (
+        <Card className="border-emerald-500/40 bg-emerald-500/5">
+          <CardContent className="py-4 text-sm">
+            You were invited to Prism. Monthly plans get 50% off your first month, applied at checkout in place of the
+            free trial. Yearly plans keep the {PRISM_TRIAL_DAYS}-day free trial.
           </CardContent>
         </Card>
       )}
@@ -450,7 +462,13 @@ export default function PrismPricingPage() {
                       ? `${money(cents, currency) ?? "—"} billed yearly${savings(p.tier) ? ` · save ${savings(p.tier)}%` : ""}`
                       : "billed monthly, cancel any time"}
                   </p>
-                  {!plan.loading && !plan.selfServe && plan.trialEligible && !showPromo && !(plan.tier === "lifetime" && p.tier === "starter") && (
+                  {referralMonthly && !(plan.tier === "lifetime" && p.tier === "starter") && (
+                    <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                      {money(cents ? Math.round(cents / 2) : null, currency) ?? "—"} for your first month, then{" "}
+                      {money(cents, currency) ?? "—"}/month.
+                    </p>
+                  )}
+                  {!plan.loading && !plan.selfServe && plan.trialEligible && !showPromo && !referralMonthly && !(plan.tier === "lifetime" && p.tier === "starter") && (
                     <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                       Free for {PRISM_TRIAL_DAYS} days, then {money(cents, currency) ?? "—"}/{billingInterval}. Cancel before then
                       and pay nothing.
@@ -553,6 +571,14 @@ export default function PrismPricingPage() {
           $18, 200 for $55, 600 for $150) never expire. X charges per post: beyond your included fees you pay X&apos;s
           rates plus {PRISM_X_MARKUP * 100}% processing on your next invoice.
         </p>
+        {plan.tier !== "lifetime" && (
+          <p>
+            Bought Prism on AppSumo?{" "}
+            <Link href="/prism/redeem" className="font-medium text-primary underline-offset-4 hover:underline">
+              Redeem your code
+            </Link>
+          </p>
+        )}
       </div>
 
       <AlertDialog open={preview !== null} onOpenChange={(open) => !open && busy !== "confirm" && setPreview(null)}>

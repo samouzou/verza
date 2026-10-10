@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -66,13 +66,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { useOpticCredits } from "@/hooks/use-optic-credits";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { NotificationBell } from "./notification-bell";
 import { SupportDialog } from "./support-dialog";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 import { BrandJourneyGuide } from "@/components/onboarding/brand-journey-guide";
+import { PrismReferralSidebarBlock } from "@/components/prism/referral-card";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -128,6 +128,13 @@ const brandPrismNavItem: WorkflowNavItem = {
   href: "/prism",
   label: "Prism",
   icon: Rainbow,
+  subItems: [
+    { id: "sub-item-prism-calendar", href: "/prism", label: "Calendar" },
+    { id: "sub-item-prism-studio", href: "/prism/studio", label: "Studio" },
+    { id: "sub-item-prism-channels", href: "/prism/accounts", label: "Channels" },
+    { id: "sub-item-prism-setup", href: "/prism/setup", label: "Brand setup" },
+    { id: "sub-item-prism-billing", href: "/prism/pricing", label: "Plan & billing" },
+  ],
 };
 
 const brandOpticNavItem: WorkflowNavItem = {
@@ -142,24 +149,6 @@ const brandOpticNavItem: WorkflowNavItem = {
     { id: "sub-item-optic-pricing", href: "/optic/pricing", label: "Pricing" },
   ],
 };
-
-function SidebarOpticCreditsBlock({ agencyId }: { agencyId: string }) {
-  const { balance, loading } = useOpticCredits(agencyId);
-  return (
-    <div className="p-2">
-      <Link
-        href="/optic"
-        className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent"
-      >
-        <Zap className="h-5 w-5 shrink-0 text-amber-500" />
-        <div className="group-data-[collapsible=icon]:hidden">
-          <p className="text-sm font-semibold tabular-nums">{loading ? "…" : balance}</p>
-          <p className="text-xs text-muted-foreground -mt-1">Optic credits</p>
-        </div>
-      </Link>
-    </div>
-  );
-}
 
 function workflowNavItemsForUser(
   user: { role?: string; isBrandAccount?: boolean } | null
@@ -181,7 +170,7 @@ type NavSubItem = { id: string; href: string; label: string };
 
 function subNavItemIsActive(pathname: string, parentHref: string, subHref: string): boolean {
   if (subHref === "/optic") return pathname === "/optic";
-  if (subHref === "/prism") return pathname.startsWith("/prism");
+  if (subHref === "/prism") return pathname === "/prism";
   if (subHref === parentHref) return pathname === subHref;
   return pathname.startsWith(subHref);
 }
@@ -210,6 +199,11 @@ function SidebarNavCollapsible({
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
   const isActive = pathname.startsWith(href);
+  const [open, setOpen] = useState(isActive);
+
+  useEffect(() => {
+    if (isActive) setOpen(true);
+  }, [isActive]);
 
   if (isCollapsed) {
     return (
@@ -247,7 +241,7 @@ function SidebarNavCollapsible({
   }
 
   return (
-    <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
+    <Collapsible asChild open={open} onOpenChange={setOpen} className="group/collapsible">
       <SidebarMenuItem id={id}>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
@@ -354,7 +348,7 @@ export function SidebarNav() {
   
   const subscriptionBadge = getSubscriptionBadge();
   const workflowNavItems = workflowNavItemsForUser(activeUser);
-  const showOpticCredits =
+  const isBrandTeam =
     !!activeUser?.primaryAgencyId &&
     (activeUser.role === "agency_owner" ||
       activeUser.role === "agency_admin" ||
@@ -555,19 +549,8 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
-          {showOpticCredits && activeUser?.primaryAgencyId && (
-            <SidebarOpticCreditsBlock agencyId={activeUser.primaryAgencyId} />
-          )}
-          {activeUser && (
-            <div className="p-2">
-              <div className="flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent">
-                  <Wallet className="h-5 w-5 flex-shrink-0" />
-                  <div className="group-data-[collapsible=icon]:hidden">
-                      <p className="text-sm font-semibold">{activeUser.credits ?? 0}</p>
-                      <p className="text-xs text-muted-foreground -mt-1">Credits</p>
-                  </div>
-              </div>
-            </div>
+          {isBrandTeam && activeUser?.primaryAgencyId && (
+            <PrismReferralSidebarBlock agencyId={activeUser.primaryAgencyId} />
           )}
          <div className="px-2 group-data-[collapsible=icon]:px-0">
             <SidebarMenu>

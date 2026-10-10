@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
-import { AlertTriangle, CalendarDays, CheckCircle2, Link2, Loader2, RefreshCw, Sparkles, Unlink } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Link2, Loader2, RefreshCw, Sparkles, Unlink } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { PrismPlanBadge, toastPrismLimit } from "@/components/prism/prism-plan";
@@ -130,17 +130,11 @@ function PrismAccountsPage() {
   return (
     <div className="flex flex-col gap-6 pb-16">
       <PageHeader
-        title="Connected accounts"
+        title="Channels"
         description="Connect your channels and Prism publishes approved posts at their scheduled time."
         actions={
           <>
             <PrismPlanBadge plan={plan} />
-            <Button variant="outline" asChild>
-              <Link href="/prism">
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Calendar
-              </Link>
-            </Button>
             {connections && (
               <Button variant="outline" disabled={busy !== null} onClick={() => void sync()}>
                 {busy === "sync" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}

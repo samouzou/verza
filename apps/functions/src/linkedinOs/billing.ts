@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
 import * as params from "../config/params";
+import {referralCoupon, resolveReferrer} from "./referralCodes";
 
 /** "lifetime" = AppSumo: Starter's limits for good, no auto-publishing. */
 export type PrismPlanTier = "free" | "lifetime" | "starter" | "launch" | "pro" | "enterprise";
@@ -311,7 +312,7 @@ type PlanPrice = {tier: PrismSelfServeTier; interval: "month" | "year"; cents: n
  * @param {Stripe} stripe Stripe client.
  * @return {!Promise<!Array<PlanPrice>>} Prices.
  */
-async function planPrices(stripe: Stripe): Promise<PlanPrice[]> {
+export async function planPrices(stripe: Stripe): Promise<PlanPrice[]> {
   const keys = PRISM_SELF_SERVE_TIERS.flatMap((t) => [planIdFor(t, "month"), planIdFor(t, "year")]);
   const {data} = await stripe.prices.list({lookup_keys: keys, active: true, limit: keys.length});
   const out: PlanPrice[] = [];
@@ -429,9 +430,20 @@ export const createPrismSubscriptionCheckoutSession = onCall(async (request) => 
   const price = (await planPrices(stripe)).find((p) => p.tier === tier && p.interval === interval);
   if (!price) throw new HttpsError("failed-precondition", "Prism pricing isn't configured yet.");
   const customer = await stripeCustomerFor(stripe, uid, user);
-  const promo = await promotionCodeFor(stripe, request.data?.promoCode);
-  const metadata = {firebaseUID: uid, agencyId, productType: "prism", prismPlanId: planId};
-  const create = (promotionCode: string | null, trial: boolean) => stripe.checkout.sessions.create({
+  const newToPrism = await trialEligible(stripe, agency, customer);
+  const [promo, referral] = await Promise.all([
+    promotionCodeFor(stripe, request.data?.promoCode),
+    newToPrism ? resolveReferrer(stripe, request.data?.referralCode, {agencyId, uid, customer}) : null,
+  ]);
+  const metadata: Record<string, string> = {
+    firebaseUID: uid,
+    agencyId,
+    productType: "prism",
+    prismPlanId: planId,
+    ...(referral ? {prismReferrerAgencyId: referral.referrerAgencyId, prismReferralCode: referral.code} : {}),
+  };
+  type Discount = {promotion_code: string} | {coupon: string};
+  const create = (discount: Discount | null, trial: boolean) => stripe.checkout.sessions.create({
     mode: "subscription",
     customer,
     line_items: [{price: price.priceId, quantity: 1}],
@@ -447,21 +459,24 @@ export const createPrismSubscriptionCheckoutSession = onCall(async (request) => 
     },
     metadata,
     // Stripe rejects allow_promotion_codes together with discounts.
-    ...(promotionCode ? {discounts: [{promotion_code: promotionCode}]} : {allow_promotion_codes: true}),
+    ...(discount ? {discounts: [discount]} : {allow_promotion_codes: true}),
   });
 
   if (promo) {
     try {
-      const session = await create(promo, false);
-      return {url: session.url, trial: false, promoApplied: true};
+      const session = await create({promotion_code: promo}, false);
+      return {url: session.url, trial: false, promoApplied: true, referralApplied: false};
     } catch (e) {
       if (!(e instanceof Stripe.errors.StripeInvalidRequestError)) throw e;
       logger.info("[Prism billing] Promo code not applicable, falling back to manual entry", {promo, tier, message: e.message});
     }
   }
-  const trial = await trialEligible(stripe, agency, customer);
-  const session = await create(null, trial);
-  return {url: session.url, trial, promoApplied: false};
+  if (referral && interval === "month") {
+    const session = await create({coupon: await referralCoupon(stripe)}, false);
+    return {url: session.url, trial: false, promoApplied: false, referralApplied: true};
+  }
+  const session = await create(null, newToPrism);
+  return {url: session.url, trial: newToPrism, promoApplied: false, referralApplied: false};
 });
 
 /**

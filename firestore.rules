@@ -457,6 +457,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Prism — referral codes and referred subscriptions (Functions only; read via getPrismReferral)
+    match /prism_referral_codes/{code} {
+      allow read, write: if false;
+    }
+    match /prism_referrals/{subscriptionId} {
+      allow read, write: if false;
+    }
+
     // Prism — Zernio webhook dedupe markers (server only)
     match /prism_webhook_events/{eventId} {
       allow read, write: if false;
