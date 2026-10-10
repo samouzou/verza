@@ -1,0 +1,60 @@
+[
+  {
+    "prompt": "A three-moment opening montage for a commercial. [0-3s] Late at night in a small loft office lit by a desk lamp, a Black woman in her early 30s with natural curls and a cream knit sweater sits at a laptop, chin in hand, staring at an empty social media post composer, the cursor blinking. She exhales and rubs her eyes. [3-5.5s] Cut to a sunny neighborhood café during the morning rush: a Latina woman in her 40s, hair tied back, wearing an evergreen apron, wipes the counter while her phone buzzes repeatedly beside the register; she glances at it, overwhelmed. [5.5-8s] Cut to an open-plan agency studio: an East Asian man in his 30s with glasses leans back from a wide monitor crowded with dozens of browser tabs and sticky notes, pressing his palms to his forehead. Cinematic documentary-commercial look, natural light, shallow depth of field, 35mm film texture, warm grade with subtle evergreen accents. Sound design: soft natural room ambience only. No music, no dialogue, no voiceover, no captions, no logos.",
+    "duration": 8,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/a-hook.mp4"
+  },
+  {
+    "prompt": "In a single continuous shot, a clear glass triangular prism sits on a light oak desk beside a laptop in soft morning light. A beam of sunlight from a window passes through the prism and fans out into a vivid rainbow spectrum across the white wall and desk; the camera slowly pushes in as the colors bloom and shimmer, with deep evergreen tones in the shadows. Elegant, minimal, premium product-film look, shallow depth of field. Sound design: a gentle airy shimmer. No music, no dialogue, no text, no logos.",
+    "duration": 4,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/b-prism.mp4"
+  },
+  {
+    "prompt": "[# References <IMAGE_REF_0>@Image1] In a single continuous shot in a bright loft office with morning light, a Black woman in her early 30s with natural curls and a cream knit sweater sits at a laptop. [0-3s] Over-the-shoulder, she types a website address and presses enter. [3-7s] The camera drifts around to her face as she leans back in her chair with a coffee mug and a relieved, satisfied smile while the laptop screen fills with a full month content calendar. The laptop screen shows exactly the calendar interface in <IMAGE_REF_0>: a clean white app with a left sidebar and a month grid of small colored post chips. Use the given image as a reference for the screen content only, not as a literal first frame. Cinematic documentary-commercial look, shallow depth of field, warm grade with subtle evergreen accents. Sound design: soft keyboard clicks and room ambience. No music, no dialogue, no captions.",
+    "image": "media/cards/02-calendar-s3.png",
+    "duration": 7,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/c-founder.mp4"
+  },
+  {
+    "prompt": "In a single continuous shot in a warm, sunlit neighborhood café with plants, chalkboard menus and a copper espresso machine, a Latina woman in her 40s with her hair tied back and an evergreen apron hands a latte with a leaf of latte art to a smiling customer, then picks up her phone from the counter, glances at it, and breaks into a proud, easy smile before tucking it into her apron pocket. Camera at counter height, gentle handheld, shallow depth of field. Cinematic documentary-commercial look, warm grade with subtle evergreen accents. Sound design: soft café ambience, cups clinking, milk steaming. No music, no dialogue, no captions, no logos.",
+    "duration": 7,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/d-cafe.mp4"
+  },
+  {
+    "prompt": "In a single continuous shot in a bright, airy product studio with blush and terracotta tones, shelves of minimalist skincare bottles, and a linen backdrop, a South Asian woman in her late 20s wearing a loose white linen shirt holds up a small blush-colored serum bottle with a dark cap toward the camera, then turns her phone toward us; on the vertical phone screen a polished short-form product video of the same bottle plays. She grins, delighted. Soft diffused daylight, shallow depth of field, cinematic beauty-commercial look. Sound design: soft studio ambience. No music, no dialogue, no captions, no brand names.",
+    "duration": 7,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/e-skincare.mp4"
+  },
+  {
+    "prompt": "[# References <IMAGE_REF_0>@Image1] In a single continuous shot in a modern open-plan creative agency with plants and large windows, an East Asian man in his 30s with glasses and a young woman in her 20s with red hair stand together at a large desktop monitor. The monitor shows exactly the interface in <IMAGE_REF_0>: a clean white app with a left sidebar and a list of social posts waiting for approval with green Approve buttons. She points at the screen and nods; he clicks the mouse to approve, and they share a quick high-five and laugh. Use the given image as a reference for the screen content only, not as a literal first frame. Cinematic documentary-commercial look, natural window light, shallow depth of field, warm grade with subtle evergreen accents. Sound design: soft office ambience and a mouse click. No music, no dialogue, no captions.",
+    "image": "media/cards/06-approve-s1.png",
+    "duration": 7,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/f-agency.mp4"
+  },
+  {
+    "prompt": "In a single continuous tracking shot at golden hour, an athletic white man in his 30s wearing an evergreen hoodie and carrying a gym bag walks out of the glass door of a small boutique gym onto a sunlit city sidewalk. His phone buzzes; he glances down at it, smiles, slips it into his pocket and keeps walking into the warm sun with an easy, confident stride. Lens flare, shallow depth of field, cinematic lifestyle-commercial look, warm grade. Sound design: gentle street ambience and a single phone buzz. No music, no dialogue, no captions, no logos.",
+    "duration": 6,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/g-coach.mp4"
+  },
+  {
+    "prompt": "A fast, joyful montage of close-ups, cutting every second: different hands holding smartphones as the screens light up with incoming likes, hearts and comments — a café counter, a loft desk, a skincare studio, an agency office, a gym bench. Warm natural light, shallow depth of field, cinematic commercial look with subtle evergreen accents. Sound design: soft notification taps. No music, no dialogue, no readable text, no logos.",
+    "duration": 5,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "output": "media/shots/h-montage.mp4"
+  }
+]

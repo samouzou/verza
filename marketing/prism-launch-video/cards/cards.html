@@ -1,0 +1,371 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Prism cards</title>
+<style>
+@font-face { font-family: Geist; src: url(assets/geist.woff2) format("woff2"); font-weight: 100 900; }
+:root {
+  --green: #0E7C5A; --green-2: #16C088; --ink: #101816; --muted: #5f6b68; --line: #dde6e1;
+  --bg: #f9f9f5; --mint: #e6f2ec; --card: #fff;
+  --li: #0A66C2; --x: #111; --ig: linear-gradient(45deg,#f9a825,#e1306c 50%,#833ab4); --tt: #111;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; }
+body { font-family: Geist, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased;
+  background: radial-gradient(1200px 800px at 15% 10%, #eaf6f0 0%, transparent 60%),
+              radial-gradient(1000px 700px at 90% 95%, #e9f3ee 0%, transparent 55%), var(--bg); }
+.card { display: none; width: 1920px; height: 1080px; padding: 90px 120px; }
+.card.on { display: flex; }
+
+/* App window */
+.win { flex: 1; display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: 0 40px 100px -30px rgba(14,60,45,.28), 0 8px 24px -12px rgba(14,60,45,.15); overflow: hidden; }
+.side { width: 270px; background: #fafaf8; border-right: 1px solid var(--line); padding: 28px 18px; display: flex; flex-direction: column; gap: 4px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 22px; margin: 0 8px 26px; }
+.brand img { width: 30px; }
+.navh { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 8px 10px 8px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 17px; color: #33403c; }
+.nav.sub { padding-left: 40px; font-size: 16px; }
+.nav.on { background: var(--mint); color: #08543d; font-weight: 600; }
+.dot { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg,#ff6b6b,#ffd93d,#6bcB77,#4d96ff,#9b5de5); }
+.main { flex: 1; padding: 40px 48px; display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+h1 { font-size: 40px; font-weight: 680; letter-spacing: -.02em; }
+.sub-t { color: var(--muted); font-size: 18px; margin-top: 6px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font-size: 17px; font-weight: 600; border: 1px solid var(--line); background: #fff; }
+.btn.p { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 8px 20px -8px rgba(14,124,90,.6); }
+.badge { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--mint); color: #08543d; }
+.panel { border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: #fff; }
+
+/* Channel marks */
+.ch { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+.ch.li { background: var(--li); } .ch.x { background: var(--x); } .ch.ig { background: var(--ig); } .ch.tt { background: var(--tt); box-shadow: inset -2px 0 0 #25F4EE, inset 2px 0 0 #FE2C55; }
+.ch.lg { width: 40px; height: 40px; border-radius: 10px; font-size: 20px; }
+
+/* 01 setup */
+.url { display: flex; gap: 14px; align-items: center; }
+.input { flex: 1; border: 1.5px solid var(--green); border-radius: 12px; padding: 16px 18px; font-size: 20px; box-shadow: 0 0 0 4px rgba(14,124,90,.12); }
+.grid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 22px; }
+.lbl { font-size: 14px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.para { font-size: 18px; line-height: 1.55; color: #26322f; }
+.pill { display: flex; justify-content: space-between; padding: 12px 16px; border-radius: 12px; background: #f4f8f6; font-size: 17px; margin-bottom: 10px; }
+.chrow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 17px; }
+.chrow:last-child { border-bottom: 0; }
+.chrow .r { margin-left: auto; color: var(--muted); }
+.toggle { width: 44px; height: 26px; border-radius: 999px; background: var(--green); position: relative; }
+.toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+.shimmer { background: linear-gradient(90deg,#eef3f1 0%,#f7faf9 50%,#eef3f1 100%); border-radius: 8px; height: 18px; margin-bottom: 12px; }
+
+/* 02 calendar */
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; flex: 1; }
+.dow { padding: 12px 14px; font-size: 14px; color: var(--muted); font-weight: 600; background: #fafaf8; border-bottom: 1px solid var(--line); }
+.day { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.day:nth-child(7n) { border-right: 0; }
+.dn { font-size: 14px; color: var(--muted); font-weight: 600; }
+.post { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #f4f8f6; font-size: 13.5px; font-weight: 550; white-space: nowrap; overflow: hidden; }
+.post .ch { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+.post.new { background: #e3f4ec; outline: 1.5px solid rgba(14,124,90,.35); }
+.toast { position: absolute; right: 150px; bottom: 120px; background: var(--ink); color: #fff; padding: 18px 24px; border-radius: 14px; font-size: 19px; font-weight: 550; display: flex; gap: 12px; align-items: center; box-shadow: 0 20px 50px -10px rgba(0,0,0,.4); }
+.toast b { color: #6ee7b7; }
+
+/* 03 adapt */
+.idea { display: flex; align-items: center; gap: 16px; padding: 22px 26px; border-radius: 16px; background: linear-gradient(135deg,#0E7C5A,#119a6f); color: #fff; font-size: 24px; font-weight: 600; }
+.idea small { display: block; font-size: 14px; opacity: .8; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+.three .vt { font-size: 19px; }
+.latte { height: 230px !important; }
+.variant { border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; background: #fff; }
+.vh { display: flex; align-items: center; gap: 12px; font-weight: 650; font-size: 19px; }
+.vh .r { margin-left: auto; font-size: 13px; color: var(--muted); font-weight: 550; }
+.vt { font-size: 17px; line-height: 1.5; color: #26322f; white-space: pre-line; }
+.latte { height: 170px; border-radius: 12px; background: radial-gradient(circle at 50% 55%, #f7e3c8 0 22%, #c98a4b 23% 30%, #fff8ee 31% 34%, transparent 35%), linear-gradient(135deg,#2f5d50,#1d3b33); }
+
+/* 04 carousel */
+.slides { display: flex; gap: 28px; justify-content: center; align-items: center; flex: 1; }
+.slide { width: 420px; height: 525px; border-radius: 20px; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 30px 60px -25px rgba(80,40,30,.45); }
+.s1 { background: linear-gradient(160deg,#f3d9cf,#e9b9a7); color: #3b1f17; transform: rotate(-4deg) translateY(10px); }
+.s2 { background: #fbf4ef; color: #3b1f17; border: 1px solid #efdcd2; transform: translateY(-14px); }
+.s3 { background: linear-gradient(160deg,#5b2e22,#7a3f2f); color: #fbeee7; transform: rotate(4deg) translateY(10px); }
+.slide .k { font-size: 16px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; font-weight: 600; }
+.slide .t { font-size: 46px; line-height: 1.08; font-weight: 700; letter-spacing: -.02em; }
+.slide .b { font-size: 21px; line-height: 1.45; opacity: .85; }
+.slide .f { display: flex; justify-content: space-between; font-size: 16px; opacity: .7; font-weight: 600; }
+.bottle { width: 90px; height: 170px; margin: 0 auto; border-radius: 18px 18px 22px 22px; background: linear-gradient(180deg,#f6e7dd,#e8c6b4); position: relative; box-shadow: inset -10px 0 20px rgba(0,0,0,.08); }
+.bottle::before { content: ""; position: absolute; top: -34px; left: 30px; width: 30px; height: 36px; border-radius: 6px; background: #2b1a14; }
+
+/* 05 reel */
+.reelwrap { display: flex; gap: 70px; align-items: center; justify-content: center; flex: 1; }
+.phone { width: 340px; height: 690px; border-radius: 56px; background: #0d0d0d; padding: 14px; box-shadow: 0 50px 90px -30px rgba(0,0,0,.55); }
+.screen { width: 100%; height: 100%; border-radius: 44px; overflow: hidden; position: relative;
+  background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.55)), radial-gradient(500px 500px at 50% 35%, #f2d3c4, #b9786a 70%, #6d3d33); background-size: cover; background-position: center; }
+.screen .bottle { position: absolute; left: 50%; top: 300px; transform: translateX(-50%) scale(1.25); }
+.cap { position: absolute; left: 26px; right: 70px; bottom: 90px; color: #fff; font-size: 22px; font-weight: 650; line-height: 1.3; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
+.cap small { display: block; font-size: 16px; font-weight: 500; opacity: .9; margin-top: 8px; }
+.rail { position: absolute; right: 18px; bottom: 110px; display: flex; flex-direction: column; gap: 22px; align-items: center; color: #fff; font-size: 13px; font-weight: 600; }
+.rail i { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.22); display: block; margin-bottom: 4px; }
+.progress { position: absolute; left: 26px; right: 26px; bottom: 50px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.3); }
+.progress::after { content: ""; display: block; width: 62%; height: 100%; border-radius: 4px; background: #fff; }
+.meta { width: 560px; display: flex; flex-direction: column; gap: 18px; }
+.meta .row { display: flex; align-items: center; gap: 14px; font-size: 20px; }
+.meta .row .r { margin-left: auto; color: var(--muted); font-size: 18px; }
+
+/* 06 approve */
+.q { display: flex; flex-direction: column; gap: 14px; }
+.qi { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; font-size: 18px; }
+.qi .thumb { width: 64px; height: 64px; border-radius: 10px; background: linear-gradient(135deg,#2f6f5c,#9fd6bf); flex-shrink: 0; }
+.qi .tt2 { font-weight: 620; } .qi .m { color: var(--muted); font-size: 15px; margin-top: 4px; }
+.qi .r { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.qi.focus { border-color: rgba(14,124,90,.5); box-shadow: 0 0 0 5px rgba(14,124,90,.1); }
+.status { padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 650; }
+.status.rev { background: #fff4d6; color: #8a5a00; } .status.ok { background: #dcf5e9; color: #08543d; }
+.comment { display: flex; gap: 14px; align-items: flex-start; padding: 18px 22px; border-radius: 14px; background: #f4f8f6; font-size: 18px; line-height: 1.45; }
+.av { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#e07a5f,#f2cc8f); flex-shrink: 0; }
+.av.b { background: linear-gradient(135deg,#3d5a80,#98c1d9); }
+
+/* 07 published */
+.pubwrap { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; flex: 1; align-items: center; }
+.pcard { border: 1px solid var(--line); border-radius: 18px; padding: 28px; background: #fff; display: flex; flex-direction: column; gap: 16px; }
+.pcard .t { font-size: 28px; font-weight: 680; letter-spacing: -.01em; }
+.pcard .b { font-size: 18px; line-height: 1.5; color: #33403c; }
+.gym { height: 220px; border-radius: 14px; background: linear-gradient(135deg,#1f3d35,#0E7C5A 60%,#7fd4b0); position: relative; overflow: hidden; }
+.gym::after { content: "5 mobility moves"; position: absolute; left: 24px; bottom: 20px; color: #fff; font-size: 34px; font-weight: 750; letter-spacing: -.02em; }
+.notes { display: flex; flex-direction: column; gap: 16px; }
+.note { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 16px; background: #fff; border: 1px solid var(--line); box-shadow: 0 16px 40px -24px rgba(14,60,45,.35); font-size: 20px; }
+.note .r { margin-left: auto; display: flex; align-items: center; gap: 10px; color: #08543d; font-weight: 650; font-size: 17px; }
+.tick { width: 26px; height: 26px; border-radius: 50%; background: var(--green); position: relative; }
+.tick::after { content: ""; position: absolute; left: 8px; top: 5px; width: 7px; height: 12px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); }
+.note .m { color: var(--muted); font-size: 15px; margin-top: 2px; }
+
+/* Title / end */
+.center { flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 28px; }
+.mark { width: 120px; }
+.big { font-size: 150px; font-weight: 720; letter-spacing: -.045em; line-height: 1; }
+.spectrum { width: 520px; height: 8px; border-radius: 8px; background: linear-gradient(90deg,#0E7C5A,#16C088,#4d96ff,#9b5de5,#ff6b6b,#ffd93d); }
+.tag { font-size: 44px; font-weight: 600; letter-spacing: -.02em; color: #26322f; }
+.cta { font-size: 30px; font-weight: 600; padding: 22px 40px; border-radius: 18px; background: var(--green); color: #fff; box-shadow: 0 20px 40px -14px rgba(14,124,90,.6); }
+.url2 { font-size: 30px; color: var(--muted); font-weight: 550; }
+.by { font-size: 30px; color: var(--muted); font-weight: 550; margin-top: -10px; }
+.stage-hide { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<!-- Shared sidebar, cloned into each window by script -->
+<template id="side">
+  <aside class="side">
+    <div class="brand"><img src="assets/verza-icon.svg" alt="" />Verza</div>
+    <div class="navh">Workflows</div>
+    <div class="nav">Optic</div>
+    <div class="nav"><span class="dot"></span>Prism</div>
+    <div class="nav sub" data-k="calendar">Calendar</div>
+    <div class="nav sub" data-k="studio">Studio</div>
+    <div class="nav sub" data-k="channels">Channels</div>
+    <div class="nav sub" data-k="setup">Brand setup</div>
+    <div class="nav sub" data-k="billing">Plan &amp; billing</div>
+  </aside>
+</template>
+
+<!-- 01 Brand setup (Ledgerly, B2B SaaS founder) -->
+<section class="card" id="01-setup"><div class="win" data-nav="setup"><div class="main">
+  <div class="head"><div><h1>Brand setup</h1><div class="sub-t">What Prism knows about your brand. Every plan and draft is grounded in this.</div></div><span class="badge">Prism Launch</span></div>
+  <div class="panel">
+    <div class="lbl">Start from your website</div>
+    <div class="url"><div class="input">https://ledgerly.io</div><span class="btn p">Draft my setup</span></div>
+  </div>
+  <div class="grid2" data-stage="2">
+    <div class="panel">
+      <div class="lbl">Brand brief</div>
+      <p class="para">Ledgerly is bookkeeping software for small agencies. It reconciles client invoices automatically, so owners close the month in an hour instead of a weekend. Founder-led, plainspoken, a little nerdy about cash flow.</p>
+      <div class="lbl" style="margin-top:22px">Audience</div>
+      <p class="para">Agency owners with 5–50 people who do their own books and hate it.</p>
+    </div>
+    <div class="panel">
+      <div class="lbl">Content pillars</div>
+      <div class="pill"><span>Founder lessons</span><b>30%</b></div>
+      <div class="pill"><span>Cash-flow tips</span><b>30%</b></div>
+      <div class="pill"><span>Customer stories</span><b>20%</b></div>
+      <div class="pill"><span>Behind the build</span><b>20%</b></div>
+      <div class="lbl" style="margin-top:18px">Channels</div>
+      <div class="chrow"><span class="ch li">in</span>LinkedIn<span class="r">4 / week</span><span class="toggle"></span></div>
+      <div class="chrow"><span class="ch x">X</span>X<span class="r">5 / week</span><span class="toggle"></span></div>
+    </div>
+  </div>
+  <div class="grid2" data-stage="1">
+    <div class="panel"><div class="lbl">Brand brief</div><div class="shimmer" style="width:92%"></div><div class="shimmer" style="width:85%"></div><div class="shimmer" style="width:70%"></div></div>
+    <div class="panel"><div class="lbl">Content pillars</div><div class="shimmer"></div><div class="shimmer" style="width:80%"></div><div class="shimmer" style="width:60%"></div></div>
+  </div>
+</div></div></section>
+
+<!-- 02 Calendar -->
+<section class="card" id="02-calendar" style="position:relative"><div class="win" data-nav="calendar"><div class="main">
+  <div class="head"><div><h1>Calendar</h1><div class="sub-t">Ledgerly's social calendar. Plan the month, write each channel natively, approve, and post.</div></div>
+    <div style="display:flex;gap:12px"><span class="badge">Prism Launch</span><span class="btn">✦ Plan a month</span><span class="btn p">+ New post</span></div></div>
+  <div class="cal" id="cal"></div>
+</div></div>
+<div class="toast" data-stage="3">✦ Prism planned <b>24 posts</b> for October</div>
+</section>
+
+<!-- 03 Adapt (Juniper Café) -->
+<section class="card" id="03-adapt"><div class="win" data-nav="calendar"><div class="main">
+  <div class="head"><div><h1>New post</h1><div class="sub-t">Juniper Café · one idea, written for each channel</div></div><span class="btn p">Send for approval</span></div>
+  <div class="idea"><div><small>The idea</small>Our pumpkin oat latte is back this Friday.</div></div>
+  <div class="three">
+    <div class="variant" data-stage="2">
+      <div class="vh"><span class="ch li lg">in</span>LinkedIn<span class="r">Story · 9:00 AM</span></div>
+      <div class="vt">Five years ago we almost cut the pumpkin oat latte from the menu. Our regulars staged a (very polite) protest.
+
+This Friday it's back, made with oat milk from a farm 40 miles away. Thank you for keeping us honest about what matters.</div>
+    </div>
+    <div class="variant" data-stage="2">
+      <div class="vh"><span class="ch x lg">X</span>X<span class="r">Post · 7:30 AM</span></div>
+      <div class="vt">it's back. pumpkin oat latte returns friday 🎃
+
+first 50 cups get a free maple scone. you know what to do.</div>
+    </div>
+    <div class="variant" data-stage="2">
+      <div class="vh"><span class="ch ig lg">◎</span>Instagram<span class="r">Feed · 8:00 AM</span></div>
+      <div class="latte"></div>
+      <div class="vt">Sweater weather, officially. 🍂 Pumpkin oat latte is back Friday. Tag who you're bringing.
+#juniperCafe #pumpkinseason</div>
+    </div>
+  </div>
+</div></div></section>
+
+<!-- 04 Carousel (Solace Skin) -->
+<section class="card" id="04-carousel"><div class="win" data-nav="studio"><div class="main">
+  <div class="head"><div><h1>Studio</h1><div class="sub-t">Solace Skin · carousel rendered in your brand</div></div><div style="display:flex;gap:12px"><span class="badge">Instagram · 3 slides</span><span class="btn">Download PNG</span><span class="btn p">Add to calendar</span></div></div>
+  <div class="slides">
+    <div class="slide s1"><div class="k">Solace Skin</div><div class="t">3 signs your skin barrier needs a break</div><div class="f"><span>Swipe →</span><span>1/3</span></div></div>
+    <div class="slide s2"><div class="k">Sign 1</div><div><div class="t" style="font-size:40px">Tight after cleansing</div><p class="b" style="margin-top:16px">If your face feels squeaky clean, your cleanser is stripping more than dirt.</p></div><div class="f"><span>solaceskin.co</span><span>2/3</span></div></div>
+    <div class="slide s3"><div class="k">The fix</div><div class="bottle"></div><div><div class="t" style="font-size:38px">Barrier Serum</div><p class="b" style="margin-top:10px">Ceramides + oat. Fragrance-free.</p></div></div>
+  </div>
+</div></div></section>
+
+<!-- 05 Reel (Solace Skin) -->
+<section class="card" id="05-reel"><div class="win" data-nav="calendar"><div class="main">
+  <div class="head"><div><h1>Reel ready</h1><div class="sub-t">Solace Skin · from script to 1080p video</div></div><span class="btn p">Approve</span></div>
+  <div class="reelwrap">
+    <div class="phone"><div class="screen" id="reel-screen">
+      <div class="bottle"></div>
+      <div class="cap">Morning routine in 15 seconds<small>Solace Barrier Serum · ceramides + oat</small></div>
+      <div class="rail"><div><i></i>2.4k</div><div><i></i>186</div><div><i></i>Share</div></div>
+      <div class="progress"></div>
+    </div></div>
+    <div class="meta">
+      <div class="lbl">Scheduled</div>
+      <div class="panel" style="display:flex;flex-direction:column;gap:6px">
+        <div class="row"><span class="ch ig lg">◎</span>Instagram Reel<span class="r">Tue · 9:00 AM</span></div>
+        <div class="row" style="margin-top:10px"><span class="ch tt lg">♪</span>TikTok<span class="r">Tue · 6:00 PM</span></div>
+      </div>
+      <div class="panel para">15s · 1080p · captions burned in · cover frame picked for you</div>
+    </div>
+  </div>
+</div></div></section>
+
+<!-- 06 Approve (Brightline Studio for client Fernwood Bikes) -->
+<section class="card" id="06-approve"><div class="win" data-nav="calendar"><div class="main">
+  <div class="head"><div><h1>Needs approval</h1><div class="sub-t">Brightline Studio · Fernwood Bikes</div></div><span class="badge">4 waiting</span></div>
+  <div class="q">
+    <div class="qi focus"><span class="thumb"></span><div><div class="tt2">Commute challenge: 30 days, one bike</div><div class="m"><span class="ch li" style="width:18px;height:18px;font-size:10px;vertical-align:-3px">in</span> LinkedIn · Thu 9:00 AM · written by Prism</div></div>
+      <div class="r"><span class="status ok" data-stage="2">Approved</span><span class="status rev" data-stage="1">In review</span><span class="btn">Request changes</span><span class="btn p">✓ Approve</span></div></div>
+    <div class="qi"><span class="thumb" style="background:linear-gradient(135deg,#22333b,#c6ac8f)"></span><div><div class="tt2">Carousel: 5 rides under an hour</div><div class="m">Instagram · Fri 8:00 AM</div></div><div class="r"><span class="status rev">In review</span></div></div>
+    <div class="qi"><span class="thumb" style="background:linear-gradient(135deg,#283618,#dda15e)"></span><div><div class="tt2">Reel: fixing a flat in 20 seconds</div><div class="m">TikTok · Sat 11:00 AM</div></div><div class="r"><span class="status rev">In review</span></div></div>
+  </div>
+  <div class="comment"><span class="av"></span><div><b>Maya</b> · just now<br />Love the hook. Ship it. 🚲</div></div>
+  <div class="comment" data-stage="2"><span class="av b"></span><div><b>Ken</b> approved · scheduled for Thu 9:00 AM</div></div>
+</div></div></section>
+
+<!-- 07 Published (Peak Form Coaching) -->
+<section class="card" id="07-published"><div class="win" data-nav="calendar"><div class="main">
+  <div class="head"><div><h1>Published</h1><div class="sub-t">Peak Form Coaching · posted on schedule while you coach</div></div><span class="badge">Auto-publishing on</span></div>
+  <div class="pubwrap">
+    <div class="pcard"><div class="gym"></div><div class="t">5 mobility moves for desk workers</div><div class="b">Two minutes, no equipment. Save this for your 3pm slump.</div></div>
+    <div class="notes">
+      <div class="note" data-stage="1"><span class="ch li lg">in</span><div>LinkedIn<div class="m">7:00 AM</div></div><span class="r"><span class="tick"></span>Published</span></div>
+      <div class="note" data-stage="2"><span class="ch x lg">X</span><div>X<div class="m">7:00 AM</div></div><span class="r"><span class="tick"></span>Published</span></div>
+      <div class="note" data-stage="3"><span class="ch ig lg">◎</span><div>Instagram<div class="m">7:01 AM</div></div><span class="r"><span class="tick"></span>Published</span></div>
+      <div class="note" data-stage="4"><span class="ch tt lg">♪</span><div>TikTok<div class="m">7:01 AM</div></div><span class="r"><span class="tick"></span>Published</span></div>
+    </div>
+  </div>
+</div></div></section>
+
+<!-- Title -->
+<section class="card center" id="title">
+  <img class="mark" src="assets/verza-icon.svg" alt="" />
+  <div class="big">Meet Prism</div>
+  <div class="spectrum"></div>
+</section>
+
+<!-- Title over the prism shot (transparent background) -->
+<section class="card center" id="title-overlay" style="color:#fff;background:radial-gradient(900px 520px at 50% 50%, rgba(6,24,18,.55), rgba(6,24,18,.18) 70%, rgba(6,24,18,0))">
+  <div class="big" style="text-shadow:0 6px 40px rgba(0,0,0,.35)">Meet Prism</div>
+  <div class="spectrum"></div>
+</section>
+
+<!-- End -->
+<section class="card center" id="end">
+  <img class="mark" src="assets/verza-icon.svg" alt="" />
+  <div class="big" style="font-size:120px">Prism</div>
+  <div class="by">by Verza</div>
+  <div class="spectrum" style="width:420px"></div>
+  <div class="tag">Keep your social humming.</div>
+  <div class="cta">Start your 7-day free trial</div>
+  <div class="url2">app.tryverza.com/prism</div>
+</section>
+
+<script>
+const q = new URLSearchParams(location.search);
+const id = q.get("card") || "title";
+const stage = Number(q.get("stage") || 99);
+const card = document.getElementById(id);
+card.classList.add("on");
+if (id === "title-overlay") document.body.style.background = "transparent";
+
+const tpl = document.getElementById("side");
+card.querySelectorAll(".win").forEach((w) => {
+  const s = tpl.content.cloneNode(true);
+  const k = w.dataset.nav;
+  s.querySelectorAll(".nav.sub").forEach((n) => n.dataset.k === k && n.classList.add("on"));
+  w.prepend(s);
+});
+
+// Calendar: October 2026 starts on a Thursday.
+const cal = document.getElementById("cal");
+if (cal && id === "02-calendar") {
+  ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach((d) => cal.insertAdjacentHTML("beforeend", `<div class="dow">${d}</div>`));
+  const P = {
+    1: [["li","Why we bill weekly"]], 2: [["x","Cash-flow myth #1"]], 5: [["li","Closing the month in 1 hr"],["ig","Behind the build"]],
+    6: [["x","Invoices, explained"]], 7: [["tt","Founder day in 30s"]], 8: [["li","Customer: Atlas Agency"]], 9: [["x","Late payers: a thread"]],
+    12: [["li","What I'd tell year-1 me"],["x","Reconcile in 3 clicks"]], 13: [["ig","Cash-flow carousel"]], 14: [["tt","Ledgerly vs. spreadsheets"]],
+    15: [["li","Hiring our 1st engineer"]], 16: [["x","Friday numbers"]], 19: [["li","Pricing lessons"],["ig","Team photo"]], 20: [["x","Q4 tax checklist"]],
+    21: [["tt","Month-end in 60s"]], 22: [["li","Customer: Pine & Co"]], 23: [["x","Shipped: auto-match"]], 26: [["li","A hard month"],["x","AMA Friday"]],
+    27: [["ig","Product tour"]], 28: [["tt","Bookkeeping myths"]], 29: [["li","November roadmap"]], 30: [["x","Thank you, 1,000 users"]],
+  };
+  const stageDays = { 1: 9, 2: 23, 3: 99 };
+  const upto = stageDays[Math.min(stage, 3)] ?? 99;
+  const label = { li: "in", x: "X", ig: "◎", tt: "♪" };
+  for (let i = 0; i < 3; i++) cal.insertAdjacentHTML("beforeend", `<div class="day"><span class="dn" style="opacity:.35">${28 + i}</span></div>`);
+  for (let d = 1; d <= 31; d++) {
+    const posts = (P[d] || []).filter(() => d <= upto)
+      .map(([c, t]) => `<div class="post ${stage >= 2 && d > 9 && d <= upto ? "new" : ""}"><span class="ch ${c}">${label[c]}</span>${t}</div>`).join("");
+    cal.insertAdjacentHTML("beforeend", `<div class="day"><span class="dn">${d}</span>${posts}</div>`);
+  }
+  for (let i = 1; i <= 1; i++) cal.insertAdjacentHTML("beforeend", `<div class="day"><span class="dn" style="opacity:.35">${i}</span></div>`);
+}
+
+// Stages: elements with data-stage show only at or above that stage; stage-1 placeholders hide later.
+card.querySelectorAll("[data-stage]").forEach((el) => {
+  const s = Number(el.dataset.stage);
+  const isPlaceholder = el.querySelector(".shimmer") || el.classList.contains("rev");
+  if (isPlaceholder ? stage !== s && stage > s : stage < s) el.style.display = "none";
+});
+const reelImg = q.get("reel");
+if (reelImg) {
+  const screen = document.getElementById("reel-screen");
+  screen.style.backgroundImage = `linear-gradient(180deg,rgba(0,0,0,0) 50%,rgba(0,0,0,.6)),url(${reelImg})`;
+  screen.querySelector(".bottle").remove();
+}
+</script>
+</body>
+</html>
