@@ -1,0 +1,19 @@
+[
+  {
+    "id": "01-beach-walk",
+    "shot": "Vertical 9:16, filmed on a phone like a lifestyle creator's travel vlog. In a single continuous shot at golden hour, a slow, breezy walk along the shoreline: the camera follows a woman from behind in a loose white linen shirt and rolled cream linen trousers, barefoot, walking slowly through the shallow foam as gentle waves wash over her ankles. Her hair and shirt move in the warm breeze, the sun sits low over the ocean with soft lens flare, and the wet sand mirrors the sky. Smooth, gentle handheld gimbal movement, natural warm colors, dreamy and calm. Sound design: gentle waves, soft breeze, faint distant seagulls. No music, no dialogue, no text, no logos.",
+    "extend": "Extend this video. The scene continues in the same continuous shot: she slows down and turns slightly toward the sunset as the camera drifts past her and tilts gently up to the glowing horizon and rolling waves. Same sound: gentle waves and breeze. No music, no dialogue, no text, no logos.",
+    "music": "A 16 second breezy, sun-warmed instrumental: soft fingerpicked acoustic guitar, light shaker, mellow beach-house groove at 88 BPM, relaxed and hopeful, ending on a gentle resolved chord. No vocals.",
+    "captions": [
+      { "t": [0.6, 3.6], "text": "pov: your brand only pays creators when it works" },
+      { "t": [3.8, 6.8], "text": "no more guessing which partnerships actually sold" },
+      { "t": [7.0, 10.4], "text": "more of what works. none of what doesn't." }
+    ],
+    "end": { "t": 10.8, "headline": "Pay creators for results, not posts.", "sub": "Performance creator campaigns for brands and agencies.", "url": "tryverza.com" },
+    "stills": [
+      { "t": 1.5, "layout": "headline", "text": "Pay creators for results, not posts." },
+      { "t": 5.5, "layout": "caption", "text": "you'd never keep paying for ads that don't perform. why pay creators that way?" },
+      { "t": 13.5, "layout": "headline", "text": "Know which creators actually move product." }
+    ]
+  }
+]

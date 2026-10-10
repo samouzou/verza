@@ -65,3 +65,5 @@ Run from this folder, with `GEMINI_API_KEY` set and a `.venv` that has `google-g
 2. `generate_video.py --batch shots/jobs.json` (from the Gemini Omni skill) generates the life shots into `media/shots/`. The founder and agency shots use the calendar and approval cards as screen references.
 3. `python audio.py` generates the voiceover lines and music into `media/audio/`. Pass line ids (e.g. `v3 music`) to regenerate only those.
 4. `python edit.py` trims the shots, animates the inserts, mixes the voiceover over ducked music and writes `out/meet-prism-16x9.mp4`.
+
+**Vertical (9:16) cut.** The life shots are generated natively vertical from `shots/jobs-9x16.json` into `media/shots-9x16/`. `./render-cards-9x16.sh` renders the cards in vertical mode (`cards.html?v=1`) plus one caption image per line of `captions.tsv` (id, start, end, text). `python edit.py 9x16` builds `out/meet-prism-9x16.mp4` with the captions burned in. Cards and captions keep the top ~170px and bottom ~420px clear for TikTok and Reels buttons.

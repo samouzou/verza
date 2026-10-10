@@ -1,11 +1,31 @@
-"""Assembles the Meet Prism film: life shots + animated card inserts + VO + music -> out/meet-prism-16x9.mp4."""
+"""Assembles the Meet Prism film: life shots + animated card inserts + VO + music.
+
+    python edit.py          -> out/meet-prism-16x9.mp4
+    python edit.py 9x16     -> out/meet-prism-9x16.mp4 (vertical shots, vertical cards, burned-in captions)
+"""
 import json
 import pathlib
 import subprocess
+import sys
+
+FORMATS = {
+    "16x9": {"size": (1920, 1080), "card": (3840, 2160), "cards": "cards", "shots": "shots", "captions": False,
+             # shot start offsets (seconds into each generated clip)
+             "trim": {"c": 3.3, "d": 3.0, "e": 3.2, "f": 2.4, "g": 0.8}},
+    "9x16": {"size": (1080, 1920), "card": (2160, 3840), "cards": "cards-9x16", "shots": "shots-9x16", "captions": True,
+             "trim": {"c": 3.3, "d": 3.0, "e": 3.2, "f": 2.4, "g": 0.8}},
+}
+FMT_ID = sys.argv[1] if len(sys.argv) > 1 else "16x9"
+FMT = FORMATS[FMT_ID]
+W, H = FMT["size"]
+CW, CH = FMT["card"]
+TRIM = FMT["trim"]
 
 ROOT = pathlib.Path(__file__).parent
 M = ROOT / "media"
-SEG = M / "segments"
+CARDS = M / FMT["cards"]
+SHOTS = M / FMT["shots"]
+SEG = M / f"segments-{FMT_ID}"
 OUT = ROOT / "out"
 SEG.mkdir(parents=True, exist_ok=True)
 OUT.mkdir(exist_ok=True)
@@ -20,15 +40,15 @@ def ff(*args):
 def life(name, src, start, dur, overlay=None):
     """Trim a generated shot to dur seconds, drop its audio, optionally composite a PNG overlay that fades in."""
     out = SEG / f"{name}.mp4"
-    base = f"[0:v]trim=start={start}:duration={dur},setpts=PTS-STARTPTS,scale=1920:1080,fps={FPS}"
+    base = f"[0:v]trim=start={start}:duration={dur},setpts=PTS-STARTPTS,scale={W}:{H},fps={FPS}"
     if overlay:
         png, t_in = overlay
-        fc = (f"{base}[v];[1:v]scale=1920:1080,format=rgba,fade=in:st={t_in}:d=0.6:alpha=1[o];"
+        fc = (f"{base}[v];[1:v]scale={W}:{H},format=rgba,fade=in:st={t_in}:d=0.6:alpha=1[o];"
               f"[v][o]overlay=0:0:shortest=1,format=yuv420p")
-        ff("-i", str(M / "shots" / src), "-loop", "1", "-t", str(dur), "-i", str(M / "cards" / png),
+        ff("-i", str(SHOTS / src), "-loop", "1", "-t", str(dur), "-i", str(CARDS / png),
            "-filter_complex", fc, "-an", *VENC, str(out))
     else:
-        ff("-i", str(M / "shots" / src), "-vf", base, "-an", *VENC, str(out))
+        ff("-i", str(SHOTS / src), "-vf", base, "-an", *VENC, str(out))
     return out
 
 
@@ -38,16 +58,16 @@ def insert(name, stages, zoom=0.05, xf=0.35):
     total = sum(d for _, d in stages) - xf * (len(stages) - 1)
     inputs, chain = [], []
     for i, (png, d) in enumerate(stages):
-        inputs += ["-loop", "1", "-t", str(d), "-framerate", str(FPS), "-i", str(M / "cards" / png)]
-        chain.append(f"[{i}:v]scale=3840:2160,format=yuv420p,setsar=1[s{i}]")
+        inputs += ["-loop", "1", "-t", str(d), "-framerate", str(FPS), "-i", str(CARDS / png)]
+        chain.append(f"[{i}:v]scale={CW}:{CH},format=yuv420p,setsar=1[s{i}]")
     last, offset = "s0", 0.0
     for i in range(1, len(stages)):
         offset += stages[i - 1][1] - xf
         chain.append(f"[{last}][s{i}]xfade=transition=fade:duration={xf}:offset={offset:.3f}[x{i}]")
         last = f"x{i}"
     chain.append(
-        f"[{last}]scale=w='trunc(3840*(1+{zoom}*t/{total:.3f})/2)*2':h=-2:eval=frame,"
-        f"crop=3840:2160,scale=1920:1080:flags=lanczos,fps={FPS},trim=duration={total:.3f}[v]"
+        f"[{last}]scale=w='trunc({CW}*(1+{zoom}*t/{total:.3f})/2)*2':h=-2:eval=frame,"
+        f"crop={CW}:{CH},scale={W}:{H}:flags=lanczos,fps={FPS},trim=duration={total:.3f}[v]"
     )
     ff(*inputs, "-filter_complex", ";".join(chain), "-map", "[v]", *VENC, str(out))
     return out
@@ -55,8 +75,8 @@ def insert(name, stages, zoom=0.05, xf=0.35):
 
 def still(name, png, dur, fade_in=0.5):
     out = SEG / f"{name}.mp4"
-    ff("-loop", "1", "-t", str(dur), "-framerate", str(FPS), "-i", str(M / "cards" / png),
-       "-vf", f"scale=1920:1080:flags=lanczos,fade=in:st=0:d={fade_in}:color=white", *VENC, str(out))
+    ff("-loop", "1", "-t", str(dur), "-framerate", str(FPS), "-i", str(CARDS / png),
+       "-vf", f"scale={W}:{H}:flags=lanczos,fade=in:st=0:d={fade_in}:color=white", *VENC, str(out))
     return out
 
 
@@ -64,17 +84,17 @@ def still(name, png, dur, fade_in=0.5):
 segments = [
     life("01-hook", "a-hook.mp4", 0, 8),
     life("02-prism", "b-prism.mp4", 0, 4, overlay=("title-overlay.png", 0.7)),
-    life("03-founder", "c-founder.mp4", 3.3, 3.6),
+    life("03-founder", "c-founder.mp4", TRIM["c"], 3.6),
     insert("04-setup-cal", [("01-setup-s1.png", 1.0), ("01-setup-s2.png", 1.2),
                             ("02-calendar-s1.png", 0.9), ("02-calendar-s2.png", 0.9), ("02-calendar-s3.png", 1.25)]),
-    life("05-cafe", "d-cafe.mp4", 3.0, 3.5),
+    life("05-cafe", "d-cafe.mp4", TRIM["d"], 3.5),
     insert("06-adapt", [("03-adapt-s1.png", 1.2), ("03-adapt-s2.png", 2.65)]),
-    life("07-skincare", "e-skincare.mp4", 3.2, 3.0),
+    life("07-skincare", "e-skincare.mp4", TRIM["e"], 3.0),
     insert("08-carousel", [("04-carousel.png", 2.0)], zoom=0.06),
     insert("09-reel", [("05-reel.png", 2.0)], zoom=0.06),
-    life("10-agency", "f-agency.mp4", 2.4, 3.8),
+    life("10-agency", "f-agency.mp4", TRIM["f"], 3.8),
     insert("11-approve", [("06-approve-s1.png", 1.5), ("06-approve-s2.png", 1.85)]),
-    life("12-coach", "g-coach.mp4", 0.8, 3.0),
+    life("12-coach", "g-coach.mp4", TRIM["g"], 3.0),
     insert("13-published", [("07-published-s1.png", 0.85), ("07-published-s2.png", 0.75),
                             ("07-published-s3.png", 0.75), ("07-published-s4.png", 1.4)], xf=0.25),
     life("14-montage", "h-montage.mp4", 0, 5),
@@ -87,6 +107,18 @@ picture = SEG / "picture.mp4"
 ff("-f", "concat", "-safe", "0", "-i", str(concat), "-c", "copy", str(picture))
 length = float(subprocess.check_output(
     ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(picture)]).decode())
+
+if FMT["captions"]:
+    rows = [line.split("\t") for line in (ROOT / "captions.tsv").read_text().splitlines() if line.strip()]
+    inputs, chain, last = ["-i", str(picture)], [], "0:v"
+    for n, (cid, start, end, _) in enumerate(rows, start=1):
+        inputs += ["-loop", "1", "-t", f"{length:.2f}", "-i", str(CARDS / f"sub-{cid}.png")]
+        chain.append(f"[{n}:v]scale={W}:{H},format=rgba[c{n}]")
+        chain.append(f"[{last}][c{n}]overlay=0:0:shortest=1:enable='between(t,{start},{end})'[o{n}]")
+        last = f"o{n}"
+    captioned = SEG / "picture-captioned.mp4"
+    ff(*inputs, "-filter_complex", ";".join(chain), "-map", f"[{last}]", *VENC, str(captioned))
+    picture = captioned
 
 # Voiceover cue times, adjusted to the cut; v8 tightened slightly so it clears the end-card line.
 cues = {"v1": 0.6, "v2": 8.7, "v3": 12.3, "v4": 19.7, "v5": 26.6, "v6": 33.7, "v7": 40.4, "v8": 46.0, "v9": 51.3}
@@ -105,8 +137,9 @@ fc.append(f"[1:a]aresample=48000,atrim=0:{length:.2f},afade=t=out:st={length - 2
 fc.append("[mus][vo1]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[duck]")
 fc.append("[duck][vo2]amix=inputs=2:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]")
 
-final = OUT / "meet-prism-16x9.mp4"
+final = OUT / f"meet-prism-{FMT_ID}.mp4"
 ff(*inputs, "-filter_complex", ";".join(fc), "-map", "0:v", "-map", "[a]",
    "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", "-movflags", "+faststart", str(final))
-(OUT / "timeline.json").write_text(json.dumps({"length": length, "segments": [p.name for p in segments], "cues": cues}, indent=2))
+(OUT / f"timeline-{FMT_ID}.json").write_text(
+    json.dumps({"length": length, "segments": [p.name for p in segments], "cues": cues}, indent=2))
 print(final, f"{length:.2f}s")

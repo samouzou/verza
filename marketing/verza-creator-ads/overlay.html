@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+@font-face { font-family: Geist; src: url(assets/geist.woff2) format("woff2"); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: transparent; font-family: Geist, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+/* Creator-style caption: white boxes hugging each line, like native on-video text. Kept between y≈900 and 1400 (clear of platform UI). */
+.cap { position: absolute; left: 90px; right: 90px; top: 1060px; text-align: center; text-wrap: balance; }
+.cap span { display: inline; font-size: 58px; line-height: 1.42; font-weight: 640; letter-spacing: -.01em; color: #111;
+  background: #fff; padding: 6px 20px; border-radius: 14px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.cap.soft span { background: none; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.4); padding: 0; }
+.cap.top { top: 330px; }
+
+/* End tag over the footage */
+.end { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(4,16,12,.62) 62%, rgba(4,16,12,.72) 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1010px; gap: 26px; color: #fff; text-align: center; }
+.brand { display: flex; align-items: center; gap: 18px; font-size: 54px; font-weight: 680; letter-spacing: -.02em; }
+.brand img { width: 74px; }
+.headline { font-size: 70px; line-height: 1.08; font-weight: 720; letter-spacing: -.03em; max-width: 900px; text-wrap: balance; }
+.sub { font-size: 36px; font-weight: 500; opacity: .9; max-width: 860px; line-height: 1.3; text-wrap: balance; }
+/* Stills (4:5 feed posts, 1080x1350): a frame from the footage with one statement and a small brand mark */
+body.still { width: 1080px; height: 1350px; background: #000 center / cover no-repeat; }
+.still .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,16,12,.55) 0%, rgba(4,16,12,0) 42%, rgba(4,16,12,0) 62%, rgba(4,16,12,.6) 100%); }
+.still .h { position: absolute; left: 80px; right: 80px; top: 110px; color: #fff; font-size: 84px; line-height: 1.04; font-weight: 720;
+  letter-spacing: -.035em; text-wrap: balance; text-shadow: 0 4px 30px rgba(0,0,0,.25); }
+.still .cap { top: auto; bottom: 230px; left: 70px; right: 70px; }
+.still .cap span { font-size: 50px; }
+.still .mark { position: absolute; left: 80px; right: 80px; bottom: 70px; display: flex; align-items: center; justify-content: space-between; color: #fff; }
+.still .mark .brand { font-size: 40px; gap: 14px; } .still .mark .brand img { width: 54px; }
+.still .mark .u { font-size: 30px; font-weight: 600; opacity: .92; }
+.url { margin-top: 8px; font-size: 34px; font-weight: 650; padding: 16px 34px; border-radius: 999px; background: #0E7C5A; box-shadow: 0 14px 30px -10px rgba(14,124,90,.7); }
+</style>
+</head>
+<body>
+<script>
+const q = new URLSearchParams(location.search);
+if (q.get("kind") === "still") {
+  document.body.className = "still";
+  document.body.style.backgroundImage = `url(${q.get("bg")})`;
+  const caption = q.get("layout") === "caption";
+  document.body.innerHTML = `<div class="shade"></div>
+    ${caption ? '<div class="cap"><span></span></div>' : '<div class="h"></div>'}
+    <div class="mark"><div class="brand"><img src="assets/verza-icon.svg" alt="" />Verza</div><div class="u">tryverza.com</div></div>`;
+  document.querySelector(caption ? ".cap span" : ".h").textContent = q.get("text") || "";
+} else if (q.get("kind") === "end") {
+  document.body.innerHTML = `<div class="end">
+    <div class="brand"><img src="assets/verza-icon.svg" alt="" />Verza</div>
+    <div class="headline"></div><div class="sub"></div><div class="url"></div></div>`;
+  document.querySelector(".headline").textContent = q.get("headline") || "";
+  document.querySelector(".sub").textContent = q.get("sub") || "";
+  document.querySelector(".url").textContent = q.get("url") || "tryverza.com";
+  if (!q.get("sub")) document.querySelector(".sub").remove();
+} else {
+  const d = document.createElement("div");
+  d.className = `cap ${q.get("style") || ""} ${q.get("pos") || ""}`;
+  const s = document.createElement("span");
+  s.textContent = q.get("text") || "";
+  d.appendChild(s);
+  document.body.appendChild(d);
+}
+</script>
+</body>
+</html>

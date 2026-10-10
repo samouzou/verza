@@ -147,6 +147,70 @@ h1 { font-size: 40px; font-weight: 680; letter-spacing: -.02em; }
 .url2 { font-size: 30px; color: var(--muted); font-weight: 550; }
 .by { font-size: 30px; color: var(--muted); font-weight: 550; margin-top: -10px; }
 .stage-hide { visibility: hidden; }
+
+/* Vertical (9:16): 720x1280 CSS px, rendered at 3x. Top ~120px and bottom ~360px stay clear for platform UI and captions. */
+body.v, html:has(body.v) { width: 720px; height: 1280px; }
+.v .card { width: 720px; height: 1280px; padding: 118px 26px 380px; flex-direction: column; }
+.v .side { display: none; }
+.v .win { border-radius: 20px; }
+.v .main { padding: 24px 22px; gap: 16px; }
+.v .head { flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.v .head > div:last-child, .v .head > .btn, .v .head > .badge { flex-shrink: 0; }
+.v h1 { font-size: 32px; }
+.v .sub-t { font-size: 15px; }
+.v .btn { padding: 9px 14px; font-size: 14px; }
+.v .panel { padding: 16px; }
+.v .grid2 { grid-template-columns: 1fr; gap: 14px; }
+.v .para { font-size: 16px; }
+.v .pill { padding: 9px 12px; font-size: 15px; margin-bottom: 7px; }
+.v .input { font-size: 17px; padding: 12px 14px; }
+.v .chrow { padding: 8px 0; font-size: 15px; }
+.v [id="01-setup"] .panel:first-child .lbl[style], .v [id="01-setup"] .lbl[style] + .para { display: none; }
+.v .cal .dow { padding: 8px 6px; font-size: 11px; }
+.v .day { padding: 5px; gap: 4px; }
+.v .dn { font-size: 11px; }
+.v .post { padding: 4px; font-size: 0; gap: 0; justify-content: center; }
+.v .post .ch { width: 20px; height: 20px; font-size: 11px; }
+.v .toast { left: 50%; right: auto; transform: translateX(-50%); bottom: 400px; font-size: 16px; padding: 14px 18px; white-space: nowrap; }
+.v .idea { font-size: 19px; padding: 16px 18px; }
+.v .three { grid-template-columns: 1fr; gap: 12px; }
+.v .variant { padding: 14px 16px; gap: 8px; }
+.v .vh { font-size: 16px; }
+.v .three .vt { font-size: 14.5px; line-height: 1.45; }
+.v .latte { display: none; }
+.v .slides { zoom: .56; gap: 0; }
+.v .slide { margin: 0 -14px; }
+.v .reelwrap { flex-direction: column; gap: 16px; }
+.v .phone { zoom: .62; }
+.v .meta { width: 100%; gap: 10px; }
+.v .meta > .lbl, .v .meta > .para { display: none; }
+.v .meta .row { font-size: 16px; }
+.v .qi { flex-wrap: wrap; padding: 14px; gap: 12px; font-size: 16px; }
+.v .qi .thumb { width: 48px; height: 48px; }
+.v .qi .r { margin-left: 60px; }
+.v .qi:not(.focus) .r { margin-left: auto; }
+.v .qi:not(.focus) .m { display: none; }
+.v .comment { font-size: 15px; padding: 12px 14px; }
+.v .pubwrap { grid-template-columns: 1fr; gap: 14px; align-items: start; }
+.v .pcard { padding: 16px; gap: 8px; }
+.v .pcard .b { font-size: 15px; }
+.v .pcard .t { font-size: 20px; }
+.v .gym { height: 150px; }
+.v .gym::after { font-size: 24px; }
+.v .notes { gap: 8px; }
+.v .note { padding: 10px 14px; font-size: 16px; }
+.v .center { padding: 120px 40px 380px; }
+.v .big { font-size: 92px; }
+.v .mark { width: 84px; }
+.v .spectrum { width: 320px !important; }
+.v .tag { font-size: 30px; }
+.v .cta { font-size: 21px; padding: 16px 26px; }
+.v .url2, .v .by { font-size: 20px; }
+
+/* Burned-in caption (vertical only) */
+#sub { justify-content: center; align-items: flex-start; padding: 0 40px; }
+#sub .line { margin-top: 935px; max-width: 620px; text-align: center; text-wrap: balance; font-size: 34px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; color: #fff;
+  background: rgba(10,22,18,.72); padding: 12px 20px; border-radius: 16px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 </style>
 </head>
 <body>
@@ -303,6 +367,9 @@ first 50 cups get a free maple scone. you know what to do.</div>
   <div class="spectrum"></div>
 </section>
 
+<!-- Caption line, text from ?text= -->
+<section class="card" id="sub"><div class="line"></div></section>
+
 <!-- End -->
 <section class="card center" id="end">
   <img class="mark" src="assets/verza-icon.svg" alt="" />
@@ -320,7 +387,9 @@ const id = q.get("card") || "title";
 const stage = Number(q.get("stage") || 99);
 const card = document.getElementById(id);
 card.classList.add("on");
-if (id === "title-overlay") document.body.style.background = "transparent";
+if (q.get("v")) document.body.classList.add("v");
+if (id === "title-overlay" || id === "sub") document.body.style.background = "transparent";
+if (id === "sub") card.querySelector(".line").textContent = q.get("text") || "";
 
 const tpl = document.getElementById("side");
 card.querySelectorAll(".win").forEach((w) => {
