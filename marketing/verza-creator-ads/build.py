@@ -2,9 +2,11 @@
 
     python build.py                 # every variant
     python build.py 01-beach-walk   # only these ids
+    python build.py variants-consult.json [ids]   # another variants file
 
 Shots and music are cached in media/<id>/, so re-running after editing captions or the end line only
-re-renders the overlays and the edit. Delete a variant's shot.mp4 / music.mp3 to regenerate them. Needs GEMINI_API_KEY.
+re-renders the overlays and the edit. Delete a variant's shot.mp4 / music.mp3 to regenerate them. Needs GEMINI_API_KEY; variants with
+"engine": "veo" generate their shot with Veo on Vertex and also need an active `gcloud auth login`.
 """
 import base64
 import concurrent.futures as cf
@@ -42,31 +44,108 @@ def omni(prompt, out, seconds, previous=None):
            "--duration", str(seconds), "--output", str(out), "--timeout", "900"]
     if previous:
         cmd += ["--previous-interaction-id", previous]
-    log = run(cmd, cwd=ROOT)
+    for attempt in range(3):
+        try:
+            log = run(cmd, cwd=ROOT, timeout=300)
+            break
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            if attempt == 2:
+                raise
     m = re.search(r"Interaction ID: (\S+)", log)
     return m.group(1) if m else None
 
 
+VEO_MODEL = "veo-3.1-generate-001"
+VEO_PROJECT = "verza-canvas"
+
+
+def veo(prompt, out, seconds=10):
+    """8s Veo 3.1 shot on Vertex (the active gcloud login), eased into `seconds` of slow motion."""
+    import time
+
+    from google.genai import types
+    from google.oauth2.credentials import Credentials
+
+    creds = Credentials(run(["gcloud", "auth", "print-access-token"]).strip())
+    client = genai.Client(vertexai=True, project=VEO_PROJECT, location="global", credentials=creds,
+                          http_options={"timeout": 120_000})
+    raw = out.with_name(out.stem + "-veo.mp4")
+    if not raw.exists():
+        op = client.models.generate_videos(
+            model=VEO_MODEL, source=types.GenerateVideosSource(prompt=prompt),
+            config=types.GenerateVideosConfig(aspect_ratio="9:16", resolution="1080p", duration_seconds=8,
+                                              number_of_videos=1, generate_audio=True))
+        start = time.time()
+        while not op.done:
+            if time.time() - start > 900:
+                raise TimeoutError(f"Veo still running after 15 min: {out}")
+            time.sleep(15)
+            op = client.operations.get(op)
+        if op.error or not op.response or not op.response.generated_videos:
+            raise RuntimeError(f"Veo failed: {op.error or op.response}")
+        raw.write_bytes(op.response.generated_videos[0].video.video_bytes)
+    k = seconds / duration(raw)
+    ff("-i", str(raw), "-filter_complex",
+       f"[0:v]setpts={k:.4f}*PTS,minterpolate=fps={FPS}:mi_mode=blend[v];[0:a]atempo={1 / k:.4f}[a]",
+       "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p",
+       "-c:a", "aac", "-b:a", "192k", str(out))
+
+
+EXTEND_PREFIX = "Extend this video. The scene continues in the same continuous shot:"
+
+
 def shot(v, d):
-    base, ext = d / "shot.mp4", d / "shot-ext.mp4"
-    if not base.exists():
-        iid = omni(v["shot"], base, v.get("seconds", 10))
-        (d / "interaction.txt").write_text(iid or "")
-    if v.get("extend") and not ext.exists():
-        iid = (d / "interaction.txt").read_text().strip()
-        omni(v["extend"], ext, v.get("extend_seconds", 5), previous=iid)
-    return ext if ext.exists() else base
+    """10s main shot plus a 5s closing shot of the same scene, joined with a short crossfade.
+
+    A true continuation (previous_interaction_id) stalls under load, so the closer is a fresh generation;
+    an existing shot-ext.mp4 from a continuation is still used if present.
+    """
+    base, ext, closer, joined = d / "shot.mp4", d / "shot-ext.mp4", d / "closer.mp4", d / "shot-joined.mp4"
+    if ext.exists():
+        return ext
+    if v.get("engine") == "veo":
+        if not base.exists():
+            veo(v["shot"], base, v.get("seconds", 10))
+        return base
+    jobs = []
+    with cf.ThreadPoolExecutor(2) as pool:
+        if not base.exists():
+            jobs.append(pool.submit(omni, v["shot"], base, v.get("seconds", 10)))
+        if v.get("extend") and not closer.exists():
+            action = v["extend"].replace(EXTEND_PREFIX, "").strip()
+            scene, _, style = v["shot"].partition(" Filmed on a phone")
+            prompt = f"{scene} Closing moment: {action} Filmed on a phone{style}"
+            jobs.append(pool.submit(omni, prompt, closer, v.get("extend_seconds", 5)))
+        for j in jobs:
+            j.result()
+    if not closer.exists():
+        return base
+    if not joined.exists():
+        a = duration(base)
+        ff("-i", str(base), "-i", str(closer), "-filter_complex",
+           f"[0:v]scale={W}:{H},fps={FPS},setsar=1[a];[1:v]scale={W}:{H},fps={FPS},setsar=1[b];"
+           f"[a][b]xfade=transition=fade:duration=0.5:offset={a - 0.5:.3f}[v];"
+           f"[0:a][1:a]acrossfade=d=0.5[au]",
+           "-map", "[v]", "-map", "[au]", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "192k", str(joined))
+    return joined
 
 
 def music(v, d, client):
     out = d / "music.mp3"
-    if not out.exists():
-        r = client.interactions.create(
-            model=MUSIC_MODEL,
-            input=[{"type": "user_input", "content": [{"type": "text", "text": v["music"]}]}],
-            response_format={"type": "audio"},
-        )
-        out.write_bytes(base64.b64decode(r.output_audio.data))
+    for attempt in range(3):
+        if out.exists():
+            break
+        try:
+            r = client.interactions.create(
+                model=MUSIC_MODEL,
+                input=[{"type": "user_input", "content": [{"type": "text", "text": v["music"]}]}],
+                response_format={"type": "audio"},
+            )
+            out.write_bytes(base64.b64decode(r.output_audio.data))
+        except Exception:  # noqa: BLE001
+            if attempt == 2:
+                raise
     return out
 
 
@@ -91,6 +170,7 @@ def stills(v, d, video):
         img = png(d, f"still-{i}", {"kind": "still", "bg": frame.as_uri(), "layout": s.get("layout", "headline"),
                                     "text": s["text"]}, size=(W, 1350))
         dest = outdir / f"{v['id']}-{i + 1}.png"
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(img.read_bytes())
         made.append(dest)
     return made
@@ -126,7 +206,7 @@ def compose(v, d, video, track):
     else:
         chain.append("[m]loudnorm=I=-14:TP=-1.5[a]")
     out = ROOT / "out" / f"{v['id']}.mp4"
-    out.parent.mkdir(exist_ok=True)
+    out.parent.mkdir(parents=True, exist_ok=True)
     ff(*inputs, "-filter_complex", ";".join(chain), "-map", f"[{last}]", "-map", "[a]", "-t", f"{length:.2f}",
        "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS),
        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out))
@@ -146,9 +226,12 @@ def build(v, client):
 
 def main():
     args = sys.argv[1:]
-    variants = [v for v in json.loads((ROOT / "variants.json").read_text()) if not args or v["id"] in args]
-    client = genai.Client()
-    with cf.ThreadPoolExecutor(3) as pool:
+    source = "variants.json"
+    if args and args[0].endswith(".json"):
+        source, args = args[0], args[1:]
+    variants = [v for v in json.loads((ROOT / source).read_text()) if not args or v["id"] in args]
+    client = genai.Client(http_options={"timeout": 180_000})
+    with cf.ThreadPoolExecutor(2) as pool:
         futures = {pool.submit(build, v, client): v["id"] for v in variants}
         for f in cf.as_completed(futures):
             try:

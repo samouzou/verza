@@ -115,6 +115,59 @@ export async function finish(o: {video: string; voice: string | null; dest: stri
 }
 
 /**
+ * Grabs the frame at a timestamp as a PNG.
+ * @param {string} video Video.
+ * @param {number} at Seconds.
+ * @param {string} dest PNG path.
+ * @return {!Promise<void>}
+ */
+export async function frameAt(video: string, at: number, dest: string): Promise<void> {
+  await run(FFMPEG, ["-y", "-v", "error", "-ss", at.toFixed(3), "-i", video, "-frames:v", "1", dest]);
+}
+
+/**
+ * Encodes a numbered JPEG sequence (frame-0000.jpg, …) into a silent clip.
+ * @param {string} dir Folder with the frames.
+ * @param {number} fps Frame rate.
+ * @param {string} dest Output.
+ * @return {!Promise<void>}
+ */
+export async function encodeFrames(dir: string, fps: number, dest: string): Promise<void> {
+  await run(FFMPEG, [
+    "-y", "-v", "error", "-framerate", String(fps), "-i", `${dir}/frame-%04d.jpg`,
+    "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", dest,
+  ]);
+}
+
+/**
+ * Lays silent clips over a video at given start times with short fades, keeping the video's own audio.
+ * @param {string} video Base video (1080x1920).
+ * @param {!Array<{file: string, start: number}>} clips Clips to lay over, same size as the video.
+ * @param {string} dest Output.
+ * @return {!Promise<void>}
+ */
+export async function overlayClips(video: string, clips: {file: string; start: number}[], dest: string): Promise<void> {
+  const inputs = ["-i", video, ...clips.flatMap((c) => ["-i", c.file])];
+  const chain: string[] = [];
+  let last = "0:v";
+  for (const [i, c] of clips.entries()) {
+    const len = await duration(c.file);
+    const fade = Math.min(0.25, len / 4);
+    chain.push(
+      `[${i + 1}:v]format=yuva420p,fade=t=in:st=0:d=${fade.toFixed(2)}:alpha=1,` +
+      `fade=t=out:st=${(len - fade).toFixed(3)}:d=${fade.toFixed(2)}:alpha=1,` +
+      `setpts=PTS-STARTPTS+${c.start.toFixed(3)}/TB[o${i}]`,
+      `[${last}][o${i}]overlay=0:0:eof_action=pass[v${i}]`
+    );
+    last = `v${i}`;
+  }
+  await run(FFMPEG, [
+    "-y", "-v", "error", ...inputs, "-filter_complex", chain.join(";"),
+    "-map", `[${last}]`, "-map", "0:a:0?", ...VIDEO_OUT, "-c:a", "copy", dest,
+  ]);
+}
+
+/**
  * Grabs one frame as a JPEG cover.
  * @param {string} video Video.
  * @param {string} dest JPEG path.

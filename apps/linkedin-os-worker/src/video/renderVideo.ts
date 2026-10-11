@@ -4,9 +4,10 @@ import {join} from "node:path";
 import sharp from "sharp";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
 
-import {findProduct, loadWorkerBrand} from "../brand";
+import {findProduct, loadWorkerBrand, type WorkerProduct} from "../brand";
 import {getDefaultBucket} from "../firebaseAdmin";
 import {concat, cover, cut, duration, finish} from "./ffmpeg";
+import {addInserts, loadInsertImages} from "./inserts";
 import {extend, generateFirst, OmniError, type RefImage} from "./omni";
 import {planVideo} from "./plan";
 import {speak} from "./voiceover";
@@ -14,6 +15,7 @@ import {speak} from "./voiceover";
 const db = getFirestore();
 const VIDEO_FORMATS = new Set(["ig_reel", "tiktok_video"]);
 const MAX_REFS = 3;
+const MAX_INSERT_IMAGES = 4;
 const SEGMENT_SECONDS = 10;
 const LABELS: Record<string, string> = {instagram: "Instagram", tiktok: "TikTok"};
 
@@ -52,6 +54,17 @@ async function loadRefs(urls: string[]): Promise<RefImage[]> {
 }
 
 /**
+ * Images an insert can show: the featured product's, or else the main image of the first catalog items.
+ * @param {!Array<WorkerProduct>} catalog Catalog.
+ * @param {?WorkerProduct} product Featured product.
+ * @return {!Array<{name: string, url: string}>} Images with their product name.
+ */
+function insertCandidates(catalog: WorkerProduct[], product: WorkerProduct | null): {name: string; url: string}[] {
+  if (product?.images.length) return product.images.slice(0, MAX_INSERT_IMAGES).map((url) => ({name: product.name, url}));
+  return catalog.filter((p) => p.images.length).slice(0, MAX_INSERT_IMAGES).map((p) => ({name: p.name, url: p.images[0]!}));
+}
+
+/**
  * Renders a Reel or TikTok video for a prism_video_jobs doc: plans 10-second segments from the script, generates the
  * first with Omni, extends it 10 seconds at a time, adds a voiceover, and attaches the MP4 and cover to the post.
  * Credits were taken when the job was created; marking the job failed gives them back.
@@ -83,7 +96,10 @@ export async function renderPrismVideo(jobId: string): Promise<void> {
 
     const brand = await loadWorkerBrand(agencyId);
     const product = findProduct(brand.catalog, post.productId);
-    const refs = product ? await loadRefs(product.images) : [];
+    const software = brand.category === "saas" || brand.category === "app";
+    const refs = product && !software ? await loadRefs(product.images) : [];
+    const insertImages = await loadInsertImages(
+      insertCandidates(brand.catalog, product), software ? "screenshot" : "photo");
     const plan = await planVideo({
       script,
       platform: channel === "tiktok" ? "TikTok" : "Instagram Reel",
@@ -92,6 +108,7 @@ export async function renderPrismVideo(jobId: string): Promise<void> {
       bannedClaims: brand.bannedClaims,
       product: refs.length && product ? product.name : null,
       refCount: refs.length,
+      images: insertImages.map(({name, kind, aspect}) => ({name, kind, aspect})),
     });
 
     const total = plan.segments.length;
@@ -129,6 +146,16 @@ export async function renderPrismVideo(jobId: string): Promise<void> {
     if (normalized.length > 1) {
       joined = join(dir, "joined.mp4");
       await concat(normalized, joined);
+    }
+    if (plan.inserts.length) {
+      await progress("assembling", "Adding product shots");
+      joined = await addInserts({
+        video: joined, beats: plan.inserts, images: insertImages,
+        accent: brand.theme.accentFrom, host: brand.theme.footer.replace(/^https?:\/\//, ""), dir,
+      }).catch((e) => {
+        console.warn("[prism-video] inserts skipped", {jobId, error: e instanceof Error ? e.message : String(e)});
+        return joined;
+      });
     }
     let voice: string | null = null;
     if (plan.voiceover) {

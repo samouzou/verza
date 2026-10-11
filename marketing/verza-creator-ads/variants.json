@@ -5,15 +5,671 @@
     "extend": "Extend this video. The scene continues in the same continuous shot: she slows down and turns slightly toward the sunset as the camera drifts past her and tilts gently up to the glowing horizon and rolling waves. Same sound: gentle waves and breeze. No music, no dialogue, no text, no logos.",
     "music": "A 16 second breezy, sun-warmed instrumental: soft fingerpicked acoustic guitar, light shaker, mellow beach-house groove at 88 BPM, relaxed and hopeful, ending on a gentle resolved chord. No vocals.",
     "captions": [
-      { "t": [0.6, 3.6], "text": "pov: your brand only pays creators when it works" },
-      { "t": [3.8, 6.8], "text": "no more guessing which partnerships actually sold" },
-      { "t": [7.0, 10.4], "text": "more of what works. none of what doesn't." }
+      {
+        "t": [
+          0.6,
+          3.6
+        ],
+        "text": "pov: your brand only pays creators when it works"
+      },
+      {
+        "t": [
+          3.8,
+          6.8
+        ],
+        "text": "no more guessing which partnerships actually sold"
+      },
+      {
+        "t": [
+          7.0,
+          10.4
+        ],
+        "text": "more of what works. none of what doesn't."
+      }
     ],
-    "end": { "t": 10.8, "headline": "Pay creators for results, not posts.", "sub": "Performance creator campaigns for brands and agencies.", "url": "tryverza.com" },
+    "end": {
+      "t": 10.8,
+      "headline": "Pay creators for results, not posts.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
     "stills": [
-      { "t": 1.5, "layout": "headline", "text": "Pay creators for results, not posts." },
-      { "t": 5.5, "layout": "caption", "text": "you'd never keep paying for ads that don't perform. why pay creators that way?" },
-      { "t": 13.5, "layout": "headline", "text": "Know which creators actually move product." }
+      {
+        "t": 1.5,
+        "layout": "headline",
+        "text": "Pay creators for results, not posts."
+      },
+      {
+        "t": 5.5,
+        "layout": "caption",
+        "text": "you'd never keep paying for ads that don't perform. why pay creators that way?"
+      },
+      {
+        "t": 13.5,
+        "layout": "headline",
+        "text": "Know which creators actually move product."
+      }
     ]
+  },
+  {
+    "id": "02-pour-over",
+    "shot": "Vertical 9:16. In a single continuous shot, early morning in a sunlit minimalist kitchen, close on hands slowly pouring hot water from a gooseneck kettle over a pour-over coffee dripper; steam curls up through a beam of window light, the coffee blooms, a ceramic mug waits on a linen cloth beside a small plant. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft kettle pour, gentle drip, quiet morning birdsong through the window. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second warm lo-fi morning instrumental: mellow Rhodes chords, soft vinyl crackle, brushed drums at 80 BPM, cozy and unhurried, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: you finally know which creator sold out your launch"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "not the one with the most views. the one that actually sold."
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "so next month's budget goes to them"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Know which creators actually sell.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Know which creators actually sell."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "the most views isn't always the most sales"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Fund the creators who perform."
+      }
+    ]
+  },
+  {
+    "id": "03-vanity-grwm",
+    "shot": "Vertical 9:16. In a single continuous shot, a get-ready-with-me moment at a bright vanity by a window with sheer curtains: a woman in her 20s with a silk scrunchie and an oversized cream sweater gently pats serum onto her cheek, then picks up a glass dropper bottle and turns it in the soft morning light; dried flowers and skincare bottles on the vanity. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft room tone, the gentle clink of a glass bottle, faint birds outside. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second dreamy, airy pop instrumental: soft synth pads, plucked harp-like arpeggios, light finger snaps at 92 BPM, fresh and feminine, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: you stopped guessing which creator worked"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "every partnership comes with real results"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "so you know who to book again"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Stop guessing which creator worked.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.5,
+        "layout": "headline",
+        "text": "Stop guessing which creator worked."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "results you can see, creator by creator"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Book again the creators who delivered."
+      }
+    ]
+  },
+  {
+    "id": "04-sunrise-hike",
+    "shot": "Vertical 9:16. In a single continuous shot, a hiker in a rust-colored fleece and a small backpack walks slowly up a grassy mountain ridge at sunrise, filmed from behind; a sea of mist fills the valleys below, golden light rakes across the hills and catches the tall grass moving in the wind. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft wind across the ridge, footsteps on gravel, a distant bird call. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second uplifting cinematic instrumental: soft piano, warm swelling strings, light pulse at 96 BPM, hopeful and expansive, resolving at the end. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: you skipped the flat fee"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "your creators earn as the results come in"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "and your budget only moves when something does"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Pay as results come in.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 3.0,
+        "layout": "headline",
+        "text": "Skip the flat fee. Pay as results come in."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "your budget only moves when something does"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Creator campaigns that pay for performance."
+      }
+    ]
+  },
+  {
+    "id": "05-rooftop-golden",
+    "shot": "Vertical 9:16. In a single continuous shot, on a city rooftop at golden hour, a stylish man in his 30s in a relaxed linen shirt leans on the railing with an iced coffee, the skyline glowing behind him, string lights above and potted olive trees around; the breeze moves his shirt as he looks out over the city. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft city hum far below, a light breeze, ice clinking in a glass. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second smooth, sunset city instrumental: warm bass, soft electric guitar licks, laid-back house groove at 110 BPM, confident and easy, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: every creator's results, in one view"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "who drove clicks. who drove sales. who didn't."
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "decisions in minutes, not month-end"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Every creator's results, in one view.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Every creator's results, in one view."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "who drove clicks. who drove sales. who didn't."
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Decide in minutes, not at month-end."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "06-fresh-pasta",
+    "shot": "Vertical 9:16. In a single continuous shot, close on flour-dusted hands making fresh pasta on a wooden table in a rustic sunlit kitchen: they fold and cut ribbons of tagliatelle, lift them and let them fall in soft nests; a basil plant, a bowl of eggs and an old marble rolling pin in warm window light. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: the soft thud of dough, a knife on wood, quiet kitchen ambience. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second warm Italian-café instrumental: nylon-string guitar, light mandolin, soft upright bass at 100 BPM, charming and sunny, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: your creator content shows up in your sales"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "not just likes. orders."
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "and you can see exactly which creators drove them"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Creator content that shows up in sales.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Creator content that shows up in your sales."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "not just likes. orders."
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "See which creators drive orders."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "07-surf-dawn",
+    "shot": "Vertical 9:16. In a single continuous shot, at dawn a surfer in a black wetsuit paddles out on a longboard through calm, glassy water toward small rolling waves; pastel pink and blue sky reflected in the sea, spray glittering in the first light, filmed from just behind and above the water. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: gentle paddling splashes, soft waves breaking, quiet open ocean. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second calm, airy indie instrumental: reverb-soaked guitar, soft synth pad, slow steady beat at 84 BPM, serene and hopeful, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: the creators you work with actually fit your brand"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "found in minutes, not weeks of scrolling"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "and judged on what they deliver"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Find creators who fit. Pay for what works.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.5,
+        "layout": "headline",
+        "text": "Find creators who actually fit your brand."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "found in minutes, not weeks of scrolling"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Find creators who fit. Pay for what works."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "08-van-road-trip",
+    "shot": "Vertical 9:16. In a single continuous shot, on a road trip, filmed from the passenger seat of a vintage camper van driving along a coastal highway at golden hour: a hand rests out the open window riding the breeze, sunlight flickering through, the ocean and cliffs rolling by outside. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: warm wind through the window, the soft rumble of the road. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second carefree road-trip instrumental: jangly acoustic and electric guitars, handclaps, warm bass at 112 BPM, sunny and free, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: your whole creator program runs from one place"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "briefs, contracts, results, payouts"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "and you're not the one chasing it all"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Your whole creator program, in one place.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Your whole creator program, in one place."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "briefs, contracts, results, payouts. handled."
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Less chasing. More results."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "09-lake-yoga",
+    "shot": "Vertical 9:16. In a single continuous shot, on a wooden dock over a still lake at sunrise, a woman in sage-green activewear flows slowly through a yoga sequence, rising from a low lunge into a tall stretch; mist drifts across the water, pine trees on the far shore, warm light behind her. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft lapping water, morning birds, a gentle breeze. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second serene ambient instrumental: warm pads, soft piano notes, gentle chimes at 72 BPM, peaceful and grounded, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: a base fee for the post"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "plus a bonus when it performs"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "creators win when you win"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "A base fee, plus a bonus when it performs.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.5,
+        "layout": "headline",
+        "text": "A base fee, plus a bonus when it performs."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "creators win when you win"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Creator deals built on performance."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "10-rainy-cafe",
+    "shot": "Vertical 9:16. In a single continuous shot, inside a cozy café on a rainy afternoon, raindrops run down the big front window with blurred city lights beyond; a barista's hands pour steamed milk into a latte, forming a leaf, and slide the cup across a wooden counter next to an open notebook. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: soft rain on glass, the hiss of a steam wand, gentle café murmur. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second mellow rainy-day jazz-hop instrumental: soft piano, brushed snare, warm upright bass at 78 BPM, cozy and reflective, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: your creator program isn't a spreadsheet anymore"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "no screenshots. no guesswork."
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "just results you can trust"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Run creators on results, not spreadsheets.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Your creator program isn't a spreadsheet anymore."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "no screenshots. no guesswork."
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Results you can trust."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "11-euro-cycling",
+    "shot": "Vertical 9:16. In a single continuous shot, riding a vintage bicycle slowly through a sunlit cobblestone street in an old European town, filmed from just behind and beside the rider: a woman in a striped shirt with flowers in the front basket, pastel buildings, café tables, warm late-afternoon light. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: bicycle tires on cobblestones, a soft bell ring, distant café chatter. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second light, charming continental instrumental: accordion, pizzicato strings, soft guitar at 104 BPM, playful and sunny, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: your creators are in 12 countries"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "and paying them is the easy part"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "so you can focus on who's performing"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Work with creators anywhere.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Work with creators anywhere."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "paying creators should be the easy part"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Focus on who's performing."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "12-pottery-wheel",
+    "shot": "Vertical 9:16. In a single continuous shot, close on clay-covered hands shaping a bowl on a spinning pottery wheel in a sunlit studio; water glistens on the clay as the walls rise smoothly, shelves of handmade ceramics and plants soft in the background. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: the soft whir of the wheel, wet clay, quiet studio ambience. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second warm, organic instrumental: soft marimba, gentle acoustic guitar, light percussion at 90 BPM, crafted and calm, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: you know which creators deliver"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "so you double down on them"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "and quietly stop paying for what doesn't work"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Double down on the creators who deliver.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Double down on the creators who deliver."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "and stop paying for what doesn't work"
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Creator campaigns that pay for performance."
+      }
+    ],
+    "engine": "veo"
+  },
+  {
+    "id": "13-flower-market",
+    "shot": "Vertical 9:16. In a single continuous shot, at an outdoor flower market in the morning, hands gather a loose bouquet of peonies, ranunculus and eucalyptus from buckets of fresh flowers, wrapping the stems in brown paper; soft sunlight through a striped awning, petals glowing. Filmed on a phone like a lifestyle creator's video: smooth, gentle handheld gimbal movement, natural colors, soft shallow depth of field, calm and beautiful. Sound design: rustling paper, soft market chatter, a light breeze. No music, no dialogue, no voiceover, no text, no captions, no logos, no brand names.",
+    "music": "A 16 second bright, fresh instrumental: plucked ukulele, glockenspiel, light claps at 100 BPM, joyful and sunny, gentle ending. No vocals.",
+    "captions": [
+      {
+        "t": [
+          0.5,
+          2.8
+        ],
+        "text": "pov: your creator budget goes where it performs"
+      },
+      {
+        "t": [
+          2.9,
+          5.2
+        ],
+        "text": "less spray and pray"
+      },
+      {
+        "t": [
+          5.3,
+          7.4
+        ],
+        "text": "more of the partnerships that actually pay off"
+      }
+    ],
+    "end": {
+      "t": 7.5,
+      "headline": "Spend your creator budget where it performs.",
+      "sub": "Performance creator campaigns for brands and agencies.",
+      "url": "tryverza.com"
+    },
+    "stills": [
+      {
+        "t": 2.0,
+        "layout": "headline",
+        "text": "Spend your creator budget where it performs."
+      },
+      {
+        "t": 6.5,
+        "layout": "caption",
+        "text": "less spray and pray. more of what pays off."
+      },
+      {
+        "t": 9.0,
+        "layout": "headline",
+        "text": "Pay creators for results, not posts."
+      }
+    ],
+    "engine": "veo"
   }
 ]

@@ -12,8 +12,11 @@ Separate **Cloud Run–style worker** from **Optic**: runs Verza company LinkedI
 6. **`/internal/render-slides`** `{postId, channel}` (same secret header) re-renders slides from a calendar post's current
    outline and stores them on that channel's variant. Called by the **`renderPrismSlides`** callable.
 7. **`/internal/render-video`** `{jobId}` renders a `prism_video_jobs` doc: Gemini shot plan, Gemini Omni 9:16 1080p
-   segments (10s, extended in 10s steps up to 40s), Gemini TTS voiceover, ffmpeg stitch, then `video.mp4` and
-   `cover.jpg` on the variant. Called by the **`renderPrismVideoTask`** Cloud Task and can run for up to ~25 minutes.
+   segments (10s, extended in 10s steps up to 40s), real catalog images cut in over the footage (screenshots in a
+   phone or browser frame for SaaS/app brands, eased in to the region the line is about with a highlight ring; product
+   photos otherwise), Gemini TTS voiceover, ffmpeg stitch, then `video.mp4` and `cover.jpg` on the variant. Called by
+   the **`renderPrismVideoTask`** Cloud Task and can run for up to ~25 minutes. Try inserts locally on any 9:16 video
+   with `scripts/try-inserts.ts`.
 
 ## Environment
 
