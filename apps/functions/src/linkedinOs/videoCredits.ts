@@ -200,6 +200,7 @@ export const createPrismVideoCreditCheckout = onCall(async (request) => {
     mode: "payment",
     customer,
     line_items: [{price: pack.priceId, quantity: 1}],
+    allow_promotion_codes: true,
     success_url: `${params.APP_URL.value()}${returnTo}${sep}video_credits=success`,
     cancel_url: `${params.APP_URL.value()}${returnTo}`,
     metadata,
@@ -219,7 +220,7 @@ export async function handlePrismVideoCreditsEvent(event: Stripe.Event): Promise
   }
   const s = event.data.object as Stripe.Checkout.Session;
   if (s.mode !== "payment" || s.metadata?.purpose !== PURPOSE) return false;
-  if (s.payment_status !== "paid") return true;
+  if (s.payment_status !== "paid" && s.payment_status !== "no_payment_required") return true;
   const agencyId = String(s.metadata.agencyId ?? "");
   const credits = Number(s.metadata.credits);
   if (!agencyId || !PRISM_VIDEO_PACKS[credits]) {
