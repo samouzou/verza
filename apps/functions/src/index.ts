@@ -118,7 +118,7 @@ import {
   syncTikTokStats,
   fetchYouTubeVideoStats,
 } from "./social";
-import {conversionWebhook} from "./webhooks";
+import {conversionWebhook, saveStripeConversionSettings, stripeConversionWebhook} from "./webhooks";
 import {onAffiliateLinkClick} from "./tracking";
 import {
   enqueueOpticDiscoveryJob,
@@ -298,6 +298,8 @@ export {
   syncTikTokStats,
   fetchYouTubeVideoStats,
   conversionWebhook,
+  stripeConversionWebhook,
+  saveStripeConversionSettings,
   onAffiliateLinkClick,
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,

@@ -315,6 +315,12 @@ export const stripeSubscriptionWebhookHandler = onRequest(async (request, respon
     }
 
     const userDocRef = db.collection("users").doc(firebaseUID);
+    // The Stripe account is shared with other apps, so their customers' UIDs may not exist here.
+    if (!(await userDocRef.get()).exists) {
+      logger.info("Skipping webhook event for a user outside Verza", {eventId: event.id, type: event.type});
+      response.json({received: true});
+      return;
+    }
     logger.info(`Processing webhook event ${event.type} for user ${firebaseUID}`);
 
     // Handle different event types

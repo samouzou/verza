@@ -654,6 +654,15 @@ export interface Agency {
   talent: Talent[];
   team: TeamMember[]; // Array for team members
   webhookSecret?: string; // Secret for verifying webhooks (e.g., Conversion tracking)
+  /** Server-only: Stripe conversion tracking status. The secrets live in `agencies/{id}/private/stripeConversions`. */
+  stripeConversions?: {
+    connected?: boolean;
+    /** A restricted key is saved, so creator promotion codes can be matched. */
+    promoCodes?: boolean;
+    lastEventAt?: Timestamp;
+    lastConversionAt?: Timestamp;
+    updatedAt?: Timestamp;
+  };
   /** Set by Cloud Functions when `agencies/{id}/private/brandKit` has a brand guide. */
   hasBrandKit?: boolean;
   /** @deprecated Lives in `agencies/{id}/private/brandKit`; migrated off the agency doc by Cloud Functions. */

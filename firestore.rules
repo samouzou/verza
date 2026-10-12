@@ -318,6 +318,7 @@ service cloud.firestore {
           'prismLifetimeSince',
           'prismLifetimeRevokedAt',
           'hasBrandKit',
+          'stripeConversions',
           'brandGuide',
           'products',
           'availableBalance',

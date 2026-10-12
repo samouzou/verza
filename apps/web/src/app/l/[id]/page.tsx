@@ -13,6 +13,23 @@ import Image from 'next/image';
  * Tracks clicks and redirects users to the brand's destination URL.
  */
 
+/**
+ * Adds `verza_ref` to the destination. Stripe Payment Links also get `client_reference_id`, which Stripe keeps on the
+ * Checkout Session, so a brand selling through them is attributed without any code.
+ */
+function withVerzaRef(destination: string, linkId: string): string {
+  try {
+    const url = new URL(destination);
+    if (!url.searchParams.has('verza_ref')) url.searchParams.set('verza_ref', linkId);
+    if (url.hostname === 'buy.stripe.com' && !url.searchParams.has('client_reference_id')) {
+      url.searchParams.set('client_reference_id', linkId);
+    }
+    return url.toString();
+  } catch {
+    return destination;
+  }
+}
+
 export default function AffiliateRedirectPage() {
   const params = useParams();
   const linkId = params.id as string;
@@ -34,8 +51,8 @@ export default function AffiliateRedirectPage() {
             clicks: increment(1)
           });
 
-          // 2. Redirect to destination
-          window.location.href = data.destinationUrl;
+          // 2. Redirect to destination, passing the link id on so the brand's checkout can attribute the sale
+          window.location.href = withVerzaRef(String(data.destinationUrl), linkId);
         } else {
           setError("This link is invalid or has expired.");
         }
