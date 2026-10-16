@@ -22,6 +22,7 @@ import { httpsCallable } from 'firebase/functions';
 import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { fetchYouTubeStatsForUrl } from '@/lib/submissions/youtube-stats';
 import { SubmissionVideoPreview, submissionPreviewProps } from '@/components/marketplace/submission-video-preview';
+import { SubmissionMetaAd } from '@/components/marketplace/submission-meta-ad';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -1989,11 +1990,14 @@ function GigDetailContent() {
                                       </div>
 
                                       {sub ? (
-                                        <SubmissionVideoPreview
-                                          {...submissionPreviewProps(sub)}
-                                          compact
-                                          showDownload={false}
-                                        />
+                                        <>
+                                          <SubmissionVideoPreview
+                                            {...submissionPreviewProps(sub)}
+                                            compact
+                                            showDownload={false}
+                                          />
+                                          <SubmissionMetaAd submission={sub} gig={gig} />
+                                        </>
                                       ) : (
                                         <div className="py-10 text-center border-2 border-dashed rounded-md flex flex-col items-center justify-center bg-muted/10">
                                           <Loader2 className="h-4 w-4 animate-pulse text-muted-foreground mb-2" />

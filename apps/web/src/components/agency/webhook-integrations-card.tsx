@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Webhook, Copy, Check, RefreshCw, Loader2, Store, CreditCard } from 'lucide-react';
+import { Webhook, Copy, Check, RefreshCw, Loader2, Store, CreditCard, ChevronDown } from 'lucide-react';
 import type { Agency } from '@/types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -18,6 +18,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface WebhookIntegrationsCardProps {
   agency: Agency;
@@ -41,6 +42,11 @@ export function WebhookIntegrationsCard({ agency, disabled, isBrandAccount }: We
   const [signingSecret, setSigningSecret] = useState('');
   const [restrictedKey, setRestrictedKey] = useState('');
   const [savingStripe, setSavingStripe] = useState<'save' | 'disconnect' | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(localStorage.getItem('verza.agency.webhooksOpen') === '1');
+  }, []);
 
   const handleCopyStripeUrl = () => {
     navigator.clipboard.writeText(stripeWebhookUrl);
@@ -113,11 +119,35 @@ export function WebhookIntegrationsCard({ agency, disabled, isBrandAccount }: We
   };
 
   return (
-    <Card className={`border-blue-500/20 bg-blue-50/5 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Webhook className="h-5 w-5 text-blue-500" /> Webhook Integrations</CardTitle>
-        <CardDescription>Track conversions from your e-commerce platform using our API.</CardDescription>
-      </CardHeader>
+    <Collapsible
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        localStorage.setItem('verza.agency.webhooksOpen', next ? '1' : '0');
+      }}
+      className={disabled ? 'pointer-events-none opacity-50' : undefined}
+    >
+    <Card className="border-blue-500/20 bg-blue-50/5">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-lg p-6 text-left hover:bg-muted/40 [&[data-state=open]>svg.chevron]:rotate-180"
+        >
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <Webhook className="h-5 w-5 text-blue-500" /> Webhook Integrations
+              {stripe?.connected ? (
+                <Badge className="bg-green-500/15 text-green-600 hover:bg-green-500/15">Stripe connected</Badge>
+              ) : (
+                <Badge variant="outline">Stripe not connected</Badge>
+              )}
+            </CardTitle>
+            <CardDescription>Track conversions from your e-commerce platform using our API.</CardDescription>
+          </div>
+          <ChevronDown className="chevron mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Endpoint URL</Label>
@@ -294,6 +324,8 @@ export function WebhookIntegrationsCard({ agency, disabled, isBrandAccount }: We
           )}
         </div>
       </CardContent>
+      </CollapsibleContent>
     </Card>
+    </Collapsible>
   );
 }

@@ -6,12 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileStack, ExternalLink } from 'lucide-react';
+import { Loader2, FileStack, ExternalLink, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Gig } from '@/types';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface AgencyGigsCardProps {
   agencyId: string;
@@ -22,6 +23,11 @@ export function AgencyGigsCard({ agencyId, isBrandAccount }: AgencyGigsCardProps
   const { toast } = useToast();
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [isLoadingGigs, setIsLoadingGigs] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(localStorage.getItem('verza.agency.gigsOpen') === '1');
+  }, []);
 
   useEffect(() => {
     if (!agencyId) return;
@@ -45,11 +51,31 @@ export function AgencyGigsCard({ agencyId, isBrandAccount }: AgencyGigsCardProps
   }, [agencyId, toast]);
 
   return (
+    <Collapsible
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        localStorage.setItem('verza.agency.gigsOpen', next ? '1' : '0');
+      }}
+    >
     <Card id="agency-gigs-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Active Campaigns</CardTitle>
-        <CardDescription>A history of all campaigns launched by your {isBrandAccount ? 'brand' : 'agency'}.</CardDescription>
-      </CardHeader>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-lg p-6 text-left hover:bg-muted/40 [&[data-state=open]>svg.chevron]:rotate-180"
+        >
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <CardTitle className="flex items-center gap-2"><FileStack className="text-primary"/> Active Campaigns</CardTitle>
+            <CardDescription>
+              {isLoadingGigs
+                ? `A history of all campaigns launched by your ${isBrandAccount ? 'brand' : 'agency'}.`
+                : `${gigs.length} campaign${gigs.length === 1 ? '' : 's'} launched by your ${isBrandAccount ? 'brand' : 'agency'}.`}
+            </CardDescription>
+          </div>
+          <ChevronDown className="chevron mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
       <CardContent>
         {isLoadingGigs ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
          : gigs.length > 0 ? (
@@ -87,6 +113,8 @@ export function AgencyGigsCard({ agencyId, isBrandAccount }: AgencyGigsCardProps
           </Table>
          ) : <p className="text-center text-muted-foreground py-6">Your agency has not launched any campaigns yet.</p>}
       </CardContent>
+      </CollapsibleContent>
     </Card>
+    </Collapsible>
   );
 }

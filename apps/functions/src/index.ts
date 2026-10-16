@@ -119,6 +119,7 @@ import {
   fetchYouTubeVideoStats,
 } from "./social";
 import {conversionWebhook, saveStripeConversionSettings, stripeConversionWebhook} from "./webhooks";
+import {connectMetaAds, continueSubmissionAd, disconnectMetaAds, launchSubmissionAd, selectMetaAdsAccount, setSubmissionAdStatus} from "./metaAds";
 import {onAffiliateLinkClick} from "./tracking";
 import {
   enqueueOpticDiscoveryJob,
@@ -300,6 +301,12 @@ export {
   conversionWebhook,
   stripeConversionWebhook,
   saveStripeConversionSettings,
+  connectMetaAds,
+  selectMetaAdsAccount,
+  disconnectMetaAds,
+  launchSubmissionAd,
+  continueSubmissionAd,
+  setSubmissionAdStatus,
   onAffiliateLinkClick,
   enqueueOpticDiscoveryJob,
   cancelOpticDiscoveryJob,

@@ -663,6 +663,14 @@ export interface Agency {
     lastConversionAt?: Timestamp;
     updatedAt?: Timestamp;
   };
+  /** Connection status only. The Meta token lives in `agencies/{id}/private/metaAds`. */
+  metaAds?: {
+    connected?: boolean;
+    adAccountName?: string;
+    pageName?: string;
+    currency?: string;
+    updatedAt?: Timestamp;
+  };
   /** Set by Cloud Functions when `agencies/{id}/private/brandKit` has a brand guide. */
   hasBrandKit?: boolean;
   /** @deprecated Lives in `agencies/{id}/private/brandKit`; migrated off the agency doc by Cloud Functions. */
@@ -963,6 +971,25 @@ export interface GigSubmission {
     clicks: number;
     conversions: number;
     earned: number;
+  };
+  /** A Meta ad launched from this submission. Written only by Cloud Functions. */
+  metaAd?: {
+    status: 'creating' | 'processing' | 'in_review' | 'active' | 'paused' | 'rejected' | 'error';
+    effectiveStatus?: string;
+    campaignId?: string;
+    adSetId?: string;
+    adId?: string;
+    videoId?: string;
+    dailyBudgetCents?: number;
+    currency?: string;
+    days?: number;
+    country?: string;
+    destinationUrl?: string;
+    spend?: number;
+    impressions?: number;
+    clicks?: number;
+    error?: string;
+    updatedAt?: Timestamp;
   };
 }
 

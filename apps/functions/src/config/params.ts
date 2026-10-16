@@ -22,6 +22,8 @@ export const INFLOW_API_KEY = defineSecret("INFLOW_API_KEY");
 
 // TikTok Secrets
 export const TIKTOK_CLIENT_SECRET = defineSecret("TIKTOK_CLIENT_SECRET");
+/** Facebook app secret. Exchanges the brand's short-lived login for a long-lived token. Never sent to the client. */
+export const FACEBOOK_APP_SECRET = defineSecret("FACEBOOK_APP_SECRET");
 
 
 // --- String Parameters (can be set as env vars in .env file for local emulation) ---

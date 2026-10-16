@@ -14,6 +14,7 @@ import { InviteTeamMemberCard } from './invite-team-member-card';
 import { TeamRosterCard } from './team-roster-card';
 import { AgencyGigsCard } from './agency-gigs-card';
 import { WebhookIntegrationsCard } from './webhook-integrations-card';
+import { MetaAdsCard } from './meta-ads-card';
 import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -108,10 +109,11 @@ export function AgencyDashboard({ agency, agencyOwner }: AgencyDashboardProps) {
           <TalentRosterCard agency={agency} liveProfiles={liveProfiles} isBrandAccount={!!user?.isBrandAccount} />
           <TeamRosterCard agency={agency} liveProfiles={liveProfiles} isBrandAccount={!!user?.isBrandAccount} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
             <AgencyGigsCard agencyId={agency.id} isBrandAccount={!!user?.isBrandAccount} />
             <WebhookIntegrationsCard agency={agency} disabled={false} isBrandAccount={!!user?.isBrandAccount} />
           </div>
+          <MetaAdsCard agency={agency} />
         </>
       )}
     </div>

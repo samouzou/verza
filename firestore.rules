@@ -202,7 +202,7 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         (resource.data.creatorId == request.auth.uid && request.resource.data.brandId == resource.data.brandId) ||
         (isTeamMemberOf(resource.data.brandId))
-      );
+      ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['metaAd']);
     }
 
     // Rules for affiliate links
@@ -319,6 +319,7 @@ service cloud.firestore {
           'prismLifetimeRevokedAt',
           'hasBrandKit',
           'stripeConversions',
+          'metaAds',
           'brandGuide',
           'products',
           'availableBalance',
