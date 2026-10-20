@@ -3,6 +3,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import {db} from "../config/firebase";
+import {assertAgencyTeamForLinkedInOs, isPrismCreatorRole} from "./access";
 import * as params from "../config/params";
 import {referralCoupon, resolveReferrer} from "./referralCodes";
 
@@ -344,11 +345,13 @@ function requestedPlan(data: unknown): {tier: PrismSelfServeTier; interval: "mon
  * @return {!Promise<object>} Agency id and user data.
  */
 export async function prismBillingAdmin(uid: string): Promise<{agencyId: string; user: Record<string, unknown>}> {
-  const user = (await db.collection("users").doc(uid).get()).data();
-  const agencyId = String(user?.primaryAgencyId ?? "");
-  if (!user || !agencyId) throw new HttpsError("failed-precondition", "Set a primary brand workspace first.");
+  const snap = await db.collection("users").doc(uid).get();
+  const user = snap.data();
+  if (!user) throw new HttpsError("failed-precondition", "User profile not found.");
+  const agencyId = await assertAgencyTeamForLinkedInOs(uid);
   const role = String(user.role ?? "");
-  if (role !== "agency_owner" && role !== "agency_admin") {
+  const brandAdmin = role === "agency_owner" || role === "agency_admin";
+  if (!brandAdmin && !isPrismCreatorRole(role)) {
     throw new HttpsError("permission-denied", "Ask your brand's owner or an admin to manage Prism billing.");
   }
   return {agencyId, user};

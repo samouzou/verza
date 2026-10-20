@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import { usePrismConnections, usePrismUsageMonth } from "@/hooks/use-prism-connections";
 import { PRISM_PRICING_PATH, PRISM_TIER_LABEL, PRISM_TIERS, PRISM_X_MARKUP, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
@@ -34,11 +34,10 @@ const PLATFORM_TO_CHANNEL: Record<string, PrismChannel> = {
 };
 
 function PrismAccountsPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, authLoading, agencyId, allowed, lead, error: workspaceError } = usePrismWorkspace();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const agencyId = user?.primaryAgencyId ?? null;
   const plan = usePrismPlan(agencyId);
   const { connections, accounts, loading } = usePrismConnections(agencyId);
   const usage = usePrismUsageMonth(agencyId);
@@ -48,7 +47,7 @@ function PrismAccountsPage() {
   const xOver = Math.max(0, xSpent - xIncluded);
   const [busy, setBusy] = useState<string | null>(null);
   const handledRedirect = useRef(false);
-  const isLead = user?.role === "agency_owner" || user?.role === "agency_admin";
+  const isLead = lead;
 
   const sync = async (quiet = false) => {
     setBusy("sync");
@@ -115,13 +114,13 @@ function PrismAccountsPage() {
     );
   }
 
-  if (!user || !isAgencyTeam || !agencyId) {
+  if (!user || !allowed || !agencyId) {
     return (
       <div className="max-w-lg mx-auto py-16">
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Agency account required</AlertTitle>
-          <AlertDescription>Sign in with your brand team account to connect social accounts.</AlertDescription>
+          <AlertTitle>{workspaceError ? "Couldn't open Prism" : "Account required"}</AlertTitle>
+          <AlertDescription>{workspaceError ?? "Sign in to connect your channels."}</AlertDescription>
         </Alert>
       </div>
     );

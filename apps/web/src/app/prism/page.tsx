@@ -44,7 +44,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
 import { PRISM_TRIAL_DAYS, usePrismPlan } from "@/hooks/use-prism-plan";
 import { usePrismPosts } from "@/hooks/use-prism-posts";
@@ -63,11 +63,10 @@ import { cn } from "@/lib/utils";
 const WEEK_STARTS_ON = 1 as const;
 
 function PrismCalendarPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, authLoading, agencyId, allowed, lead, error: workspaceError } = usePrismWorkspace();
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const agencyId = user?.primaryAgencyId ?? null;
   const { strategy, loading: strategyLoading } = usePrismBrand(agencyId);
   const plan = usePrismPlan(agencyId);
 
@@ -220,15 +219,14 @@ function PrismCalendarPage() {
     );
   }
 
-  if (!user || !isAgencyTeam || !agencyId) {
+  if (!user || !allowed || !agencyId) {
     return (
       <div className="max-w-lg mx-auto py-16">
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Agency account required</AlertTitle>
+          <AlertTitle>{workspaceError ? "Couldn't open Prism" : "Account required"}</AlertTitle>
           <AlertDescription>
-            Prism is for agency team members with a primary agency. Sign in with your agency account or complete
-            onboarding first.
+            {workspaceError ?? "Sign in to use Prism. Brand teams use their workspace. Creators get their own."}
           </AlertDescription>
         </Alert>
       </div>
@@ -428,7 +426,7 @@ function PrismCalendarPage() {
         target={target}
         strategy={strategy}
         currentUid={user.uid}
-        isLead={user.role === "agency_owner" || user.role === "agency_admin"}
+        isLead={lead}
         onClose={closeComposer}
       />
 

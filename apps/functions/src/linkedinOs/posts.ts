@@ -2,7 +2,7 @@ import {FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
-import {assertAgencyTeamForLinkedInOs} from "./access";
+import {assertAgencyTeamForLinkedInOs, isPrismCreatorRole} from "./access";
 import {LINKEDIN_OS_WORKER_SHARED_SECRET, LINKEDIN_OS_WORKER_URL} from "../config/params";
 import {
   isPrismChannel,
@@ -33,6 +33,8 @@ export type PrismCaller = {
   agencyId: string;
   role: string;
   name: string;
+  /** Owner, admin, or a creator on their own Prism workspace. */
+  lead: boolean;
 };
 
 /**
@@ -47,7 +49,9 @@ export async function prismCaller(uid: string | undefined): Promise<PrismCaller>
   const agencyId = await assertAgencyTeamForLinkedInOs(uid);
   const user = (await db.collection("users").doc(uid).get()).data() ?? {};
   const name = String(user.displayName || user.email || "Teammate").slice(0, 80);
-  return {uid, agencyId, role: String(user.role ?? ""), name};
+  const role = String(user.role ?? "");
+  const lead = role === "agency_owner" || role === "agency_admin" || isPrismCreatorRole(role);
+  return {uid, agencyId, role, name, lead};
 }
 
 /**
@@ -481,7 +485,7 @@ export const transitionPrismPost = onCall(async (request) => {
 
   const strategy = await loadPrismBrandStrategy(c.agencyId);
   const approvalRequired = strategy?.approvalRequired !== false;
-  const isLead = c.role === "agency_owner" || c.role === "agency_admin";
+  const isLead = c.lead;
   const from = post.status;
   let to: PrismPostStatus;
   const update: Record<string, unknown> = {};

@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import { useLinkedInOsJobs } from "@/hooks/use-linkedin-os-jobs";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
 import { PRISM_PRICING_PATH, PRISM_TRIAL_DAYS, usePrismPlan } from "@/hooks/use-prism-plan";
@@ -501,10 +501,9 @@ function BeehiivNewsletterPanel({
 }
 
 export default function PrismStudioPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, authLoading, agencyId, allowed, error: workspaceError } = usePrismWorkspace();
   const { toast } = useToast();
   const router = useRouter();
-  const agencyId = user?.primaryAgencyId ?? null;
   const { jobs, error: jobsError, loading: jobsLoading } = useLinkedInOsJobs(agencyId);
   const { strategy, loading: strategyLoading } = usePrismBrand(agencyId);
   const plan = usePrismPlan(agencyId);
@@ -694,29 +693,14 @@ export default function PrismStudioPage() {
     );
   }
 
-  if (!user || !isAgencyTeam) {
+  if (!user || !allowed || !agencyId) {
     return (
       <div className="max-w-lg mx-auto py-16">
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Agency account required</AlertTitle>
+          <AlertTitle>{workspaceError ? "Couldn't open Prism" : "Account required"}</AlertTitle>
           <AlertDescription>
-            Prism is for agency team members. Sign in with your agency account or complete
-            onboarding first.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!agencyId) {
-    return (
-      <div className="max-w-lg mx-auto py-16">
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Primary agency missing</AlertTitle>
-          <AlertDescription>
-            Set a primary agency on your profile before using Prism.
+            {workspaceError ?? "Sign in to use Prism Studio."}
           </AlertDescription>
         </Alert>
       </div>

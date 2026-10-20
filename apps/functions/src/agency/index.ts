@@ -28,8 +28,8 @@ export const createAgency = onCall(async (request) => {
   const agenciesColRef = db.collection("agencies");
 
   try {
-    const existingAgencyQuery = await agenciesColRef.where("ownerId", "==", userId).limit(1).get();
-    if (!existingAgencyQuery.empty) {
+    const existingAgencyQuery = await agenciesColRef.where("ownerId", "==", userId).limit(5).get();
+    if (existingAgencyQuery.docs.some((d) => d.data().prismPersonal !== true)) {
       throw new HttpsError("already-exists", "You already own an agency.");
     }
 

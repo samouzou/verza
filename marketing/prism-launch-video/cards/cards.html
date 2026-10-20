@@ -146,6 +146,10 @@ h1 { font-size: 40px; font-weight: 680; letter-spacing: -.02em; }
 .cta { font-size: 30px; font-weight: 600; padding: 22px 40px; border-radius: 18px; background: var(--green); color: #fff; box-shadow: 0 20px 40px -14px rgba(14,124,90,.6); }
 .url2 { font-size: 30px; color: var(--muted); font-weight: 550; }
 .by { font-size: 30px; color: var(--muted); font-weight: 550; margin-top: -10px; }
+.kicker { font-size: 28px; font-weight: 680; letter-spacing: .18em; text-transform: uppercase; color: var(--green); }
+.costnum { font-size: 188px; font-weight: 720; letter-spacing: -.055em; line-height: .9; }
+.math { font-size: 36px; font-weight: 560; letter-spacing: -.02em; color: #c9d5d0; }
+.math b { color: #fff; font-weight: 650; }
 .stage-hide { visibility: hidden; }
 
 /* Vertical (9:16): 720x1280 CSS px, rendered at 3x. Top ~120px and bottom ~360px stay clear for platform UI and captions. */
@@ -206,6 +210,9 @@ body.v, html:has(body.v) { width: 720px; height: 1280px; }
 .v .tag { font-size: 30px; }
 .v .cta { font-size: 21px; padding: 16px 26px; }
 .v .url2, .v .by { font-size: 20px; }
+.v .kicker { font-size: 18px; letter-spacing: .14em; }
+.v .costnum { font-size: 92px; }
+.v .math { font-size: 22px; line-height: 1.35; }
 
 /* Burned-in caption (vertical only) */
 #sub { justify-content: center; align-items: flex-start; padding: 0 40px; }
@@ -353,6 +360,20 @@ first 50 cups get a free maple scone. you know what to do.</div>
     </div>
   </div>
 </div></div></section>
+
+<!-- The cost of a quiet week. Arithmetic, not a statistic. -->
+<section class="card center" id="cost" style="background:#101816;color:#f4f7f5;gap:36px">
+  <div class="kicker">One quiet week</div>
+  <div class="costnum">$14,000</div>
+  <div class="math"><b>$2,000 a day</b> &nbsp;×&nbsp; 7 days your offer isn’t seen</div>
+</section>
+
+<!-- The turn -->
+<section class="card center" id="thirty" style="gap:32px">
+  <div class="kicker">With Prism</div>
+  <div class="costnum" style="color:#101816">30 minutes</div>
+  <div class="tag">Your whole month. Approvals included.</div>
+</section>
 
 <!-- Title -->
 <section class="card center" id="title">

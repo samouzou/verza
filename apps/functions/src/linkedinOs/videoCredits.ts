@@ -178,7 +178,7 @@ export const getPrismVideoCredits = onCall(async (request) => {
   return {
     ...balance,
     packs: packs.map(({credits, cents}) => ({credits, cents})),
-    canBuy: c.role === "agency_owner" || c.role === "agency_admin",
+    canBuy: c.lead,
   };
 });
 

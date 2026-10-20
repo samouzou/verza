@@ -73,6 +73,7 @@ import { SupportDialog } from "./support-dialog";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 import { BrandJourneyGuide } from "@/components/onboarding/brand-journey-guide";
 import { PrismReferralSidebarBlock } from "@/components/prism/referral-card";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 
 const mainNavItems = [
   { id: 'nav-item-dashboard', href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -162,7 +163,17 @@ function workflowNavItemsForUser(
   const showBrandWorkflows = isAgencyTeam || !!user.isBrandAccount;
 
   if (showBrandWorkflows) return [brandOpticNavItem, brandPrismNavItem];
-  if (isCreator) return creatorWorkflowNavItems;
+  if (isCreator) {
+    return [
+      ...creatorWorkflowNavItems,
+      {
+        ...brandPrismNavItem,
+        subItems: brandPrismNavItem.subItems?.map((item) =>
+          item.href === "/prism/setup" ? { ...item, label: "Setup" } : item
+        ),
+      },
+    ];
+  }
   return [];
 }
 
@@ -212,9 +223,9 @@ function SidebarNavCollapsible({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               isActive={isActive}
-              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+              className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-48">
@@ -247,9 +258,9 @@ function SidebarNavCollapsible({
           <SidebarMenuButton
             tooltip={label}
             isActive={isActive}
-            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+            className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
             <span className="group-data-[collapsible=icon]:hidden">{label}</span>
             <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden" />
           </SidebarMenuButton>
@@ -278,6 +289,7 @@ function SidebarNavCollapsible({
 export function SidebarNav() {
   const pathname = usePathname();
   const { user, logout, isLoading: authLoading } = useAuth();
+  const { agencyId: prismAgencyId, allowed: prismAllowed } = usePrismWorkspace();
   const { open, setOpen, setOpenMobile, isMobile } = useSidebar();
   const router = useRouter();
   const [showCareerGuide, setShowCareerGuide] = useState(false);
@@ -348,16 +360,10 @@ export function SidebarNav() {
   
   const subscriptionBadge = getSubscriptionBadge();
   const workflowNavItems = workflowNavItemsForUser(activeUser);
-  const isBrandTeam =
-    !!activeUser?.primaryAgencyId &&
-    (activeUser.role === "agency_owner" ||
-      activeUser.role === "agency_admin" ||
-      activeUser.role === "agency_member" ||
-      !!activeUser.isBrandAccount);
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 space-y-3">
+      <SidebarHeader className="p-4 space-y-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1">
         <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
           <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:mx-auto">
               <Image src="/verza-icon.svg" alt="Verza Icon" width={24} height={18} className="w-6" />
@@ -374,11 +380,11 @@ export function SidebarNav() {
                 <Link href={item.href} legacyBehavior passHref>
                 <SidebarMenuButton
                     onClick={() => isMobile && setOpenMobile(false)}
-                    className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                    className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                     isActive={pathname === item.href}
                     tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                 >
-                    <item.icon className="h-5 w-5" />
+                    <item.icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                     <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                 </SidebarMenuButton>
                 </Link>
@@ -395,11 +401,11 @@ export function SidebarNav() {
                         <Link href={item.href} legacyBehavior passHref>
                             <SidebarMenuButton
                             onClick={() => isMobile && setOpenMobile(false)}
-                            className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                            className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                             isActive={pathname.startsWith(item.href)}
                             tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                             >
-                            <item.icon className="h-5 w-5" />
+                            <item.icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                             <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                             </SidebarMenuButton>
                         </Link>
@@ -437,14 +443,14 @@ export function SidebarNav() {
                             <SidebarMenuButton
                               asChild
                               onClick={() => isMobile && setOpenMobile(false)}
-                              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                              className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                               tooltip={{
                                 children: item.label,
                                 className: "group-data-[collapsible=icon]:block hidden",
                               }}
                             >
                               <a href={item.href} target="_blank" rel="noopener noreferrer">
-                                <item.icon className="h-5 w-5" />
+                                <item.icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                                 <span className="group-data-[collapsible=icon]:hidden flex-1 flex items-center justify-between">
                                   <span>{item.label}</span>
                                   <ExternalLink className="h-4 w-4 text-muted-foreground" />
@@ -460,14 +466,14 @@ export function SidebarNav() {
                           <Link href={item.href} legacyBehavior passHref>
                             <SidebarMenuButton
                               onClick={() => isMobile && setOpenMobile(false)}
-                              className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                              className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                               isActive={pathname.startsWith(item.href)}
                               tooltip={{
                                 children: item.label,
                                 className: "group-data-[collapsible=icon]:block hidden",
                               }}
                             >
-                              <item.icon className="h-5 w-5" />
+                              <item.icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                               <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                             </SidebarMenuButton>
                           </Link>
@@ -511,11 +517,11 @@ export function SidebarNav() {
                   <Link href={item.href} legacyBehavior passHref>
                     <SidebarMenuButton
                       onClick={() => isMobile && setOpenMobile(false)}
-                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                       isActive={pathname.startsWith(item.href)}
                       tooltip={{ children: label, className: "group-data-[collapsible=icon]:block hidden"}}
                     >
-                      <Icon className="h-5 w-5" />
+                      <Icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                       <span className="group-data-[collapsible=icon]:hidden">{label}</span>
                     </SidebarMenuButton>
                   </Link>
@@ -534,11 +540,11 @@ export function SidebarNav() {
                   <Link href={item.href} legacyBehavior passHref>
                     <SidebarMenuButton
                       onClick={() => isMobile && setOpenMobile(false)}
-                      className="group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:justify-center"
+                      className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:justify-center"
                       isActive={pathname.startsWith(item.href)}
                       tooltip={{ children: item.label, className: "group-data-[collapsible=icon]:block hidden"}}
                     >
-                      <item.icon className="h-5 w-5" />
+                      <item.icon className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
                       <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                     </SidebarMenuButton>
                   </Link>
@@ -549,8 +555,8 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2 flex flex-col gap-2">
-          {isBrandTeam && activeUser?.primaryAgencyId && (
-            <PrismReferralSidebarBlock agencyId={activeUser.primaryAgencyId} />
+          {prismAllowed && prismAgencyId && (
+            <PrismReferralSidebarBlock agencyId={prismAgencyId} />
           )}
          <div className="px-2 group-data-[collapsible=icon]:px-0">
             <SidebarMenu>
@@ -566,7 +572,7 @@ export function SidebarNav() {
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start p-2 h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-auto">
-                <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
+                <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10">
                   {activeUser.avatarUrl && <AvatarImage src={activeUser.avatarUrl} alt={activeUser.displayName || 'User Avatar'} data-ai-hint="user avatar" />}
                   <AvatarFallback>{userInitial}</AvatarFallback>
                 </Avatar>
@@ -630,9 +636,9 @@ export function SidebarNav() {
             }}
           >
             {open ? (
-              <PanelLeftClose className="h-5 w-5" />
+              <PanelLeftClose className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
             ) : (
-              <PanelLeftOpen className="h-5 w-5" />
+              <PanelLeftOpen className="h-5 w-5 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
             )}
             <span className="group-data-[collapsible=icon]:hidden">
               Collapse Sidebar

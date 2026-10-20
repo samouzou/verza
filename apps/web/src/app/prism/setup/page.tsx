@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import { productImages, useBrandProducts, type BrandProductInput } from "@/hooks/use-brand-products";
 import { cn } from "@/lib/utils";
 import { usePrismBrand } from "@/hooks/use-prism-brand";
@@ -50,9 +50,8 @@ import type { BrandProduct } from "@/types";
 const MAX_PILLARS = 6;
 
 export default function PrismSetupPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, authLoading, agencyId, allowed, error: workspaceError } = usePrismWorkspace();
   const { toast } = useToast();
-  const agencyId = user?.primaryAgencyId ?? null;
   const { strategy, loading } = usePrismBrand(agencyId);
 
   const [form, setForm] = useState<PrismBrandStrategy>(() => emptyPrismStrategy());
@@ -155,15 +154,14 @@ export default function PrismSetupPage() {
     );
   }
 
-  if (!user || !isAgencyTeam || !agencyId) {
+  if (!user || !allowed || !agencyId) {
     return (
       <div className="max-w-lg mx-auto py-16">
         <Alert>
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Agency account required</AlertTitle>
+          <AlertTitle>{workspaceError ? "Couldn't open Prism" : "Account required"}</AlertTitle>
           <AlertDescription>
-            Prism is for agency team members with a primary agency. Sign in with your agency account or
-            complete onboarding first.
+            {workspaceError ?? "Sign in to set up Prism."}
           </AlertDescription>
         </Alert>
       </div>

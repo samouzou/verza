@@ -45,6 +45,8 @@ export interface UserProfile {
   isBrandAccount?: boolean;
   agencyMemberships?: Array<{ agencyId: string; agencyName: string; role: 'owner' | 'admin' | 'member' | 'talent', status: 'pending' | 'active' }>;
   primaryAgencyId?: string | null;
+  /** Personal Prism workspace for a creator. Not a brand, and not used for campaigns. */
+  prismWorkspaceId?: string | null;
 
   // Subscription Fields
   stripeCustomerId?: string | null;

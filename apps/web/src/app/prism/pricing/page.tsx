@@ -27,7 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import {
   PRISM_TIER_LABEL,
   PRISM_TIERS,
@@ -170,9 +170,8 @@ function FeatureList({ items }: { items: string[] }) {
 }
 
 export default function PrismPricingPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
+  const { user, authLoading, agencyId, allowed } = usePrismWorkspace();
   const { toast } = useToast();
-  const agencyId = user?.primaryAgencyId ?? null;
   const plan = usePrismPlan(agencyId);
   const [billingInterval, setBillingInterval] = useState<Interval>("month");
   const [prices, setPrices] = useState<PlanPrices>(LIST_PRICES);
@@ -213,8 +212,8 @@ export default function PrismPricingPage() {
   }, [user]);
 
   const requireTeam = () => {
-    if (user && agencyId && isAgencyTeam) return true;
-    toast({ title: "Sign in as a brand team member", description: "Billing is for the workspace you'll use Prism in.", variant: "destructive" });
+    if (user && agencyId && allowed) return true;
+    toast({ title: "Sign in to subscribe", description: "Prism billing is for your own workspace.", variant: "destructive" });
     return false;
   };
 
@@ -323,7 +322,7 @@ export default function PrismPricingPage() {
       <PageHeader
         title="Plan & billing"
         description={`Every plan starts with a ${PRISM_TRIAL_DAYS}-day free trial. Pick the AI, design and video you need, and add auto-publishing when you're ready.`}
-        actions={agencyId && isAgencyTeam ? <PrismPlanBadge plan={plan} /> : undefined}
+        actions={agencyId && allowed ? <PrismPlanBadge plan={plan} /> : undefined}
       />
 
       {plan.tier === "lifetime" && (
@@ -363,7 +362,7 @@ export default function PrismPricingPage() {
         </Card>
       )}
 
-      {agencyId && isAgencyTeam && plan.paid && !plan.loading && plan.tier !== "enterprise" && (
+      {agencyId && allowed && plan.paid && !plan.loading && plan.tier !== "enterprise" && (
         <PrismReferralCard agencyId={agencyId} tier={plan.tier} />
       )}
 

@@ -179,6 +179,7 @@ import {onPrismVideoJobUpdated, renderPrismVideo, renderPrismVideoTask} from "./
 import {createPrismVideoCreditCheckout, getPrismVideoCredits} from "./linkedinOs/videoCredits";
 import {redeemAppSumoPrismCode} from "./linkedinOs/appsumo";
 import {getPrismReferral} from "./linkedinOs/referrals";
+import {ensurePrismWorkspace} from "./linkedinOs/access";
 import {
   changePrismPlan,
   createPrismBillingPortalSession,
@@ -361,6 +362,7 @@ export {
   createPrismVideoCreditCheckout,
   redeemAppSumoPrismCode,
   getPrismReferral,
+  ensurePrismWorkspace,
   deletePrismPost,
   transitionPrismPost,
   adaptPrismPost,

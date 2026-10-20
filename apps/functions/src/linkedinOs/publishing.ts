@@ -158,7 +158,7 @@ async function requireLaunch(agencyId: string): Promise<void> {
  * @param {PrismCaller} c Caller.
  */
 function assertLead(c: PrismCaller): void {
-  if (c.role !== "agency_owner" && c.role !== "agency_admin") {
+  if (!c.lead) {
     throw new HttpsError("permission-denied", "Ask your brand's owner or an admin to manage connected accounts.");
   }
 }

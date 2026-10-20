@@ -90,7 +90,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
           size={compact ? "sm" : "default"}
           className={cn(
             "justify-between gap-2 bg-sidebar-accent/40 border-sidebar-border",
-            compact ? "h-8 max-w-[160px] px-2" : "w-full h-10 px-2 group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center"
+            compact ? "h-8 max-w-[160px] px-2" : "w-full h-10 px-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center"
           )}
           disabled={!!switchingToId}
         >
@@ -98,7 +98,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
             {switchingToId ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : (
-              <WorkspaceIcon className="h-4 w-4 shrink-0" />
+              <WorkspaceIcon className="h-4 w-4 shrink-0 group-data-[collapsible=icon]:h-5 group-data-[collapsible=icon]:w-5" />
             )}
             <span className={cn("truncate text-sm font-medium", compact ? "" : "group-data-[collapsible=icon]:hidden")}>
               {active.name}

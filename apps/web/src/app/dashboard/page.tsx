@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import Link from 'next/link';
@@ -36,6 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTour } from "@/hooks/use-tour";
 import { dashboardTour } from "@/lib/tours";
 import { SetupGuideCard } from "@/components/dashboard/setup-guide-card";
+import { DashboardChat } from "@/components/dashboard/dashboard-chat";
+import { useSidebar } from "@/components/ui/sidebar";
 import { trackEvent } from "@/lib/analytics";
 import { CreatorCareerGuide } from "@/components/onboarding/creator-career-guide";
 import { BrandJourneyGuide } from "@/components/onboarding/brand-journey-guide";
@@ -68,6 +70,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { startTour } = useTour();
+  const { setOpen, open: sidebarOpen, isMobile } = useSidebar();
+  const sidebarBeforeDashboard = useRef<boolean | null>(null);
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
@@ -81,6 +85,18 @@ export default function DashboardPage() {
   const [subscriptionUser, setSubscriptionUser] = useState<UserProfile | null>(null);
   const [showCareerGuide, setShowCareerGuide] = useState(false);
   const [showBrandJourney, setShowBrandJourney] = useState(false);
+  const [chatFocused, setChatFocused] = useState(true);
+
+  useEffect(() => {
+    if (isMobile) return;
+    sidebarBeforeDashboard.current = sidebarOpen;
+    setOpen(false);
+    return () => {
+      if (sidebarBeforeDashboard.current !== null) setOpen(sidebarBeforeDashboard.current);
+    };
+    // Collapse only when the dashboard opens. Restoring uses the width from before that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   useEffect(() => {
     if (searchParams.get('subscription_success') === 'true') {
@@ -268,6 +284,22 @@ export default function DashboardPage() {
 
   const handleFiltersChange = useCallback((newFilters: DashboardFilterState) => setFilters(newFilters), []);
 
+  const chatCampaigns = useMemo(
+    () =>
+      allGigs
+        .filter((gig) => gig.status === "open" || gig.status === "in-progress")
+        .map((gig) => ({
+          id: gig.id,
+          title: gig.title?.trim() || "Campaign",
+          description: typeof gig.description === "string" ? gig.description : "",
+          platforms: Array.isArray(gig.platforms) ? gig.platforms.map(String) : [],
+          creatorsNeeded: typeof gig.creatorsNeeded === "number" ? gig.creatorsNeeded : 0,
+          acceptedCount: gig.acceptedCreatorIds?.length ?? 0,
+          appliedCount: gig.appliedCreatorIds?.length ?? 0,
+        })),
+    [allGigs]
+  );
+
   if (authLoading || (isLoadingData && user) || !subscriptionUser) {
     return (
       <div className="flex-1 p-8 space-y-8">
@@ -288,68 +320,74 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        description="Your unified command center for contracts and campaign activity."
-        actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
-      />
+      <div className="relative -mx-4 -mt-4 min-h-[calc(100dvh-3.5rem)] md:-mx-6 md:-mt-6 md:min-h-dvh lg:-mx-8 lg:-mt-8">
+        <div className={`px-4 pb-16 pt-4 transition duration-700 md:px-6 md:pt-6 lg:px-8 lg:pt-8 ${chatFocused ? "pointer-events-none select-none opacity-[0.28] blur-[1.5px] saturate-50" : ""}`}>
+          <PageHeader
+            title="Dashboard"
+            description="Your unified command center for contracts and campaign activity."
+            actions={<Button variant="outline" onClick={() => startTour(dashboardTour)}><LifeBuoy className="mr-2 h-4 w-4" /> Take a Tour</Button>}
+          />
 
-      <SetupGuideCard />
+          <SetupGuideCard />
 
-      {showSubscriptionCTA && (
-        <Alert className="mb-6 border-primary/50 bg-primary/5">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <AlertTitle className="font-semibold text-primary">Unlock Full Potential!</AlertTitle>
-          <AlertDescription>
-            Upgrade to Verza Pro to access the Campaign Network and advanced financial tracking.
-          </AlertDescription>
-          <Button variant="default" size="sm" asChild className="mt-3">
-            <Link href="/settings">Manage Subscription <ExternalLink className="ml-2 h-4 w-4" /></Link>
-          </Button>
-        </Alert>
-      )}
-      
-      <DashboardFilters 
-        availableBrands={availableBrands} availableProjects={availableProjects} 
-        onFiltersChange={handleFiltersChange} initialFilters={filters}
-      />
+          {showSubscriptionCTA && (
+            <Alert className="mb-6 border-primary/50 bg-primary/5">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <AlertTitle className="font-semibold text-primary">Unlock Full Potential!</AlertTitle>
+              <AlertDescription>
+                Upgrade to Verza Pro to access the Campaign Network and advanced financial tracking.
+              </AlertDescription>
+              <Button variant="default" size="sm" asChild className="mt-3">
+                <Link href="/settings">Manage Subscription <ExternalLink className="ml-2 h-4 w-4" /></Link>
+              </Button>
+            </Alert>
+          )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
-        <SummaryCard 
-          id="summary-card-active-campaigns"
-          title="Active Campaigns" value={stats.activeGigsCount.toString()}
-          icon={Video} description="Ongoing campaigns" 
-        />
-        <SummaryCard 
-          title="Secured Earnings" value={`$${stats.marketplaceEarnings.toLocaleString()}`}
-          icon={Zap} description="Total from network"
-        />
-        <SummaryCard 
-          title="Contract Income" value={`$${stats.totalPendingIncome.toLocaleString()}`}
-          icon={DollarSign} description={`${stats.upcomingIncomeCount} pending payments`}
-        />
-        <SummaryCard 
-          title="Invoiced (Mo)" value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
-          icon={FileSpreadsheet} description="Current month invoices"
-        />
-        <SummaryCard 
-          title="Collected (Mo)" value={`$${stats.paidThisMonthAmount.toLocaleString()}`}
-          icon={CheckCircleIcon} description="Net cash in this month"
-        />
-        <SummaryCard 
-          id="summary-card-at-risk"
-          title="At Risk" value={stats.atRiskPaymentsCount.toString()} 
-          icon={AlertCircle} description={`${stats.totalOverdueCount} overdue`}
-          className={stats.atRiskPaymentsCount > 0 ? "border-destructive text-destructive" : ""}
-        />
+          <DashboardFilters
+            availableBrands={availableBrands} availableProjects={availableProjects}
+            onFiltersChange={handleFiltersChange} initialFilters={filters}
+          />
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+            <SummaryCard
+              id="summary-card-active-campaigns"
+              title="Active Campaigns" value={stats.activeGigsCount.toString()}
+              icon={Video} description="Ongoing campaigns"
+            />
+            <SummaryCard
+              title="Secured Earnings" value={`$${stats.marketplaceEarnings.toLocaleString()}`}
+              icon={Zap} description="Total from network"
+            />
+            <SummaryCard
+              title="Contract Income" value={`$${stats.totalPendingIncome.toLocaleString()}`}
+              icon={DollarSign} description={`${stats.upcomingIncomeCount} pending payments`}
+            />
+            <SummaryCard
+              title="Invoiced (Mo)" value={`$${stats.invoicedThisMonthAmount.toLocaleString()}`}
+              icon={FileSpreadsheet} description="Current month invoices"
+            />
+            <SummaryCard
+              title="Collected (Mo)" value={`$${stats.paidThisMonthAmount.toLocaleString()}`}
+              icon={CheckCircleIcon} description="Net cash in this month"
+            />
+            <SummaryCard
+              id="summary-card-at-risk"
+              title="At Risk" value={stats.atRiskPaymentsCount.toString()}
+              icon={AlertCircle} description={`${stats.totalOverdueCount} overdue`}
+              className={stats.atRiskPaymentsCount > 0 ? "border-destructive text-destructive" : ""}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2" id="earnings-chart-container"><EarningsChart data={stats.earningsChartData} /></div>
+            <div className="lg:col-span-1"><UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} /></div>
+          </div>
+
+          <div className="mt-6"><AtRiskPayments payments={stats.atRiskPaymentsList} /></div>
+        </div>
+
+        <DashboardChat stats={stats} campaigns={chatCampaigns} onFocusedChange={setChatFocused} />
       </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2" id="earnings-chart-container"><EarningsChart data={stats.earningsChartData} /></div>
-        <div className="lg:col-span-1"><UpcomingIncomeList incomeSources={stats.upcomingIncomeList.slice(0,5)} /></div>
-      </div>
-
-      <div className="mt-6"><AtRiskPayments payments={stats.atRiskPaymentsList} /></div>
 
       {showCareerGuide && (
         <CreatorCareerGuide onClose={() => setShowCareerGuide(false)} />

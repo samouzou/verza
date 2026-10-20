@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrismWorkspace } from "@/hooks/use-prism-workspace";
 import { PRISM_TIERS, usePrismPlan } from "@/hooks/use-prism-plan";
 import { useToast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
@@ -27,8 +27,7 @@ const INCLUDED = [
 ];
 
 export default function PrismRedeemPage() {
-  const { user, isLoading: authLoading, isAgencyTeam } = useAuth();
-  const agencyId = user?.primaryAgencyId ?? null;
+  const { authLoading, agencyId, allowed } = usePrismWorkspace();
   const plan = usePrismPlan(agencyId);
   const { toast } = useToast();
   const [code, setCode] = useState("");
@@ -65,24 +64,24 @@ export default function PrismRedeemPage() {
   }
 
   const lifetime = plan.tier === "lifetime";
-  const canRedeem = isAgencyTeam && !!agencyId && !lifetime && !busy;
+  const canRedeem = allowed && !!agencyId && !lifetime && !busy;
 
   return (
     <div className="container max-w-xl space-y-8 py-8">
       <PageHeader
         title="Redeem your AppSumo code"
         description="One code unlocks Prism Lifetime for one brand: plan, write, design and schedule your social content, for life."
-        actions={agencyId && isAgencyTeam ? <PrismPlanBadge plan={plan} /> : undefined}
+        actions={agencyId && allowed ? <PrismPlanBadge plan={plan} /> : undefined}
       />
 
-      {!isAgencyTeam && (
+      {!allowed && (
         <Alert>
-          <AlertTitle>Brand account required</AlertTitle>
-          <AlertDescription>Sign in with a brand or agency workspace to redeem your code.</AlertDescription>
+          <AlertTitle>Sign in required</AlertTitle>
+          <AlertDescription>Sign in with the account that should receive Prism Lifetime.</AlertDescription>
         </Alert>
       )}
 
-      {isAgencyTeam && !agencyId && (
+      {allowed && !agencyId && (
         <Alert variant="destructive">
           <AlertTitle>No brand yet</AlertTitle>
           <AlertDescription>Create your brand on Verza first, then come back to redeem.</AlertDescription>
@@ -126,7 +125,7 @@ export default function PrismRedeemPage() {
                   placeholder="AS-PRSM-XXXXX-XXXXX"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  disabled={!isAgencyTeam || !agencyId || busy}
+                  disabled={!allowed || !agencyId || busy}
                 />
               </div>
             </CardContent>
