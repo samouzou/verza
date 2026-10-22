@@ -9,11 +9,92 @@ import {
   fetchYouTubeVideoStatsById,
 } from "./youtubeVideo";
 
+const GRAPH = "https://graph.facebook.com/v20.0";
+const META_APP_ID = "1903627140270068";
+
+type GrantedAssets = {pageIds: string[]; igIds: string[]};
+
+/**
+ * Pages and Instagram accounts the user checked in the Facebook dialog.
+ * /me/accounts is empty for a Page owned by a Business portfolio, even after that check.
+ * @param {string} userToken Login token.
+ * @return {!Promise<GrantedAssets>} Granted ids.
+ */
+async function grantedAssets(userToken: string): Promise<GrantedAssets> {
+  const pageIds = new Set<string>();
+  const igIds = new Set<string>();
+  try {
+    const appToken = `${META_APP_ID}|${params.FACEBOOK_APP_SECRET.value()}`;
+    const debug = await axios.get(`${GRAPH}/debug_token`, {
+      params: {input_token: userToken, access_token: appToken},
+    });
+    const scopes = debug.data?.data?.granular_scopes ?? [];
+    for (const scope of scopes) {
+      const ids = Array.isArray(scope?.target_ids) ? scope.target_ids.map(String) : [];
+      if (scope?.scope === "pages_show_list" || scope?.scope === "pages_read_engagement") {
+        ids.forEach((id: string) => pageIds.add(id));
+      }
+      if (scope?.scope === "instagram_basic") ids.forEach((id: string) => igIds.add(id));
+    }
+  } catch (error: any) {
+    logger.warn("Could not read granted Facebook assets", error?.response?.data?.error?.message || error.message);
+  }
+  return {pageIds: [...pageIds], igIds: [...igIds]};
+}
+
+/**
+ * Finds the Instagram professional account behind this login.
+ * @param {string} userToken Login token.
+ * @return {!Promise<{igUserId: string, pageName: string}>} Account to sync.
+ */
+async function resolveInstagramAccount(userToken: string): Promise<{igUserId: string; pageName: string}> {
+  let listed: Array<{name?: string; instagram_business_account?: {id?: string}}> = [];
+  try {
+    const accounts = await axios.get(`${GRAPH}/me/accounts`, {
+      params: {
+        fields: "id,name,instagram_business_account{id}",
+        limit: "50",
+        access_token: userToken,
+      },
+    });
+    listed = Array.isArray(accounts.data?.data) ? accounts.data.data : [];
+  } catch (error: any) {
+    logger.warn("me/accounts failed", error?.response?.data?.error?.message || error.message);
+  }
+  const fromList = listed.find((page: {instagram_business_account?: {id?: string}}) => page.instagram_business_account?.id);
+  if (fromList?.instagram_business_account?.id) {
+    return {igUserId: String(fromList.instagram_business_account.id), pageName: fromList.name || "Facebook Page"};
+  }
+
+  const granted = await grantedAssets(userToken);
+  for (const pageId of granted.pageIds) {
+    try {
+      const page = await axios.get(`${GRAPH}/${pageId}`, {
+        params: {fields: "id,name,instagram_business_account{id}", access_token: userToken},
+      });
+      const igId = page.data?.instagram_business_account?.id;
+      if (igId) return {igUserId: String(igId), pageName: page.data?.name || "Facebook Page"};
+    } catch (error: any) {
+      logger.warn(`Page ${pageId} did not return an Instagram account`, error?.response?.data?.error?.message || error.message);
+    }
+  }
+  if (granted.igIds.length > 0) {
+    return {igUserId: granted.igIds[0], pageName: "Instagram"};
+  }
+
+  if (listed.length === 0 && granted.pageIds.length === 0) {
+    throw new HttpsError("not-found",
+      "Facebook did not share a Page on this login. In the Facebook window, select the Page that has your Instagram account connected, then continue.");
+  }
+  throw new HttpsError("not-found",
+    "That Facebook Page does not have an Instagram professional account connected to it.");
+}
+
 /**
  * syncInstagramStats - Exchanges a client token for real IG data.
  * Pulls follower count, engagement, and content captions for AI analysis.
  */
-export const syncInstagramStats = onCall(async (request) => {
+export const syncInstagramStats = onCall({secrets: [params.FACEBOOK_APP_SECRET]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
   }
@@ -26,32 +107,8 @@ export const syncInstagramStats = onCall(async (request) => {
   try {
     logger.info(`Starting IG sync for user: ${request.auth.uid}`);
 
-    // 1. Get the Instagram Business Account ID via linked Pages
-    const pagesResponse = await axios.get("https://graph.facebook.com/v20.0/me/accounts", {
-      params: {
-        fields: "instagram_business_account,name",
-        access_token: accessToken,
-      },
-    });
-
-    const pages = pagesResponse.data?.data;
-    if (!pages || !Array.isArray(pages) || pages.length === 0) {
-      logger.warn("No Facebook Pages found for user.");
-      throw new HttpsError("not-found",
-        "No Facebook Pages found. Ensure you have a Facebook Page linked to your professional Instagram account.");
-    }
-
-    const pageWithIg = pages.find((p: any) => p.instagram_business_account);
-
-    if (!pageWithIg) {
-      logger.warn("No linked Instagram Business account found in Pages.");
-      throw new HttpsError("not-found",
-        "No Instagram Business account found linked to your Facebook Pages." +
-        " Please ensure your Instagram is a 'Business' or 'Creator' account and is connected to a Facebook Page.");
-    }
-
-    const igUserId = pageWithIg.instagram_business_account.id;
-    logger.info(`Found IG User ID: ${igUserId} from Page: ${pageWithIg.name}`);
+    const {igUserId, pageName} = await resolveInstagramAccount(accessToken);
+    logger.info(`Found IG User ID: ${igUserId} from Page: ${pageName}`);
 
     // 2. Get Follower Count
     const userResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}`, {

@@ -87,6 +87,17 @@ function InsightsContent() {
     }
   };
 
+  const clearInstagramConnection = async () => {
+    if (!user?.instagramConnected) return;
+    await updateDoc(doc(db, 'users', user.uid), {
+      instagramConnected: false,
+      instagramFollowers: 0,
+      instagramEngagement: 0,
+      ['socialContent.instagram']: '',
+    });
+    await refreshAuthUser();
+  };
+
   const handleConnectInstagram = () => {
     if (typeof window.FB === 'undefined') {
       toast({ title: 'Meta SDK not loaded', description: 'Please wait a moment and try again.', variant: 'destructive' });
@@ -97,9 +108,27 @@ function InsightsContent() {
       function(response: any) {
         if (response.authResponse && user) {
           performIgSync(response.authResponse.accessToken);
-        } else {
-          toast({ title: 'Auth Canceled', description: 'Instagram connection was not completed.' });
+          return;
         }
+        window.FB.getLoginStatus(async (status: { status?: string }) => {
+          if (status?.status === 'not_authorized' && user?.instagramConnected) {
+            try {
+              await clearInstagramConnection();
+              toast({
+                title: 'Instagram disconnected',
+                description: 'Facebook no longer shares that account with Verza. Connect Instagram to link it again.',
+              });
+            } catch (error: any) {
+              toast({
+                title: 'Could not update Instagram',
+                description: error?.message || 'The saved connection is still on your profile.',
+                variant: 'destructive',
+              });
+            }
+            return;
+          }
+          toast({ title: 'Auth Canceled', description: 'Instagram connection was not completed.' });
+        }, true);
       },
       { 
         scope: 'public_profile,instagram_basic,pages_show_list,pages_read_engagement', 
