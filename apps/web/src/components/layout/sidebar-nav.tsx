@@ -604,7 +604,7 @@ export function SidebarNav() {
               {(user?.role === 'individual_creator' || user?.role === 'talent') && (
                 <DropdownMenuItem onClick={() => setShowCareerGuide(true)}>
                   <Zap className="mr-2 h-4 w-4" />
-                  <span>Career Roadmap</span>
+                  <span>Where to start</span>
                 </DropdownMenuItem>
               )}
               {user?.role === 'agency_owner' && (

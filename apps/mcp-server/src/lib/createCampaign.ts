@@ -155,6 +155,6 @@ export async function createCampaignViaCallables(
     campaignUrl: `${app}/campaigns/${gigId}`,
     budgetPreview,
     message:
-      `Open fundingUrl (Verza) to pay $${totalAmount.toLocaleString("en-US")} into this campaign's budget. Creators are paid individual amounts from it and receive that amount in full. Verza's 15% is taken from the budget when you pay someone. Don’t share or shorten the raw Stripe checkout link.`,
+      `Open fundingUrl (Verza) to pay $${totalAmount.toLocaleString("en-US")} into this campaign's budget. Creators are paid individual amounts from it and receive that amount in full. Verza's 4% is taken from the budget when you pay someone. Don’t share or shorten the raw Stripe checkout link.`,
   };
 }

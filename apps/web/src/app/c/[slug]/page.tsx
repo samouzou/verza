@@ -220,7 +220,7 @@ export default async function PublicCampaignPage({ params }: PageProps) {
               )}
               {campaign.budgetMode !== 'pool' && campaign.ratePerCreator > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Base pay is pre-funded by the brand. You receive about {formatUsd(campaign.ratePerCreator * 0.85)} after Verza&apos;s 15% fee.
+                  Base pay is pre-funded by the brand. You receive about {formatUsd(campaign.ratePerCreator * 0.96)} after Verza&apos;s 4% fee.
                 </p>
               )}
             </div>

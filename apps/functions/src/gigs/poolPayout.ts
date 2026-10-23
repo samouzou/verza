@@ -42,7 +42,7 @@ function formatUsd(cents: number): string {
 /**
  * Pay one creator a chosen amount from a pool campaign.
  * The creator receives that amount (minus any talent-agency commission).
- * Verza's 15% is an additional debit on this campaign's remaining budget and the brand escrow.
+ * Verza's 4% is an additional debit on this campaign's remaining budget and the brand escrow.
  */
 export async function payoutPoolCreator(args: {
   gigId: string;

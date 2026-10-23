@@ -517,7 +517,7 @@ export default function PostGigPage() {
                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input id="budget" type="number" value={campaignBudget} onChange={e => setCampaignBudget(e.target.value)} placeholder="3000" className="pl-9" required min="1" disabled={isSubmitting} />
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">Held in escrow for this campaign. Creators receive the amount you enter. Verza&apos;s 15% is taken from this budget as well.</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Held in escrow for this campaign. Creators receive the amount you enter. Verza&apos;s 4% is taken from this budget as well.</p>
                   </div>
                 </CardContent>
               )}
@@ -725,7 +725,7 @@ export default function PostGigPage() {
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
                   <p className="text-sm text-muted-foreground font-medium">Fixed Capital Required for Vault</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">Creator pay is set per person when you approve their work. Verza&apos;s 15% comes out of this budget.</p>
+                  <p className="text-xs text-muted-foreground mt-2">Creator pay is set per person when you approve their work. Verza&apos;s 4% comes out of this budget.</p>
                 </div>
               ) : isAffiliateEnabled ? (
                 <div className="p-6 border rounded-lg bg-blue-500/5 text-center border-blue-500/20">

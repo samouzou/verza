@@ -1139,7 +1139,7 @@ export function isOpticPassReason(value: unknown): value is OpticPassReason {
 }
 
 /** Verza fee on campaign payouts. Taken from the campaign budget, on top of what the creator receives. */
-export const GIG_PLATFORM_FEE_FRACTION = 0.15;
+export const GIG_PLATFORM_FEE_FRACTION = 0.04;
 
 export type GigBudgetMode = "flat_fee" | "pool";
 

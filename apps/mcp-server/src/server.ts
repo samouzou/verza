@@ -623,7 +623,7 @@ export function createVerzaMcpServer(deps: ServerDeps): McpServer {
 
   server.tool(
     "campaign_create",
-    "Launch an approved campaign draft. campaignBudget is the one all-in total the brand funds; each creator's pay is agreed individually and Verza's 15% fee comes out of the budget. Paid campaigns return a funding link; a $0 budget (performance-only, barter, cause) goes live right away.",
+    "Launch an approved campaign draft. campaignBudget is the one all-in total the brand funds; each creator's pay is agreed individually and Verza's 4% fee comes out of the budget. Paid campaigns return a funding link; a $0 budget (performance-only, barter, cause) goes live right away.",
     {
       confirm: z
         .boolean()

@@ -98,7 +98,7 @@ Return STRICT JSON only (no markdown fences) with keys:
 - title: max 120 chars, specific, no ALL CAPS
 - descriptionHtml: HTML fragment using only p, br, strong, em, ul, ol, li (3–6 short blocks, under 2500 chars)
 - platforms: array from TikTok, Instagram, YouTube, Facebook, Twitch, LinkedIn (1–3 best fits)
-- campaignBudget: number USD. The TOTAL all-in budget the brand funds for creator pay (Verza's 15% fee comes out of it). Each creator's pay is agreed individually, so there is no per-creator rate or creator count. Typical paid UGC: 1500–25000. 0 for cause/barter unless cash is clear.
+- campaignBudget: number USD. The TOTAL all-in budget the brand funds for creator pay (Verza's 4% fee comes out of it). Each creator's pay is agreed individually, so there is no per-creator rate or creator count. Typical paid UGC: 1500–25000. 0 for cause/barter unless cash is clear.
 - videosPerCreator: integer 1–3
 - usageRights: none | 30_days | 1_year | perpetuity
 - allowWhitelisting: boolean

@@ -10,7 +10,7 @@ Verza is the **operating system for the creator economy**. On the brand side, ou
 **Zero-Risk for Creators, Zero-Friction for Brands.**
 - **Funding**: All gigs MUST be pre-funded. Use the `createGigFundingCheckoutSession` function.
 - **Wallet**: Brands (Agencies) have a wallet. `availableBalance` is for top-ups; `escrowBalance` is for funds committed to active gigs.
-- **Payout**: Funds are released only when a brand approves a verified submission. Use the `payoutCreatorForGig` function. This handles the 15% platform fee and transfers the net amount to the creator's Stripe account instantly.
+- **Payout**: Funds are released only when a brand approves a verified submission. Use the `payoutCreatorForGig` function. This handles the 4% platform fee and transfers the net amount to the creator's Stripe account instantly.
 
 ## 3. The Quality Gate: Verza Score
 - Every submission must pass **The Gauntlet** (AI simulation of 10k Gen Z scrollers).

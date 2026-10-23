@@ -1,7 +1,7 @@
 import {numOrZero} from "../context.js";
 
 /** Gig payout fee retained by Verza (from payoutCreatorForGig). */
-export const GIG_PLATFORM_FEE_FRACTION = 0.15;
+export const GIG_PLATFORM_FEE_FRACTION = 0.04;
 
 export type GigBudgetInput = {
   id: string;
@@ -34,7 +34,7 @@ export type BudgetEstimate = {
   videosPerCreator: number;
   /** Brand cash outlay to fund creator base pay (rate × creators). */
   creatorCompensationUsd: number;
-  /** Illustrative 15% platform fee on creator payouts (taken at payout). */
+  /** Illustrative 4% platform fee on creator payouts (taken at payout). */
   estimatedPlatformFeeUsd: number;
   /** Net to creators after platform fee. */
   estimatedCreatorNetUsd: number;

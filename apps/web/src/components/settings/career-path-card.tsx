@@ -59,7 +59,7 @@ export function CareerPathCard() {
                 Creator Career Path
               </CardTitle>
               <CardDescription>
-                Redefine your journey and explore tools tailored to your current stage.
+                Pick what you want to do first. You can change it later.
               </CardDescription>
             </div>
             {currentPath && (
@@ -74,8 +74,7 @@ export function CareerPathCard() {
             <div className="flex-1 space-y-2">
               <h4 className="font-bold text-lg">Want to change your focus?</h4>
               <p className="text-sm text-muted-foreground">
-                Sell tips, courses, and downloads to your community, hunt brand deals, or grow your audience —
-                re-running the guide will help you find the right tools.
+                Find brand deals, sell to your community, or make content. Choosing again takes you straight there.
               </p>
             </div>
             <Button 

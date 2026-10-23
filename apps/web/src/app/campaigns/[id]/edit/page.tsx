@@ -563,7 +563,7 @@ export default function EditGigPage() {
                 <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-primary" /> 4. Campaign Budget</CardTitle>
                 <CardDescription>
                   This campaign pays only through performance rewards. Add a cash budget to pay creators fixed amounts too —
-                  you choose each creator&apos;s pay when you approve their work, and Verza&apos;s 15% comes out of the budget.
+                  you choose each creator&apos;s pay when you approve their work, and Verza&apos;s 4% comes out of the budget.
                   No need to relaunch.
                 </CardDescription>
               </CardHeader>
@@ -595,7 +595,7 @@ export default function EditGigPage() {
                       <Input id="rate" type="number" value={gig?.budgetMode === 'pool' ? campaignBudget : ratePerCreator} onChange={e => gig?.budgetMode === 'pool' ? setCampaignBudget(e.target.value) : setRatePerCreator(e.target.value)} placeholder="3000" className="pl-9" required min="1" disabled={isSubmitting || isLocked} />
                     </div>
                     {gig?.budgetMode === 'pool' && (
-                      <p className="text-[10px] text-muted-foreground">When you pay a creator, they receive the full amount. Verza&apos;s 15% is taken from this budget as well.</p>
+                      <p className="text-[10px] text-muted-foreground">When you pay a creator, they receive the full amount. Verza&apos;s 4% is taken from this budget as well.</p>
                     )}
                   </div>
                 </CardContent>

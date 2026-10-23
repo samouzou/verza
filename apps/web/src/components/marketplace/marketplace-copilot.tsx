@@ -87,7 +87,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: Lock,
       title: "Pre-Funded Campaigns",
-      description: "The brand has already funded this campaign. Your payment is held securely in the vault and released upon approval, minus a 15% platform fee.",
+      description: "The brand has already funded this campaign. Your payment is held securely in the vault and released upon approval, minus a 4% platform fee.",
       badge: "SECURE"
     },
     {

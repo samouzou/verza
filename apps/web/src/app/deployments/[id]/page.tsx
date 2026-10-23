@@ -1240,7 +1240,7 @@ function GigDetailContent() {
                                           <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                           <AlertDialogDescription>
                                             {isPoolBudgetGig(gig)
-                                              ? <>Enter what <span className="font-bold text-foreground">{creator.displayName}</span> should receive. They get that amount in full. Verza&apos;s 15% is also taken from this campaign&apos;s budget.</>
+                                              ? <>Enter what <span className="font-bold text-foreground">{creator.displayName}</span> should receive. They get that amount in full. Verza&apos;s 4% is also taken from this campaign&apos;s budget.</>
                                               : <>You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>&apos;s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.</>}
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
@@ -1361,8 +1361,8 @@ function GigDetailContent() {
                   </div>
                   {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
-                      <span className="text-xs text-muted-foreground">Est. Net Payout (15% fee)</span>
-                      <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.85).toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground">Est. Net Payout (4% fee)</span>
+                      <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.96).toLocaleString()}</span>
                     </div>
                   )}
                 </div>
@@ -1436,9 +1436,9 @@ function GigDetailContent() {
 
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
                                   {(gig.ratePerCreator || 0) > 0 ? (
-                                    <p>The Client has pre-funded the base rate for this deployment ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 15% platform service fee.</p>
+                                    <p>The Client has pre-funded the base rate for this deployment ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 4% platform service fee.</p>
                                   ) : (
-                                    <p>This is a performance-based deployment. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 15% platform service fee.</p>
+                                    <p>This is a performance-based deployment. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 4% platform service fee.</p>
                                   )}
 
                                   <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>

@@ -6,7 +6,7 @@ import {db} from "../config/firebase";
 import type {Gig, UserProfileFirestoreData, Notification, Agency, InternalPayout} from "./../types";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {sendDeploymentEmailSequence} from "../notifications";
-import {isPoolBudgetGig} from "../poolBudget";
+import {GIG_PLATFORM_FEE_FRACTION, isPoolBudgetGig} from "../poolBudget";
 import {payoutPoolCreator} from "./poolPayout";
 
 export {addCampaignBudgetFromWallet, releaseUnspentCampaignBudget} from "./poolPayout";
@@ -78,7 +78,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
     let platformFeeInCents = 0;
 
     if (rawPayoutAmountInCents > 0) {
-      platformFeeInCents = Math.round(rawPayoutAmountInCents * 0.15);
+      platformFeeInCents = Math.round(rawPayoutAmountInCents * GIG_PLATFORM_FEE_FRACTION);
       const netPayoutInCents = rawPayoutAmountInCents - platformFeeInCents;
 
       if (assignment) {
@@ -147,7 +147,7 @@ export const payoutCreatorForGig = onCall(async (request) => {
           const talentAgencyData = talentAgencySnap.data() as Agency;
           talentAgencyOwnerId = talentAgencyData.ownerId;
           const commissionAmount =
-            (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * 0.15)) * (assignment.commissionRate / 100) / 100;
+            (rawPayoutAmountInCents - Math.round(rawPayoutAmountInCents * GIG_PLATFORM_FEE_FRACTION)) * (assignment.commissionRate / 100) / 100;
 
           transaction.update(talentAgencyDocRef, {
             availableBalance: (talentAgencyData.availableBalance || 0) + commissionAmount,

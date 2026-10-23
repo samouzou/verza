@@ -1,6 +1,6 @@
 /** Runtime pool-budget math. Do not import these from @verza/types — that package is TS-only. Keep in sync with packages/types. */
 
-export const GIG_PLATFORM_FEE_FRACTION = 0.15;
+export const GIG_PLATFORM_FEE_FRACTION = 0.04;
 
 export type GigBudgetMode = "flat_fee" | "pool";
 

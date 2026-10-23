@@ -609,8 +609,8 @@ export default function PostGigPage() {
                         <Input id="budget" type="number" value={campaignBudget} onChange={e => setCampaignBudget(e.target.value)} placeholder="3000" className="pl-9" required min="1" disabled={isSubmitting} />
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Held in escrow for this campaign only. When you pay a creator $300, they receive $300 and $45 (15%) is also taken from this budget for Verza.
-                        {totalAmount > 0 ? ` About $${Math.floor(totalAmount / 1.15).toLocaleString()} can go to creators.` : ''}
+                        Held in escrow for this campaign only. When you pay a creator $300, they receive $300 and $12 (4%) is also taken from this budget for Verza.
+                        {totalAmount > 0 ? ` About $${Math.floor(totalAmount / 1.04).toLocaleString()} can go to creators.` : ''}
                       </p>
                     </div>
                   </CardContent>
@@ -832,7 +832,7 @@ export default function PostGigPage() {
                 <div className="p-6 border rounded-lg bg-primary/5 text-center shadow-inner">
                   <p className="text-sm text-muted-foreground font-medium">Campaign budget held in escrow</p>
                   <p className="text-4xl font-black text-primary mt-1">${totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground mt-2">Creator pay is set per person when you approve their work. Verza&apos;s 15% comes out of this budget.</p>
+                  <p className="text-xs text-muted-foreground mt-2">Creator pay is set per person when you approve their work. Verza&apos;s 4% comes out of this budget.</p>
                 </div>
               ) : isAffiliateEnabled ? (
                 <div className="p-6 border rounded-lg bg-blue-500/5 text-center border-blue-500/20">

@@ -646,7 +646,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Verza fee</td>
                         <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
-                        text-align: right;">15% from this budget when a creator is paid</td>
+                        text-align: right;">4% from this budget when a creator is paid</td>
                       </tr>` : `
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>
@@ -1093,7 +1093,7 @@ export const createGigFundingCheckoutSession = onCall(async (request) => {
           product_data: {
             name: `Campaign Budget: ${title}`,
             description: requestedPool ?
-              "Campaign budget. Creator pay is set when you approve each creator. Verza's 15% is taken from this budget." :
+              "Campaign budget. Creator pay is set when you approve each creator. Verza's 4% is taken from this budget." :
               `Funding for ${creatorsNum} creators at $${rateNum} each.`,
           },
           unit_amount: totalAmountInCents,
