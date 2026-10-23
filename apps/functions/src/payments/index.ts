@@ -702,7 +702,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                 </body></html>`;
               await sgMail.send({
                 to: ownerData.email,
-                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com"},
+                from: {name: "Verza", email: params.SENDGRID_FROM_EMAIL.value() || "support@tryverza.com"},
                 subject: `Receipt: Deployment Capital for "${gigData.title}"`,
                 html: receiptHtml,
               });

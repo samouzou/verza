@@ -1114,7 +1114,7 @@ export async function fulfillStoreSale(
       to: buyerEmail,
       from: {
         name: "Verza Store",
-        email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
+        email: params.SENDGRID_FROM_EMAIL.value() || "support@tryverza.com",
       },
       subject: `Your purchase: ${product.title}`,
       html: bodyHtml,

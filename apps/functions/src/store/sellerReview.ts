@@ -172,7 +172,7 @@ async function notifySupportOfStoreReview(payload: {
       to: recipients,
       from: {
         name: "Verza Store",
-        email: params.SENDGRID_FROM_EMAIL.value() || "invoices@tryverza.com",
+        email: params.SENDGRID_FROM_EMAIL.value() || "support@tryverza.com",
       },
       subject: `Store review: ${payload.displayName || payload.email || payload.uid}`,
       html: `

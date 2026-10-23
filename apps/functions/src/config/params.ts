@@ -38,7 +38,7 @@ export const FINICITY_EXPERIENCE_GUID = defineString("FINICITY_EXPERIENCE_GUID")
 export const FINICITY_WEBHOOK_URL = defineString("FINICITY_WEBHOOK_URL");
 
 export const SENDGRID_FROM_EMAIL = defineString("SENDGRID_FROM_EMAIL", {
-  default: "invoices@tryverza.com",
+  default: "support@tryverza.com",
   description: "The 'from' email address for automated emails.",
 });
 
