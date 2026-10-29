@@ -35,11 +35,13 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [signupError, setSignupError] = useState<string | null>(null);
+  const [fromAppSumo, setFromAppSumo] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get('next');
     if (isSafeAppPath(next)) setPostAuthRedirect(next);
+    setFromAppSumo(next === '/prism/redeem' || peekPostAuthRedirect() === '/prism/redeem');
   }, []);
 
   useEffect(() => {
@@ -225,10 +227,16 @@ export default function LoginPage() {
             <Image src="/verza-icon.svg" alt="Verza Icon" width={48} height={48} />
           </div>
           <CardTitle className="text-3xl font-bold">
-            {isPasswordResetView ? "Reset Password" : isSignUpView ? "Create Account" : "Welcome to Verza"}
+            {isPasswordResetView ? "Reset Password" : isSignUpView ? "Create Account" : fromAppSumo ? "AppSumo · Prism" : "Welcome to Verza"}
           </CardTitle>
           <CardDescription>
-             {isPasswordResetView ? "Enter your email to receive a reset link." : isSignUpView ? "Sign up to manage your contracts." : "The operating system for the creator economy."}
+             {isPasswordResetView
+               ? "Enter your email to receive a reset link."
+               : fromAppSumo
+                 ? "Sign in or create an account to redeem your AppSumo code. You’ll return to the redeem page next."
+                 : isSignUpView
+                   ? "Sign up to manage your contracts."
+                   : "The operating system for the creator economy."}
           </CardDescription>
         </CardHeader>
         <CardContent>
