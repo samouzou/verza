@@ -13,6 +13,7 @@ export type OpticGmailThreadMessage = {
   date: string | null;
   snippet: string;
   body: string;
+  quoted?: string;
   direction: "outbound" | "inbound";
 };
 

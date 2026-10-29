@@ -5,6 +5,7 @@ export type GmailThreadMessage = {
   date: string | null;
   snippet: string;
   body: string;
+  quoted: string;
   direction: "outbound" | "inbound";
 };
 
@@ -73,6 +74,48 @@ function parseDate(value: string): string | null {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
+const QUOTE_MARKERS: RegExp[] = [
+  /^On .+wrote:\s*$/i,
+  /^-{2,}\s*Original Message\s*-{2,}\s*$/i,
+  /^_{2,}\s*$/,
+  /^From:\s.+\nSent:\s/i,
+  /^Le .+a écrit\s*:\s*$/i,
+];
+
+/**
+ * Splits a Gmail body into the new reply and the quoted chain under it.
+ * @param {string} body Full plain-text body.
+ * @return {{visible: string, quoted: string}} Visible reply and hidden quote.
+ */
+export function splitQuotedReply(body: string): {visible: string; quoted: string} {
+  const text = body.replace(/\r\n/g, "\n").trim();
+  if (!text) return {visible: "", quoted: ""};
+
+  const lines = text.split("\n");
+  let cut = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const next = (lines[i + 1] ?? "").trim();
+    if (QUOTE_MARKERS.some((re) => re.test(line))) {
+      cut = i;
+      break;
+    }
+    if (/^On .{8,240}$/i.test(line) && /^wrote:\s*$/i.test(next)) {
+      cut = i;
+      break;
+    }
+    if (i > 0 && /^>/.test(line) && !/^>/.test((lines[i - 1] ?? "").trim())) {
+      cut = i;
+      break;
+    }
+  }
+  if (cut <= 0) return {visible: text, quoted: ""};
+  const visible = lines.slice(0, cut).join("\n").trim();
+  const quoted = lines.slice(cut).join("\n").trim();
+  if (!visible) return {visible: text, quoted: ""};
+  return {visible, quoted};
+}
+
 /**
  * Flattens a Gmail thread into vault-friendly messages (newest last).
  * @param {object} thread Gmail users.threads.get payload.
@@ -97,14 +140,16 @@ export function parseGmailThread(
     const plain: string[] = [];
     const html: string[] = [];
     collectText(msg.payload, plain, html);
-    const body = (plain.join("\n\n").trim() || stripHtml(html.join("\n"))).slice(0, 8000);
+    const raw = (plain.join("\n\n").trim() || stripHtml(html.join("\n"))).slice(0, 8000);
+    const split = splitQuotedReply(raw || (msg.snippet ?? "").trim());
     out.push({
       id: msg.id,
       from: from || fromEmail || "Unknown",
       fromEmail,
       date: parseDate(headerValue(headers, "Date")),
       snippet: (msg.snippet ?? "").trim(),
-      body: body || (msg.snippet ?? "").trim(),
+      body: split.visible,
+      quoted: split.quoted,
       direction: fromEmail && mine && fromEmail === mine ? "outbound" : "inbound",
     });
   }

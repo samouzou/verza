@@ -12,7 +12,7 @@ import {
 } from "./tokens";
 import {isOpticLeadStage} from "../optic/leadCrm";
 import {isEmailDraftEmpty} from "./emailHtml";
-import {parseGmailThread, type GmailThreadMessage} from "./thread";
+import {parseGmailThread, splitQuotedReply, type GmailThreadMessage} from "./thread";
 
 const TEAM_ROLES = new Set(["agency_owner", "agency_admin", "agency_member"]);
 const THREAD_SNAPSHOT_MAX = 20;
@@ -24,15 +24,21 @@ const THREAD_BODY_MAX = 8000;
  * @return {GmailThreadMessage[]} Capped, size-bounded copy.
  */
 function sanitizeThreadSnapshot(messages: GmailThreadMessage[]): GmailThreadMessage[] {
-  return messages.slice(-THREAD_SNAPSHOT_MAX).map((m) => ({
-    id: String(m.id ?? "").slice(0, 128),
-    from: String(m.from ?? "").slice(0, 200),
-    fromEmail: String(m.fromEmail ?? "").slice(0, 200),
-    date: typeof m.date === "string" ? m.date.slice(0, 40) : null,
-    snippet: String(m.snippet ?? "").slice(0, 500),
-    body: String(m.body ?? "").slice(0, THREAD_BODY_MAX),
-    direction: m.direction === "outbound" ? "outbound" : "inbound",
-  }));
+  return messages.slice(-THREAD_SNAPSHOT_MAX).map((m) => {
+    const rawBody = String(m.body ?? "");
+    const storedQuoted = String(m.quoted ?? "");
+    const split = storedQuoted ? {visible: rawBody, quoted: storedQuoted} : splitQuotedReply(rawBody);
+    return {
+      id: String(m.id ?? "").slice(0, 128),
+      from: String(m.from ?? "").slice(0, 200),
+      fromEmail: String(m.fromEmail ?? "").slice(0, 200),
+      date: typeof m.date === "string" ? m.date.slice(0, 40) : null,
+      snippet: String(m.snippet ?? "").slice(0, 500),
+      body: split.visible.slice(0, THREAD_BODY_MAX),
+      quoted: split.quoted.slice(0, THREAD_BODY_MAX),
+      direction: m.direction === "outbound" ? "outbound" : "inbound",
+    };
+  });
 }
 
 /**
@@ -352,6 +358,7 @@ export const sendOpticGmailMessage = onCall(
         snippet: subject.slice(0, 140),
         body: body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, THREAD_BODY_MAX) ||
           subject,
+        quoted: "",
         direction: "outbound",
       };
       const seeded = sanitizeThreadSnapshot([...prior, outbound]);

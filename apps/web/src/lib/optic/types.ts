@@ -215,6 +215,7 @@ export type OpticLeadRow = {
     date?: string | null;
     snippet?: string;
     body?: string;
+    quoted?: string;
     direction?: "outbound" | "inbound";
   }> | null;
   gmailThreadSyncedByEmail?: string | null;
