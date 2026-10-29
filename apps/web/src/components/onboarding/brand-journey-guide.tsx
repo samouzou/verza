@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Loader2, Target, Users, Wallet } from "lucide-react";
+import { ArrowRight, CalendarRange, Loader2, Target, Users, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { doc, updateDoc } from "firebase/firestore";
 
@@ -14,6 +14,12 @@ interface BrandJourneyGuideProps {
 }
 
 const START_OPTIONS = [
+  {
+    title: "Manage my social calendar",
+    description: "Plan, create, and post content with Prism.",
+    href: "/prism",
+    icon: CalendarRange,
+  },
   {
     title: "Launch a campaign",
     description: "Start a campaign now.",
