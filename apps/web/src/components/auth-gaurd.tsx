@@ -13,7 +13,7 @@ import { rememberPrismPromo } from "@/lib/prism/promo";
 
 /** Server-rendered, indexable pages that must show content before auth resolves. */
 function isSeoPublicPath(pathname: string): boolean {
-  return pathname.startsWith('/c/') || pathname === '/campaigns/open' || pathname === '/prism/redeem';
+  return pathname.startsWith('/c/') || pathname.startsWith('/creator/') || pathname === '/campaigns/open' || pathname === '/prism/redeem';
 }
 
 /** A creator returning from a public campaign page to apply, even before finishing their career path. */
@@ -29,7 +29,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const seoPublic = isSeoPublicPath(pathname);
 
   // Added /data-deletion to public paths for Facebook compliance
-  const publicPaths = ['/login', '/pay/contract', '/share/contract', '/data-deletion', '/sms-opt-in', '/l/', '/overview', '/s/', '/c/', '/campaigns/open', '/prism/redeem'];
+  const publicPaths = ['/login', '/pay/contract', '/share/contract', '/data-deletion', '/sms-opt-in', '/l/', '/overview', '/s/', '/c/', '/creator/', '/campaigns/open', '/prism/redeem'];
   const onboardingPath = '/onboarding';
 
   useEffect(() => {

@@ -70,19 +70,34 @@ export function publicCampaignUrl(campaign: Pick<PublicCampaign, 'slug'>): strin
   return `${APP_BASE_URL}/c/${campaign.slug}`;
 }
 
-export async function getPublicCampaign(id: string): Promise<PublicCampaign | null> {
-  if (!PROJECT_ID || !/^[A-Za-z0-9]+$/.test(id)) return null;
+/** Unauthenticated REST read of a public Firestore document. */
+export async function getPublicFirestoreDoc<T extends { id: string }>(
+  collectionId: string,
+  id: string,
+  idPattern: RegExp,
+  tag: string,
+): Promise<T | null> {
+  if (!PROJECT_ID || !idPattern.test(id)) return null;
   try {
-    const res = await fetch(withKey(`${firestoreBase()}/public_campaigns/${id}`), {
-      next: { revalidate: REVALIDATE_SECONDS, tags: [`public-campaign-${id}`] },
+    const res = await fetch(withKey(`${firestoreBase()}/${collectionId}/${id}`), {
+      next: { revalidate: REVALIDATE_SECONDS, tags: [tag] },
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { fields?: Record<string, FirestoreValue> };
     if (!json.fields) return null;
-    return { ...(decodeFields(json.fields) as Omit<PublicCampaign, 'id'>), id } as PublicCampaign;
+    return { ...(decodeFields(json.fields) as Omit<T, 'id'>), id } as T;
   } catch {
     return null;
   }
+}
+
+export async function getPublicCampaign(id: string): Promise<PublicCampaign | null> {
+  return getPublicFirestoreDoc<PublicCampaign>(
+    'public_campaigns',
+    id,
+    /^[A-Za-z0-9]+$/,
+    `public-campaign-${id}`,
+  );
 }
 
 export async function listPublicCampaigns(max = 200): Promise<PublicCampaign[]> {
@@ -146,11 +161,17 @@ export function formatUsd(amount: number): string {
   }).format(amount);
 }
 
-/** One-line compensation summary, e.g. "$250 per creator + $5 per sale". */
+/** One-line compensation summary, e.g. "$5,000 budget + $5 per sale". */
 export function compensationSummary(c: PublicCampaign): string {
   const parts: string[] = [];
-  if (c.budgetMode === 'pool') parts.push('Flat fee');
-  else if (c.ratePerCreator > 0) parts.push(`${formatUsd(c.ratePerCreator)} per creator`);
+  const funded = Number(c.fundedAmount) || 0;
+  if (c.budgetMode === 'pool') {
+    parts.push(funded > 0 ? `${formatUsd(funded)} budget` : 'Flat fee');
+  } else if (c.ratePerCreator > 0) {
+    parts.push(`${formatUsd(c.ratePerCreator)} per creator`);
+  } else if (funded > 0) {
+    parts.push(`${formatUsd(funded)} budget`);
+  }
   if (c.performanceReward && c.performanceReward.rewardAmount > 0) {
     const unit = c.performanceReward.rewardType === 'cpc' ? 'click' : 'sale';
     parts.push(`${formatUsd(c.performanceReward.rewardAmount)} per ${unit}`);

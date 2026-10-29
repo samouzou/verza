@@ -108,6 +108,8 @@ import {
   adminSetCampaignFee,
 } from "./admin/campaigns";
 import {syncPublicCampaign, reconcilePublicCampaigns} from "./gigs/publicCampaigns";
+import {syncCreatorMarketplaceProof} from "./gigs/creatorMarketplace";
+import {reconcilePublicCreators, syncPublicCreator} from "./gigs/publicCreators";
 import {
   syncBrandKitAccess,
   migrateAgencyBrandKit,
@@ -125,7 +127,14 @@ import {
   fetchYouTubeVideoStats,
 } from "./social";
 import {conversionWebhook, saveStripeConversionSettings, stripeConversionWebhook} from "./webhooks";
-import {connectMetaAds, continueSubmissionAd, disconnectMetaAds, launchSubmissionAd, selectMetaAdsAccount, setSubmissionAdStatus} from "./metaAds";
+import {
+  connectMetaAds,
+  continueSubmissionAd,
+  disconnectMetaAds,
+  launchSubmissionAd,
+  selectMetaAdsAccount,
+  setSubmissionAdStatus,
+} from "./metaAds";
 import {onAffiliateLinkClick} from "./tracking";
 import {
   enqueueOpticDiscoveryJob,
@@ -295,6 +304,9 @@ export {
   extendCreatorDeadline,
   syncPublicCampaign,
   reconcilePublicCampaigns,
+  syncCreatorMarketplaceProof,
+  syncPublicCreator,
+  reconcilePublicCreators,
   syncBrandKitAccess,
   migrateAgencyBrandKit,
   onBrandKitWritten,

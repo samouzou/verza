@@ -180,8 +180,9 @@ function monetizedSteps(name: string, appUrl: string, btn: string, secondary: st
       content: `
         <h1 style="color: #333; font-size: 22px;">Brands hire what they can understand in 10 seconds</h1>
         <p style="color: #555; line-height: 1.6;">Hi ${name},</p>
-        <p style="color: #555; line-height: 1.6;">Complete your display name, photo, niche, and bio. If you
-        want inbound interest, turn on marketplace visibility when you're ready.</p>
+        <p style="color: #555; line-height: 1.6;">Complete your display name, photo, niche, and bio. When you're
+        ready for inbound interest, turn on marketplace visibility on your profile — then open
+        <strong>View public profile</strong> and look at it the way a brand would.</p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${appUrl}/profile" style="${btn}">Complete your profile</a>
         </div>

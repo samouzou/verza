@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, UploadCloud, Briefcase, Landmark } from "lucide-react";
+import { Loader2, Save, UploadCloud, Briefcase, Landmark, Copy, ExternalLink } from "lucide-react";
 import { auth, db, doc, updateDoc, storage } from "@/lib/firebase";
 import { updateProfile as updateFirebaseUserProfile } from "firebase/auth";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -189,7 +189,13 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
         await updateDoc(userDocRef, firestoreUpdates);
       }
       
-      toast({ title: "Success", description: "Profile updated successfully." });
+      const justPublished = showInMarketplace && !(currentUser.showInMarketplace || false);
+      toast({
+        title: justPublished ? "Your profile is public" : "Success",
+        description: justPublished
+          ? "Open your public profile to see how you appear to brands."
+          : "Profile updated successfully.",
+      });
       await refreshAuthUser();
       setAvatarFile(null);
       setLogoFile(null);
@@ -349,10 +355,10 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
           <CardDescription>This information will be visible to brands in the Creator Marketplace.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="showInMarketplace" className="text-base">Show my profile in the Marketplace</Label>
-              <p className="text-sm text-muted-foreground">Allow brands to discover and contact you.</p>
+              <p className="text-sm text-muted-foreground">Allow brands to discover you. Contact stays on Verza — your email is not shown.</p>
             </div>
             <Switch
               id="showInMarketplace"
@@ -360,6 +366,37 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
               onCheckedChange={setShowInMarketplace}
             />
           </div>
+
+          {showInMarketplace && currentUser.showInMarketplace && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href={`/creator/${currentUser.uid}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View public profile
+                </a>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/creator/${currentUser.uid}`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    toast({ title: "Link copied", description: "Share this URL — it is what brands and search engines see." });
+                  } catch {
+                    toast({ title: "Copy failed", description: url, variant: "destructive" });
+                  }
+                }}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy link
+              </Button>
+            </div>
+          )}
+          {showInMarketplace && !currentUser.showInMarketplace && (
+            <p className="text-sm text-muted-foreground">Save to publish. Then you can open the page brands see.</p>
+          )}
 
           {showInMarketplace && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

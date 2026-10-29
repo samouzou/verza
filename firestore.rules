@@ -97,7 +97,9 @@ service cloud.firestore {
         'storeSellerReviewedAt',
         'storeSellerReviewedBy',
         'storeSellerReviewNote',
-        'storeSellerRejectReason'
+        'storeSellerRejectReason',
+        'averageVerzaScore',
+        'contentShowcase'
       ]);
     }
 
@@ -105,7 +107,9 @@ service cloud.firestore {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       return !changed.hasAny(['primaryAgencyId', 'isAgencyOwner', 'isBrandAccount', 'walletBalance']) &&
              (!changed.hasAny(['role']) || (!('role' in resource.data) && request.resource.data.role == 'individual_creator')) &&
-             (!changed.hasAny(['agencyMemberships']) || (!('agencyMemberships' in resource.data) && request.resource.data.agencyMemberships.size() == 0));
+             (!changed.hasAny(['agencyMemberships']) || (!('agencyMemberships' in resource.data) && request.resource.data.agencyMemberships.size() == 0)) &&
+             (!changed.hasAny(['averageVerzaScore']) || (!('averageVerzaScore' in resource.data) && request.resource.data.averageVerzaScore == 0)) &&
+             !changed.hasAny(['contentShowcase']);
     }
 
     function isOnboardingCompletion() {
@@ -129,7 +133,7 @@ service cloud.firestore {
 
     // Rules for the users collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || isSameAgencyTeam(userId) || resource.data.get('showInMarketplace', false) == true;
+      allow read: if isOwner(userId) || isTalentInMyAgency(userId) || isGigAffiliated(userId) || isSameAgencyTeam(userId) || (signedIn() && resource.data.get('showInMarketplace', false) == true);
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) && (requesterPrivilegeFieldsUnchanged() || isOnboardingCompletion() || isMissingFieldBackfill());
       
@@ -188,6 +192,12 @@ service cloud.firestore {
 
     // Public campaign pages (written only by Cloud Functions; safe fields only)
     match /public_campaigns/{gigId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Public creator profiles (written only by Cloud Functions; no email or billing)
+    match /public_creators/{userId} {
       allow read: if true;
       allow write: if false;
     }

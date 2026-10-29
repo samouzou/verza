@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { CalendarDays, CheckCircle2, Clapperboard, Lock, Megaphone, MessageSquare, Package, Palette, ShieldCheck, Users, Zap } from 'lucide-react';
+import { CalendarDays, CheckCircle2, CircleDollarSign, Clapperboard, Lock, Megaphone, MessageSquare, Package, Palette, ShieldCheck, Users, Zap } from 'lucide-react';
 import type { PublicCampaign } from '@verza/types';
 import { PublicShell } from '@/components/public-campaigns/public-shell';
 import { PublicApplyButton } from '@/components/public-campaigns/apply-button';
@@ -201,6 +201,9 @@ export default async function PublicCampaignPage({ params }: PageProps) {
             )}
 
             <div className="mt-5 space-y-4">
+              {(Number(campaign.fundedAmount) || 0) > 0 && (
+                <Fact icon={CircleDollarSign} label="Budget funded" value={formatUsd(campaign.fundedAmount)} />
+              )}
               {!isCause && campaign.creatorsNeeded > 0 && (
                 <Fact icon={Users} label="Spots" value={`${campaign.spotsLeft} of ${campaign.creatorsNeeded} left`} />
               )}
@@ -215,7 +218,9 @@ export default async function PublicCampaignPage({ params }: PageProps) {
               )}
               {campaign.budgetMode === 'pool' && (
                 <p className="text-xs text-muted-foreground">
-                  A flat fee is set when the brand accepts you. You receive that amount in full.
+                  {(Number(campaign.fundedAmount) || 0) > 0
+                    ? `This campaign is funded at ${formatUsd(campaign.fundedAmount)}. Your flat fee is set when the brand accepts you, and you receive that amount in full.`
+                    : 'A flat fee is set when the brand accepts you. You receive that amount in full.'}
                 </p>
               )}
               {campaign.budgetMode !== 'pool' && campaign.ratePerCreator > 0 && (

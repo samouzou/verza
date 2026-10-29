@@ -50,6 +50,7 @@ export default function MarketplacePage() {
           youtubeConnected: data.youtubeConnected,
           youtubeFollowers: data.youtubeFollowers,
           youtubeEngagement: data.youtubeEngagement,
+          averageVerzaScore: data.averageVerzaScore,
         } as CreatorMarketplaceProfile;
       });
       setCreators(creatorsData);

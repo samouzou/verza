@@ -250,6 +250,8 @@ export interface UserProfileFirestoreData {
     tiktok?: string;
   };
   averageVerzaScore?: number;
+  /** Approved public social submissions, denormalized for marketplace profiles. */
+  contentShowcase?: ContentShowcaseItem[];
 
   // Subscription Fields
   stripeCustomerId?: string | null;
@@ -907,8 +909,10 @@ export interface PublicCampaign {
   ratePerCreator: number;
   creatorsNeeded: number;
   spotsLeft: number;
-  /** `pool` campaigns pay a fee set when the creator is accepted. The dollar budget is not published. */
+  /** `pool` campaigns pay a fee set when the creator is accepted. */
   budgetMode?: 'flat_fee' | 'pool';
+  /** Dollars the brand has locked for this campaign. */
+  fundedAmount: number;
   /** Campaign-specific Verza fee as a fraction. Missing means the platform default. */
   platformFeeFraction?: number;
   videosPerCreator: number;
@@ -925,6 +929,40 @@ export interface PublicCampaign {
   /** The brand has an identity kit; public pages show a locked teaser, never the kit itself. */
   hasBrandKit: boolean;
   createdAtIso: string | null;
+  updatedAtIso: string;
+}
+
+export type ContentShowcasePlatform = "youtube" | "tiktok" | "instagram";
+
+/** Public social work shown on a marketplace creator profile. */
+export interface ContentShowcaseItem {
+  submissionId: string;
+  url: string;
+  platform: ContentShowcasePlatform;
+  verzaScore?: number;
+  createdAtMs?: number;
+}
+
+/** Indexable marketplace profile. Safe fields only — never email or billing. */
+export interface PublicCreator {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  niche: string;
+  contentType: string | null;
+  missionStatement: string | null;
+  brandWishlist: string[];
+  instagramConnected: boolean;
+  instagramFollowers: number;
+  instagramEngagement: number;
+  tiktokConnected: boolean;
+  tiktokFollowers: number;
+  tiktokEngagement: number;
+  youtubeConnected: boolean;
+  youtubeFollowers: number;
+  youtubeEngagement: number;
+  averageVerzaScore: number;
+  contentShowcase: ContentShowcaseItem[];
   updatedAtIso: string;
 }
 
