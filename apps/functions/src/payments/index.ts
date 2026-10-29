@@ -7,7 +7,13 @@ import sgMail from "@sendgrid/mail";
 import * as admin from "firebase-admin";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {UserProfileFirestoreData, Contract, Agency, PaymentMilestone, CreditTransaction, Gig} from "./../types";
-import {START_CAMPAIGN_BUDGET_FIELDS, canStartCampaignBudget, centsToDollars, dollarsToCents} from "../poolBudget";
+import {
+  START_CAMPAIGN_BUDGET_FIELDS,
+  canStartCampaignBudget,
+  centsToDollars,
+  dollarsToCents,
+  formatGigPlatformFeeLabel,
+} from "../poolBudget";
 import * as params from "../config/params";
 import {fulfillOpticTopUp} from "../optic/billing";
 import {assertCanLaunchCampaign} from "../gigs/campaignLaunch";
@@ -646,7 +652,7 @@ export const handlePaymentSuccess = onRequest(async (request, response) => {
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Verza fee</td>
                         <td style="padding: 12px 0; color: #1a202c; font-size: 15px; font-weight: 600; 
-                        text-align: right;">4% from this budget when a creator is paid</td>
+                        text-align: right;">${formatGigPlatformFeeLabel(gigData)} from this budget when a creator is paid</td>
                       </tr>` : `
                       <tr>
                         <td style="padding: 12px 0; color: #4a5568; font-size: 15px;">Rate per Creator</td>

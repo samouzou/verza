@@ -1,7 +1,7 @@
 import {FieldValue} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {db} from "../config/firebase";
-import {GIG_PLATFORM_FEE_FRACTION, isPoolBudgetGig} from "../poolBudget";
+import {formatGigPlatformFeeLabel, gigPlatformFeeFraction, isPoolBudgetGig} from "../poolBudget";
 import {syncQuotedRateFromNote} from "./quotedRate";
 import {
   CLOSE_PROBABILITY,
@@ -168,7 +168,7 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     viewRate,
     ratePerCreator: rate,
     costPerConversionUsd,
-    fixedFeeFraction: pool ? GIG_PLATFORM_FEE_FRACTION : 0,
+    fixedFeeFraction: pool ? gigPlatformFeeFraction(gig) : 0,
     targetCount,
     budgetUsd: campaignBudgetUsd > 0 ? campaignBudgetUsd : null,
     estimateMissingQuotes: pool && campaignBudgetUsd > 0,
@@ -226,7 +226,7 @@ export const refreshOpticCampaignRoasInsight = onCall({timeoutSeconds: 120}, asy
     );
   }
   if (pool) {
-    caveats.push(`Quoted rates include Verza's ${GIG_PLATFORM_FEE_FRACTION * 100}% fee, which comes out of the campaign budget.`);
+    caveats.push(`Quoted rates include Verza's ${formatGigPlatformFeeLabel(gig)} fee, which comes out of the campaign budget.`);
   }
   if (costPerConversionUsd > 0) {
     caveats.push(

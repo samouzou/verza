@@ -215,12 +215,12 @@ export default async function PublicCampaignPage({ params }: PageProps) {
               )}
               {campaign.budgetMode === 'pool' && (
                 <p className="text-xs text-muted-foreground">
-                  A flat fee is set when the brand accepts you. You receive that amount in full. Verza&apos;s fee is paid by the brand.
+                  A flat fee is set when the brand accepts you. You receive that amount in full.
                 </p>
               )}
               {campaign.budgetMode !== 'pool' && campaign.ratePerCreator > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Base pay is pre-funded by the brand. You receive about {formatUsd(campaign.ratePerCreator * 0.96)} after Verza&apos;s 4% fee.
+                  Base pay is pre-funded by the brand. You receive {formatUsd(campaign.ratePerCreator)} when your work is approved.
                 </p>
               )}
             </div>

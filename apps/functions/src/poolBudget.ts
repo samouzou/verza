@@ -1,6 +1,29 @@
-/** Runtime pool-budget math. Do not import these from @verza/types — that package is TS-only. Keep in sync with packages/types. */
+/** Runtime pool-budget math. Do not import these from @verza/types — that package is TS-only.
+ * Keep in sync with packages/types.
+ */
 
 export const GIG_PLATFORM_FEE_FRACTION = 0.04;
+
+/**
+ * Fee fraction stored on a campaign, or the platform default. Caps at 50%.
+ * @param {object=} gig Campaign fields.
+ * @return {number} Fee as a fraction of creator pay.
+ */
+export function gigPlatformFeeFraction(gig?: {platformFeeFraction?: number | null}): number {
+  const n = Number(gig?.platformFeeFraction);
+  if (Number.isFinite(n) && n >= 0 && n <= 0.5) return n;
+  return GIG_PLATFORM_FEE_FRACTION;
+}
+
+/**
+ * Display string such as `4%` or `15%`.
+ * @param {object=} gig Campaign fields.
+ * @return {string} Percent label.
+ */
+export function formatGigPlatformFeeLabel(gig?: {platformFeeFraction?: number | null}): string {
+  const pct = Math.round(gigPlatformFeeFraction(gig) * 1000) / 10;
+  return `${pct}%`;
+}
 
 export type GigBudgetMode = "flat_fee" | "pool";
 
@@ -52,9 +75,15 @@ export type PoolDraw = {
   totalDrawCents: number;
 };
 
-export function poolDrawForCreatorAmount(creatorAmountUsd: number): PoolDraw {
+export function poolDrawForCreatorAmount(
+  creatorAmountUsd: number,
+  feeFraction: number = GIG_PLATFORM_FEE_FRACTION
+): PoolDraw {
+  const fraction = Number.isFinite(feeFraction) && feeFraction >= 0 && feeFraction <= 0.5 ?
+    feeFraction :
+    GIG_PLATFORM_FEE_FRACTION;
   const creatorAmountCents = dollarsToCents(creatorAmountUsd);
-  const platformFeeCents = Math.round(creatorAmountCents * GIG_PLATFORM_FEE_FRACTION);
+  const platformFeeCents = Math.round(creatorAmountCents * fraction);
   return {
     creatorAmountCents,
     platformFeeCents,
@@ -68,13 +97,19 @@ export function poolRemainingCents(gig: {fundedAmount?: number | null; budgetSpe
   return Math.max(0, locked - spent);
 }
 
-export function maxCreatorPayoutCents(remainingCents: number): number {
+export function maxCreatorPayoutCents(
+  remainingCents: number,
+  feeFraction: number = GIG_PLATFORM_FEE_FRACTION
+): number {
   if (remainingCents <= 0) return 0;
-  let guess = Math.floor(remainingCents / (1 + GIG_PLATFORM_FEE_FRACTION));
-  while (guess > 0 && guess + Math.round(guess * GIG_PLATFORM_FEE_FRACTION) > remainingCents) {
+  const fraction = Number.isFinite(feeFraction) && feeFraction >= 0 && feeFraction <= 0.5 ?
+    feeFraction :
+    GIG_PLATFORM_FEE_FRACTION;
+  let guess = Math.floor(remainingCents / (1 + fraction));
+  while (guess > 0 && guess + Math.round(guess * fraction) > remainingCents) {
     guess -= 1;
   }
-  while (guess + 1 + Math.round((guess + 1) * GIG_PLATFORM_FEE_FRACTION) <= remainingCents) {
+  while (guess + 1 + Math.round((guess + 1) * fraction) <= remainingCents) {
     guess += 1;
   }
   return guess;

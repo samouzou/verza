@@ -34,6 +34,7 @@ import {
   ExternalLink,
   ShoppingBag,
   Youtube,
+  Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -601,6 +602,14 @@ export function SidebarNav() {
                   <span>Settings</span>
                 </Link>
               </DropdownMenuItem>
+              {user?.email?.toLowerCase() === "serge@tryverza.com" && (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/campaigns">
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Campaign admin</span>
+                  </Link>
+                </DropdownMenuItem>
+              )}
               {(user?.role === 'individual_creator' || user?.role === 'talent') && (
                 <DropdownMenuItem onClick={() => setShowCareerGuide(true)}>
                   <Zap className="mr-2 h-4 w-4" />

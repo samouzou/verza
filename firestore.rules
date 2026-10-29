@@ -164,7 +164,9 @@ service cloud.firestore {
                        isTeamMemberOf(resource.data.brandId) &&
                        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                          'fundedAmount', 'budgetSpent', 'paidCreatorIds', 'creatorPayouts',
-                         'fundingPaymentIntentId', 'lastBudgetTopUpPaymentIntentId', 'unspentReleased'
+                         'fundingPaymentIntentId', 'lastBudgetTopUpPaymentIntentId', 'unspentReleased',
+                         'platformFeeFraction', 'lastAdminFundAt', 'lastAdminFundBy',
+                         'lastAdminFundAmount', 'lastAdminFundId'
                        ]) &&
                        (
                          resource.data.status == 'pending_payment' ||

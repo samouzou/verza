@@ -3,6 +3,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {db} from "../config/firebase";
 import type {Gig, PublicCampaign} from "../types";
+import {gigPlatformFeeFraction} from "../poolBudget";
 
 const PUBLIC_COLLECTION = "public_campaigns";
 
@@ -54,6 +55,7 @@ export function toPublicCampaign(gigId: string, gig: Gig, hasBrandKit = false): 
     creatorsNeeded,
     spotsLeft: Math.max(0, creatorsNeeded - accepted),
     budgetMode: gig.budgetMode === "pool" ? "pool" : undefined,
+    platformFeeFraction: gigPlatformFeeFraction(gig),
     videosPerCreator: Number(gig.videosPerCreator) || 0,
     usageRights: gig.usageRights ?? null,
     allowWhitelisting: Boolean(gig.allowWhitelisting),

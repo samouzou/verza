@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, FileStack, ExternalLink, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Gig } from '@/types';
+import { gigStatusBadgeLabel } from '@/lib/gig-status-label';
 import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
@@ -95,7 +96,7 @@ export function AgencyGigsCard({ agencyId, isBrandAccount }: AgencyGigsCardProps
                   <TableCell className="font-medium">{gig.title}</TableCell>
                   <TableCell>
                     <Badge variant={gig.status === 'open' ? 'default' : 'secondary'} className={`capitalize ${gig.status === 'open' ? 'bg-green-500' : ''}`}>
-                      {gig.status === 'open' ? 'Capital Available' : gig.status.replace(/_/g, ' ')}
+                      {gigStatusBadgeLabel(gig)}
                     </Badge>
                   </TableCell>
                   <TableCell>{gig.acceptedCreatorIds.length} / {gig.creatorsNeeded}</TableCell>

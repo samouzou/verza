@@ -6,7 +6,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
-import { gigHasCreatorCap, isPoolBudgetGig, type Gig, type GigSubmission, type Notification, type Agency, type AffiliateLink } from '@/types';
+import { formatGigPlatformFeeLabel, gigHasCreatorCap, isPoolBudgetGig, type Gig, type GigSubmission, type Notification, type Agency, type AffiliateLink } from '@/types';
+import { gigStatusBadgeLabel } from '@/lib/gig-status-label';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -798,15 +799,7 @@ function GigDetailContent() {
 
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'open') {
-      return (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
-    }
-    if (status === 'pending_payment') return 'Funding Pending';
-    if (status === 'in-progress') return 'In Progress';
-    if (status === 'completed') return 'Deployment Complete';
-    return status?.replace(/_/g, ' ') || 'unknown';
-  };
+  const getStatusLabel = (status: string) => gigStatusBadgeLabel(gig, status, 'Deployment');
 
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Deployment Not Found</h3></div>;
@@ -831,6 +824,7 @@ function GigDetailContent() {
   const campaignTypeLabel = gig.campaignType === 'production_grant' ? 'Production Grant / Editorial Funding' : 'Standard Sponsorship';
 
   const totalCost = isPoolBudgetGig(gig) ? (gig.campaignBudget || gig.fundedAmount || 0) : gig.ratePerCreator * gig.creatorsNeeded;
+  const feeLabel = formatGigPlatformFeeLabel(gig);
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   const myLink = user ? affiliateLinks[user.uid] : null;
@@ -1240,7 +1234,7 @@ function GigDetailContent() {
                                           <AlertDialogTitle>Approve Submission & Release Payment?</AlertDialogTitle>
                                           <AlertDialogDescription>
                                             {isPoolBudgetGig(gig)
-                                              ? <>Enter what <span className="font-bold text-foreground">{creator.displayName}</span> should receive. They get that amount in full. Verza&apos;s 4% is also taken from this campaign&apos;s budget.</>
+                                              ? <>Enter what <span className="font-bold text-foreground">{creator.displayName}</span> should receive. They get that amount in full. Verza&apos;s {feeLabel} is also taken from this campaign&apos;s budget.</>
                                               : <>You are about to approve <span className="font-bold text-foreground">{creator.displayName}</span>&apos;s submission and add <span className="font-bold text-foreground">${(gig.ratePerCreator || 0).toLocaleString()}</span> to their Verza wallet. They can then withdraw funds to their bank account. This cannot be undone.</>}
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
@@ -1348,8 +1342,10 @@ function GigDetailContent() {
               <CardContent className="space-y-4">
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Base Rate per Creator</span>
-                    {(gig.ratePerCreator || 0) > 0 ? (
+                    <span className="text-muted-foreground">{isPoolBudgetGig(gig) ? 'Campaign budget' : 'Base Rate per Creator'}</span>
+                    {isPoolBudgetGig(gig) ? (
+                      <span className="font-bold text-2xl text-primary">${totalCost.toLocaleString()}</span>
+                    ) : (gig.ratePerCreator || 0) > 0 ? (
                       <span className="font-bold text-2xl text-primary">
                         ${(gig.ratePerCreator || 0).toLocaleString()}
                       </span>
@@ -1359,12 +1355,6 @@ function GigDetailContent() {
                       </Badge>
                     )}
                   </div>
-                  {!canManageGig && (gig.ratePerCreator || 0) > 0 && (
-                    <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
-                      <span className="text-xs text-muted-foreground">Est. Net Payout (4% fee)</span>
-                      <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.96).toLocaleString()}</span>
-                    </div>
-                  )}
                 </div>
 
                 {gig.affiliateSettings?.isEnabled && (
@@ -1435,10 +1425,12 @@ function GigDetailContent() {
                                   <p>Creator agrees to produce content ('Deliverables') according to the requirements specified in the deployment brief. {gig.requireVerzaScore ? `Deliverables must pass the Verza Quality Score threshold of ${gig.verzaScoreThreshold}% to be eligible for payout.` : "Deliverables must meet the brand's quality standards to be eligible for payout."}</p>
 
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
-                                  {(gig.ratePerCreator || 0) > 0 ? (
-                                    <p>The Client has pre-funded the base rate for this deployment ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 4% platform service fee.</p>
+                                  {isPoolBudgetGig(gig) ? (
+                                    <p>The Client has funded a campaign budget of ${totalCost.toLocaleString()}, held in the Verza Campaign Vault. When your work is approved, the Client sets your payment from that budget. You receive that amount in full.</p>
+                                  ) : (gig.ratePerCreator || 0) > 0 ? (
+                                    <p>The Client has pre-funded the base rate for this deployment ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions.</p>
                                   ) : (
-                                    <p>This is a performance-based deployment. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 4% platform service fee.</p>
+                                    <p>This is a performance-based deployment. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification.</p>
                                   )}
 
                                   <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>

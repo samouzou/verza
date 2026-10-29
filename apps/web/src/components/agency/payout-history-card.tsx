@@ -47,7 +47,7 @@ export function PayoutHistoryCard({ agencyId }: PayoutHistoryCardProps) {
     <Card id="payout-history-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><DollarSign className="text-primary"/> Internal Payout History</CardTitle>
-        <CardDescription>Amount is what the creator was credited. Platform fee is Verza&apos;s 4%, taken from the campaign budget on top of that pay.</CardDescription>
+        <CardDescription>Amount is what the creator was credited. Platform fee is Verza&apos;s cut, taken from the campaign budget on top of that pay.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoadingHistory ? <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>

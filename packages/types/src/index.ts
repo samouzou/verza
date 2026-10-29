@@ -872,6 +872,11 @@ export interface Gig {
   lastBudgetTopUpPaymentIntentId?: string;
   /** Dollars returned to the brand wallet when the campaign was closed. */
   unspentReleased?: number;
+  /**
+   * Verza fee on this campaign as a fraction of creator pay (0.04 = 4%).
+   * Missing means the platform default (`GIG_PLATFORM_FEE_FRACTION`).
+   */
+  platformFeeFraction?: number;
 }
 
 export interface CreatorPayoutRecord {
@@ -904,6 +909,8 @@ export interface PublicCampaign {
   spotsLeft: number;
   /** `pool` campaigns pay a fee set when the creator is accepted. The dollar budget is not published. */
   budgetMode?: 'flat_fee' | 'pool';
+  /** Campaign-specific Verza fee as a fraction. Missing means the platform default. */
+  platformFeeFraction?: number;
   videosPerCreator: number;
   usageRights: Gig['usageRights'] | null;
   allowWhitelisting: boolean;
@@ -1138,8 +1145,21 @@ export function isOpticPassReason(value: unknown): value is OpticPassReason {
   return typeof value === 'string' && (OPTIC_PASS_REASONS as readonly string[]).includes(value);
 }
 
-/** Verza fee on campaign payouts. Taken from the campaign budget, on top of what the creator receives. */
+/** Default Verza fee on campaign payouts. Taken from the campaign budget, on top of what the creator receives. */
 export const GIG_PLATFORM_FEE_FRACTION = 0.04;
+
+/** Fee fraction stored on a campaign, or the platform default. Caps at 50%. */
+export function gigPlatformFeeFraction(gig?: {platformFeeFraction?: number | null}): number {
+  const n = Number(gig?.platformFeeFraction);
+  if (Number.isFinite(n) && n >= 0 && n <= 0.5) return n;
+  return GIG_PLATFORM_FEE_FRACTION;
+}
+
+/** Display string such as `4%` or `15%`. */
+export function formatGigPlatformFeeLabel(gig?: {platformFeeFraction?: number | null}): string {
+  const pct = Math.round(gigPlatformFeeFraction(gig) * 1000) / 10;
+  return `${pct}%`;
+}
 
 export type GigBudgetMode = "flat_fee" | "pool";
 
@@ -1188,9 +1208,15 @@ export type PoolDraw = {
 };
 
 /** Creator receives `creatorAmount` in full. The fee is an additional draw on the campaign budget. */
-export function poolDrawForCreatorAmount(creatorAmountUsd: number): PoolDraw {
+export function poolDrawForCreatorAmount(
+  creatorAmountUsd: number,
+  feeFraction: number = GIG_PLATFORM_FEE_FRACTION
+): PoolDraw {
+  const fraction = Number.isFinite(feeFraction) && feeFraction >= 0 && feeFraction <= 0.5
+    ? feeFraction
+    : GIG_PLATFORM_FEE_FRACTION;
   const creatorAmountCents = dollarsToCents(creatorAmountUsd);
-  const platformFeeCents = Math.round(creatorAmountCents * GIG_PLATFORM_FEE_FRACTION);
+  const platformFeeCents = Math.round(creatorAmountCents * fraction);
   return {
     creatorAmountCents,
     platformFeeCents,
@@ -1206,13 +1232,19 @@ export function poolRemainingCents(gig: {fundedAmount?: number | null; budgetSpe
 }
 
 /** Largest creator payment whose fee still fits in the remaining cents. */
-export function maxCreatorPayoutCents(remainingCents: number): number {
+export function maxCreatorPayoutCents(
+  remainingCents: number,
+  feeFraction: number = GIG_PLATFORM_FEE_FRACTION
+): number {
   if (remainingCents <= 0) return 0;
-  let guess = Math.floor(remainingCents / (1 + GIG_PLATFORM_FEE_FRACTION));
-  while (guess > 0 && guess + Math.round(guess * GIG_PLATFORM_FEE_FRACTION) > remainingCents) {
+  const fraction = Number.isFinite(feeFraction) && feeFraction >= 0 && feeFraction <= 0.5
+    ? feeFraction
+    : GIG_PLATFORM_FEE_FRACTION;
+  let guess = Math.floor(remainingCents / (1 + fraction));
+  while (guess > 0 && guess + Math.round(guess * fraction) > remainingCents) {
     guess -= 1;
   }
-  while (guess + 1 + Math.round((guess + 1) * GIG_PLATFORM_FEE_FRACTION) <= remainingCents) {
+  while (guess + 1 + Math.round((guess + 1) * fraction) <= remainingCents) {
     guess += 1;
   }
   return guess;

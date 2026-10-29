@@ -8,6 +8,7 @@ import {
   canStartCampaignBudget,
   centsToDollars,
   dollarsToCents,
+  gigPlatformFeeFraction,
   isPoolBudgetGig,
   maxCreatorPayoutCents,
   poolDrawForCreatorAmount,
@@ -64,13 +65,7 @@ export async function payoutPoolCreator(args: {
     throw new HttpsError("invalid-argument", "Enter at least $1 to pay this creator.");
   }
 
-  const draw = poolDrawForCreatorAmount(creatorAmountUsd);
   const assignment = gigData.assignments?.[creatorId];
-  const agencyCommissionCents = assignment ?
-    Math.round(draw.creatorAmountCents * (Number(assignment.commissionRate) || 0) / 100) :
-    0;
-  const creatorNetCents = draw.creatorAmountCents - agencyCommissionCents;
-
   const gigDocRef = db.collection("gigs").doc(gigId);
   const creatorDocRef = db.collection("users").doc(creatorId);
   const agencyDocRef = db.collection("agencies").doc(gigData.brandId);
@@ -84,6 +79,7 @@ export async function payoutPoolCreator(args: {
   let talentAgencyOwnerId: string | null = null;
   let brandOwnerId = "";
   let creatorNetDollars = 0;
+  let draw = poolDrawForCreatorAmount(creatorAmountUsd, gigPlatformFeeFraction(gigData));
 
   await db.runTransaction(async (transaction) => {
     const currentGigSnap = await transaction.get(gigDocRef);
@@ -100,9 +96,15 @@ export async function payoutPoolCreator(args: {
       throw new HttpsError("already-exists", "This creator has already been paid for this campaign.");
     }
 
+    draw = poolDrawForCreatorAmount(creatorAmountUsd, gigPlatformFeeFraction(currentGig));
+    const agencyCommissionCents = assignment ?
+      Math.round(draw.creatorAmountCents * (Number(assignment.commissionRate) || 0) / 100) :
+      0;
+    const creatorNetCents = draw.creatorAmountCents - agencyCommissionCents;
+
     const remaining = poolRemainingCents(currentGig);
     if (draw.totalDrawCents > remaining) {
-      const max = maxCreatorPayoutCents(remaining);
+      const max = maxCreatorPayoutCents(remaining, gigPlatformFeeFraction(currentGig));
       throw new HttpsError(
         "failed-precondition",
         remaining < 100 ?

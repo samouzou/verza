@@ -101,6 +101,12 @@ import {
   releaseUnspentCampaignBudget,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
+import {
+  getAdminCampaignAccess,
+  listAdminCampaigns,
+  adminFundCampaign,
+  adminSetCampaignFee,
+} from "./admin/campaigns";
 import {syncPublicCampaign, reconcilePublicCampaigns} from "./gigs/publicCampaigns";
 import {
   syncBrandKitAccess,
@@ -280,6 +286,10 @@ export {
   payoutCreatorForGig,
   addCampaignBudgetFromWallet,
   releaseUnspentCampaignBudget,
+  getAdminCampaignAccess,
+  listAdminCampaigns,
+  adminFundCampaign,
+  adminSetCampaignFee,
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,

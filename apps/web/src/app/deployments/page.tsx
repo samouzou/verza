@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Gig } from '@/types';
+import { isPoolBudgetGig, type Gig } from '@/types';
+import { gigStatusBadgeLabel } from '@/lib/gig-status-label';
 import { useAuth } from '@/hooks/use-auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -28,13 +29,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
   const isCompleted = gig.status === 'completed';
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'open') return 'Capital Available';
-    if (status === 'pending_payment') return 'Funding Pending';
-    if (status === 'in-progress') return 'In Progress';
-    if (status === 'completed') return 'Deployment Complete';
-    return status?.replace(/_/g, ' ') || 'unknown';
-  };
+  const getStatusLabel = (status: string) => gigStatusBadgeLabel(gig, status, 'Deployment');
 
   return (
     <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''} min-w-0`}>
@@ -82,7 +77,9 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
       <CardFooter className="flex justify-between items-center border-t pt-4 bg-muted/10">
         <div className="flex flex-col items-start gap-1">
           <div className="text-xl font-bold text-primary">
-            {(gig.ratePerCreator || 0) > 0 ? (
+            {isPoolBudgetGig(gig) ? (
+              `$${(gig.campaignBudget || gig.fundedAmount || 0).toLocaleString()} budget`
+            ) : (gig.ratePerCreator || 0) > 0 ? (
               `$${(gig.ratePerCreator || 0).toLocaleString()}`
             ) : (
               <div className="flex items-center gap-1.5 text-blue-600 text-sm">

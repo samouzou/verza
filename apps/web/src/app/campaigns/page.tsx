@@ -22,6 +22,7 @@ import { useTour } from '@/hooks/use-tour';
 import { marketplaceTour } from '@/lib/tours';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
+import { gigStatusBadgeLabel } from '@/lib/gig-status-label';
 
 const platforms = ['TikTok', 'Instagram', 'YouTube', 'Facebook', 'Twitch', 'LinkedIn', 'X'];
 
@@ -29,25 +30,7 @@ function GigCard({ gig, showRole = false, currentUserId }: { gig: Gig; showRole?
   const isAccepted = currentUserId ? gig.acceptedCreatorIds?.includes(currentUserId) : false;
   const isCompleted = gig.status === 'completed';
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'open') {
-      if (isCauseCampaignType(gig.campaignType)) return 'Open for Creators';
-      const hasPerf =
-        gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0;
-      if (
-        isBarterCampaignType(gig.campaignType) &&
-        (gig.ratePerCreator || 0) <= 0 &&
-        !hasPerf
-      ) {
-        return 'Barter · In-Kind';
-      }
-      return (gig.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
-    }
-    if (status === 'pending_payment') return 'Funding Pending';
-    if (status === 'in-progress') return 'In Progress';
-    if (status === 'completed') return 'Campaign Complete';
-    return status?.replace(/_/g, ' ') || 'unknown';
-  };
+  const getStatusLabel = (status: string) => gigStatusBadgeLabel(gig, status);
 
   return (
     <Card className={`flex flex-col min-h-[340px] hover:shadow-md transition-shadow ${isCompleted ? 'opacity-80' : ''} min-w-0`}>

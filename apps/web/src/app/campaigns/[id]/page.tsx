@@ -65,10 +65,13 @@ import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
+import { gigStatusBadgeLabel } from '@/lib/gig-status-label';
 import {
   canStartCampaignBudget,
   centsToDollars,
+  formatGigPlatformFeeLabel,
   gigHasCreatorCap,
+  gigPlatformFeeFraction,
   isPoolBudgetGig,
   maxCreatorPayoutCents,
   poolDrawForCreatorAmount,
@@ -1148,27 +1151,7 @@ function GigDetailContent() {
 
   const mySubmissions = useMemo(() => user ? submissions.filter(s => s.creatorId === user.uid).sort((a, b) => (a.createdAt as any)?.toMillis() - (b.createdAt as any)?.toMillis()) : [], [submissions, user]);
 
-  const getStatusLabel = (status: string) => {
-    if (status === 'budget_exhausted') return 'Budget used';
-    if (status === 'open') {
-      if (isCauseCampaignType(gig?.campaignType)) return 'Open for Creators';
-      const hasPerf =
-        gig?.affiliateSettings?.isEnabled && (gig?.affiliateSettings?.rewardAmount || 0) > 0;
-      if (
-        isBarterCampaignType(gig?.campaignType) &&
-        (gig?.ratePerCreator || 0) <= 0 &&
-        !hasPerf &&
-        !isPoolBudgetGig(gig || {})
-      ) {
-        return 'Barter · In-Kind';
-      }
-      return isPoolBudgetGig(gig || {}) || (gig?.ratePerCreator || 0) > 0 ? 'Capital Available' : 'Performance Only';
-    }
-    if (status === 'pending_payment') return 'Funding Pending';
-    if (status === 'in-progress') return 'In Progress';
-    if (status === 'completed') return 'Campaign Complete';
-    return status?.replace(/_/g, ' ') || 'unknown';
-  };
+  const getStatusLabel = (status: string) => gigStatusBadgeLabel(gig, status);
 
   if (isLoading || authLoading) return <div className="flex justify-center items-center h-96"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   if (!gig) return <div className="text-center py-10"><AlertTriangle className="mx-auto h-12 w-12 text-destructive" /><h3 className="mt-4">Campaign Not Found</h3></div>;
@@ -1203,7 +1186,9 @@ function GigDetailContent() {
   const totalCost = isPool ? (gig.campaignBudget || gig.fundedAmount || 0) : gig.ratePerCreator * gig.creatorsNeeded;
   const fundedPool = isPool ? (gig.fundedAmount || 0) : 0;
   const poolRemaining = isPool ? Math.max(0, fundedPool - (gig.budgetSpent || 0)) : 0;
-  const maxCreatorPay = isPool ? centsToDollars(maxCreatorPayoutCents(poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent }))) : 0;
+  const feeFraction = gigPlatformFeeFraction(gig);
+  const feeLabel = formatGigPlatformFeeLabel(gig);
+  const maxCreatorPay = isPool ? centsToDollars(maxCreatorPayoutCents(poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent }), feeFraction)) : 0;
   const canAffordWithWallet = agency && (agency.availableBalance || 0) >= totalCost;
 
   const myLink = user ? affiliateLinks[user.uid] : null;
@@ -2059,22 +2044,18 @@ function GigDetailContent() {
                         <>
                           <div className="flex justify-between"><span className="text-muted-foreground">Spent</span><span>${(gig.budgetSpent || 0).toLocaleString()}</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold">${poolRemaining.toLocaleString()}</span></div>
-                          <p className="text-xs text-muted-foreground">Up to ${maxCreatorPay.toLocaleString()} can still be paid to creators. Verza&apos;s 4% is taken from the budget on top of each payment.</p>
+                          {canManageGig ? (
+                            <p className="text-xs text-muted-foreground">Up to ${maxCreatorPay.toLocaleString()} can still be paid to creators. Verza&apos;s {feeLabel} is taken from the budget on top of each payment.</p>
+                          ) : null}
                         </>
-                      ) : (
+                      ) : canManageGig ? (
                         <p className="text-xs text-muted-foreground">This amount is locked to this campaign once you fund it. Other campaigns cannot spend it.</p>
-                      )}
+                      ) : null}
                       {!canManageGig && user && gig.offeredPayouts?.[user.uid] ? (
                         <p className="text-xs font-medium">Your rate is ${gig.offeredPayouts[user.uid].toLocaleString()}, paid in full when your work is approved.</p>
                       ) : !canManageGig ? (
                         <p className="text-xs text-muted-foreground">Your rate is set when the brand accepts you. You receive that amount in full.</p>
                       ) : null}
-                    </div>
-                  )}
-                  {!isPool && !canManageGig && (gig.ratePerCreator || 0) > 0 && (
-                    <div className="flex justify-between items-center pt-1 border-t border-dashed mt-1">
-                      <span className="text-xs text-muted-foreground">Est. Net Payout (4% fee)</span>
-                      <span className="text-xs font-semibold">${((gig.ratePerCreator || 0) * 0.96).toLocaleString()}</span>
                     </div>
                   )}
                 </div>
@@ -2162,9 +2143,9 @@ function GigDetailContent() {
 
                                   <p className="font-bold">3. PAYMENT & ESCROW</p>
                                   {isPool ? (
-                                    <p>The Client has funded a campaign budget of ${totalCost.toLocaleString()}, held in the Verza Campaign Vault. When your work is approved, the Client sets your payment from that budget. You receive that amount in full. Verza&apos;s 4% fee is paid by the Client from the same budget, on top of what you receive.</p>
+                                    <p>The Client has funded a campaign budget of ${totalCost.toLocaleString()}, held in the Verza Campaign Vault. When your work is approved, the Client sets your payment from that budget. You receive that amount in full.</p>
                                   ) : (gig.ratePerCreator || 0) > 0 ? (
-                                    <p>The Client has pre-funded the base rate for this campaign ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions. Payouts are subject to a 4% platform service fee.</p>
+                                    <p>The Client has pre-funded the base rate for this campaign ($ {gig.ratePerCreator?.toLocaleString()}). Funds are held in the Verza Campaign Vault. Verza will release the payment to the Creator's wallet immediately upon Client approval of verified submissions.</p>
                                   ) : isBarterCampaign ? (
                                     <p>
                                       This campaign is a <strong>barter</strong> arrangement. Any cash, product, gifting, or other in-kind compensation is described in this brief and agreed between the parties. Verza does not escrow in-kind consideration.
@@ -2173,7 +2154,7 @@ function GigDetailContent() {
                                         : ""}
                                     </p>
                                   ) : (
-                                    <p>This is a performance-based campaign. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification. All payouts are subject to a 4% platform service fee.</p>
+                                    <p>This is a performance-based campaign. No base rate is guaranteed. Rewards are earned based on the performance metrics (conversions or clicks) defined in this brief. Verza will deposit earned rewards into the Creator's wallet following verification.</p>
                                   )}
 
                                   <p className="font-bold">4. INTELLECTUAL PROPERTY & USAGE</p>
@@ -2439,7 +2420,7 @@ function GigDetailContent() {
             <Input id="offer-amount" type="number" min="1" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} />
             {Number(offerAmount) >= 1 && (
               <p className="text-xs text-muted-foreground">
-                Paying ${Number(offerAmount).toLocaleString()} later draws ${centsToDollars(poolDrawForCreatorAmount(Number(offerAmount)).totalDrawCents).toLocaleString()} from the campaign budget, including Verza&apos;s 4%.
+                Paying ${Number(offerAmount).toLocaleString()} later draws ${centsToDollars(poolDrawForCreatorAmount(Number(offerAmount), feeFraction).totalDrawCents).toLocaleString()} from the campaign budget, including Verza&apos;s {feeLabel}.
               </p>
             )}
           </div>
@@ -2461,7 +2442,7 @@ function GigDetailContent() {
           <DialogHeader>
             <DialogTitle>Pay {payingCreator?.displayName}</DialogTitle>
             <DialogDescription>
-              They receive this amount in full. Verza&apos;s 4% is taken from the campaign budget on top. ${poolRemaining.toLocaleString()} is left in this campaign.
+              They receive this amount in full. Verza&apos;s {feeLabel} is taken from the campaign budget on top. ${poolRemaining.toLocaleString()} is left in this campaign.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -2469,8 +2450,8 @@ function GigDetailContent() {
             <Input id="pay-amount" type="number" min="1" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
             {Number(payAmount) >= 1 && (
               <p className="text-xs text-muted-foreground">
-                Creator receives ${Number(payAmount).toLocaleString()}. Verza fee ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount)).platformFeeCents).toLocaleString()}. Total from this campaign ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents).toLocaleString()}.
-                {poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })
+                Creator receives ${Number(payAmount).toLocaleString()}. Verza fee ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount), feeFraction).platformFeeCents).toLocaleString()}. Total from this campaign ${centsToDollars(poolDrawForCreatorAmount(Number(payAmount), feeFraction).totalDrawCents).toLocaleString()}.
+                {poolDrawForCreatorAmount(Number(payAmount), feeFraction).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })
                   ? ` That is more than the $${poolRemaining.toLocaleString()} remaining. Add funds or pay less.`
                   : ''}
               </p>
@@ -2479,7 +2460,7 @@ function GigDetailContent() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayingCreator(null)}>Cancel</Button>
             <Button
-              disabled={!payingCreator || isPaying === payingCreator.uid || Number(payAmount) < 1 || poolDrawForCreatorAmount(Number(payAmount)).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })}
+              disabled={!payingCreator || isPaying === payingCreator.uid || Number(payAmount) < 1 || poolDrawForCreatorAmount(Number(payAmount), feeFraction).totalDrawCents > poolRemainingCents({ fundedAmount: fundedPool, budgetSpent: gig.budgetSpent })}
               onClick={() => payingCreator && handlePayout(payingCreator, Number(payAmount))}
             >
               {payingCreator && isPaying === payingCreator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -2495,7 +2476,7 @@ function GigDetailContent() {
             <DialogTitle>{canAddFirstBudget ? 'Add a campaign budget' : 'Add funds to this campaign'}</DialogTitle>
             <DialogDescription>
               {canAddFirstBudget
-                ? "This adds a cash budget on top of your performance rewards. You choose what each creator is paid when you approve their work; they receive the full amount and Verza's 4% comes out of the budget. Wallet funds move immediately. A bank transfer is added when the payment clears."
+                ? `This adds a cash budget on top of your performance rewards. You choose what each creator is paid when you approve their work; they receive the full amount and Verza's ${feeLabel} comes out of the budget. Wallet funds move immediately. A bank transfer is added when the payment clears.`
                 : "This increases only this campaign's budget. Wallet funds move immediately. A bank transfer is added when the payment clears."}
             </DialogDescription>
           </DialogHeader>
