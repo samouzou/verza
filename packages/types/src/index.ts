@@ -890,6 +890,40 @@ export interface Gig {
   lastCreatorAlertAt?: Timestamp;
   lastCreatorAlertBy?: string;
   lastCreatorAlertSent?: number;
+  /** Creators the brand declined. They cannot re-apply to this campaign. */
+  rejectedCreatorIds?: string[];
+  applicationRejections?: { [creatorId: string]: CampaignApplicationRejection };
+  /** Optional group kickoff for accepted creators only. */
+  kickoff?: CampaignKickoff | null;
+}
+
+export const CAMPAIGN_REJECT_REASONS = [
+  {id: "not_a_fit", label: "Not a fit for this brief"},
+  {id: "audience_mismatch", label: "Audience or platform mismatch"},
+  {id: "style_mismatch", label: "Looking for a different content style"},
+  {id: "went_another_way", label: "Went with other creators for this one"},
+  {id: "other", label: "Other"},
+] as const;
+
+export type CampaignRejectReasonId = (typeof CAMPAIGN_REJECT_REASONS)[number]["id"];
+
+export interface CampaignApplicationRejection {
+  reasonId: CampaignRejectReasonId;
+  reasonLabel: string;
+  note?: string | null;
+  at: Timestamp;
+  by: string;
+}
+
+export interface CampaignKickoff {
+  startsAt: Timestamp;
+  timezone: string;
+  joinUrl: string;
+  note?: string | null;
+  updatedAt: Timestamp;
+  updatedBy: string;
+  rsvps?: { [creatorId: string]: "yes" | "no" };
+  invitedCreatorIds?: string[];
 }
 
 export interface CreatorPayoutRecord {
@@ -1072,7 +1106,8 @@ export interface Notification {
   title: string;
   message: string;
   type: 'gig_accepted' | 'submission_received' | 'submission_approved' |
-  'payout_received' | 'system' | 'creator_applied' | 'application_approved';
+  'payout_received' | 'system' | 'creator_applied' | 'application_approved' |
+  'application_rejected' | 'campaign_kickoff';
   read: boolean;
   link?: string;
   createdAt: Timestamp;

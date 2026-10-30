@@ -100,6 +100,10 @@ import {
   extendCreatorDeadline,
   addCampaignBudgetFromWallet,
   releaseUnspentCampaignBudget,
+  rejectCampaignApplicant,
+  setCampaignKickoff,
+  inviteToCampaignKickoff,
+  rsvpCampaignKickoff,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {
@@ -297,6 +301,10 @@ export {
   payoutCreatorForGig,
   addCampaignBudgetFromWallet,
   releaseUnspentCampaignBudget,
+  rejectCampaignApplicant,
+  setCampaignKickoff,
+  inviteToCampaignKickoff,
+  rsvpCampaignKickoff,
   getAdminCampaignAccess,
   listAdminCampaigns,
   adminFundCampaign,

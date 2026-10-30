@@ -10,6 +10,12 @@ import {gigPlatformFeeFraction, isPoolBudgetGig} from "../poolBudget";
 import {payoutPoolCreator} from "./poolPayout";
 
 export {addCampaignBudgetFromWallet, releaseUnspentCampaignBudget} from "./poolPayout";
+export {
+  rejectCampaignApplicant,
+  setCampaignKickoff,
+  inviteToCampaignKickoff,
+  rsvpCampaignKickoff,
+} from "./kickoffAndReject";
 
 export const payoutCreatorForGig = onCall(async (request) => {
   if (!request.auth) {

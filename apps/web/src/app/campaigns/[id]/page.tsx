@@ -7,13 +7,15 @@ import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentI
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig, GigSubmission, Notification, Agency, AffiliateLink, BrandKit } from '@/types';
+import { CAMPAIGN_REJECT_REASONS } from '@/types';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon, CalendarDays } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -78,6 +80,38 @@ import {
   poolRemainingCents,
 } from '@/types';
 
+function kickoffDate(gig: Gig): Date | null {
+  const raw = gig.kickoff?.startsAt as { toDate?: () => Date } | string | Date | undefined;
+  if (!raw) return null;
+  if (typeof raw === 'object' && 'toDate' in raw && typeof raw.toDate === 'function') return raw.toDate();
+  const d = new Date(raw as string | Date);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatKickoffWhen(gig: Gig): string {
+  const date = kickoffDate(gig);
+  if (!date) return '';
+  const tz = gig.kickoff?.timezone || undefined;
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: tz,
+      timeZoneName: 'short',
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+}
+
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function GigDetailContent() {
   const params = useParams();
   const gigId = params.id as string;
@@ -128,6 +162,15 @@ function GigDetailContent() {
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtending, setIsExtending] = useState(false);
   const [isDeckOpen, setIsDeckOpen] = useState(false);
+  const [rejectingApplicant, setRejectingApplicant] = useState<UserProfile | null>(null);
+  const [rejectReasonId, setRejectReasonId] = useState<string>(CAMPAIGN_REJECT_REASONS[0].id);
+  const [rejectNote, setRejectNote] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [kickoffLocal, setKickoffLocal] = useState('');
+  const [kickoffUrl, setKickoffUrl] = useState('');
+  const [kickoffNote, setKickoffNote] = useState('');
+  const [isSavingKickoff, setIsSavingKickoff] = useState(false);
+  const [isRsvping, setIsRsvping] = useState(false);
   const [highlightApply, setHighlightApply] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const applyFocusHandled = useRef(false);
@@ -363,6 +406,14 @@ function GigDetailContent() {
     }
   }, [gig]);
 
+  useEffect(() => {
+    if (!gig?.kickoff) return;
+    const date = kickoffDate(gig);
+    if (date) setKickoffLocal(toDatetimeLocalValue(date));
+    setKickoffUrl(gig.kickoff.joinUrl || '');
+    setKickoffNote(gig.kickoff.note || '');
+  }, [gig?.kickoff]);
+
   const handleApplyGig = async () => {
     if (!user || !gig) return;
 
@@ -443,6 +494,9 @@ function GigDetailContent() {
 
       if (gigHasCreatorCap(currentGigData) && acceptedIds.length >= (currentGigData.creatorsNeeded || 0)) throw new Error("Campaign is full.");
       if (acceptedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already secured this.`);
+      if ((currentGigData.rejectedCreatorIds || []).includes(targetUserId)) {
+        throw new Error("This campaign declined that application. Browse other open campaigns.");
+      }
       if (!isCauseGig && appliedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already applied.`);
 
       const gigUpdates: any = {
@@ -693,6 +747,12 @@ function GigDetailContent() {
       }).catch(err => {
         console.error('Failed to send brand notification email:', err);
       });
+      if (gig.kickoff?.startsAt) {
+        httpsCallable(functions, 'inviteToCampaignKickoff')({
+          gigId: gig.id,
+          creatorId: applicantId,
+        }).catch((err) => console.error('Failed to send kickoff invite:', err));
+      }
 
       setApprovingApplicant(null);
       setOfferAmount('');
@@ -701,6 +761,75 @@ function GigDetailContent() {
       toast({ title: "Approval Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsAccepting(false);
+    }
+  };
+
+  const handleRejectApplication = async () => {
+    if (!gig || !rejectingApplicant) return;
+    setIsRejecting(true);
+    try {
+      const reject = httpsCallable(functions, 'rejectCampaignApplicant');
+      await reject({
+        gigId: gig.id,
+        creatorId: rejectingApplicant.uid,
+        reasonId: rejectReasonId,
+        note: rejectReasonId === 'other' ? rejectNote : '',
+      });
+      trackEvent({ action: 'reject_application', category: 'marketplace', label: gig.title });
+      toast({ title: "Application declined", description: `${rejectingApplicant.displayName} has been notified.` });
+      setRejectingApplicant(null);
+      setRejectNote('');
+      setRejectReasonId(CAMPAIGN_REJECT_REASONS[0].id);
+    } catch (error: any) {
+      toast({ title: "Could not decline", description: error.message, variant: "destructive" });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const handleSaveKickoff = async () => {
+    if (!gig || !kickoffLocal.trim() || !kickoffUrl.trim()) {
+      toast({ title: "Kickoff needs a time and meeting link", variant: "destructive" });
+      return;
+    }
+    setIsSavingKickoff(true);
+    try {
+      const startsAt = new Date(kickoffLocal).toISOString();
+      const setKickoff = httpsCallable(functions, 'setCampaignKickoff');
+      const result = await setKickoff({
+        gigId: gig.id,
+        startsAt,
+        joinUrl: kickoffUrl.trim(),
+        note: kickoffNote.trim(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      const invitedCount = (result.data as { invitedCount?: number }).invitedCount || 0;
+      toast({
+        title: "Kickoff saved",
+        description: invitedCount > 0
+          ? `${invitedCount} accepted creator${invitedCount === 1 ? '' : 's'} notified. They can join or skip and work from the brief.`
+          : "Accepted creators will get the invite when you approve them.",
+      });
+    } catch (error: any) {
+      toast({ title: "Could not save kickoff", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSavingKickoff(false);
+    }
+  };
+
+  const handleKickoffRsvp = async (response: 'yes' | 'no') => {
+    if (!gig) return;
+    setIsRsvping(true);
+    try {
+      await httpsCallable(functions, 'rsvpCampaignKickoff')({ gigId: gig.id, response });
+      toast({
+        title: response === 'yes' ? "You're in" : "Thanks for letting them know",
+        description: response === 'yes' ? "Open the meeting link when it's time." : "You can still work from the brief.",
+      });
+    } catch (error: any) {
+      toast({ title: "Could not save RSVP", description: error.message, variant: "destructive" });
+    } finally {
+      setIsRsvping(false);
     }
   };
 
@@ -1167,6 +1296,16 @@ function GigDetailContent() {
   const spotsLeft = hasCreatorCap ? (gig.creatorsNeeded || 0) - acceptedIds.length : Infinity;
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const hasApplied = user ? (gig.appliedCreatorIds || []).includes(user.uid) : false;
+  const hasRejected = user ? (gig.rejectedCreatorIds || []).includes(user.uid) : false;
+  const kickoffWhen = formatKickoffWhen(gig);
+  const kickoffUpcoming = (() => {
+    const d = kickoffDate(gig);
+    return !!d && d.getTime() > Date.now() - 30 * 60 * 1000;
+  })();
+  const myKickoffRsvp = user ? gig.kickoff?.rsvps?.[user.uid] : undefined;
+  const kickoffRsvpEntries = Object.entries(gig.kickoff?.rsvps || {});
+  const kickoffYes = kickoffRsvpEntries.filter(([, v]) => v === 'yes').map(([id]) => id);
+  const kickoffNo = kickoffRsvpEntries.filter(([, v]) => v === 'no').map(([id]) => id);
   const isAgencyTeam = user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_member';
   const isBrandTeam = user && gig && isAgencyTeam && (gig.brandId === user.primaryAgencyId || user.agencyMemberships?.some(m => m.agencyId === gig.brandId));
   const isAssignedAgent = user && gig && Object.values(gig.assignments || {}).some(a => a.agentId === user.uid);
@@ -1438,6 +1577,9 @@ function GigDetailContent() {
                          {hasApplied && !hasAccepted && (
                            <Badge variant="secondary" className="px-4 py-1">Approval Pending</Badge>
                          )}
+                         {hasRejected && !hasAccepted && (
+                           <Badge variant="outline" className="px-4 py-1">Not moving forward</Badge>
+                         )}
                       </div>
                     )}
                   </CardContent>
@@ -1688,6 +1830,54 @@ function GigDetailContent() {
               </Card>
             )}
 
+            {canManageGig && !isCompleted && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><CalendarDays className="text-primary h-5 w-5" /> Group kickoff</CardTitle>
+                  <CardDescription>
+                    Optional. One time for everyone you accept — they can join on your calendar or skip and work from the brief.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {kickoffWhen && (
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                      <p><span className="font-medium">Scheduled:</span> {kickoffWhen}</p>
+                      {gig.kickoff?.joinUrl && (
+                        <p className="truncate">
+                          <span className="font-medium">Link:</span>{' '}
+                          <a href={gig.kickoff.joinUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            {gig.kickoff.joinUrl}
+                          </a>
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        {kickoffYes.length} going · {kickoffNo.length} can&apos;t make it
+                        {acceptedIds.length > 0 ? ` · ${acceptedIds.length} on roster` : ''}
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="kickoff-time">Date and time</Label>
+                      <Input id="kickoff-time" type="datetime-local" value={kickoffLocal} onChange={(e) => setKickoffLocal(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="kickoff-url">Meet / Zoom / calendar link</Label>
+                      <Input id="kickoff-url" value={kickoffUrl} onChange={(e) => setKickoffUrl(e.target.value)} placeholder="https://meet.google.com/…" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="kickoff-note">Note (optional)</Label>
+                    <Textarea id="kickoff-note" value={kickoffNote} onChange={(e) => setKickoffNote(e.target.value)} rows={2} placeholder="15 min, brief + Q&A. Work from the kit if you can't join." />
+                  </div>
+                  <Button onClick={() => void handleSaveKickoff()} disabled={isSavingKickoff || !kickoffLocal || !kickoffUrl.trim()}>
+                    {isSavingKickoff ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-2 h-4 w-4" />}
+                    {gig.kickoff ? 'Update and notify roster' : 'Save and notify accepted creators'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {canManageGig && (
               <Card>
                 <CardHeader>
@@ -1728,6 +1918,7 @@ function GigDetailContent() {
                                 </div>
                               </Link>
                             </div>
+                            <div className="flex flex-wrap items-center gap-2">
                             <Button 
                               size="sm" 
                               onClick={() => {
@@ -1738,10 +1929,23 @@ function GigDetailContent() {
                                   handleApproveApplication(applicant.uid);
                                 }
                               }}
-                              disabled={isAccepting}
+                              disabled={isAccepting || isRejecting}
                             >
                               Approve Application
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isAccepting || isRejecting}
+                              onClick={() => {
+                                setRejectingApplicant(applicant);
+                                setRejectReasonId(CAMPAIGN_REJECT_REASONS[0].id);
+                                setRejectNote('');
+                              }}
+                            >
+                              Decline
+                            </Button>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -1788,6 +1992,12 @@ function GigDetailContent() {
                                         )}
                                       </div>
                                       <p className="text-xs text-muted-foreground">{creator.email}</p>
+                                      {gig.kickoff?.rsvps?.[creator.uid] === 'yes' && (
+                                        <p className="text-[11px] text-green-700">Kickoff: going</p>
+                                      )}
+                                      {gig.kickoff?.rsvps?.[creator.uid] === 'no' && (
+                                        <p className="text-[11px] text-muted-foreground">Kickoff: can&apos;t make it</p>
+                                      )}
                                       {isPool && gig.offeredPayouts?.[creator.uid] ? (
                                         <p className="text-xs font-medium">Offered ${gig.offeredPayouts[creator.uid].toLocaleString()}</p>
                                       ) : null}
@@ -2094,6 +2304,37 @@ function GigDetailContent() {
                       <Button className="w-full bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" disabled>
                         <CheckCircle className="mr-2 h-4 w-4" /> Campaign Claimed
                       </Button>
+                      {gig.kickoff?.joinUrl && kickoffUpcoming && (
+                        <div className="rounded-lg border p-3 space-y-2 text-sm">
+                          <p className="font-medium flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" /> Optional group kickoff</p>
+                          <p className="text-muted-foreground">{kickoffWhen}</p>
+                          {gig.kickoff.note && <p className="text-muted-foreground">{gig.kickoff.note}</p>}
+                          <p className="text-xs text-muted-foreground">Join if you can. You can still work from the brief.</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" asChild>
+                              <a
+                                href={gig.kickoff.joinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (myKickoffRsvp !== 'yes') void handleKickoffRsvp('yes');
+                                }}
+                              >
+                                Join kickoff
+                              </a>
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={isRsvping} onClick={() => void handleKickoffRsvp('no')}>
+                              Can&apos;t make it
+                            </Button>
+                          </div>
+                          {myKickoffRsvp === 'yes' && <p className="text-xs text-green-700">You said you&apos;re going.</p>}
+                          {myKickoffRsvp === 'no' && <p className="text-xs text-muted-foreground">You said you can&apos;t make it.</p>}
+                        </div>
+                      )}
+                    </div>
+                  ) : hasRejected ? (
+                    <div className="space-y-2 pt-4 border-t text-sm text-muted-foreground">
+                      <p>The brand is not moving forward with this application. You can still start from other open campaigns.</p>
                     </div>
                   ) : hasApplied ? (
                     <div className="space-y-4 pt-4 border-t">
@@ -2465,6 +2706,45 @@ function GigDetailContent() {
             >
               {payingCreator && isPaying === payingCreator.uid ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Confirm & pay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rejectingApplicant} onOpenChange={(open) => { if (!open) setRejectingApplicant(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline {rejectingApplicant?.displayName}?</DialogTitle>
+            <DialogDescription>
+              They&apos;ll get a short email and notification with this reason. They cannot re-apply to this campaign.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Select value={rejectReasonId} onValueChange={setRejectReasonId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CAMPAIGN_REJECT_REASONS.map((reason) => (
+                    <SelectItem key={reason.id} value={reason.id}>{reason.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {rejectReasonId === 'other' && (
+              <div className="space-y-2">
+                <Label htmlFor="reject-note">Note</Label>
+                <Textarea id="reject-note" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} rows={3} placeholder="One sentence they can actually use." />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectingApplicant(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={isRejecting || (rejectReasonId === 'other' && !rejectNote.trim())} onClick={() => void handleRejectApplication()}>
+              {isRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Send decline
             </Button>
           </DialogFooter>
         </DialogContent>
