@@ -833,6 +833,8 @@ export interface Gig {
   videosPerCreator: number;
   acceptedCreatorIds: string[];
   appliedCreatorIds?: string[];
+  /** Brand-sent personal invites. Creator still accepts on the campaign page. */
+  invitedCreatorIds?: string[];
   agentIds?: string[];
   paidCreatorIds: string[];
   fundingPaymentIntentId?: string;

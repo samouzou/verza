@@ -284,6 +284,7 @@ export const rejectCampaignApplicant = onCall(async (request) => {
 
   await gigRef.update({
     appliedCreatorIds: FieldValue.arrayRemove(creatorId),
+    invitedCreatorIds: FieldValue.arrayRemove(creatorId),
     rejectedCreatorIds: FieldValue.arrayUnion(creatorId),
     [`applicationRejections.${creatorId}`]: {
       reasonId: reason.id,

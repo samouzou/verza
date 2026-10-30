@@ -38,6 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { CampaignAiCopyGenerator } from '@/components/campaigns/campaign-ai-copy-generator';
 import { trackEvent } from '@/lib/analytics';
+import { storeInviteCreatorId } from '@/lib/campaign-invite';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -231,7 +232,11 @@ export default function PostGigPage() {
             ? "Your barter campaign is now active."
             : "Your performance-only campaign is now active.",
         });
-        router.push(`/campaigns/${newGigId}`);
+        const inviteCreator = new URLSearchParams(window.location.search).get('inviteCreator');
+        if (inviteCreator) storeInviteCreatorId(newGigId, inviteCreator);
+        router.push(inviteCreator
+          ? `/campaigns/${newGigId}?inviteCreator=${encodeURIComponent(inviteCreator)}`
+          : `/campaigns/${newGigId}`);
         return;
       }
 
@@ -270,7 +275,9 @@ export default function PostGigPage() {
       }
 
       const result = await createCheckout(payload);
-      const data = result.data as { url?: string };
+      const data = result.data as { url?: string; gigId?: string };
+      const inviteCreator = new URLSearchParams(window.location.search).get('inviteCreator');
+      if (inviteCreator && data.gigId) storeInviteCreatorId(data.gigId, inviteCreator);
       if (data.url) {
         window.location.href = data.url;
       } else {

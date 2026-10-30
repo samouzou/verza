@@ -16,6 +16,7 @@ export {
   inviteToCampaignKickoff,
   rsvpCampaignKickoff,
 } from "./kickoffAndReject";
+export {inviteCreatorToCampaign, declineCampaignInvite} from "./campaignInvite";
 
 export const payoutCreatorForGig = onCall(async (request) => {
   if (!request.auth) {

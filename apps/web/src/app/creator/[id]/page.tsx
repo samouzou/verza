@@ -240,7 +240,7 @@ export default async function CreatorProfilePage({ params }: PageProps) {
                 )}
               </div>
 
-              <ReachOutButton creatorId={creator.id} />
+              <ReachOutButton creatorId={creator.id} creatorName={creator.displayName} />
             </CardContent>
           </Card>
 

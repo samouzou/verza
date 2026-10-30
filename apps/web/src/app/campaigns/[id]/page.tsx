@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, documentId, addDoc, serverTimestamp, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { functions, db, storage, ref as storageRef, uploadBytes, getDownloadURL } from '@/lib/firebase';
 import { useAuth, type UserProfile } from '@/hooks/use-auth';
 import type { Gig, GigSubmission, Notification, Agency, AffiliateLink, BrandKit } from '@/types';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon, CalendarDays } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon, CalendarDays, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -59,11 +59,13 @@ import {
 import { MarketplaceCoPilot } from '@/components/marketplace/marketplace-copilot';
 import { trackEvent } from '@/lib/analytics';
 import { clearPostAuthRedirect } from '@/lib/post-auth-redirect';
+import { clearInviteCreatorId, peekInviteCreatorId } from '@/lib/campaign-invite';
 import { campaignSlug } from '@/lib/public-campaigns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BrandDeckPreview } from '@/components/agency/brand-deck-preview';
+import { InviteKnownCreatorsButton } from '@/components/campaigns/invite-known-creators';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { isBarterCampaignType, isCauseCampaignType } from '@/lib/campaign-type';
@@ -124,6 +126,10 @@ function GigDetailContent() {
   const [agency, setAgency] = useState<Agency | null>(null);
   const [acceptedCreators, setAcceptedCreators] = useState<UserProfile[]>([]);
   const [appliedCreators, setAppliedCreators] = useState<UserProfile[]>([]);
+  const [invitedCreators, setInvitedCreators] = useState<UserProfile[]>([]);
+  const [pendingInviteProfile, setPendingInviteProfile] = useState<UserProfile | null>(null);
+  const [pendingInviteOffer, setPendingInviteOffer] = useState('');
+  const [isSendingPendingInvite, setIsSendingPendingInvite] = useState(false);
   const [submissions, setSubmissions] = useState<GigSubmission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -184,6 +190,8 @@ function GigDetailContent() {
   const extendCreatorDeadlineCallable = httpsCallable(functions, 'extendCreatorDeadline');
   const notifyBrandVideoSubmittedCallable = httpsCallable(functions, 'notifyBrandVideoSubmitted');
   const notifyBrandCampaignApplicantCallable = httpsCallable(functions, 'notifyBrandCampaignApplicant');
+  const inviteCreatorToCampaignCallable = httpsCallable(functions, 'inviteCreatorToCampaign');
+  const declineCampaignInviteCallable = httpsCallable(functions, 'declineCampaignInvite');
 
   useEffect(() => {
     if (searchParams.get('funding_success') === 'true' && gig) {
@@ -201,6 +209,31 @@ function GigDetailContent() {
       router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
+
+  useEffect(() => {
+    if (!gig || !user) return;
+    const fromQuery = searchParams.get('inviteCreator');
+    const stored = peekInviteCreatorId(gigId);
+    const creatorId = fromQuery || stored;
+    if (!creatorId) {
+      setPendingInviteProfile(null);
+      return;
+    }
+    if ((gig.invitedCreatorIds || []).includes(creatorId) ||
+        (gig.acceptedCreatorIds || []).includes(creatorId) ||
+        (gig.appliedCreatorIds || []).includes(creatorId)) {
+      clearInviteCreatorId(gigId);
+      setPendingInviteProfile(null);
+      if (fromQuery) router.replace(`/campaigns/${gigId}`, { scroll: false });
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, 'users', creatorId)).then((snap) => {
+      if (cancelled || !snap.exists()) return;
+      setPendingInviteProfile({ uid: snap.id, ...(snap.data() as UserProfile) });
+    });
+    return () => { cancelled = true; };
+  }, [gig, user, gigId, searchParams, router]);
 
   useEffect(() => {
     if (searchParams.get('addBudget') !== '1' || !gig) return;
@@ -407,6 +440,28 @@ function GigDetailContent() {
   }, [gig]);
 
   useEffect(() => {
+    if (gig && gig.invitedCreatorIds && gig.invitedCreatorIds.length > 0) {
+      const creatorsQuery = query(collection(db, 'users'), where(documentId(), 'in', gig.invitedCreatorIds));
+      const unsubscribe = onSnapshot(creatorsQuery,
+        (snapshot) => {
+          const creatorsData = snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+          setInvitedCreators(creatorsData);
+        },
+        async () => {
+          const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      );
+      return () => unsubscribe();
+    } else {
+      setInvitedCreators([]);
+    }
+  }, [gig]);
+
+  useEffect(() => {
     if (!gig?.kickoff) return;
     const date = kickoffDate(gig);
     if (date) setKickoffLocal(toDatetimeLocalValue(date));
@@ -497,7 +552,10 @@ function GigDetailContent() {
       if ((currentGigData.rejectedCreatorIds || []).includes(targetUserId)) {
         throw new Error("This campaign declined that application. Browse other open campaigns.");
       }
-      if (!isCauseGig && appliedIds.includes(targetUserId)) throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already applied.`);
+      const isInvited = (currentGigData.invitedCreatorIds || []).includes(targetUserId);
+      if (!isCauseGig && appliedIds.includes(targetUserId) && !isInvited) {
+        throw new Error(`${isAgencyAcceptance ? 'This talent' : 'You'} already applied.`);
+      }
 
       const gigUpdates: any = {
         updatedAt: serverTimestamp()
@@ -520,11 +578,14 @@ function GigDetailContent() {
         }
       }
 
-      if (isCauseGig) {
-        // Cause campaigns bypass the "Apply" step
+      if (isCauseGig || isInvited) {
         const newAcceptedIds = [...acceptedIds, targetUserId];
         gigUpdates.acceptedCreatorIds = newAcceptedIds;
         gigUpdates[`acceptedAt.${targetUserId}`] = serverTimestamp();
+        if (isInvited) gigUpdates.invitedCreatorIds = arrayRemove(targetUserId);
+        if (appliedIds.includes(targetUserId)) {
+          gigUpdates.appliedCreatorIds = appliedIds.filter((id) => id !== targetUserId);
+        }
         await updateDoc(gigDocRef, gigUpdates);
 
         // Create affiliate link if enabled
@@ -610,7 +671,7 @@ function GigDetailContent() {
         const userUpdates = { giggingForAgencies: arrayUnion(currentGigData.brandId) };
         await updateDoc(doc(db, 'users', targetUserId), userUpdates);
 
-        toast({ title: "Campaign Claimed!" });
+        toast({ title: isInvited ? "Invite accepted" : "Campaign Claimed!" });
       } else {
         // Regular campaigns use the "Apply" step
         const newAppliedIds = [...appliedIds, targetUserId];
@@ -660,6 +721,50 @@ function GigDetailContent() {
     }
   };
 
+  const handleDeclineInvite = async () => {
+    if (!gig) return;
+    setIsAccepting(true);
+    try {
+      await declineCampaignInviteCallable({ gigId: gig.id });
+      toast({ title: "Invite declined", description: "You can still browse other open campaigns." });
+    } catch (error: any) {
+      toast({ title: "Could not decline", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  const handleSendPendingInvite = async () => {
+    if (!gig || !pendingInviteProfile) return;
+    if (isPoolBudgetGig(gig) && (!pendingInviteOffer || Number(pendingInviteOffer) < 1)) {
+      toast({
+        title: "Enter an offer",
+        description: "Set what you expect to pay this creator from the campaign budget.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSendingPendingInvite(true);
+    try {
+      await inviteCreatorToCampaignCallable({
+        gigId: gig.id,
+        creatorId: pendingInviteProfile.uid,
+        ...(isPoolBudgetGig(gig) ? { offeredPayout: Number(pendingInviteOffer) } : {}),
+      });
+      clearInviteCreatorId(gig.id);
+      setPendingInviteProfile(null);
+      toast({
+        title: "Invite sent",
+        description: `${pendingInviteProfile.displayName || "The creator"} can accept from this campaign.`,
+      });
+      router.replace(`/campaigns/${gig.id}`, { scroll: false });
+    } catch (error: any) {
+      toast({ title: "Invite failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSendingPendingInvite(false);
+    }
+  };
+
   const handleApproveApplication = async (applicantId: string, offeredAmount?: number) => {
     if (!gig || !user) return;
     setIsAccepting(true); // Using the same loading state for simplicity
@@ -684,6 +789,7 @@ function GigDetailContent() {
       const gigUpdates: any = {
         acceptedCreatorIds: newAcceptedIds,
         appliedCreatorIds: newAppliedIds,
+        invitedCreatorIds: arrayRemove(applicantId),
         [`acceptedAt.${applicantId}`]: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -1297,6 +1403,7 @@ function GigDetailContent() {
   const hasAccepted = user ? acceptedIds.includes(user.uid) : false;
   const hasApplied = user ? (gig.appliedCreatorIds || []).includes(user.uid) : false;
   const hasRejected = user ? (gig.rejectedCreatorIds || []).includes(user.uid) : false;
+  const hasInvited = user ? (gig.invitedCreatorIds || []).includes(user.uid) : false;
   const kickoffWhen = formatKickoffWhen(gig);
   const kickoffUpcoming = (() => {
     const d = kickoffDate(gig);
@@ -1365,6 +1472,45 @@ function GigDetailContent() {
                     ? `All ${gig.creatorsNeeded} creators have finished their deliverables for this barter campaign.`
                     : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
                 : `This campaign is officially complete. Your submission has been approved and your payout processed.`}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isBrandTeam && pendingInviteProfile && gig.status !== 'pending_payment' && (
+          <Alert>
+            <Megaphone className="h-5 w-5" />
+            <AlertTitle className="font-bold">Finish inviting {pendingInviteProfile.displayName || 'this creator'}</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>You picked them from their public profile. Send the invite for this brief.</p>
+              {isPool && (
+                <div className="flex items-center gap-2 max-w-xs">
+                  <Label htmlFor="pending-invite-offer" className="text-xs whitespace-nowrap">Expected pay ($)</Label>
+                  <Input
+                    id="pending-invite-offer"
+                    type="number"
+                    min={1}
+                    value={pendingInviteOffer}
+                    onChange={(e) => setPendingInviteOffer(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void handleSendPendingInvite()} disabled={isSendingPendingInvite}>
+                  {isSendingPendingInvite ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Send invite
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    clearInviteCreatorId(gig.id);
+                    setPendingInviteProfile(null);
+                    router.replace(`/campaigns/${gig.id}`, { scroll: false });
+                  }}
+                >
+                  Not now
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -1566,13 +1712,16 @@ function GigDetailContent() {
                                Once approved, you'll get instant access to the brand's visual identity, voice guidelines, and product lookbook.
                             </p>
                          </div>
-                         {!hasApplied && !hasAccepted && (
+                         {!hasApplied && !hasAccepted && !hasInvited && (
                            <Button variant="outline" className="text-xs h-8 border-primary/20 px-6 rounded-full" onClick={() => {
                               const element = document.getElementById('legal-agreement');
                               element?.scrollIntoView({ behavior: 'smooth' });
                            }}>
                               Apply to Unlock
                            </Button>
+                         )}
+                         {hasInvited && !hasAccepted && (
+                           <Badge variant="secondary" className="px-4 py-1">You&apos;re invited — accept below</Badge>
                          )}
                          {hasApplied && !hasAccepted && (
                            <Badge variant="secondary" className="px-4 py-1">Approval Pending</Badge>
@@ -1880,19 +2029,46 @@ function GigDetailContent() {
 
             {canManageGig && (
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Users className="text-primary" /> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
-                  <CardDescription>
-                    {isCompleted
-                      ? isCauseCampaign
-                        ? `All participating creators have finished their work.`
-                        : isBarterCampaign
-                          ? `All ${gig.creatorsNeeded} creators have finished their deliverables for this barter campaign.`
-                          : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
-                      : `Manage secured creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
-                  </CardDescription>
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1.5">
+                    <CardTitle className="flex items-center gap-2"><Users className="text-primary" /> {isCompleted ? 'Final Creator Roster' : 'Creator Roster & Submissions'}</CardTitle>
+                    <CardDescription>
+                      {isCompleted
+                        ? isCauseCampaign
+                          ? `All participating creators have finished their work.`
+                          : isBarterCampaign
+                            ? `All ${gig.creatorsNeeded} creators have finished their deliverables for this barter campaign.`
+                            : `All ${gig.creatorsNeeded} creators have finished and been paid for their work.`
+                        : `Manage secured creators and review their ${gig.videosPerCreator} requested video${gig.videosPerCreator > 1 ? 's' : ''}.`}
+                    </CardDescription>
+                  </div>
+                  {!isCompleted && <InviteKnownCreatorsButton gig={gig} agency={agency} />}
                 </CardHeader>
                 <CardContent>
+                  {!isCompleted && canManageGig && invitedCreators.filter(c => !(gig.appliedCreatorIds || []).includes(c.uid) && !(gig.acceptedCreatorIds || []).includes(c.uid)).length > 0 && (
+                    <div className="mb-8 space-y-4">
+                      <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Invites pending</h4>
+                      {invitedCreators
+                        .filter(c => !(gig.appliedCreatorIds || []).includes(c.uid) && !(gig.acceptedCreatorIds || []).includes(c.uid))
+                        .map(invitee => (
+                        <Card key={invitee.uid} className="border bg-muted/10">
+                          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <Link href={`/creator/${invitee.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                              <Avatar>
+                                <AvatarImage src={invitee.avatarUrl || ''} />
+                                <AvatarFallback>{invitee.displayName?.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-semibold hover:underline">{invitee.displayName}</p>
+                                <p className="text-xs text-muted-foreground">Waiting for them to accept</p>
+                              </div>
+                            </Link>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
                   {!isCompleted && canManageGig && appliedCreators.length > 0 && (
                     <div className="mb-8 space-y-4">
                       <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Applicants awaiting approval</h4>
@@ -2342,7 +2518,7 @@ function GigDetailContent() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Application Submitted - Pending Approval
                       </Button>
                     </div>
-                  ) : (isCauseCampaign || spotsLeft > 0) && gig.status === 'open' ? (
+                  ) : hasInvited || ((isCauseCampaign || spotsLeft > 0) && gig.status === 'open') ? (
                     <div
                       id="apply-card"
                       className={`space-y-4 border-t pt-4 rounded-lg transition-shadow duration-700 ${highlightApply ? 'ring-2 ring-primary ring-offset-4 ring-offset-background' : ''}`}
@@ -2503,8 +2679,18 @@ function GigDetailContent() {
                           }
                         >
                           {isAccepting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          {isCauseCampaign ? "Claim Campaign" : "Apply for Campaign"}
+                          {hasInvited ? "Accept invite" : isCauseCampaign ? "Claim Campaign" : "Apply for Campaign"}
                         </Button>
+                        {hasInvited && (
+                          <Button
+                            variant="ghost"
+                            className="w-full"
+                            disabled={isAccepting}
+                            onClick={() => void handleDeclineInvite()}
+                          >
+                            Not interested
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ) : (

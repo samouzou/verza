@@ -104,6 +104,8 @@ import {
   setCampaignKickoff,
   inviteToCampaignKickoff,
   rsvpCampaignKickoff,
+  inviteCreatorToCampaign,
+  declineCampaignInvite,
 } from "./gigs";
 import {generateCampaignCopy} from "./gigs/generateCampaignCopy";
 import {
@@ -305,6 +307,8 @@ export {
   setCampaignKickoff,
   inviteToCampaignKickoff,
   rsvpCampaignKickoff,
+  inviteCreatorToCampaign,
+  declineCampaignInvite,
   getAdminCampaignAccess,
   listAdminCampaigns,
   adminFundCampaign,

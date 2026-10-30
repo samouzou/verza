@@ -189,8 +189,8 @@ service cloud.firestore {
                          !(request.resource.data.status in ['completed', 'budget_exhausted'])
                        )
                      ) ||
-                     (request.auth != null && resource.data.status == 'open' &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'appliedCreatorIds', 'acceptedAt', 'assignments', 'updatedAt', 'status', 'agentIds']));
+                     (request.auth != null && resource.data.status in ['open', 'in-progress'] &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acceptedCreatorIds', 'appliedCreatorIds', 'invitedCreatorIds', 'acceptedAt', 'assignments', 'updatedAt', 'status', 'agentIds']));
       allow delete: if isTeamMemberOf(resource.data.brandId) && 
                       (resource.data.status == 'pending_payment' || 
                        (resource.data.status == 'open' && resource.data.acceptedCreatorIds.size() == 0));
