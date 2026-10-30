@@ -107,6 +107,7 @@ import {
   adminFundCampaign,
   adminSetCampaignFee,
 } from "./admin/campaigns";
+import {adminSendCampaignCreatorAlert, campaignAlertUnsubscribe} from "./admin/campaignCreatorAlert";
 import {syncPublicCampaign, reconcilePublicCampaigns} from "./gigs/publicCampaigns";
 import {syncCreatorMarketplaceProof} from "./gigs/creatorMarketplace";
 import {reconcilePublicCreators, syncPublicCreator} from "./gigs/publicCreators";
@@ -299,6 +300,8 @@ export {
   listAdminCampaigns,
   adminFundCampaign,
   adminSetCampaignFee,
+  adminSendCampaignCreatorAlert,
+  campaignAlertUnsubscribe,
   onGigCreated,
   onGigStatusOpened,
   extendCreatorDeadline,

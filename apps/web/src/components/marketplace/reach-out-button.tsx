@@ -43,7 +43,7 @@ export function ReachOutButton({ creatorId }: { creatorId: string }) {
 
   return (
     <p className="mt-6 text-sm text-muted-foreground">
-      Brands on Verza can invite this creator to a campaign. Contact stays on Verza — email is not shared.
+      Ready to work together? Invite them to a campaign from your brand workspace.
     </p>
   );
 }

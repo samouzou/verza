@@ -28,6 +28,8 @@ type AdminCampaign = {
   platformFeeFraction: number;
   platformFeePercent: number;
   createdAt: string | null;
+  lastCreatorAlertAt: string | null;
+  lastCreatorAlertSent: number;
 };
 
 export default function AdminCampaignsPage() {
@@ -138,6 +140,41 @@ export default function AdminCampaignsPage() {
     }
   }
 
+  async function emailCreators(row: AdminCampaign) {
+    if (row.status !== "open") {
+      toast({ variant: "destructive", title: "Campaign must be open to email creators." });
+      return;
+    }
+    setBusyId(row.id);
+    try {
+      const callable = httpsCallable(functions, "adminSendCampaignCreatorAlert");
+      const preview = await callable({ gigId: row.id, dryRun: true });
+      const count = Number((preview.data as { recipientCount?: number }).recipientCount || 0);
+      const last = row.lastCreatorAlertAt
+        ? ` Last sent ${new Date(row.lastCreatorAlertAt).toLocaleString()} to ${row.lastCreatorAlertSent} people.`
+        : "";
+      const ok = window.confirm(
+        `Email ${count} individual creators and talent about "${row.title || "this campaign"}"?${last}`
+      );
+      if (!ok) return;
+      const res = await callable({ gigId: row.id, dryRun: false });
+      const data = res.data as { sent?: number; attempted?: number };
+      toast({
+        title: "Campaign email sent",
+        description: `Delivered ${data.sent ?? 0} of ${data.attempted ?? count} messages.`,
+      });
+      await load(queryText);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Could not email creators",
+        description: error instanceof Error ? error.message : "Try again.",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (isLoading || allowed === null) {
     return (
       <div className="flex justify-center py-20">
@@ -159,7 +196,7 @@ export default function AdminCampaignsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Campaign admin"
-        description="Fund a campaign (credits brand escrow and this campaign’s locked amount) or set Verza’s fee for that campaign only."
+        description="Fund a campaign, set Verza’s fee, or email individual creators and talent about an open campaign."
       />
 
       <form
@@ -243,6 +280,21 @@ export default function AdminCampaignsPage() {
                     </Button>
                   </div>
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                <p className="text-xs text-muted-foreground">
+                  {row.lastCreatorAlertAt
+                    ? `Last emailed creators ${new Date(row.lastCreatorAlertAt).toLocaleString()} (${row.lastCreatorAlertSent} sent)`
+                    : "Creators have not been emailed about this campaign yet."}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busyId === row.id || row.status !== "open"}
+                  onClick={() => void emailCreators(row)}
+                >
+                  {busyId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Email creators"}
+                </Button>
               </div>
             </li>
           ))}

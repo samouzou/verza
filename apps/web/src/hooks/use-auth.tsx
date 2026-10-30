@@ -114,6 +114,7 @@ export interface UserProfile {
   hasCompletedCareerPath?: boolean;
   careerPathResult?: 'monetized' | 'emerging' | 'community' | null;
   hasCompletedBrandJourney?: boolean;
+  emailPreferences?: { opticWeekly?: boolean; campaignAlerts?: boolean };
 
   /** Optic: Gmail connected for saving outreach drafts (tokens stored server-side). */
   opticGmailConnected?: boolean;
@@ -441,6 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               hasCompletedCareerPath: firestoreUserData.hasCompletedCareerPath || false,
               careerPathResult: firestoreUserData.careerPathResult ?? null,
               hasCompletedBrandJourney: firestoreUserData.hasCompletedBrandJourney || false,
+              emailPreferences: firestoreUserData.emailPreferences,
               emailSequence: firestoreUserData.emailSequence,
               credits: firestoreUserData.credits,
               showInMarketplace: firestoreUserData.showInMarketplace,

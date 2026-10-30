@@ -224,7 +224,7 @@ export interface UserProfileFirestoreData {
   isBrandAccount?: boolean;
   primaryAgencyId?: string | null;
   /** Opt-outs for recurring emails; missing means subscribed. */
-  emailPreferences?: { opticWeekly?: boolean };
+  emailPreferences?: { opticWeekly?: boolean; campaignAlerts?: boolean };
   /** Server-generated secret for one-click unsubscribe links. */
   emailPrefsToken?: string;
   agencyMemberships?: AgencyMembership[];
@@ -879,6 +879,10 @@ export interface Gig {
    * Missing means the platform default (`GIG_PLATFORM_FEE_FRACTION`).
    */
   platformFeeFraction?: number;
+  /** Last time Verza emailed creators about this campaign. Functions only. */
+  lastCreatorAlertAt?: Timestamp;
+  lastCreatorAlertBy?: string;
+  lastCreatorAlertSent?: number;
 }
 
 export interface CreatorPayoutRecord {

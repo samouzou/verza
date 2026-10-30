@@ -27,7 +27,7 @@ function adminEmail(request: CallableRequest): string {
  * @param {CallableRequest} request Callable request.
  * @return {string} Admin uid.
  */
-function assertVerzaAdmin(request: CallableRequest): string {
+export function assertVerzaAdmin(request: CallableRequest): string {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in required.");
   }
@@ -69,6 +69,9 @@ function serializeCampaign(id: string, gig: Gig): Record<string, unknown> {
     platformFeeFraction: gigPlatformFeeFraction(gig),
     platformFeePercent: Math.round(gigPlatformFeeFraction(gig) * 1000) / 10,
     createdAt: createdAt?.toDate ? createdAt.toDate().toISOString() : null,
+    lastCreatorAlertAt: gig.lastCreatorAlertAt && typeof (gig.lastCreatorAlertAt as {toDate?: () => Date}).toDate === "function" ?
+      (gig.lastCreatorAlertAt as {toDate: () => Date}).toDate().toISOString() : null,
+    lastCreatorAlertSent: num(gig.lastCreatorAlertSent),
   };
 }
 

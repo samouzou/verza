@@ -170,7 +170,8 @@ service cloud.firestore {
                          'fundedAmount', 'budgetSpent', 'paidCreatorIds', 'creatorPayouts',
                          'fundingPaymentIntentId', 'lastBudgetTopUpPaymentIntentId', 'unspentReleased',
                          'platformFeeFraction', 'lastAdminFundAt', 'lastAdminFundBy',
-                         'lastAdminFundAmount', 'lastAdminFundId'
+                         'lastAdminFundAmount', 'lastAdminFundId',
+                         'lastCreatorAlertAt', 'lastCreatorAlertBy', 'lastCreatorAlertSent'
                        ]) &&
                        (
                          resource.data.status == 'pending_payment' ||

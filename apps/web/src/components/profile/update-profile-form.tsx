@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, UploadCloud, Briefcase, Landmark, Copy, ExternalLink } from "lucide-react";
+import { Loader2, Save, UploadCloud, Briefcase, Landmark, Copy, ExternalLink, Mail } from "lucide-react";
 import { auth, db, doc, updateDoc, storage } from "@/lib/firebase";
 import { updateProfile as updateFirebaseUserProfile } from "firebase/auth";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -58,6 +58,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
   const [showInMarketplace, setShowInMarketplace] = useState(currentUser.showInMarketplace || false);
   const [niche, setNiche] = useState(currentUser.niche || "");
   const [contentType, setContentType] = useState(currentUser.contentType);
+  const [campaignAlerts, setCampaignAlerts] = useState(currentUser.emailPreferences?.campaignAlerts !== false);
 
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -82,6 +83,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
     setShowInMarketplace(currentUser.showInMarketplace || false);
     setNiche(currentUser.niche || "");
     setContentType(currentUser.contentType);
+    setCampaignAlerts(currentUser.emailPreferences?.campaignAlerts !== false);
   }, [currentUser]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, type: 'avatar' | 'logo') => {
@@ -117,6 +119,7 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
                              showInMarketplace !== (currentUser.showInMarketplace || false) ||
                              niche.trim() !== (currentUser.niche || "") ||
                              contentType !== currentUser.contentType ||
+                             campaignAlerts !== (currentUser.emailPreferences?.campaignAlerts !== false) ||
                              !!avatarFile || !!logoFile;
 
     if (!hasProfileChanged) {
@@ -178,6 +181,9 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
       }
       if (contentType !== currentUser.contentType) {
         firestoreUpdates.contentType = contentType;
+      }
+      if (campaignAlerts !== (currentUser.emailPreferences?.campaignAlerts !== false)) {
+        firestoreUpdates["emailPreferences.campaignAlerts"] = campaignAlerts;
       }
       
       if (Object.keys(authUpdates).length > 0) {
@@ -427,6 +433,30 @@ export function UpdateProfileForm({ currentUser }: UpdateProfileFormProps) {
           )}
         </CardContent>
       </Card>
+
+      {(currentUser.role === "individual_creator" || currentUser.role === "talent") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5 text-primary" /> Email</CardTitle>
+            <CardDescription>Choose which notes you get from Verza.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="campaignAlerts" className="text-base">Open campaign emails</Label>
+                <p className="text-sm text-muted-foreground">
+                  Occasional emails when there is a campaign worth applying to. You can also unsubscribe from any of those emails.
+                </p>
+              </div>
+              <Switch
+                id="campaignAlerts"
+                checked={campaignAlerts}
+                onCheckedChange={setCampaignAlerts}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Button type="submit" disabled={isUpdating}>
         {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
