@@ -31,7 +31,7 @@ const TIPS: Record<CoPilotContext, Tip[]> = {
     {
       icon: Trophy,
       title: "Winning Hooks",
-      description: "Use Reelwright to iterate on the look before you submit. The stronger your execution, the higher your Verza Score.",
+      description: "Use Reelwright to mock the ad look before you submit. The stronger your execution, the higher your Verza Score.",
     }
   ],
   find_talent: [

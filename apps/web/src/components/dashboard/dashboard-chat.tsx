@@ -54,9 +54,9 @@ const BRAND_STARTERS: Starter[] = [
 const CREATOR_STARTERS: Starter[] = [
   { name: "Prism", detail: "Plan the content calendar", href: "/prism" },
   { name: "Insights", detail: "See how your accounts are doing", href: "/insights" },
-  { name: "Reelwright", detail: "Cut a reel", href: "/ai-studio" },
-  { name: "YouTube Writer", detail: "Draft a script", href: "/youtube-writer" },
-  { name: "Brand Research", detail: "Study a brand", href: "/brand-research" },
+  { name: "Reelwright", detail: "Make an ad", href: "/ai-studio" },
+  { name: "YouTube Writer", detail: "Write a video description", href: "/youtube-writer" },
+  { name: "Brand Research", detail: "Research a target brand", href: "/brand-research" },
   { name: "Store", detail: "Your storefront", href: "/store" },
 ];
 

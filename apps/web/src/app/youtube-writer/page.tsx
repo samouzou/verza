@@ -40,12 +40,15 @@ import {
 
 type CopyTarget = "draft" | "linkedin" | "instagram";
 
+const DEFAULT_PROMPT =
+  "Write a YouTube description I can paste under this video. Open with a one-line hook, summarize what viewers will get, add timestamps if they fit, and end with a short CTA plus relevant hashtags.";
+
 export default function YouTubeWriterPage() {
   const { user, isCreator, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [adaptingPlatform, setAdaptingPlatform] = useState<"linkedin" | "instagram" | null>(null);
@@ -131,7 +134,7 @@ export default function YouTubeWriterPage() {
     if (!prompt.trim()) {
       toast({
         title: "Prompt required",
-        description: "Tell Gemini what to write about the video.",
+        description: "Say what you need — a YouTube description is the default.",
         variant: "destructive",
       });
       return;
@@ -283,7 +286,7 @@ export default function YouTubeWriterPage() {
         <Youtube className="mx-auto h-10 w-10 text-muted-foreground" />
         <h1 className="text-2xl font-bold">YouTube Writer is for creators</h1>
         <p className="text-muted-foreground">
-          Paste a public YouTube link and prompt Gemini to write about the video.
+          Paste a public YouTube link to generate a description you can put under the video.
         </p>
       </div>
     );
@@ -293,7 +296,7 @@ export default function YouTubeWriterPage() {
     <>
       <PageHeader
         title="YouTube Writer"
-        description="Paste a public YouTube link and tell Gemini what to write."
+        description="Need a description for a YouTube video? Paste the public link and we’ll write one you can put under the video. You can also ask for a title, script notes, or a LinkedIn / Instagram cut of the same video."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -302,10 +305,10 @@ export default function YouTubeWriterPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Youtube className="text-primary h-5 w-5" />
-                Video + prompt
+                Your video
               </CardTitle>
               <CardDescription>
-                Gemini watches the video natively — no transcript upload needed.
+                Paste the YouTube link. We watch the video and draft the description — no transcript upload.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -320,12 +323,12 @@ export default function YouTubeWriterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="youtube-prompt">Your prompt</Label>
+                <Label htmlFor="youtube-prompt">What to write</Label>
                 <Textarea
                   id="youtube-prompt"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. Summarize the key points, then draft a LinkedIn post in my voice."
+                  placeholder="Write a YouTube description I can paste under this video."
                   rows={6}
                   disabled={isGenerating}
                 />
@@ -340,7 +343,7 @@ export default function YouTubeWriterPage() {
                 ) : (
                   <Wand2 className="mr-2 h-4 w-4" />
                 )}
-                Generate
+                Write description
               </Button>
             </CardContent>
           </Card>
@@ -546,9 +549,9 @@ export default function YouTubeWriterPage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full min-h-[280px] border-2 border-dashed rounded-lg p-8 text-center">
               <BookOpen className="h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">Your draft will appear here</h3>
+              <h3 className="mt-4 text-lg font-semibold">Your YouTube description will appear here</h3>
               <p className="mt-1 text-sm text-muted-foreground max-w-sm">
-                Add a public YouTube link and a prompt, then generate — or open a saved draft.
+                Paste the video link, keep or edit the prompt, then write the description — or open a saved draft.
               </p>
             </div>
           )}

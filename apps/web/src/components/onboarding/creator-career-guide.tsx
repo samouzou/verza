@@ -34,7 +34,7 @@ const START_OPTIONS = [
   {
     path: "emerging" as const,
     title: "Make content",
-    description: "Start in Reelwright.",
+    description: "Generate ads in Reelwright.",
     href: "/ai-studio",
     icon: Sparkles,
   },

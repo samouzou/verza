@@ -27,7 +27,7 @@
     "boldsign": "3.1.4",
     "cheerio": "^1.2.0",
     "firebase-admin": "^13.4.0",
-    "firebase-functions": "^6.4.0",
+    "firebase-functions": "^7.4.0",
     "form-data": "^4.0.0",
     "genkit": "^1.28.0",
     "node-fetch": "^3.3.2",

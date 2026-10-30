@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, Clapperboard, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Clapperboard, Download, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useTour } from "@/hooks/use-tour";
@@ -16,22 +16,22 @@ const STUDIO_URL = reelwrightUrl({ from: "verza" });
 
 const STEPS = [
   {
-    icon: Users,
-    label: "Cast",
-    title: "Start with a character",
-    body: "Pick someone who holds a look — then take them into the next shot.",
+    icon: PenLine,
+    label: "Brief",
+    title: "Describe the ad",
+    body: "Your product, offer, or campaign look in one paragraph. That’s enough to start.",
   },
   {
     icon: Clapperboard,
-    label: "Shoot",
-    title: "Step into a scene",
-    body: "Describe the moment in your own words. Landscape or portrait. Keep going from the last frame.",
+    label: "Generate",
+    title: "Get a finished cut",
+    body: "Video, UGC-style, or image ads for Reels, TikTok, Shorts, and Meta. 10–40 seconds.",
   },
   {
-    icon: Sparkles,
-    label: "Continue",
-    title: "Edit by talking",
-    body: "Change the mood, keep the same face, cut the next beat. The reel continues.",
+    icon: Download,
+    label: "Use it",
+    title: "Bring it back to Verza",
+    body: "Download the file, pitch a campaign look, or promote your Store — no camera crew.",
   },
 ] as const;
 
@@ -51,7 +51,7 @@ function ReelwrightDoorway() {
       toast({
         title: "Payment received",
         description:
-          "Generation now lives in Reelwright. Open the studio to keep creating.",
+          "Credits now live in Reelwright. Open the studio to make your next ad.",
       });
     }
   }, [searchParams, toast]);
@@ -79,17 +79,18 @@ function ReelwrightDoorway() {
 
         <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#EAB308]">
-            Verza growth path
+            For Verza creators
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
             Reelwright
           </h1>
           <p className="mt-3 max-w-xl text-lg text-white/75">
-            Characters that hold. Scenes that continue. Edit by talking.
+            The AI ad generator for video, UGC, and image ads.
           </p>
           <p className="mt-2 max-w-xl text-sm text-white/50">
-            AI Studio moved into its own studio. Prototype hooks and visuals in
-            Reelwright, then bring the cut back to Verza for campaigns, Store, and payouts.
+            Describe a product or offer and get a scroll-stopping ad for Reels, TikTok,
+            and Shorts. Use it to mock a campaign look, promote your Store, or post
+            while you film the real thing. New accounts get 20 free credits.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -104,7 +105,7 @@ function ReelwrightDoorway() {
                 rel="noopener noreferrer"
                 onClick={openStudio}
               >
-                Open Reelwright
+                Create an ad
                 <ArrowRight className="ml-2 h-4 w-4" />
               </a>
             </Button>

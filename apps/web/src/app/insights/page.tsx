@@ -14,6 +14,7 @@ import { analyzeCreatorProfile, type CreatorAnalysisOutput } from '@/ai/flows/cr
 import { db, doc, updateDoc, functions, auth, GoogleAuthProvider, linkWithPopup, reauthenticateWithPopup } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 declare global {
   interface Window {
@@ -417,9 +418,17 @@ function InsightsContent() {
                     </div>
                      <div className="p-4 border rounded-lg bg-background shadow-sm">
                         <h3 className="font-semibold text-lg flex items-center gap-2 mb-2"><Star className="text-red-500" />Top 5 Ideal Brand Partners</h3>
+                        <p className="text-xs text-muted-foreground mb-2">Open Brand Research to study any of these immediately.</p>
                         <ul className="list-disc list-inside grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
                             {(analysisResult?.brandWishlist || user.brandWishlist || []).map((brand, i) => (
-                                <li key={i} className="text-muted-foreground">{brand}</li>
+                                <li key={i} className="text-muted-foreground">
+                                  <Link
+                                    href={`/brand-research?brand=${encodeURIComponent(brand)}`}
+                                    className="text-primary hover:underline"
+                                  >
+                                    {brand}
+                                  </Link>
+                                </li>
                             ))}
                         </ul>
                     </div>

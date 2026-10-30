@@ -16,7 +16,7 @@ export const getStartedTour: Tour = {
     {
       selector: '#nav-item-ai-studio',
       title: 'Reelwright',
-      content: "Your growth studio lives here. Open Reelwright to cast characters, shoot scenes, and keep the reel going.",
+      content: "Make video, UGC-style, and image ads from a short brief. Open Reelwright, then bring the file back for campaigns or your Store.",
       side: 'right',
       align: 'start',
     },
@@ -92,7 +92,7 @@ export const aiStudioTour: Tour = {
     {
       selector: '#reelwright-open-studio',
       title: 'Open Reelwright',
-      content: 'The studio is its own product now. Cast a character, shoot a scene, then bring the cut back to Verza for campaigns and payouts.',
+      content: 'Reelwright is the AI ad generator. Describe the ad, generate a 10–40s cut, then use it for campaigns, Store, or organic posts.',
       side: 'bottom',
     },
   ],
