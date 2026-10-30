@@ -84,7 +84,8 @@ async function resolveInstagramAccount(userToken: string): Promise<{igUserId: st
 
   if (listed.length === 0 && granted.pageIds.length === 0) {
     throw new HttpsError("not-found",
-      "Facebook did not share a Page on this login. In the Facebook window, select the Page that has your Instagram account connected, then continue.");
+      "Facebook did not share a Page on this login. In the Facebook window, " +
+      "select the Page that has your Instagram account connected, then continue.");
   }
   throw new HttpsError("not-found",
     "That Facebook Page does not have an Instagram professional account connected to it.");
@@ -113,11 +114,13 @@ export const syncInstagramStats = onCall({secrets: [params.FACEBOOK_APP_SECRET]}
     // 2. Get Follower Count
     const userResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}`, {
       params: {
-        fields: "followers_count",
+        fields: "followers_count,username",
         access_token: accessToken,
       },
     });
     const followersCountValue = userResponse.data?.followers_count || 0;
+    const instagramUsername = typeof userResponse.data?.username === "string" ?
+      userResponse.data.username.replace(/^@/, "").trim() : "";
 
     // 3. Get Engagement Data & Captions from last 10 posts
     const mediaResponse = await axios.get(`https://graph.facebook.com/v20.0/${igUserId}/media`, {
@@ -159,6 +162,7 @@ export const syncInstagramStats = onCall({secrets: [params.FACEBOOK_APP_SECRET]}
       instagramConnected: true,
       instagramFollowers: followersCountValue,
       instagramEngagement: finalEngagementRate,
+      instagramUsername: instagramUsername || null,
       // For legacy/general view
       followers: followersCountValue,
       engagementRate: finalEngagementRate,
@@ -203,7 +207,7 @@ export const syncYouTubeStats = onCall(async (request) => {
     // 1. Get Channel Stats (Subscriber Count)
     const channelResponse = await axios.get("https://www.googleapis.com/youtube/v3/channels", {
       params: {
-        part: "statistics",
+        part: "snippet,statistics",
         mine: true,
         access_token: accessToken,
       },
@@ -215,6 +219,9 @@ export const syncYouTubeStats = onCall(async (request) => {
     }
 
     const subscribers = parseInt(channel.statistics.subscriberCount) || 0;
+    const youtubeChannelId = typeof channel.id === "string" ? channel.id : null;
+    const customUrl = typeof channel.snippet?.customUrl === "string" ? channel.snippet.customUrl : "";
+    const youtubeHandle = customUrl.replace(/^@/, "").trim() || null;
 
     // 2. Get Last 10 Videos via Activities
     const activitiesResponse = await axios.get("https://www.googleapis.com/youtube/v3/activities", {
@@ -245,6 +252,8 @@ export const syncYouTubeStats = onCall(async (request) => {
         youtubeConnected: true,
         youtubeFollowers: subscribers,
         youtubeEngagement: 0,
+        youtubeChannelId,
+        youtubeHandle,
         followers: subscribers,
         engagementRate: 0,
         lastSocialSync: new Date().toISOString(),
@@ -287,6 +296,8 @@ export const syncYouTubeStats = onCall(async (request) => {
       youtubeConnected: true,
       youtubeFollowers: subscribers,
       youtubeEngagement: finalEngagementRate,
+      youtubeChannelId,
+      youtubeHandle,
       followers: subscribers,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),
@@ -396,10 +407,23 @@ export const syncTikTokStats = onCall({
     }
 
     // 2. Get User Info - V2 Endpoint with trailing slash
-    const userResponse = await
-    axios.get("https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url", {
-      headers: {"Authorization": `Bearer ${accessToken}`},
-    });
+    const tiktokAuth = {headers: {"Authorization": `Bearer ${accessToken}`}};
+    let userResponse;
+    try {
+      userResponse = await axios.get(
+        "https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url,username",
+        tiktokAuth
+      );
+    } catch (usernameErr: any) {
+      logger.warn(
+        "TikTok username field unavailable, retrying without it",
+        usernameErr?.response?.data || usernameErr.message
+      );
+      userResponse = await axios.get(
+        "https://open.tiktokapis.com/v2/user/info/?fields=follower_count,display_name,avatar_url",
+        tiktokAuth
+      );
+    }
 
     const userData = userResponse.data?.data?.user;
     if (!userData) {
@@ -408,6 +432,8 @@ export const syncTikTokStats = onCall({
     }
 
     const followers = userData.follower_count || 0;
+    const tiktokUsername = typeof userData.username === "string" ?
+      userData.username.replace(/^@/, "").trim() : "";
 
     // 3. Get Video List - V2 Endpoint is a POST request
     const videoResponse = await axios.post(
@@ -456,6 +482,7 @@ export const syncTikTokStats = onCall({
       tiktokConnected: true,
       tiktokFollowers: followers,
       tiktokEngagement: finalEngagementRate,
+      tiktokUsername: tiktokUsername || null,
       followers: followers,
       engagementRate: finalEngagementRate,
       lastSocialSync: new Date().toISOString(),

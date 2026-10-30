@@ -225,7 +225,9 @@ async function sendAll(
 
 /** Count eligible creators, or send the campaign email to all of them. */
 export const adminSendCampaignCreatorAlert = onCall(
-  {secrets: [params.SENDGRID_API_KEY], timeoutSeconds: 540, memory: "512MiB"},
+  // SENDGRID_API_KEY is already injected as a plain Cloud Run env var in this
+  // project; do not also bind it via secrets:[] or deploy fails with env overlap.
+  {timeoutSeconds: 540, memory: "512MiB"},
   async (request) => {
     const adminUid = assertVerzaAdmin(request);
     const gigId = String(request.data?.gigId ?? "").trim();

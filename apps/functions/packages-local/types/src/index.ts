@@ -238,12 +238,19 @@ export interface UserProfileFirestoreData {
   instagramConnected?: boolean;
   instagramFollowers?: number;
   instagramEngagement?: number;
+  /** Instagram handle from Insights OAuth. No @. */
+  instagramUsername?: string | null;
   tiktokConnected?: boolean;
   tiktokFollowers?: number;
   tiktokEngagement?: number;
+  /** TikTok handle from Insights OAuth. No @. */
+  tiktokUsername?: string | null;
   youtubeConnected?: boolean;
   youtubeFollowers?: number;
   youtubeEngagement?: number;
+  youtubeChannelId?: string | null;
+  /** YouTube custom URL / handle, e.g. @name. */
+  youtubeHandle?: string | null;
   socialContent?: {
     instagram?: string;
     youtube?: string;
@@ -959,12 +966,15 @@ export interface PublicCreator {
   instagramConnected: boolean;
   instagramFollowers: number;
   instagramEngagement: number;
+  instagramUrl: string | null;
   tiktokConnected: boolean;
   tiktokFollowers: number;
   tiktokEngagement: number;
+  tiktokUrl: string | null;
   youtubeConnected: boolean;
   youtubeFollowers: number;
   youtubeEngagement: number;
+  youtubeUrl: string | null;
   averageVerzaScore: number;
   contentShowcase: ContentShowcaseItem[];
   updatedAtIso: string;

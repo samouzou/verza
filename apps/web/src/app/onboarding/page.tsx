@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Building, User, Store, Tv, Instagram, Twitter, Youtube, Users, Search, Mic, Mail, CalendarDays, MessageCircle, HelpCircle } from 'lucide-react';
+import { Loader2, Building, User, Store, Tv, Instagram, Twitter, Youtube, Users, Search, Mic, Mail, CalendarDays, MessageCircle, HelpCircle, MessagesSquare } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -20,6 +20,7 @@ const referralOptions = [
   { value: 'Instagram', icon: Instagram },
   { value: 'Twitter / X', icon: Twitter },
   { value: 'YouTube', icon: Youtube },
+  { value: 'Reddit', icon: MessagesSquare },
   { value: 'A friend or colleague', icon: Users },
   { value: 'Google / search', icon: Search },
   { value: 'Podcast', icon: Mic },

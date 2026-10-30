@@ -99,7 +99,11 @@ service cloud.firestore {
         'storeSellerReviewNote',
         'storeSellerRejectReason',
         'averageVerzaScore',
-        'contentShowcase'
+        'contentShowcase',
+        'instagramUsername',
+        'tiktokUsername',
+        'youtubeChannelId',
+        'youtubeHandle'
       ]);
     }
 
@@ -109,7 +113,8 @@ service cloud.firestore {
              (!changed.hasAny(['role']) || (!('role' in resource.data) && request.resource.data.role == 'individual_creator')) &&
              (!changed.hasAny(['agencyMemberships']) || (!('agencyMemberships' in resource.data) && request.resource.data.agencyMemberships.size() == 0)) &&
              (!changed.hasAny(['averageVerzaScore']) || (!('averageVerzaScore' in resource.data) && request.resource.data.averageVerzaScore == 0)) &&
-             !changed.hasAny(['contentShowcase']);
+             !changed.hasAny(['contentShowcase']) &&
+             !changed.hasAny(['instagramUsername', 'tiktokUsername', 'youtubeChannelId', 'youtubeHandle']);
     }
 
     function isOnboardingCompletion() {

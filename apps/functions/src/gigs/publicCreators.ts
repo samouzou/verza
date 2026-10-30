@@ -28,6 +28,53 @@ function num(value: unknown): number {
 }
 
 /**
+ * @param {unknown} value Raw handle.
+ * @param {RegExp} pattern Allowed handle after stripping a leading @.
+ * @return {string | null} Safe handle or null.
+ */
+function handle(value: unknown, pattern: RegExp): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/^@/, "");
+  return pattern.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * @param {boolean} connected Whether Insights is linked.
+ * @param {unknown} username Instagram handle.
+ * @return {string | null} Public profile URL.
+ */
+function instagramUrl(connected: boolean, username: unknown): string | null {
+  const name = connected ? handle(username, /^[A-Za-z0-9._]{1,30}$/) : null;
+  return name ? `https://www.instagram.com/${name}/` : null;
+}
+
+/**
+ * @param {boolean} connected Whether Insights is linked.
+ * @param {unknown} username TikTok handle.
+ * @return {string | null} Public profile URL.
+ */
+function tiktokUrl(connected: boolean, username: unknown): string | null {
+  const name = connected ? handle(username, /^[A-Za-z0-9._]{2,24}$/) : null;
+  return name ? `https://www.tiktok.com/@${name}` : null;
+}
+
+/**
+ * @param {boolean} connected Whether Insights is linked.
+ * @param {unknown} channelId YouTube channel id.
+ * @param {unknown} customUrl YouTube handle or custom URL.
+ * @return {string | null} Public channel URL.
+ */
+function youtubeUrl(connected: boolean, channelId: unknown, customUrl: unknown): string | null {
+  if (!connected) return null;
+  const named = handle(customUrl, /^[A-Za-z0-9._-]{3,30}$/);
+  if (named) return `https://www.youtube.com/@${named}`;
+  if (typeof channelId === "string" && /^UC[\w-]{22}$/.test(channelId.trim())) {
+    return `https://www.youtube.com/channel/${channelId.trim()}`;
+  }
+  return null;
+}
+
+/**
  * @param {unknown} value Stored showcase array.
  * @return {ContentShowcaseItem[]} Sanitized public clips.
  */
@@ -71,12 +118,19 @@ export function toPublicCreator(userId: string, user: UserProfileFirestoreData):
     instagramConnected: user.instagramConnected === true,
     instagramFollowers: num(user.instagramFollowers),
     instagramEngagement: num(user.instagramEngagement),
+    instagramUrl: instagramUrl(user.instagramConnected === true, user.instagramUsername),
     tiktokConnected: user.tiktokConnected === true,
     tiktokFollowers: num(user.tiktokFollowers),
     tiktokEngagement: num(user.tiktokEngagement),
+    tiktokUrl: tiktokUrl(user.tiktokConnected === true, user.tiktokUsername),
     youtubeConnected: user.youtubeConnected === true,
     youtubeFollowers: num(user.youtubeFollowers),
     youtubeEngagement: num(user.youtubeEngagement),
+    youtubeUrl: youtubeUrl(
+      user.youtubeConnected === true,
+      user.youtubeChannelId,
+      user.youtubeHandle
+    ),
     averageVerzaScore: num(user.averageVerzaScore),
     contentShowcase: showcaseItems(user.contentShowcase),
     updatedAtIso: toIso(undefined),

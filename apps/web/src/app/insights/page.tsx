@@ -250,7 +250,7 @@ function InsightsContent() {
   const handleConnectTikTok = async () => {
     const clientKey = "awlruae6rknutxeh";
     const redirectUri = encodeURIComponent("https://app.tryverza.com/insights");
-    const scope = "user.info.basic,user.info.stats,video.list";
+    const scope = "user.info.basic,user.info.profile,user.info.stats,video.list";
     const state = "tiktok_auth";
     
     const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scope}&response_type=code&redirect_uri=${redirectUri}&state=${state}`;

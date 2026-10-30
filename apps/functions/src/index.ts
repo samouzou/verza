@@ -68,6 +68,7 @@ import {
 } from "./subscriptions";
 
 import {getPublicContractDetails} from "./sharing";
+import {processNewUser} from "./users";
 
 import {
   initiateBoldSignRequest,
@@ -423,8 +424,5 @@ export {
   generateStoreCourseContent,
   writeFromYouTubeVideo,
   adaptYouTubeWriterDraft,
+  processNewUser,
 };
-
-// Import and export v1 auth trigger using require/exports
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-exports.processNewUser = require("./users").processNewUser;

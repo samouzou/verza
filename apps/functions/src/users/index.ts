@@ -1,13 +1,18 @@
 
-import * as functions from "firebase-functions/v1";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {onUserCreated} from "firebase-functions/v2/identity";
 import {db} from "../config/firebase";
 import type {AgencyMembership, Talent, TeamMember, UserProfileFirestoreData} from "./../types";
 
 const NEW_USER_BONUS = 50;
 
-export const processNewUser = functions.auth.user().onCreate(async (user) => {
+export const processNewUser = onUserCreated(async (event) => {
+  const user = event.data;
+  if (!user?.uid) {
+    logger.warn("processNewUser skipped; no user on the event.");
+    return;
+  }
   const {uid, email, displayName, photoURL, emailVerified} = user;
   const userDocRef = db.collection("users").doc(uid);
   const createdAt = Timestamp.now();
@@ -122,9 +127,6 @@ export const processNewUser = functions.auth.user().onCreate(async (user) => {
   };
 
   await userDocRef.set(newUserDoc, {merge: true});
-
   // Welcome email is sent after onboarding role selection (sendOnboardingWelcomeEmail)
   // so brands/agencies never get the creator welcome.
-
-  return null;
 });

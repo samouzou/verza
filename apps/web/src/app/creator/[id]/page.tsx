@@ -106,6 +106,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 function personJsonLd(creator: PublicCreator) {
+  const sameAs = [creator.instagramUrl, creator.tiktokUrl, creator.youtubeUrl].filter(
+    (href): href is string => typeof href === 'string' && href.length > 0
+  );
   return {
     '@context': 'https://schema.org',
     '@type': 'Person',
@@ -113,6 +116,7 @@ function personJsonLd(creator: PublicCreator) {
     url: publicCreatorUrl(creator.id),
     description: creator.missionStatement || creator.niche,
     ...(creator.avatarUrl ? { image: creator.avatarUrl } : {}),
+    ...(sameAs.length > 0 ? { sameAs } : {}),
     worksFor: { '@type': 'Organization', name: 'Verza', url: APP_BASE_URL },
   };
 }
@@ -129,6 +133,7 @@ export default async function CreatorProfilePage({ params }: PageProps) {
       connected: creator.instagramConnected,
       followers: creator.instagramFollowers,
       engagement: creator.instagramEngagement,
+      href: creator.instagramUrl,
       icon: Instagram,
       color: 'text-pink-500',
       metricLabel: 'Followers',
@@ -138,6 +143,7 @@ export default async function CreatorProfilePage({ params }: PageProps) {
       connected: creator.tiktokConnected,
       followers: creator.tiktokFollowers,
       engagement: creator.tiktokEngagement,
+      href: creator.tiktokUrl,
       icon: TikTokIcon,
       color: 'text-foreground',
       metricLabel: 'Followers',
@@ -147,6 +153,7 @@ export default async function CreatorProfilePage({ params }: PageProps) {
       connected: creator.youtubeConnected,
       followers: creator.youtubeFollowers,
       engagement: creator.youtubeEngagement,
+      href: creator.youtubeUrl,
       icon: Youtube,
       color: 'text-red-500',
       metricLabel: 'Subscribers',
@@ -189,24 +196,44 @@ export default async function CreatorProfilePage({ params }: PageProps) {
                 </h2>
                 {platforms.length > 0 ? (
                   <div className="space-y-3">
-                    {platforms.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
-                        <div className="flex items-center gap-2">
-                          <p.icon className={`h-5 w-5 ${p.color}`} />
-                          <span className="text-sm font-bold">{p.id}</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm font-bold">{formatFollowers(p.followers || 0)}</p>
-                            <p className="text-[10px] uppercase text-muted-foreground">{p.metricLabel}</p>
+                    {platforms.map((p) => {
+                      const row = (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <p.icon className={`h-5 w-5 ${p.color}`} />
+                            <span className="text-sm font-bold">{p.id}</span>
+                            {p.href && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
                           </div>
-                          <div className="border-l pl-4 text-right">
-                            <p className="text-sm font-bold">{p.engagement?.toFixed(1) || '0'}%</p>
-                            <p className="text-[10px] uppercase text-muted-foreground">Eng.</p>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-sm font-bold">{formatFollowers(p.followers || 0)}</p>
+                              <p className="text-[10px] uppercase text-muted-foreground">{p.metricLabel}</p>
+                            </div>
+                            <div className="border-l pl-4 text-right">
+                              <p className="text-sm font-bold">{p.engagement?.toFixed(1) || '0'}%</p>
+                              <p className="text-[10px] uppercase text-muted-foreground">Eng.</p>
+                            </div>
                           </div>
+                        </>
+                      );
+                      const className =
+                        'flex items-center justify-between rounded-lg border bg-muted/50 p-3';
+                      return p.href ? (
+                        <a
+                          key={p.id}
+                          href={p.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`${className} transition-colors hover:border-primary/40 hover:bg-muted`}
+                        >
+                          {row}
+                        </a>
+                      ) : (
+                        <div key={p.id} className={className}>
+                          {row}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm italic text-muted-foreground">No verified accounts connected.</p>

@@ -678,6 +678,25 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "careerPathEmailSequence.nextEmailAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "careerPathEmailSequence.step",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "storeProducts",
       "queryScope": "COLLECTION",
       "fields": [
