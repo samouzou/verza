@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon, CalendarDays, Megaphone } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, Ticket, Users, Edit, DollarSign, UploadCloud, Download, Flame, Star, Video, Wallet, ArrowLeft, Trash2, PartyPopper, Scale, ShieldCheck, Info, FileText, Link2, Copy, Check, MousePointer2, Target, Zap, Heart, Handshake, Maximize2, Infinity as InfinityIcon, CalendarDays, Megaphone, Settings2, type LucideIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -109,6 +109,19 @@ function formatKickoffWhen(gig: Gig): string {
   }
 }
 
+type BrandCampaignSection = 'people' | 'brief' | 'budget' | 'setup';
+
+const BRAND_CAMPAIGN_SECTIONS: { id: BrandCampaignSection; label: string; icon: LucideIcon }[] = [
+  { id: 'people', label: 'People', icon: Users },
+  { id: 'brief', label: 'Brief', icon: FileText },
+  { id: 'budget', label: 'Budget', icon: DollarSign },
+  { id: 'setup', label: 'Setup', icon: Settings2 },
+];
+
+function isBrandCampaignSection(value: string | null): value is BrandCampaignSection {
+  return value === 'people' || value === 'brief' || value === 'budget' || value === 'setup';
+}
+
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -180,6 +193,8 @@ function GigDetailContent() {
   const [highlightApply, setHighlightApply] = useState(false);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const applyFocusHandled = useRef(false);
+  const [brandSection, setBrandSection] = useState<BrandCampaignSection>('people');
+  const brandSectionInit = useRef(false);
 
   const payoutCreatorForGigCallable = httpsCallable(functions, 'payoutCreatorForGig');
   const createGigFundingCheckoutSessionCallable = httpsCallable(functions, 'createGigFundingCheckoutSession');
@@ -209,6 +224,17 @@ function GigDetailContent() {
       router.replace(`/campaigns/${gigId}`, { scroll: false });
     }
   }, [searchParams, gig, gigId, router]);
+
+  useEffect(() => {
+    if (!gig || brandSectionInit.current) return;
+    brandSectionInit.current = true;
+    const requested = searchParams.get('section');
+    if (isBrandCampaignSection(requested)) {
+      setBrandSection(requested);
+      return;
+    }
+    if (gig.status === 'pending_payment') setBrandSection('budget');
+  }, [gig, searchParams]);
 
   useEffect(() => {
     if (!gig || !user) return;
@@ -1450,6 +1476,22 @@ function GigDetailContent() {
   };
 
   const brandDeadlinePast = gig.deliverablesDueDate && new Date(gig.deliverablesDueDate + 'T23:59:59') < new Date();
+  const showBrandBrief = !canManageGig || brandSection === 'brief';
+  const showBrandPeople = canManageGig && brandSection === 'people';
+  const showBrandSetup = canManageGig && brandSection === 'setup';
+  const showBrandBudget = !canManageGig || brandSection === 'budget';
+  const pendingPeopleCount =
+    (gig.appliedCreatorIds || []).length +
+    (gig.invitedCreatorIds || []).filter(
+      (id) => !(gig.appliedCreatorIds || []).includes(id) && !(gig.acceptedCreatorIds || []).includes(id)
+    ).length;
+
+  const selectBrandSection = (section: BrandCampaignSection) => {
+    setBrandSection(section);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', section);
+    router.replace(`/campaigns/${gigId}?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <>
@@ -1520,14 +1562,52 @@ function GigDetailContent() {
             <AlertTriangle className="h-5 w-5" />
             <AlertTitle className="font-bold">Campaign Deadline Passed</AlertTitle>
             <AlertDescription>
-              The campaign deadline of <strong>{new Date(gig.deliverablesDueDate! + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong> has passed. Review outstanding creators below and extend deadlines if needed.
+              The campaign deadline of <strong>{new Date(gig.deliverablesDueDate! + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong> has passed. Open People to review outstanding creators and extend deadlines if needed.
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3 space-y-8 min-w-0">
-            {hasAccepted && gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-8 items-start",
+            canManageGig ? "lg:grid-cols-[13rem_1fr]" : "lg:grid-cols-4"
+          )}
+        >
+          {canManageGig ? (
+            <aside className="lg:sticky lg:top-20">
+              <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
+                {BRAND_CAMPAIGN_SECTIONS.map((item) => {
+                  const Icon = item.icon;
+                  const active = brandSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectBrandSection(item.id)}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                        active
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {item.label}
+                      {item.id === 'people' && pendingPeopleCount > 0 && (
+                        <span className="ml-auto text-[10px] font-semibold tabular-nums bg-primary text-primary-foreground rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center">
+                          {pendingPeopleCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
+          ) : null}
+          {(!canManageGig || brandSection === 'brief' || brandSection === 'people' || brandSection === 'setup') ? (
+          <div className={cn("min-w-0 space-y-8", !canManageGig && "lg:col-span-3")}>
+            {hasAccepted && !canManageGig && gig.affiliateSettings?.isEnabled && (gig.affiliateSettings?.rewardAmount || 0) > 0 && (
               <Card className="border-blue-500/30 bg-blue-50/10 shadow-lg animate-in zoom-in-95 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-blue-600"><Link2 className="h-5 w-5" /> Performance Tracking</CardTitle>
@@ -1632,7 +1712,7 @@ function GigDetailContent() {
               </Card>
             )}
 
-            {agency && (agency.hasBrandKit || agency.brandGuide || brandKit?.brandGuide) && (() => {
+            {showBrandBrief && agency && (agency.hasBrandKit || agency.brandGuide || brandKit?.brandGuide) && (() => {
               const isSecured = hasAccepted || canManageGig;
               const kitGuide = brandKit?.brandGuide ?? agency.brandGuide;
               const kitProducts = brandKit?.products ?? agency.products;
@@ -1736,6 +1816,8 @@ function GigDetailContent() {
               );
             })()}
 
+            {showBrandBrief ? (
+            <>
             <Card className="overflow-hidden">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -1833,6 +1915,8 @@ function GigDetailContent() {
                 </div>
               </CardContent>
             </Card>
+            </>
+            ) : null}
 
             {hasAccepted && !canManageGig && (
               <Card>
@@ -1979,7 +2063,7 @@ function GigDetailContent() {
               </Card>
             )}
 
-            {canManageGig && !isCompleted && (
+            {showBrandSetup && !isCompleted && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><CalendarDays className="text-primary h-5 w-5" /> Group kickoff</CardTitle>
@@ -2027,7 +2111,7 @@ function GigDetailContent() {
               </Card>
             )}
 
-            {canManageGig && (
+            {showBrandPeople && (
               <Card>
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1.5">
@@ -2390,8 +2474,63 @@ function GigDetailContent() {
                 </CardContent>
               </Card>
             )}
+
+            {showBrandPeople && !isCompleted && (
+              <MarketplaceCoPilot context="details_brand" className="hidden lg:block" />
+            )}
+
+            {showBrandSetup && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Settings2 className="h-5 w-5 text-primary" /> Campaign settings</CardTitle>
+                  <CardDescription>Public listing, brief edits, and deleting this campaign.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {gig.status === 'open' && gig.isPublic !== false && (
+                    <Button asChild variant="outline" className="w-full sm:w-auto">
+                      <a href={`/c/${campaignSlug(gig.title || 'campaign', gig.id)}`} target="_blank" rel="noopener noreferrer">
+                        <Link2 className="mr-2 h-4 w-4" /> View public page
+                      </a>
+                    </Button>
+                  )}
+                  {!isCompleted && (
+                    <Button asChild variant="outline" className="w-full sm:w-auto">
+                      <Link href={`/campaigns/${gig.id}/edit`}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit Campaign
+                      </Link>
+                    </Button>
+                  )}
+                  {canDeleteGig && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="w-full sm:w-auto">
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete Campaign
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this campaign?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove the campaign listing. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteGig} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
-          <div className="lg:col-span-1 space-y-6 min-w-0">
+          ) : null}
+          {showBrandBudget ? (
+          <div className={cn("min-w-0 space-y-6", !canManageGig ? "lg:col-span-1" : "max-w-xl")}>
             <Card>
               <CardHeader><CardTitle>Campaign Overview</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -2700,13 +2839,6 @@ function GigDetailContent() {
 
                 {isBrandTeam && (
                   <div className="space-y-2">
-                    {gig.status === 'open' && gig.isPublic !== false && (
-                      <Button asChild variant="outline" className="w-full">
-                        <a href={`/c/${campaignSlug(gig.title || 'campaign', gig.id)}`} target="_blank" rel="noopener noreferrer">
-                          <Link2 className="mr-2 h-4 w-4" /> View public page
-                        </a>
-                      </Button>
-                    )}
                     {gig.status === 'pending_payment' && totalCost > 0 && (
                       <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/30">
                         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 text-center">Campaign Funding: ${totalCost.toLocaleString()}</p>
@@ -2779,37 +2911,6 @@ function GigDetailContent() {
                             <DollarSign className="mr-2 h-4 w-4" /> Add a budget
                           </Button>
                         )}
-                        {!isCompleted && (
-                          <Button asChild className="w-full" variant="outline">
-                            <Link href={`/campaigns/${gig.id}/edit`}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Campaign
-                            </Link>
-                          </Button>
-                        )}
-                        {canDeleteGig && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button className="w-full" variant="destructive">
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete Campaign
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete this campaign?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently remove the campaign listing. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteGig} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
                       </div>
                     )}
                     {isAssignedAgent && !isBrandTeam && (
@@ -2824,13 +2925,14 @@ function GigDetailContent() {
               </CardContent>
             </Card>
 
-            {!isCompleted && (
+            {!isCompleted && !canManageGig && (
               <MarketplaceCoPilot
-                context={canManageGig ? 'details_brand' : (hasAccepted ? 'details_creator' : 'browse')}
+                context={hasAccepted ? 'details_creator' : 'browse'}
                 className="hidden lg:block"
               />
             )}
           </div>
+          ) : null}
         </div>
       </div>
 
