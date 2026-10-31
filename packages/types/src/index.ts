@@ -1058,6 +1058,9 @@ export interface GigSubmission {
   videoUrl: string;
   verzaScore: number;
   verzaFeedback: string;
+  hookScore?: number;
+  pacingScore?: number;
+  vibeScore?: number;
   status: 'pending_verza_score' | 'submitted' | 'approved' | 'rejected';
   createdAt: Timestamp;
   /** Populated when videoUrl is a YouTube link (via YouTube Data API). */

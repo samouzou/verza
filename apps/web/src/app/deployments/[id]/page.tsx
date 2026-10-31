@@ -24,6 +24,7 @@ import { runVerzaScore } from '@/ai/flows/gauntlet-flow';
 import { fetchYouTubeStatsForUrl } from '@/lib/submissions/youtube-stats';
 import { isYouTubeUrl } from '@/lib/youtube';
 import { SubmissionVideoPreview, submissionPreviewProps } from '@/components/marketplace/submission-video-preview';
+import { VerzaScoreBadge, VerzaScoreFeedback } from '@/components/marketplace/verza-score-feedback';
 import { SubmissionMetaAd } from '@/components/marketplace/submission-meta-ad';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -652,6 +653,9 @@ function GigDetailContent() {
       const updates: Partial<GigSubmission> = {
         verzaScore: result.score,
         verzaFeedback: result.feedback,
+        hookScore: result.hookScore,
+        pacingScore: result.pacingScore,
+        vibeScore: result.vibeScore,
         status: result.score >= threshold ? 'submitted' : 'rejected'
       };
 
@@ -1062,13 +1066,17 @@ function GigDetailContent() {
                               <div className="p-4 border rounded-lg bg-background space-y-4 shadow-sm">
                                 <div className="flex justify-between items-center">
                                   <h5 className="font-semibold text-sm">Verza Score Analysis</h5>
-                                  {submission.verzaScore > 0 && <Badge variant={submission.status === 'rejected' ? 'destructive' : 'default'}>{submission.verzaScore}%</Badge>}
+                                  <VerzaScoreBadge score={submission.verzaScore} failed={submission.status === 'rejected'} />
                                 </div>
-                                {submission.verzaFeedback && (
-                                  <div className="p-3 bg-muted/50 rounded border border-orange-500/20">
-                                    <p className="text-sm italic text-muted-foreground">"{submission.verzaFeedback}"</p>
-                                  </div>
-                                )}
+                                <VerzaScoreFeedback
+                                  score={submission.verzaScore}
+                                  feedback={submission.verzaFeedback}
+                                  hookScore={submission.hookScore}
+                                  pacingScore={submission.pacingScore}
+                                  vibeScore={submission.vibeScore}
+                                  threshold={gig.verzaScoreThreshold ?? 65}
+                                  failed={submission.status === 'rejected'}
+                                />
                                 {!isCompleted && (
                                   <Button className="w-full" onClick={() => handleRunVerzaScore(submission)} disabled={!!isRunningVerzaScore}>
                                     {scoreRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Flame className="mr-2 h-4 w-4 text-orange-500" />}

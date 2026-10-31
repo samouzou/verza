@@ -46,8 +46,9 @@ const shortFormPrompt = ai.definePrompt({
   
   The overall **score** is a weighted average but should prioritize the Hook (50%).
   
-  Provide ruthlessly honest feedback. Use lowercase and slang where appropriate, but keep it professional enough for a brand to see. 
-  Example feedback: "the hook was mid. lighting is flat. you took 4 seconds to say hi, i'm already scrolled. fix the opening."
+  Provide ruthlessly honest feedback in 2-4 sentences. Always cover hook, pacing, and vibe, and end with one concrete fix.
+  Never leave feedback empty. Use lowercase and slang where appropriate, but keep it professional enough for a brand to see.
+  Example feedback: "the hook was mid. lighting is flat. you took 4 seconds to say hi, i'm already scrolled. start on the product in frame one."
   
   {{#unless isYouTube}}
   Video: {{media url=videoUrl}}
@@ -72,9 +73,10 @@ const longFormPrompt = ai.definePrompt({
 
   The overall **score** is a weighted average (0-100) focused on storytelling and retention potential.
 
-  Provide ruthlessly honest feedback but adapted for YouTube. If it's a 10-minute video, don't penalize it for not jumping to the point in 1 second, but do penalize it if the first 30 seconds are boring. Use professional but direct language.
+  Provide ruthlessly honest feedback in 2-4 sentences covering hook/integration, pacing, and vibe, plus one concrete fix.
+  Never leave feedback empty. If it's a 10-minute video, don't penalize it for not jumping to the point in 1 second, but do penalize it if the first 30 seconds are boring.
   
-  Example feedback: "the intro storytelling was fantastic, but the sponsor integration at 3:00 felt forced and read like a script. pacing lags in the middle. good B-roll."
+  Example feedback: "the intro storytelling was fantastic, but the sponsor integration at 3:00 felt forced and read like a script. pacing lags in the middle. cut the scripted read and talk to camera."
   `,
 });
 
@@ -85,9 +87,23 @@ const verzaScoreFlow = ai.defineFlow(
     outputSchema: VerzaScoreOutputSchema,
   },
   async (input) => {
-    const { output } = input.isYouTube 
+    const { output } = input.isYouTube
       ? await longFormPrompt(input)
       : await shortFormPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("The score came back empty. Retry in a moment.");
+    }
+    const clamp = (n: unknown) => {
+      const x = Number(n);
+      if (!Number.isFinite(x)) return 0;
+      return Math.max(0, Math.min(100, Math.round(x)));
+    };
+    const score = clamp(output.score);
+    const hookScore = clamp(output.hookScore);
+    const pacingScore = clamp(output.pacingScore);
+    const vibeScore = clamp(output.vibeScore);
+    const feedback = String(output.feedback || "").trim() ||
+      `hook ${hookScore}/100. pacing ${pacingScore}/100. vibe ${vibeScore}/100. overall ${score}/100 — tighten the first 3 seconds and cut dead frames.`;
+    return {score, feedback, hookScore, pacingScore, vibeScore};
   }
 );
