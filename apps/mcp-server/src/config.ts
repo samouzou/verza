@@ -35,7 +35,7 @@ export function loadConfig() {
   if (transport === "stdio" && !mcpApiKey && !uid && !userEmail) {
     throw new Error(
       "Set VERZA_MCP_API_KEY (recommended) or VERZA_UID / VERZA_USER_EMAIL. " +
-        "Create a key while signed into Verza (Optic → Integrations)."
+        "Create a key while signed into Verza (Optic → Setup)."
     );
   }
 

@@ -21,6 +21,8 @@ type Props = {
   smsPhone: string | null;
   /** Public /sms-opt-in page: expanded integrations UI, no OAuth / save. */
   preview?: boolean;
+  /** Skip the collapsible chrome (Optic discovery Setup pane). */
+  embedded?: boolean;
 };
 
 function integrationsNeedSetup(
@@ -68,8 +70,29 @@ function IntegrationSummary({
   );
 }
 
+function IntegrationsCards(props: Props) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <GmailConnectCard
+          connected={props.gmailConnected}
+          email={props.gmailEmail}
+          canRead={props.gmailCanRead}
+          disabled={props.preview}
+        />
+        <OpticSmsCard
+          enabled={props.smsEnabled}
+          phone={props.smsPhone}
+          preview={props.preview}
+        />
+      </div>
+      <McpApiKeysCard preview={props.preview} />
+    </div>
+  );
+}
+
 export function OpticIntegrationsSection(props: Props) {
-  const { preview = false } = props;
+  const { preview = false, embedded = false } = props;
   const needsSetup = useMemo(
     () =>
       integrationsNeedSetup(
@@ -88,6 +111,10 @@ export function OpticIntegrationsSection(props: Props) {
   }, [needsSetup, preview]);
 
   const isOpen = preview ? true : open;
+
+  if (embedded) {
+    return <IntegrationsCards {...props} />;
+  }
 
   return (
     <Collapsible open={isOpen} onOpenChange={preview ? () => {} : setOpen}>
@@ -110,21 +137,8 @@ export function OpticIntegrationsSection(props: Props) {
           <ChevronDown className="chevron h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="space-y-4 border-t p-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <GmailConnectCard
-                connected={props.gmailConnected}
-                email={props.gmailEmail}
-                canRead={props.gmailCanRead}
-                disabled={preview}
-              />
-              <OpticSmsCard
-                enabled={props.smsEnabled}
-                phone={props.smsPhone}
-                preview={preview}
-              />
-            </div>
-            <McpApiKeysCard preview={preview} />
+          <div className="border-t p-4">
+            <IntegrationsCards {...props} />
           </div>
         </CollapsibleContent>
       </div>

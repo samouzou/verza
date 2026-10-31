@@ -42,9 +42,9 @@ export function SmsOptInFlowPreview() {
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground">
           <p className="font-medium">Live in-app consent flow (no login required)</p>
           <p className="mt-1 text-muted-foreground">
-            The <strong>Integrations → Text updates (optional)</strong> panel below is the same component
+            The <strong>Setup → Text updates (optional)</strong> cards below are the same component
             signed-in users see on{" "}
-            <Link href="/optic" className="font-medium text-primary underline-offset-2 hover:underline">
+            <Link href="/optic?section=setup" className="font-medium text-primary underline-offset-2 hover:underline">
               Verza Optic
             </Link>
             . You can enter a number, check the agreement box, and click <strong>Save text settings</strong> to
@@ -56,12 +56,13 @@ export function SmsOptInFlowPreview() {
           <div>
             <h2 className="text-lg font-semibold">Verza Optic</h2>
             <p className="text-sm text-muted-foreground">
-              Run creator discovery batches. Optional text alerts appear under Integrations when you expand
-              the panel — same placement as in the product.
+              Run creator discovery batches. Optional text alerts appear under Setup on Optic discovery —
+              same placement as in the product.
             </p>
           </div>
           <OpticIntegrationsSection
             preview
+            embedded
             gmailConnected={false}
             gmailEmail={null}
             smsEnabled={false}
@@ -94,7 +95,7 @@ export function SmsOptInFlowPreview() {
                   .
                 </li>
                 <li>
-                  Open <strong>Optic</strong> and expand <strong>Integrations</strong>.
+                  Open <strong>Optic</strong> discovery and choose <strong>Setup</strong>.
                 </li>
                 <li>
                   Under <strong>Text updates (optional)</strong>, enter your mobile number (for example +1

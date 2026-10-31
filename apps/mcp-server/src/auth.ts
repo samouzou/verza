@@ -137,7 +137,7 @@ export async function resolveActingActor(
   }
 
   throw new Error(
-    "No Verza identity. Create an MCP API key in Optic → Integrations (recommended), " +
+    "No Verza identity. Create an MCP API key in Optic → Setup (recommended), " +
       "set VERZA_MCP_API_KEY, or set VERZA_UID / VERZA_USER_EMAIL for local use."
   );
 }

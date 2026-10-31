@@ -152,7 +152,7 @@ async function handleMcpHttpRequest(opts: {
       req,
       res,
       config,
-      "Missing Authorization. Create an MCP API key in Optic → Integrations (Cursor/Codex), or sign in via Claude/ChatGPT connector OAuth."
+      "Missing Authorization. Create an MCP API key in Optic → Setup (Cursor/Codex), or sign in via Claude/ChatGPT connector OAuth."
     );
     return;
   }

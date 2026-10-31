@@ -6,8 +6,12 @@ import { httpsCallable } from "firebase/functions";
 import {
   AlertTriangle,
   Bell,
+  Chrome,
+  History,
   Loader2,
+  Settings2,
   Sparkles,
+  type LucideIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -55,7 +59,9 @@ import {
   OPTIC_MAX_BATCH_SIZE,
   type OpticAudienceTier,
 } from "@/lib/optic/constants";
+import { OPTIC_EXTENSION_INSTALL_PATH } from "@/lib/optic/extension-install";
 import { startOpticExtensionJob } from "@/lib/optic/extension-bridge";
+import { cn } from "@/lib/utils";
 import {
   firstOpticPlatformFromCampaign,
   isOpticBrowserPlatform,
@@ -67,6 +73,29 @@ import {
   OPTIC_ACTIVE_JOB_STORAGE_KEY,
 } from "@/lib/optic/types";
 import type { Timestamp } from "firebase/firestore";
+
+type DiscoverySection = "run" | "missions" | "setup";
+
+const DISCOVERY_SECTIONS: { id: DiscoverySection; label: string; icon: LucideIcon }[] = [
+  { id: "run", label: "Run", icon: Sparkles },
+  { id: "missions", label: "Missions", icon: History },
+  { id: "setup", label: "Setup", icon: Settings2 },
+];
+
+function isDiscoverySection(value: string | null): value is DiscoverySection {
+  return value === "run" || value === "missions" || value === "setup";
+}
+
+function replaceDiscoveryQuery(patch: Record<string, string | null>) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  for (const [key, value] of Object.entries(patch)) {
+    if (!value) params.delete(key);
+    else params.set(key, value);
+  }
+  const qs = params.toString();
+  window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+}
 
 function tsToDate(ts: Timestamp | undefined | null): Date | null {
   if (!ts || typeof ts.toDate !== "function") return null;
@@ -107,6 +136,18 @@ export default function OpticDiscoveryPage() {
     if (typeof window === "undefined") return null;
     return sessionStorage.getItem(OPTIC_ACTIVE_JOB_STORAGE_KEY);
   });
+  const [section, setSection] = useState<DiscoverySection>("run");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requested = new URLSearchParams(window.location.search).get("section");
+    if (isDiscoverySection(requested)) setSection(requested);
+  }, []);
+
+  const selectSection = (next: DiscoverySection) => {
+    setSection(next);
+    replaceDiscoveryQuery({ section: next === "run" ? null : next });
+  };
 
   const opticBilling = useOpticCredits(agencyId);
   const {
@@ -330,8 +371,244 @@ export default function OpticDiscoveryPage() {
     );
   }
 
+  const showTeamDiscovery = canRun && !!agencyId;
+
+  const missionWatch = !activeJobId ? (
+    <p className="text-sm text-muted-foreground">
+      Select a mission, or start a new one from Run.
+    </p>
+  ) : (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-mono text-xs">{activeJobId}</span>
+        {jobStatusBadge}
+        {typeof jobRow?.processedCount === "number" && (
+          <span className="text-muted-foreground">· {jobRow.processedCount} saved</span>
+        )}
+      </div>
+      {jobRow?.createdAt && (
+        <p className="text-xs text-muted-foreground">
+          Started{" "}
+          {formatDistanceToNow(tsToDate(jobRow.createdAt) ?? new Date(), {
+            addSuffix: true,
+          })}
+        </p>
+      )}
+      {listenError && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-xs">{listenError}</AlertDescription>
+        </Alert>
+      )}
+      {jobRow?.status === "completed" && (
+        <CompletedMissionActions
+          continuing={continuing}
+          canContinue={canAffordBatch && !creditsLoading}
+          onContinue={() => void continueNextBatch()}
+          onVault={goToVault}
+        />
+      )}
+      <OpticExtensionProgressCard job={jobRow} />
+      <DiscoveryTimeline job={jobRow} />
+    </div>
+  );
+
+  const runForm = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="h-4 w-4" />
+          New mission
+        </CardTitle>
+        <CardDescription>
+          Drafts use your brand guide and campaign pay when you pick a campaign below.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Platform</Label>
+          <Select value={platform} onValueChange={setPlatform}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OPTIC_PLATFORMS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            YouTube, TikTok, Twitch, and Facebook run in our scout. Instagram, LinkedIn,
+            and X can use your Chrome session for a fuller scrape.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="optic-objectives">Campaign objectives</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-2 text-xs"
+              disabled={!selectedCampaign?.description}
+              onClick={fillFromCampaign}
+            >
+              Use campaign brief
+            </Button>
+          </div>
+          <Textarea
+            id="optic-objectives"
+            placeholder="Who you want to reach and what the partnership is about…"
+            value={objectives}
+            onChange={(e) => setObjectives(e.target.value)}
+            rows={6}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Outreach campaign (pay + scope in draft)</Label>
+          <Select
+            value={campaignId || "__pool__"}
+            onValueChange={(v) => setCampaignId(v === "__pool__" ? "" : v)}
+            disabled={campaignsLoading || !agencyId}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All active campaigns" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__pool__">Auto — pool all active campaigns</SelectItem>
+              {campaigns.map((g) => {
+                const rate =
+                  g.ratePerCreator > 0
+                    ? `$${g.ratePerCreator.toLocaleString()} · `
+                    : "";
+                const plat = g.platforms.slice(0, 2).join(", ");
+                return (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.status === "open" ? "Open" : "Live"}: {(g.title || "Campaign").slice(0, 48)}
+                    {g.title && g.title.length > 48 ? "…" : ""} · {rate}
+                    {plat}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="optic-max">Creators per batch</Label>
+          <Input
+            id="optic-max"
+            type="number"
+            min={1}
+            max={OPTIC_MAX_BATCH_SIZE}
+            value={maxProfiles}
+            onChange={(e) =>
+              setMaxProfiles(
+                Math.min(
+                  OPTIC_MAX_BATCH_SIZE,
+                  Math.max(1, Number.parseInt(e.target.value || String(OPTIC_DEFAULT_BATCH_SIZE), 10))
+                )
+              )
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            Up to {OPTIC_MAX_BATCH_SIZE} per batch when you search Instagram, LinkedIn, or X
+            from your own browser. Other platforms review up to 25 at a time. To build a bigger list, run
+            another batch with <strong>Continue</strong>, or reply <strong>CONTINUE</strong>{" "}
+            to the text we send you.
+          </p>
+        </div>
+
+        <OpticBrowserExtensionCard
+          platform={platform}
+          useExtension={useBrowserExtension}
+          onUseExtensionChange={setUseBrowserExtension}
+        />
+
+        <div className="space-y-2">
+          <Label htmlFor="optic-audience">Audience size</Label>
+          <Select
+            value={audienceTier}
+            onValueChange={(v) => setAudienceTier(v as OpticAudienceTier)}
+          >
+            <SelectTrigger id="optic-audience">
+              <SelectValue placeholder="Any size (100+)" />
+            </SelectTrigger>
+            <SelectContent>
+              {OPTIC_AUDIENCE_TIER_SLUGS.map((slug) => (
+                <SelectItem key={slug} value={slug}>
+                  {OPTIC_AUDIENCE_TIERS[slug].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {OPTIC_AUDIENCE_TIERS[audienceTier].hint}. Anyone outside this range is passed
+            over before they cost you a credit, and we always skip inactive accounts.
+            {(platform === "linkedin" || platform === "twitter") &&
+              " Public search is thin without a signed-in session — use the browser add-on when you can."}
+          </p>
+        </div>
+
+        {inFlightCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {inFlightCount} mission{inFlightCount === 1 ? "" : "s"} in progress — watch the log
+            on the right, or open Missions.
+          </p>
+        )}
+
+        {showNoCreditsCard && (
+          <OpticNoCreditsCard
+            batchSize={maxProfiles}
+            balance={opticCredits}
+            hasActiveSubscription={hasActiveSubscription}
+            plan={opticPlan}
+          />
+        )}
+        {canRun && agencyId && hasActiveSubscription && opticPlan === "pilot" && opticCredits === 0 && (
+          <OpticNoCreditsCard
+            balance={0}
+            hasActiveSubscription
+            plan="pilot"
+          />
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => void startDiscovery()}
+            disabled={
+              submitting ||
+              !canRun ||
+              !agencyId ||
+              !objectives.trim() ||
+              creditsLoading ||
+              !canAffordBatch
+            }
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Starting…
+              </>
+            ) : (
+              "Start mission"
+            )}
+          </Button>
+          {activeJobId && jobRow && isOpticJobInFlight(jobRow.status) && (
+            <Button type="button" variant="outline" onClick={() => void cancelJob()}>
+              Stop
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="container max-w-6xl space-y-6 py-8">
+    <div className="w-full space-y-6 py-8">
       <PageHeader
         title="Verza Optic"
         description="Run small batches of creator discovery. When a batch finishes, continue in the app or by text to keep your vault growing."
@@ -346,18 +623,6 @@ export default function OpticDiscoveryPage() {
           </div>
         }
       />
-
-      {brandStrip && <BrandContextStrip strip={brandStrip} payScopeHint={payScopeHint} />}
-
-      {canRun && agencyId && (
-        <OpticIntegrationsSection
-          gmailConnected={Boolean(user?.opticGmailConnected)}
-          gmailEmail={user?.opticGmailEmail ?? null}
-          gmailCanRead={user?.opticGmailCanRead === true}
-          smsEnabled={Boolean(user?.opticSmsEnabled)}
-          smsPhone={user?.opticSmsPhone ?? null}
-        />
-      )}
 
       {!agencyId && (
         <Alert>
@@ -379,278 +644,144 @@ export default function OpticDiscoveryPage() {
         </Alert>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4" />
-              New mission
-            </CardTitle>
-            <CardDescription>
-              Drafts use your brand guide and campaign pay when you pick a campaign below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Platform</Label>
-              <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {OPTIC_PLATFORMS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                YouTube, TikTok, Twitch, and Facebook run in our scout. Instagram, LinkedIn,
-                and X can use your Chrome session for a fuller scrape.
-              </p>
-            </div>
+      {showTeamDiscovery ? (
+        <div className="grid grid-cols-1 gap-8 items-start lg:grid-cols-[13rem_minmax(0,1fr)]">
+          <aside className="lg:sticky lg:top-20 space-y-4">
+            <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
+              {DISCOVERY_SECTIONS.map((item) => {
+                const Icon = item.icon;
+                const active = section === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => selectSection(item.id)}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                    {item.id === "missions" && inFlightCount > 0 ? (
+                      <span className="ml-auto text-[10px] font-semibold tabular-nums bg-muted text-muted-foreground rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center">
+                        {inFlightCount}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="optic-objectives">Campaign objectives</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto px-2 text-xs"
-                  disabled={!selectedCampaign?.description}
-                  onClick={fillFromCampaign}
-                >
-                  Use campaign brief
-                </Button>
-              </div>
-              <Textarea
-                id="optic-objectives"
-                placeholder="Who you want to reach and what the partnership is about…"
-                value={objectives}
-                onChange={(e) => setObjectives(e.target.value)}
-                rows={6}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Outreach campaign (pay + scope in draft)</Label>
-              <Select
-                value={campaignId || "__pool__"}
-                onValueChange={(v) => setCampaignId(v === "__pool__" ? "" : v)}
-                disabled={campaignsLoading || !agencyId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All active campaigns" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__pool__">Auto — pool all active campaigns</SelectItem>
-                  {campaigns.map((g) => {
-                    const rate =
-                      g.ratePerCreator > 0
-                        ? `$${g.ratePerCreator.toLocaleString()} · `
-                        : "";
-                    const plat = g.platforms.slice(0, 2).join(", ");
-                    return (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.status === "open" ? "Open" : "Live"}: {(g.title || "Campaign").slice(0, 48)}
-                        {g.title && g.title.length > 48 ? "…" : ""} · {rate}
-                        {plat}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="optic-max">Creators per batch</Label>
-              <Input
-                id="optic-max"
-                type="number"
-                min={1}
-                max={OPTIC_MAX_BATCH_SIZE}
-                value={maxProfiles}
-                onChange={(e) =>
-                  setMaxProfiles(
-                    Math.min(
-                      OPTIC_MAX_BATCH_SIZE,
-                      Math.max(1, Number.parseInt(e.target.value || String(OPTIC_DEFAULT_BATCH_SIZE), 10))
-                    )
-                  )
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Up to {OPTIC_MAX_BATCH_SIZE} per batch when you search Instagram, LinkedIn, or X
-                from your own browser. Other platforms review up to 25 at a time. To build a bigger list, run
-                another batch with <strong>Continue</strong>, or reply <strong>CONTINUE</strong>{" "}
-                to the text we send you.
-              </p>
-            </div>
-
-            <OpticBrowserExtensionCard
-              platform={platform}
-              useExtension={useBrowserExtension}
-              onUseExtensionChange={setUseBrowserExtension}
-            />
-
-            <div className="space-y-2">
-                <Label htmlFor="optic-audience">Audience size</Label>
-                <Select
-                  value={audienceTier}
-                  onValueChange={(v) => setAudienceTier(v as OpticAudienceTier)}
-                >
-                  <SelectTrigger id="optic-audience">
-                    <SelectValue placeholder="Any size (100+)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {OPTIC_AUDIENCE_TIER_SLUGS.map((slug) => (
-                      <SelectItem key={slug} value={slug}>
-                        {OPTIC_AUDIENCE_TIERS[slug].label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {OPTIC_AUDIENCE_TIERS[audienceTier].hint}. Anyone outside this range is passed
-                  over before they cost you a credit, and we always skip inactive accounts.
-                  {(platform === "linkedin" || platform === "twitter") &&
-                    " Public search is thin without a signed-in session — use the browser add-on when you can."}
-                </p>
-              </div>
-
-            {inFlightCount > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {inFlightCount} mission{inFlightCount === 1 ? "" : "s"} in progress — pick one on the
-                right to watch the log.
-              </p>
-            )}
-
-            {showNoCreditsCard && (
-              <OpticNoCreditsCard
-                batchSize={maxProfiles}
-                balance={opticCredits}
-                hasActiveSubscription={hasActiveSubscription}
-                plan={opticPlan}
-              />
-            )}
-            {canRun && agencyId && hasActiveSubscription && opticPlan === "pilot" && opticCredits === 0 && (
-              <OpticNoCreditsCard
-                balance={0}
-                hasActiveSubscription
-                plan="pilot"
-              />
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => void startDiscovery()}
-                disabled={
-                  submitting ||
-                  !canRun ||
-                  !agencyId ||
-                  !objectives.trim() ||
-                  creditsLoading ||
-                  !canAffordBatch
-                }
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Starting…
-                  </>
-                ) : (
-                  "Start mission"
-                )}
-              </Button>
-              {activeJobId && jobRow && isOpticJobInFlight(jobRow.status) && (
-                <Button type="button" variant="outline" onClick={() => void cancelJob()}>
-                  Stop
-                </Button>
-              )}
-            </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-muted-foreground"
-              onClick={requestNotificationPermission}
-            >
-              <Bell className="mr-2 h-4 w-4" />
-              Enable browser alerts when missions finish
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Missions</CardTitle>
-            <CardDescription>
-              Recent discovery runs for your brand — select one to see live progress. Leads land in{" "}
-              <Link href="/optic/vault" className="text-primary underline">
-                Optic vault
-              </Link>
-              .
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {jobsError && (
-              <Alert variant="destructive">
-                <AlertDescription className="text-xs">{jobsError}</AlertDescription>
-              </Alert>
-            )}
-            <MissionsList
-              jobs={jobs}
-              loading={jobsLoading && !!agencyId}
-              selectedId={activeJobId}
-              onSelect={selectJob}
-            />
-
-            {!activeJobId ? (
-              <p className="text-sm text-muted-foreground border-t pt-4">
-                Select a mission above, or start a new one on the left.
-              </p>
-            ) : (
-              <div className="space-y-4 border-t pt-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-mono text-xs">{activeJobId}</span>
-                  {jobStatusBadge}
-                  {typeof jobRow?.processedCount === "number" && (
-                    <span className="text-muted-foreground">
-                      · {jobRow.processedCount} saved
-                    </span>
-                  )}
+          <div className="min-w-0 space-y-6">
+            {section === "run" ? (
+              <>
+                {brandStrip ? (
+                  <BrandContextStrip strip={brandStrip} payScopeHint={payScopeHint} />
+                ) : null}
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
+                  {runForm}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Live log</CardTitle>
+                      <CardDescription>
+                        Watch the selected mission. Leads land in{" "}
+                        <Link href="/optic/vault" className="text-primary underline">
+                          Optic vault
+                        </Link>
+                        .
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">{missionWatch}</CardContent>
+                  </Card>
                 </div>
-                {jobRow?.createdAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Started{" "}
-                    {formatDistanceToNow(tsToDate(jobRow.createdAt) ?? new Date(), {
-                      addSuffix: true,
-                    })}
-                  </p>
-                )}
-                {listenError && (
-                  <Alert variant="destructive">
-                    <AlertDescription className="text-xs">{listenError}</AlertDescription>
-                  </Alert>
-                )}
-                {jobRow?.status === "completed" && (
-                  <CompletedMissionActions
-                    continuing={continuing}
-                    canContinue={canAffordBatch && !creditsLoading}
-                    onContinue={() => void continueNextBatch()}
-                    onVault={goToVault}
+              </>
+            ) : null}
+
+            {section === "missions" ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Missions</CardTitle>
+                  <CardDescription>
+                    Recent discovery runs for your brand. Select one to see progress.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {jobsError && (
+                    <Alert variant="destructive">
+                      <AlertDescription className="text-xs">{jobsError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <MissionsList
+                    jobs={jobs}
+                    loading={jobsLoading && !!agencyId}
+                    selectedId={activeJobId}
+                    onSelect={selectJob}
+                    listClassName="max-h-[420px]"
                   />
-                )}
-                <OpticExtensionProgressCard job={jobRow} />
-                <DiscoveryTimeline job={jobRow} />
+                  <div className="border-t pt-4">{missionWatch}</div>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {section === "setup" ? (
+              <div className="space-y-4">
+                <OpticIntegrationsSection
+                  embedded
+                  gmailConnected={Boolean(user?.opticGmailConnected)}
+                  gmailEmail={user?.opticGmailEmail ?? null}
+                  gmailCanRead={user?.opticGmailCanRead === true}
+                  smsEnabled={Boolean(user?.opticSmsEnabled)}
+                  smsPhone={user?.opticSmsPhone ?? null}
+                />
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Chrome className="h-4 w-4" />
+                      Chrome add-on
+                    </CardTitle>
+                    <CardDescription>
+                      Search Instagram, LinkedIn, and X from your own signed-in browser.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={OPTIC_EXTENSION_INSTALL_PATH}>Set up Optic Scout</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Bell className="h-4 w-4" />
+                      Browser alerts
+                    </CardTitle>
+                    <CardDescription>
+                      Get a notification in this browser when a mission finishes.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={requestNotificationPermission}
+                    >
+                      Enable alerts
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        runForm
+      )}
     </div>
   );
 }

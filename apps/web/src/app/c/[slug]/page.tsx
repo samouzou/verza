@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, CircleDollarSign, Clapperboard, Lock, Megap
 import type { PublicCampaign } from '@verza/types';
 import { PublicShell } from '@/components/public-campaigns/public-shell';
 import { PublicApplyButton } from '@/components/public-campaigns/apply-button';
+import { PublicShareBar } from '@/components/public-campaigns/share-bar';
 import { BrandMark } from '@/components/public-campaigns/campaign-card';
 import {
   campaignIdFromSlug,
@@ -135,6 +136,12 @@ export default async function PublicCampaignPage({ params }: PageProps) {
             </div>
           </div>
 
+          <PublicShareBar
+            className="mt-5"
+            url={publicCampaignUrl(campaign)}
+            title={`${campaign.title} · ${campaign.brandName} creator campaign on Verza`}
+          />
+
           <div className="mt-5 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-muted px-2.5 py-1">{campaignTypeLabel(campaign.campaignType)}</span>
             {campaign.platforms.map((p) => (
@@ -231,6 +238,11 @@ export default async function PublicCampaignPage({ params }: PageProps) {
             </div>
 
             <div className="mt-6">
+              <PublicShareBar
+                className="mb-4"
+                url={publicCampaignUrl(campaign)}
+                title={`${campaign.title} · ${campaign.brandName} creator campaign on Verza`}
+              />
               {canApply ? (
                 <>
                   <PublicApplyButton campaignId={campaign.id} label={isCause ? 'Claim this campaign' : 'Apply to this campaign'} className="w-full" />

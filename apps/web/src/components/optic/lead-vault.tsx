@@ -255,30 +255,6 @@ export function LeadVault({
       <CardContent className="space-y-4 p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-            <div className="space-y-2 min-w-[220px]">
-              <Label>Campaign scope</Label>
-              <Select
-                value={campaignFilter}
-                onValueChange={onCampaignFilterChange}
-                disabled={campaignsLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by campaign" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All leads</SelectItem>
-                  <SelectItem value="__pooled__">
-                    Pooled missions (no single campaign)
-                  </SelectItem>
-                  {campaigns.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {(g.title || "Campaign").slice(0, 56)}
-                      {g.title && g.title.length > 56 ? "…" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2 min-w-[180px]">
               <Label>Stage</Label>
               <Select value={stageFilter} onValueChange={setStageFilter}>

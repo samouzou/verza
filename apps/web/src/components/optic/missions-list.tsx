@@ -30,9 +30,10 @@ type Props = {
   loading?: boolean;
   selectedId: string | null;
   onSelect: (jobId: string) => void;
+  listClassName?: string;
 };
 
-export function MissionsList({ jobs, loading, selectedId, onSelect }: Props) {
+export function MissionsList({ jobs, loading, selectedId, onSelect, listClassName }: Props) {
   if (loading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -51,7 +52,7 @@ export function MissionsList({ jobs, loading, selectedId, onSelect }: Props) {
   }
 
   return (
-    <ul className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
+    <ul className={cn("max-h-[220px] space-y-2 overflow-y-auto pr-1", listClassName)}>
       {jobs.map((job) => {
         const created = tsToDate(job.createdAt);
         const inFlight = isOpticJobInFlight(job.status);
